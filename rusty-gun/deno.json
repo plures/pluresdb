@@ -1,0 +1,16 @@
+{
+  "tasks": {
+    "dev": "deno run -A --unstable-kv src/main.ts serve",
+    "test": "deno test -A --unstable-kv",
+    "fmt": "deno fmt",
+    "lint": "deno lint",
+    "check": "deno check src/main.ts",
+    "compile": "deno compile -A --unstable-kv --output rusty-gun src/main.ts"
+  },
+  "unstable": ["kv"],
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "useDefineForClassFields": true
+  }
+}
