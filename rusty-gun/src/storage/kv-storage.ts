@@ -9,13 +9,19 @@ export class KvStorage {
 
   async close(): Promise<void> {
     if (this.kv) {
-      try { this.kv.close(); } catch { /* ignore */ }
+      try {
+        this.kv.close();
+      } catch { /* ignore */ }
       this.kv = null;
     }
+    // Allow microtasks to flush for callers awaiting close()
+    await Promise.resolve();
   }
 
   private ensureKv(): Deno.Kv {
-    if (!this.kv) throw new Error("KvStorage is not opened. Call open() first.");
+    if (!this.kv) {
+      throw new Error("KvStorage is not opened. Call open() first.");
+    }
     return this.kv;
   }
 
@@ -23,7 +29,6 @@ export class KvStorage {
     const kv = this.ensureKv();
     const res = await kv.get<NodeRecord>(["node", id]);
     return res.value ?? null;
-    
   }
 
   async setNode(node: NodeRecord): Promise<void> {

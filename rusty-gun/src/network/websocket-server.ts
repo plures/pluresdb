@@ -1,3 +1,4 @@
+import { debugLog } from "../util/debug.ts";
 export interface MeshServer {
   url: string;
   broadcast: (obj: unknown, exclude?: WebSocket) => void;
@@ -14,6 +15,7 @@ export function startMeshServer(args: {
   }) => void;
 }): MeshServer {
   const sockets = new Set<WebSocket>();
+  // Debug logging is gated by env var in util/debug.ts
 
   const broadcast = (obj: unknown, exclude?: WebSocket) => {
     const data = JSON.stringify(obj);
@@ -28,21 +30,26 @@ export function startMeshServer(args: {
   };
 
   const server = Deno.serve({ port: args.port }, (req) => {
+    debugLog("ws:incoming request");
     const upgrade = Deno.upgradeWebSocket(req);
     const socket = upgrade.socket;
 
     socket.onopen = () => {
+      debugLog("ws:open");
       sockets.add(socket);
     };
 
     socket.onmessage = (event: MessageEvent<string>) => {
       try {
         const msg = JSON.parse(event.data);
+        debugLog("ws:message", { type: (msg as { type?: string }).type });
         args.onMessage({
           msg,
           source: socket,
           send: (obj: unknown) => {
-            try { socket.send(JSON.stringify(obj)); } catch { /* ignore */ }
+            try {
+              socket.send(JSON.stringify(obj));
+            } catch { /* ignore */ }
           },
           broadcast,
         });
@@ -62,9 +69,13 @@ export function startMeshServer(args: {
     url: `ws://localhost:${args.port}`,
     broadcast,
     close: () => {
-      try { server.shutdown(); } catch { /* ignore */ }
+      try {
+        server.shutdown();
+      } catch { /* ignore */ }
       for (const s of sockets) {
-        try { s.close(); } catch { /* ignore */ }
+        try {
+          s.close();
+        } catch { /* ignore */ }
       }
       sockets.clear();
     },
@@ -78,10 +89,16 @@ export function connectToPeer(url: string, handlers: {
 }): WebSocket {
   const socket = new WebSocket(url);
   if (handlers.onOpen) socket.onopen = () => handlers.onOpen?.(socket);
-  if (handlers.onMessage) socket.onmessage = (e) => {
-    try { handlers.onMessage?.(JSON.parse(e.data), socket); } catch { /* ignore */ }
-  };
+  if (handlers.onMessage) {
+    socket.onmessage = (e) => {
+      try {
+        handlers.onMessage?.(JSON.parse(e.data), socket);
+      } catch { /* ignore */ }
+    };
+  }
   if (handlers.onClose) socket.onclose = () => handlers.onClose?.(socket);
   socket.onerror = () => {/* ignore */};
   return socket;
 }
+
+ 

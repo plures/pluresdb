@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.1",
+    "chromadb": "^3.0.10",
+    "gun": "^0.2020.1241",
+    "neo4j-driver": "^5.28.1",
+    "sqlite3": "^5.1.7"
+  }
+}

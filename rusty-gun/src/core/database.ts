@@ -1,14 +1,27 @@
 import { KvStorage } from "../storage/kv-storage.ts";
-import type { NodeRecord, MeshMessage } from "../types/index.ts";
+import type { MeshMessage, NodeRecord } from "../types/index.ts";
 import { mergeNodes } from "./crdt.ts";
-import { connectToPeer, startMeshServer, type MeshServer } from "../network/websocket-server.ts";
+import {
+  connectToPeer,
+  type MeshServer,
+  startMeshServer,
+} from "../network/websocket-server.ts";
+import { debugLog } from "../util/debug.ts";
 
-export interface ServeOptions { port?: number }
-export interface DatabaseOptions { kvPath?: string; peerId?: string }
+export interface ServeOptions {
+  port?: number;
+}
+export interface DatabaseOptions {
+  kvPath?: string;
+  peerId?: string;
+}
 
 export class GunDB {
   private readonly storage: KvStorage;
-  private readonly listeners: Map<string, Set<(node: NodeRecord | null) => void>> = new Map();
+  private readonly listeners: Map<
+    string,
+    Set<(node: NodeRecord | null) => void>
+  > = new Map();
   private readonly peerId: string;
   private meshServer: MeshServer | null = null;
   private readonly peerSockets: Set<WebSocket> = new Set();
@@ -28,33 +41,50 @@ export class GunDB {
   // Basic CRUD
   async put(id: string, data: Record<string, unknown>): Promise<void> {
     if (this.closed) return;
+    debugLog("put()", { id, keys: Object.keys(data ?? {}) });
     const existing = await this.storage.getNode(id);
     const now = Date.now();
     const existingClock = existing?.vectorClock ?? {};
-    const newClock = { ...existingClock, [this.peerId]: (existingClock[this.peerId] ?? 0) + 1 };
+    const newClock = {
+      ...existingClock,
+      [this.peerId]: (existingClock[this.peerId] ?? 0) + 1,
+    };
 
     let vector: number[] | undefined = undefined;
-    if (Array.isArray((data as any).vector)) vector = (data as any).vector as number[];
-    else if (typeof (data as any).text === "string") vector = embedTextToVector((data as any).text);
-    else if (typeof (data as any).content === "string") vector = embedTextToVector((data as any).content);
-    else vector = existing?.vector ?? undefined;
+    const record = data as Record<string, unknown>;
+    const maybeVector = record.vector as unknown;
+    if (
+      Array.isArray(maybeVector) &&
+      maybeVector.every((v) => typeof v === "number" && Number.isFinite(v))
+    ) {
+      vector = maybeVector as number[];
+    } else if (typeof record.text === "string") {
+      vector = embedTextToVector(record.text);
+    } else if (typeof record.content === "string") {
+      vector = embedTextToVector(record.content);
+    } else vector = existing?.vector ?? undefined;
 
     const updated: NodeRecord = {
       id,
       data,
       vector,
-      type: typeof (data as any).type === "string" ? (data as any).type : (existing?.type ?? undefined),
+      type: typeof record.type === "string"
+        ? (record.type as string)
+        : (existing?.type ?? undefined),
       timestamp: now,
       vectorClock: newClock,
     };
 
     const merged = mergeNodes(existing, updated);
     await this.storage.setNode(merged);
+    debugLog("put() merged", { id, timestamp: merged.timestamp });
     this.emit(id, merged);
     this.broadcast({ type: "put", originId: this.peerId, node: merged });
   }
 
-  async get<T = Record<string, unknown>>(id: string): Promise<(T & { id: string }) | null> {
+  async get<T = Record<string, unknown>>(
+    id: string,
+  ): Promise<(T & { id: string }) | null> {
     const node = await this.storage.getNode(id);
     if (!node) return null;
     return { id: node.id, ...(node.data as T) };
@@ -62,6 +92,7 @@ export class GunDB {
 
   async delete(id: string): Promise<void> {
     if (this.closed) return;
+    debugLog("delete()", { id });
     await this.storage.deleteNode(id);
     this.emit(id, null);
     this.broadcast({ type: "delete", originId: this.peerId, id });
@@ -90,7 +121,10 @@ export class GunDB {
   }
 
   // Vector search
-  async vectorSearch(query: string | number[], limit: number): Promise<NodeRecord[]> {
+  async vectorSearch(
+    query: string | number[],
+    limit: number,
+  ): Promise<NodeRecord[]> {
     const queryVector = Array.isArray(query) ? query : embedTextToVector(query);
     const scored: Array<{ score: number; node: NodeRecord }> = [];
     for await (const node of this.storage.listNodes()) {
@@ -103,13 +137,18 @@ export class GunDB {
   }
 
   // Mesh networking
-  async serve(options?: ServeOptions): Promise<void> {
+  serve(options?: ServeOptions): void {
     const port = options?.port ?? 8080;
     if (!this.meshServer) {
+      debugLog("serve() starting", { port });
       this.meshServer = startMeshServer({
         port,
         onMessage: ({ msg, source, send, broadcast }) => {
-          this.handleInboundMessage(msg as MeshMessage, { send, broadcast, source });
+          this.handleInboundMessage(msg as MeshMessage, {
+            send,
+            broadcast,
+            source,
+          });
         },
       });
     }
@@ -119,13 +158,22 @@ export class GunDB {
     const socket = connectToPeer(url, {
       onOpen: (s) => {
         // Request a snapshot
-        try { s.send(JSON.stringify({ type: "sync_request", originId: this.peerId })); } catch { /* ignore */ }
+        try {
+          s.send(
+            JSON.stringify({ type: "sync_request", originId: this.peerId }),
+          );
+        } catch { /* ignore */ }
       },
-      onMessage: (msg) => this.handleInboundMessage(msg as MeshMessage, {
-        send: (obj) => { try { socket.send(JSON.stringify(obj)); } catch { /* ignore */ } },
-        broadcast: (obj) => {/* do not rebroadcast from clients */},
-        source: socket,
-      }),
+      onMessage: (msg) =>
+        this.handleInboundMessage(msg as MeshMessage, {
+          send: (obj) => {
+            try {
+              socket.send(JSON.stringify(obj));
+            } catch { /* ignore */ }
+          },
+          broadcast: (_obj) => {/* do not rebroadcast from clients */},
+          source: socket,
+        }),
     });
     this.peerSockets.add(socket);
     socket.onclose = () => this.peerSockets.delete(socket);
@@ -134,39 +182,60 @@ export class GunDB {
   async close(): Promise<void> {
     this.closed = true;
     for (const s of this.peerSockets) {
-      try { s.onmessage = null as any; s.close(); } catch { /* ignore */ }
+      try {
+        s.onmessage = null;
+        s.close();
+      } catch { /* ignore */ }
     }
     this.peerSockets.clear();
     if (this.meshServer) {
-      try { this.meshServer.close(); } catch { /* ignore */ }
+      try {
+        this.meshServer.close();
+      } catch { /* ignore */ }
       this.meshServer = null;
     }
     await this.storage.close();
   }
 
-  private async handleInboundMessage(msg: MeshMessage, ctx: { send: (obj: unknown) => void; broadcast: (obj: unknown, exclude?: WebSocket) => void; source: WebSocket }): Promise<void> {
+  private async handleInboundMessage(
+    msg: MeshMessage,
+    ctx: {
+      send: (obj: unknown) => void;
+      broadcast: (obj: unknown, exclude?: WebSocket) => void;
+      source: WebSocket;
+    },
+  ): Promise<void> {
     if (this.closed) return;
     if (!msg || typeof msg !== "object") return;
-    if ((msg as any).originId === this.peerId) return; // ignore our own
+    const originId = (msg as Partial<{ originId: string }>).originId;
+    debugLog("inbound", { type: (msg as { type: string }).type, originId });
+    if (originId === this.peerId) return; // ignore our own
 
     switch (msg.type) {
       case "put": {
         const { node } = msg;
+        debugLog("apply put", { id: node.id });
         const existing = await this.storage.getNode(node.id);
         const merged = mergeNodes(existing, node);
         await this.storage.setNode(merged);
         this.emit(node.id, merged);
         // Rebroadcast to other peers if we're acting as server
-        try { ctx.broadcast(msg, ctx.source); } catch { /* ignore */ }
+        try {
+          ctx.broadcast(msg, ctx.source);
+        } catch { /* ignore */ }
         break;
       }
       case "delete": {
+        debugLog("apply delete", { id: msg.id });
         await this.storage.deleteNode(msg.id);
         this.emit(msg.id, null);
-        try { ctx.broadcast(msg, ctx.source); } catch { /* ignore */ }
+        try {
+          ctx.broadcast(msg, ctx.source);
+        } catch { /* ignore */ }
         break;
       }
       case "sync_request": {
+        debugLog("sync_request sending snapshot");
         // send snapshot to requester
         for await (const node of this.storage.listNodes()) {
           ctx.send({ type: "put", originId: this.peerId, node });
@@ -178,11 +247,15 @@ export class GunDB {
 
   private broadcast(obj: unknown): void {
     if (this.meshServer) {
-      try { this.meshServer.broadcast(obj); } catch { /* ignore */ }
+      try {
+        this.meshServer.broadcast(obj);
+      } catch { /* ignore */ }
     }
     // Also forward to directly connected peers (client mode)
     for (const s of this.peerSockets) {
-      try { s.send(JSON.stringify(obj)); } catch { /* ignore */ }
+      try {
+        s.send(JSON.stringify(obj));
+      } catch { /* ignore */ }
     }
   }
 }
@@ -215,7 +288,9 @@ function cosineSimilarity(a: number[], b: number[]): number {
   for (let i = 0; i < a.length; i++) {
     const av = a[i] ?? 0;
     const bv = b[i] ?? 0;
-    dot += av * bv; na += av * av; nb += bv * bv;
+    dot += av * bv;
+    na += av * av;
+    nb += bv * bv;
   }
   const denom = Math.sqrt(na) * Math.sqrt(nb) || 1;
   return dot / denom;

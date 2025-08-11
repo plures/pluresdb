@@ -1,0 +1,20 @@
+#!/bin/sh
+# Knowledge Engine Merge Learning Hook
+# Learns from merged changes
+
+echo "🔄 Knowledge Engine: Learning from merged changes..."
+
+# Get list of changed files
+CHANGED_FILES=$(git diff --name-only HEAD~1..HEAD)
+
+# Learn from each changed file
+for FILE in $CHANGED_FILES; do
+  if echo "$FILE" | grep -qE '\.(ts|js|py|java|cs|go|rs|cpp|c|rb|php)$'; then
+    code --command knoEng.ai.analyzeCode --args "$FILE" 2>/dev/null || true
+  fi
+done
+
+# Update knowledge base
+code --command knoEng.ai.addInsight --args "merge completed" 2>/dev/null || true
+
+exit 0

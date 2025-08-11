@@ -1,7 +1,9 @@
 import { GunDB } from "./core/database.ts";
 
 function printUsage() {
-  console.log("Usage:\n  deno run -A src/main.ts serve [--port <port>] [ws://peer1 ws://peer2 ...]\n");
+  console.log(
+    "Usage:\n  deno run -A src/main.ts serve [--port <port>] [ws://peer1 ws://peer2 ...]\n",
+  );
 }
 
 if (import.meta.main) {
@@ -14,7 +16,9 @@ if (import.meta.main) {
         const n = Number(rest[pi + 1]);
         if (Number.isFinite(n)) port = n;
       }
-      const peers = rest.filter((v) => v.startsWith("ws://") || v.startsWith("wss://"));
+      const peers = rest.filter((v) =>
+        v.startsWith("ws://") || v.startsWith("wss://")
+      );
 
       const db = new GunDB();
       await db.ready();

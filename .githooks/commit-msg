@@ -1,0 +1,23 @@
+#!/bin/sh
+# Knowledge Engine Commit Message Learning Hook
+# Learns from commit message patterns
+
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat $COMMIT_MSG_FILE)
+
+# Learn from commit message pattern
+echo "$COMMIT_MSG" | code --command knoEng.ai.learnPattern --args "commit-message" 2>/dev/null || true
+
+# Check if it's a fix commit
+if echo "$COMMIT_MSG" | grep -qiE '^fix|bugfix|hotfix'; then
+  echo "🐛 Knowledge Engine: Recording bug fix pattern..."
+  code --command knoEng.ai.addInsight --args "bugfix" 2>/dev/null || true
+fi
+
+# Check if it's a feature commit
+if echo "$COMMIT_MSG" | grep -qiE '^feat|feature|add'; then
+  echo "✨ Knowledge Engine: Recording feature pattern..."
+  code --command knoEng.ai.addInsight --args "feature" 2>/dev/null || true
+fi
+
+exit 0

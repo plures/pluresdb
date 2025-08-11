@@ -9,17 +9,26 @@ export function mergeVectorClocks(a: VectorClock, b: VectorClock): VectorClock {
   return merged;
 }
 
-export function mergeNodes(local: NodeRecord | null, incoming: NodeRecord): NodeRecord {
+export function mergeNodes(
+  local: NodeRecord | null,
+  incoming: NodeRecord,
+): NodeRecord {
   if (!local) return incoming;
   if (local.id !== incoming.id) {
     throw new Error("mergeNodes called with mismatched ids");
   }
 
   if (incoming.timestamp > local.timestamp) {
-    return { ...incoming, vectorClock: mergeVectorClocks(local.vectorClock, incoming.vectorClock) };
+    return {
+      ...incoming,
+      vectorClock: mergeVectorClocks(local.vectorClock, incoming.vectorClock),
+    };
   }
   if (incoming.timestamp < local.timestamp) {
-    return { ...local, vectorClock: mergeVectorClocks(local.vectorClock, incoming.vectorClock) };
+    return {
+      ...local,
+      vectorClock: mergeVectorClocks(local.vectorClock, incoming.vectorClock),
+    };
   }
 
   // Equal timestamps: deterministic field-wise merge
