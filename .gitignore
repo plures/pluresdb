@@ -51,5 +51,6 @@ bin/
 
 # Node (not typically used with Deno, but safe to ignore if present)
 node_modules/
+rusty-gun/web/dist/
 
 

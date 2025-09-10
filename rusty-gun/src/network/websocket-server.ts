@@ -29,7 +29,7 @@ export function startMeshServer(args: {
     }
   };
 
-  const server = Deno.serve({ port: args.port }, (req) => {
+  const server = Deno.serve({ port: args.port, onListen: () => {} }, (req) => {
     debugLog("ws:incoming request");
     const upgrade = Deno.upgradeWebSocket(req);
     const socket = upgrade.socket;

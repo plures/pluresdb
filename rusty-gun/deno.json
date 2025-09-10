@@ -5,7 +5,9 @@
     "fmt": "deno fmt",
     "lint": "deno lint",
     "check": "deno check src/main.ts",
-    "compile": "deno compile -A --unstable-kv --output rusty-gun src/main.ts"
+    "compile": "deno compile -A --unstable-kv --output rusty-gun src/main.ts",
+    "web:build": "powershell -NoProfile -Command \"cd web/svelte; if (Test-Path node_modules) { npm run build } else { npm i --no-fund --no-audit; npm run build }\"",
+    "installer:win": "powershell -NoProfile -File installer/windows/build.ps1"
   },
   "unstable": ["kv"],
   "compilerOptions": {

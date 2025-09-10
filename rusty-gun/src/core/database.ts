@@ -7,6 +7,8 @@ import {
   startMeshServer,
 } from "../network/websocket-server.ts";
 import { debugLog } from "../util/debug.ts";
+import { RuleEngine, type Rule, type RuleContext } from "../logic/rules.ts";
+import { BruteForceVectorIndex } from "../vector/index.ts";
 
 export interface ServeOptions {
   port?: number;
@@ -22,10 +24,13 @@ export class GunDB {
     string,
     Set<(node: NodeRecord | null) => void>
   > = new Map();
+  private readonly anyListeners: Set<(event: { id: string; node: NodeRecord | null }) => void> = new Set();
   private readonly peerId: string;
   private meshServer: MeshServer | null = null;
   private readonly peerSockets: Set<WebSocket> = new Set();
   private closed = false;
+  private readonly rules = new RuleEngine();
+  private readonly vectorIndex = new BruteForceVectorIndex();
 
   constructor(options?: DatabaseOptions) {
     this.storage = new KvStorage();
@@ -36,10 +41,20 @@ export class GunDB {
 
   async ready(kvPath?: string): Promise<void> {
     await this.storage.open(kvPath);
+    // Rebuild in-memory vector index from storage
+    for await (const node of this.storage.listNodes()) {
+      if (node.vector && node.vector.length > 0) {
+        this.vectorIndex.upsert(node.id, node.vector);
+      }
+    }
   }
 
   // Basic CRUD
   async put(id: string, data: Record<string, unknown>): Promise<void> {
+    await this.applyPut(id, data, false);
+  }
+
+  private async applyPut(id: string, data: Record<string, unknown>, suppressRules: boolean): Promise<void> {
     if (this.closed) return;
     debugLog("put()", { id, keys: Object.keys(data ?? {}) });
     const existing = await this.storage.getNode(id);
@@ -64,6 +79,9 @@ export class GunDB {
       vector = embedTextToVector(record.content);
     } else vector = existing?.vector ?? undefined;
 
+    const newState: Record<string, number> = { ...(existing?.state ?? {}) };
+    for (const key of Object.keys(data ?? {})) newState[key] = now;
+
     const updated: NodeRecord = {
       id,
       data,
@@ -72,6 +90,7 @@ export class GunDB {
         ? (record.type as string)
         : (existing?.type ?? undefined),
       timestamp: now,
+      state: newState,
       vectorClock: newClock,
     };
 
@@ -79,6 +98,11 @@ export class GunDB {
     await this.storage.setNode(merged);
     debugLog("put() merged", { id, timestamp: merged.timestamp });
     this.emit(id, merged);
+    if (merged.vector && merged.vector.length > 0) this.vectorIndex.upsert(id, merged.vector);
+    else this.vectorIndex.remove(id);
+    if (!suppressRules) {
+      await this.evaluateRules(merged);
+    }
     this.broadcast({ type: "put", originId: this.peerId, node: merged });
   }
 
@@ -95,6 +119,7 @@ export class GunDB {
     debugLog("delete()", { id });
     await this.storage.deleteNode(id);
     this.emit(id, null);
+    this.vectorIndex.remove(id);
     this.broadcast({ type: "delete", originId: this.peerId, id });
   }
 
@@ -118,6 +143,9 @@ export class GunDB {
     for (const cb of set) {
       queueMicrotask(() => cb(node));
     }
+    for (const cb of this.anyListeners) {
+      queueMicrotask(() => cb({ id, node }));
+    }
   }
 
   // Vector search
@@ -126,6 +154,16 @@ export class GunDB {
     limit: number,
   ): Promise<NodeRecord[]> {
     const queryVector = Array.isArray(query) ? query : embedTextToVector(query);
+    const results = this.vectorIndex.search(queryVector, limit);
+    if (results.length > 0) {
+      const nodes: NodeRecord[] = [];
+      for (const r of results) {
+        const n = await this.storage.getNode(r.id);
+        if (n) nodes.push(n);
+      }
+      return nodes;
+    }
+    // Fallback: scan storage when index is empty
     const scored: Array<{ score: number; node: NodeRecord }> = [];
     for await (const node of this.storage.listNodes()) {
       if (!node.vector || node.vector.length === 0) continue;
@@ -134,6 +172,36 @@ export class GunDB {
     }
     scored.sort((a, b) => b.score - a.score);
     return scored.slice(0, limit).map((s) => s.node);
+  }
+
+  // Type system convenience
+  async instancesOf(typeName: string): Promise<NodeRecord[]> {
+    const results: NodeRecord[] = [];
+    for await (const node of this.storage.listNodes()) {
+      if (node.type === typeName) results.push(node);
+    }
+    return results;
+  }
+
+  async setType(id: string, typeName: string): Promise<void> {
+    const existing = await this.storage.getNode(id);
+    const data: Record<string, unknown> = existing ? existing.data : {};
+    data.type = typeName;
+    await this.put(id, data);
+  }
+
+  // Any-change subscription (internal use for API streaming)
+  onAny(callback: (event: { id: string; node: NodeRecord | null }) => void): void {
+    this.anyListeners.add(callback);
+  }
+  offAny(callback: (event: { id: string; node: NodeRecord | null }) => void): void {
+    this.anyListeners.delete(callback);
+  }
+
+  async *list(): AsyncIterable<NodeRecord> {
+    for await (const node of this.storage.listNodes()) {
+      yield node;
+    }
   }
 
   // Mesh networking
@@ -219,6 +287,9 @@ export class GunDB {
         const merged = mergeNodes(existing, node);
         await this.storage.setNode(merged);
         this.emit(node.id, merged);
+        if (merged.vector && merged.vector.length > 0) this.vectorIndex.upsert(node.id, merged.vector);
+        else this.vectorIndex.remove(node.id);
+        await this.evaluateRules(merged);
         // Rebroadcast to other peers if we're acting as server
         try {
           ctx.broadcast(msg, ctx.source);
@@ -257,6 +328,23 @@ export class GunDB {
         s.send(JSON.stringify(obj));
       } catch { /* ignore */ }
     }
+  }
+
+  // --- rules ---
+  addRule(rule: Rule): void {
+    this.rules.addRule(rule);
+  }
+  removeRule(name: string): void {
+    this.rules.removeRule(name);
+  }
+  private async evaluateRules(node: NodeRecord): Promise<void> {
+    const ctx: RuleContext = {
+      db: {
+        put: (id, data) => this.applyPut(id, data, true),
+        get: (id) => this.get(id),
+      },
+    };
+    await this.rules.evaluateNode(node, ctx);
   }
 }
 

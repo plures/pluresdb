@@ -41,6 +41,7 @@ item has concrete, testable criteria.
 - [x] `vectorSearch(query: string | number[], limit)` returns top-k by cosine
       similarity
   - Verified by tests
+  - [ ] Optional ANN index integration (future): swap out brute-force index with ANN
 
 ## CLI & Tasks
 
@@ -58,12 +59,13 @@ item has concrete, testable criteria.
 
 - [x] `deno task compile` produces a working `rusty-gun` binary
 - [x] Binary can `serve` and accept WebSocket connections
-- [ ] Basic CRUD via compiled binary verified (scripted)
+- [x] Basic CRUD via compiled binary verified (scripted)
 
 ## Type System (Stage 1)
 
 - [x] Nodes may optionally include `type` string field
 - [x] Basic conventions documented (e.g., `type: "Person"`)
+ - [x] Convenience helpers: `setType`, `instancesOf`
 
 ## Tests & Quality
 
@@ -75,5 +77,6 @@ item has concrete, testable criteria.
 - [ ] Advanced CRDT parity with HAM
 - [ ] ANN index for vector search
 - [ ] Rule engine (Prolog/Datalog integration)
+  - [x] Minimal rule engine scaffold and basic classification rule
 - [ ] Auth/Encryption (SEA-like)
 - [ ] Windows Winget/MSI and Nix packaging

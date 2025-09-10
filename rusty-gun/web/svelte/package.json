@@ -1,0 +1,22 @@
+{
+  "name": "rusty-gun-ui",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "svelte": "^4.2.18",
+    "vite": "^5.3.3",
+    "@sveltejs/vite-plugin-svelte": "^3.1.1"
+  }
+}
+
+
+
+
+
+

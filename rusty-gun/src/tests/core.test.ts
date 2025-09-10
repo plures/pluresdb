@@ -2,6 +2,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { GunDB } from "../core/database.ts";
 import { mergeNodes } from "../core/crdt.ts";
 import type { NodeRecord } from "../types/index.ts";
+import type { Rule } from "../logic/rules.ts";
 
 Deno.test("put and get returns stored data", async () => {
   const db = new GunDB();
@@ -176,7 +177,7 @@ Deno.test("CRDT merge: equal timestamps deterministic merge", () => {
   const t = Date.now();
   const local: NodeRecord = {
     id: "n1",
-    data: { a: 1, shared: 1 },
+    data: { a: 1, shared: 1, nested: { x: 1, y: 1 }, toDelete: 1 },
     vector: [0.1, 0.2],
     type: "TypeA",
     timestamp: t,
@@ -184,7 +185,7 @@ Deno.test("CRDT merge: equal timestamps deterministic merge", () => {
   };
   const incoming: NodeRecord = {
     id: "n1",
-    data: { b: 2, shared: 2 },
+    data: { b: 2, shared: 2, nested: { y: 2, z: 3 }, toDelete: null },
     // vector and type intentionally undefined to test fallback
     timestamp: t,
     vectorClock: { peerB: 3 },
@@ -193,7 +194,7 @@ Deno.test("CRDT merge: equal timestamps deterministic merge", () => {
   const merged = mergeNodes(local, incoming);
   assertEquals(merged.id, "n1");
   assertEquals(merged.timestamp, t);
-  assertEquals(merged.data, { a: 1, shared: 2, b: 2 });
+  assertEquals(merged.data, { a: 1, shared: 2, b: 2, nested: { x: 1, y: 2, z: 3 } });
   assertEquals(merged.type, "TypeA");
   assertEquals(merged.vector, [0.1, 0.2]);
   assertEquals(merged.vectorClock.peerA, 2);
@@ -243,6 +244,24 @@ Deno.test({ name: "off stops receiving events", sanitizeOps: false, sanitizeReso
     await db.put(id, { name: "Dave" });
     await new Promise((r) => setTimeout(r, 200));
     assertEquals(called, false);
+  } finally {
+    await db.close();
+  }
+});
+
+Deno.test("type system helpers: setType + instancesOf", async () => {
+  const db = new GunDB();
+  try {
+    const kvPath = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
+    await db.ready(kvPath);
+    await db.put("t:1", { name: "Alice" });
+    await db.setType("t:1", "Person");
+    await db.put("t:2", { name: "Acme" });
+    await db.setType("t:2", "Company");
+    const people = await db.instancesOf("Person");
+    if (people.length !== 1 || people[0].id !== "t:1") {
+      throw new Error("Expected exactly one Person: t:1");
+    }
   } finally {
     await db.close();
   }

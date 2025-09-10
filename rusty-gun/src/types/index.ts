@@ -8,6 +8,7 @@ export interface NodeRecord {
   vector?: number[];
   type?: string;
   timestamp: number;
+  state?: Record<string, number>;
   vectorClock: VectorClock;
 }
 
