@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { get } from 'svelte/store'
-  import { nodes, selectedId } from '../lib/stores'
+  import { selectedId, nodes } from '../lib/stores'
+  import VirtualList from './VirtualList.svelte'
   let filter = ''
   function select(id: string){ selectedId.set(id) }
   $: items = Object.values($nodes).filter(it => it.id.toLowerCase().includes(filter.toLowerCase())).sort((a,b)=>a.id.localeCompare(b.id))
@@ -14,20 +14,18 @@
 
 <h3>Nodes</h3>
 <input placeholder="Filter" bind:value={filter} />
-<ul>
-  {#each items as it}
-    <li class:selected={$selectedId===it.id} on:click={() => select(it.id)}>{it.id}</li>
-  {/each}
-  {#if items.length === 0}
-    <li class="muted">No nodes</li>
-  {/if}
-  </ul>
+<VirtualList {items} itemHeight={36} height={420}>
+  <svelte:fragment let:visible let:startIndex>
+    {#each visible as it, i}
+      <button class:selected={$selectedId===it.id} on:click={() => select(it.id)} style="display:block; width:100%; text-align:left; padding:.3rem .5rem;">
+        {it.id}
+      </button>
+    {/each}
+  </svelte:fragment>
+</VirtualList>
 <button on:click={createNode}>Create</button>
 
 <style>
-  ul { list-style: none; padding-left: 0; max-height: 60vh; overflow:auto }
-  li { padding: .25rem .5rem; cursor:pointer; border-radius: .25rem }
-  li.selected { background: var(--pico-primary-background); color: var(--pico-primary-inverse) }
-  .muted { color: var(--pico-muted-color) }
+  button.selected { background: var(--pico-primary-background); color: var(--pico-primary-inverse) }
 </style>
 

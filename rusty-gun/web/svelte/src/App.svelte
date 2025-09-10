@@ -5,12 +5,27 @@
   import NodeDetail from './components/NodeDetail.svelte'
   import SearchPanel from './components/SearchPanel.svelte'
   import SettingsPanel from './components/SettingsPanel.svelte'
+  import Toasts from './components/Toasts.svelte'
   let showSettings = false
+  let dark = false
 
   async function loadConfig(){
     const res = await fetch('/api/config')
     const cfg = await res.json()
     settings.set(cfg)
+    dark = (cfg as any).dark === true
+    applyTheme()
+  }
+  function applyTheme(){
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+  }
+  async function toggleTheme(){
+    dark = !dark
+    applyTheme()
+    const res = await fetch('/api/config')
+    const cfg: any = await res.json()
+    cfg.dark = dark
+    await fetch('/api/config', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(cfg) })
   }
 
   onMount(async () => {
@@ -40,6 +55,7 @@
     <ul>
       <li><a role="button" class:secondary={showSettings} on:click={() => showSettings=false}>Data</a></li>
       <li><a role="button" class:secondary={!showSettings} on:click={() => showSettings=true}>Settings</a></li>
+      <li><label><input type="checkbox" role="switch" bind:checked={dark} on:change={toggleTheme} /> Dark</label></li>
     </ul>
   </nav>
 
@@ -56,6 +72,8 @@
   {:else}
     <SettingsPanel />
   {/if}
+
+  <Toasts />
 </main>
 
 <style>

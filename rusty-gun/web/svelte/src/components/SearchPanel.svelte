@@ -13,15 +13,15 @@
 
 <h3>Vector search</h3>
 <input placeholder="Query" bind:value={q} on:input={debounced} />
-<ul>
+<div class="stack">
   {#each results as r}
-    <li on:click={() => pick(r.id)}>{r.id}</li>
+    <button on:click={() => pick(r.id)} class="ghost">{r.id}</button>
   {/each}
-</ul>
+</div>
 
 <style>
-  ul { list-style: none; padding-left: 0; }
-  li { padding: .25rem .5rem; cursor:pointer }
-  li:hover { text-decoration: underline }
+  .stack { display:flex; flex-direction:column; gap: .25rem }
+  .ghost { background: transparent; border: 1px solid var(--pico-muted-border-color) }
+  .ghost:hover { background: var(--pico-muted-border-color) }
 </style>
 
