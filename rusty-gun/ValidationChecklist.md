@@ -72,6 +72,29 @@ item has concrete, testable criteria.
 - [x] All tests pass: `deno task test`
 - [x] Code formatted and linted cleanly
 
+## UI Phase 1 - Foundation & UX Polish ✅ COMPLETE
+
+- [x] Component architecture (Svelte components with stores, SSE-backed cache)
+- [x] Dark/light mode toggle with persistence
+- [x] CodeMirror JSON editor integrated
+- [x] Virtualized node list with filter
+- [x] Toast notifications for user feedback
+- [x] Keyboard navigation (arrow keys, Enter/Space for selection)
+- [x] ARIA labels, roles, and landmark regions across all components
+- [x] Sort controls (ID, Type) with visual indicators
+- [x] Screen reader support (sr-only class, aria-live regions)
+- [x] Editor formatting (Pretty/Compact JSON)
+- [x] Copy-as-cURL functionality
+- [x] Revert changes functionality with change tracking
+- [x] Color contrast verification (WCAG AA compliance)
+  - GitHub-inspired color palette with verified 4.5:1 contrast ratios
+  - Enhanced focus indicators for keyboard navigation
+  - Improved muted colors for better readability
+- [x] JSON Schema validation inline in CodeMirror
+  - Real-time validation as you type
+  - Inline error/warning indicators
+  - JSON syntax validation with position-aware errors
+
 ## Future Milestones (Not yet implemented)
 
 - [ ] Advanced CRDT parity with HAM

@@ -45,32 +45,89 @@
 
 <svelte:head>
   <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@2.0.6/css/pico.min.css" />
+  <style>
+    {`
+    /* WCAG AA Compliant Color Overrides */
+    :root {
+      --pico-contrast: #0d1117;
+      --pico-muted-color: #57606a;
+      --pico-primary: #0969da;
+      --pico-primary-hover: #0550ae;
+      --success-color: #1a7f37;
+      --error-color: #cf222e;
+    }
+    [data-theme="dark"] {
+      --pico-contrast: #f6f8fa;
+      --pico-muted-color: #8b949e;
+      --pico-primary: #58a6ff;
+      --pico-primary-hover: #79c0ff;
+      --success-color: #3fb950;
+      --error-color: #f85149;
+    }
+    button { font-weight: 500; }
+    *:focus-visible {
+      outline: 2px solid var(--pico-primary);
+      outline-offset: 2px;
+    }
+    `}
+  </style>
 </svelte:head>
 
 <main class="container">
-  <nav>
+  <nav aria-label="Main navigation">
     <ul>
       <li><strong>Rusty Gun</strong></li>
     </ul>
-    <ul>
-      <li><button class:secondary={showSettings} on:click={() => showSettings=false}>Data</button></li>
-      <li><button class:secondary={!showSettings} on:click={() => showSettings=true}>Settings</button></li>
-      <li><label><input type="checkbox" role="switch" bind:checked={dark} on:change={toggleTheme} /> Dark</label></li>
+    <ul role="menubar" aria-label="View selection">
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={showSettings} 
+          on:click={() => showSettings=false}
+          aria-current={!showSettings ? 'page' : undefined}
+        >
+          Data
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={!showSettings} 
+          on:click={() => showSettings=true}
+          aria-current={showSettings ? 'page' : undefined}
+        >
+          Settings
+        </button>
+      </li>
+      <li role="none">
+        <label>
+          <input 
+            type="checkbox" 
+            role="switch" 
+            bind:checked={dark} 
+            on:change={toggleTheme}
+            aria-label="Toggle dark mode"
+          /> 
+          Dark
+        </label>
+      </li>
     </ul>
   </nav>
 
   {#if !showSettings}
-    <div class="grid">
-      <section>
+    <div class="grid" role="main">
+      <section aria-label="Node list and filters">
         <NodeList />
       </section>
-      <section>
+      <section aria-label="Node details and search">
         <NodeDetail />
         <SearchPanel />
       </section>
     </div>
   {:else}
-    <SettingsPanel />
+    <div role="main">
+      <SettingsPanel />
+    </div>
   {/if}
 
   <Toasts />

@@ -5,12 +5,68 @@
   import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
   import { json } from '@codemirror/lang-json'
   import { oneDark } from '@codemirror/theme-one-dark'
+  import { linter, type Diagnostic } from '@codemirror/lint'
+  import Ajv from 'ajv'
 
   export let value = ''
   export let dark = false
+  export let schema: string = ''
   export let onChange: (v: string) => void = () => {}
   let container: HTMLDivElement
   let view: EditorView | null = null
+  const ajv = new Ajv({ allErrors: true, strict: false })
+
+  function createJsonSchemaLinter(schemaText: string) {
+    return linter((view) => {
+      const diagnostics: Diagnostic[] = []
+      const doc = view.state.doc.toString()
+      
+      // Basic JSON syntax check
+      let parsed: any
+      try {
+        parsed = JSON.parse(doc)
+      } catch (e: any) {
+        const match = e.message.match(/position (\d+)/)
+        const pos = match ? parseInt(match[1]) : 0
+        diagnostics.push({
+          from: pos,
+          to: Math.min(pos + 1, doc.length),
+          severity: 'error',
+          message: 'Invalid JSON: ' + e.message
+        })
+        return diagnostics
+      }
+
+      // Schema validation if schema provided
+      if (schemaText.trim()) {
+        let schemaObj: any
+        try {
+          schemaObj = JSON.parse(schemaText)
+        } catch {
+          // Skip schema validation if schema is invalid
+          return diagnostics
+        }
+
+        const validate = ajv.compile(schemaObj)
+        const valid = validate(parsed)
+        
+        if (!valid && validate.errors) {
+          for (const error of validate.errors) {
+            const path = error.instancePath || '(root)'
+            const message = `${path}: ${error.message}`
+            diagnostics.push({
+              from: 0,
+              to: doc.length,
+              severity: 'warning',
+              message: message
+            })
+          }
+        }
+      }
+
+      return diagnostics
+    })
+  }
 
   function buildExtensions() {
     const base = [
@@ -26,6 +82,12 @@
         }
       }),
     ]
+    
+    // Add linter if schema is provided
+    if (schema.trim()) {
+      base.push(createJsonSchemaLinter(schema))
+    }
+    
     if (dark) base.push(oneDark)
     return base
   }
@@ -38,8 +100,8 @@
     view = new EditorView({ state, parent: container })
   }
 
-  $: if (view) {
-    // Update theme if dark changes
+  $: if (view && (dark || schema)) {
+    // Update theme if dark changes or schema changes
     const ext = buildExtensions()
     view.dispatch({ effects: EditorState.reconfigure.of(ext) as any })
   }
