@@ -1,0 +1,565 @@
+---
+alwaysApply: true
+---
+###############################################################################
+# Software Development Feature Design Template  
+# Purpose: Comprehensive template for creating production-ready software feature
+#          designs with complete requirements analysis and technical specs
+# Author: Instructions-as-Code Pipeline
+# Version: 1.0.0
+###############################################################################
+
+machine SoftwareFeatureDesignLifecycle {
+
+  ###########################################################################
+  # STATE: Init - Setup Feature Design Document
+  ###########################################################################
+  state Init {
+    entry => [
+      action.createDesignDocument,
+      action.setupFeatureTemplate,
+      action.initializeStakeholders
+    ]
+    guard => guard.documentStructureValid
+    exit => action.commitDocumentFramework
+    on => { framework-ready -> KnowledgeEngineDetection }
+  }
+
+  ###########################################################################
+  # STATE: KnowledgeEngineDetection - Detect and Integrate Knowledge Engine
+  ###########################################################################
+  state KnowledgeEngineDetection {
+    entry => [
+      action.detectKnowledgeEngine,
+      action.detectMCPTools,
+      action.configureKnowledgeIntegration,
+      action.setupIntelligentFeatures
+    ]
+    guard => guard.knowledgeEngineAvailable
+    exit => action.commitKnowledgeIntegration
+    on => { 
+      knowledge-available -> KnowledgeEnhancedProcessing,
+      knowledge-unavailable -> FeatureOverview
+    }
+  }
+
+  ###########################################################################
+  # STATE: KnowledgeEnhancedProcessing - Enhanced Processing with Knowledge Engine
+  ###########################################################################
+  state KnowledgeEnhancedProcessing {
+    entry => [
+      action.leverageKnowledgeBase,
+      action.enhanceWithMCPTools,
+      action.generateIntelligentSuggestions,
+      action.adaptToContext
+    ]
+    guard => guard.knowledgeIntegrationComplete
+    exit => action.commitEnhancedProcessing
+    on => { enhanced-ready -> FeatureOverview }
+  }
+
+  ###########################################################################
+  # STATE: FeatureOverview - Define Core Feature Description
+  ###########################################################################
+  state FeatureOverview {
+    entry => [
+      action.writeElevatorPitch,
+      action.defineFeatureScope,
+      action.identifyKeyStakeholders
+    ]
+    guard => guard.overviewComplete
+    exit => action.commitOverview
+    on => { overview-ready -> ProblemStatement }
+  }
+
+  ###########################################################################
+  # STATE: ProblemStatement - Document Problem & Opportunity
+  ###########################################################################
+  state ProblemStatement {
+    entry => [
+      action.analyzePainPoints,
+      action.documentCurrentState,
+      action.identifyOpportunities,
+      action.validateProblemWithStakeholders
+    ]
+    guard => guard.problemWellDefined
+    exit => action.commitProblemStatement
+    on => { problem-defined -> GoalsAndMetrics }
+  }
+
+  ###########################################################################
+  # STATE: GoalsAndMetrics - Define Success Criteria (MoSCoW)
+  ###########################################################################
+  state GoalsAndMetrics {
+    entry => [
+      action.createMoSCoWMatrix,
+      action.defineSuccessMetrics,
+      action.setTargetKPIs,
+      action.establishMeasurementPlan
+    ]
+    guard => guard.goalsQuantifiable
+    exit => action.commitGoalsAndMetrics
+    on => { goals-set -> UserStories }
+  }
+
+  ###########################################################################
+  # STATE: UserStories - Define User Stories & Personas
+  ###########################################################################
+  state UserStories {
+    entry => [
+      action.identifyUserPersonas,
+      action.writeUserStories,
+      action.defineAcceptanceCriteria,
+      action.createGherkinScenarios
+    ]
+    guard => guard.storiesTestable
+    exit => action.commitUserStories
+    on => { stories-ready -> AssumptionsConstraints }
+  }
+
+  ###########################################################################
+  # STATE: AssumptionsConstraints - Document Assumptions & Constraints
+  ###########################################################################
+  state AssumptionsConstraints {
+    entry => [
+      action.listBusinessAssumptions,
+      action.identifyTechnicalConstraints,
+      action.documentDependencies,
+      action.assessRisks
+    ]
+    guard => guard.constraintsClear
+    exit => action.commitAssumptions
+    on => { constraints-ready -> TechnicalApproach }
+  }
+
+  ###########################################################################
+  # STATE: TechnicalApproach - Define Architecture & Implementation
+  ###########################################################################
+  state TechnicalApproach {
+    entry => [
+      action.designSystemArchitecture,
+      action.selectTechnologyStack,
+      action.defineDataModels,
+      action.planIntegrationPoints
+    ]
+    guard => guard.approachFeasible
+    exit => action.commitTechnicalApproach
+    on => { approach-ready -> SecurityConsiderations }
+  }
+
+  ###########################################################################
+  # STATE: SecurityConsiderations - Address Security Requirements
+  ###########################################################################
+  state SecurityConsiderations {
+    entry => [
+      action.conductThreatModeling,
+      action.defineSecurityControls,
+      action.planComplianceRequirements,
+      action.setupSecurityTesting
+    ]
+    guard => guard.securityRequirementsMet
+    exit => action.commitSecurityPlan
+    on => { security-ready -> TestingStrategy }
+  }
+
+  ###########################################################################
+  # STATE: TestingStrategy - Define Testing Approach
+  ###########################################################################
+  state TestingStrategy {
+    entry => [
+      action.planTestingLayers,
+      action.defineTestCases,
+      action.setupTestAutomation,
+      action.planPerformanceTesting
+    ]
+    guard => guard.testingComprehensive
+    exit => action.commitTestingStrategy
+    on => { testing-planned -> ReleaseStrategy }
+  }
+
+  ###########################################################################
+  # STATE: ReleaseStrategy - Plan Deployment & Release
+  ###########################################################################
+  state ReleaseStrategy {
+    entry => [
+      action.planDeploymentStrategy,
+      action.defineRolloutPhases,
+      action.setupMonitoringAndAlerting,
+      action.planRollbackStrategy
+    ]
+    guard => guard.releaseStrategyComplete
+    exit => action.commitReleaseStrategy
+    on => { release-planned -> DocumentReview }
+  }
+
+  ###########################################################################
+  # STATE: DocumentReview - Stakeholder Review & Approval
+  ###########################################################################
+  state DocumentReview {
+    entry => [
+      action.scheduleReviewMeetings,
+      action.collectStakeholderFeedback,
+      action.addressReviewComments,
+      action.obtainApprovals
+    ]
+    guard => guard.allApprovalsReceived
+    exit => action.commitFinalDocument
+    on => { approved -> Ready, needs-revision -> FeatureOverview }
+  }
+
+  ###########################################################################
+  # STATE: Ready - Feature Design Complete
+  ###########################################################################
+  state Ready {
+    entry => [
+      action.finalizeDocumentation,
+      action.communicateToTeam,
+      action.setupProjectTracking,
+      action.markReadyForDevelopment
+    ]
+    guard => guard.designComplete
+    exit => action.archiveDesignProcess
+    on => { implementation-started -> Ready }
+  }
+}
+
+###############################################################################
+# Template Structure & Best Practices
+###############################################################################
+
+# FEATURE OVERVIEW TEMPLATE
+"""
+## 1. Feature Overview
+*One-paragraph elevator pitch describing what the feature does and why it matters.*
+
+Example:
+The Advanced Search feature enables users to filter and find content using multiple 
+criteria simultaneously, improving content discovery efficiency by 75% and reducing 
+support tickets related to "can't find content" by 60%.
+"""
+
+# PROBLEM STATEMENT TEMPLATE
+"""
+## 2. Problem Statement
+*Concrete description of the pain point or opportunity this feature addresses.*
+
+Example:
+Users currently spend an average of 8 minutes searching for specific content in our
+platform. Analytics show 40% of searches result in no results, leading to 200+ 
+support tickets monthly and user frustration scores of 2.3/5 for the search experience.
+"""
+
+# MOSCOW GOALS TEMPLATE
+"""
+## 3. Goals & Success Metrics (MoSCoW)
+| Priority | Goal | Metric / KPI | Target |
+|----------|------|--------------|--------|
+| Must | Improve search success rate | Search success percentage | >85% |
+| Must | Reduce search time | Average time to find content | <3 minutes |
+| Should | Reduce support load | Search-related tickets | <50/month |
+| Could | Add saved searches | User engagement with saved searches | >20% |
+| Won't | AI-powered suggestions | (Deferred to v2.0) | N/A |
+"""
+
+# USER STORIES TEMPLATE
+"""
+## 4. User Stories & Personas
+
+### Primary Persona: Content Manager Sarah
+```gherkin
+As a Content Manager
+I want to search using multiple filters simultaneously
+So that I can quickly find specific content without browsing through hundreds of items
+
+Given I am on the search page
+When I apply filters for date range, category, and author
+Then I see results that match all selected criteria
+And the results are ranked by relevance
+```
+
+### Secondary Persona: End User Mike
+```gherkin
+As an End User
+I want to save my frequently used search queries
+So that I don't have to recreate complex searches repeatedly
+
+Given I have performed a multi-criteria search
+When I click "Save Search"
+Then the search is saved to my profile
+And I can access it from a "Saved Searches" dropdown
+```
+"""
+
+# ASSUMPTIONS AND CONSTRAINTS TEMPLATE
+"""
+## 5. Assumptions & Constraints
+### Business Assumptions
+* Users are already authenticated when accessing search
+* Search index can handle 10x current query volume
+* Content taxonomy remains stable during development
+
+### Technical Constraints
+* Must run in existing React/Node.js stack
+* Search response time must be <500ms
+* Must support 10,000 concurrent searches
+* Integration with existing Elasticsearch cluster required
+
+### Dependencies
+* Elasticsearch upgrade to v8.x (Q2 dependency)
+* Content tagging system completion (blocked by Team B)
+* UI component library v3.0 (available Q1)
+"""
+
+# TECHNICAL APPROACH TEMPLATE
+"""
+## 6. Technical Approach
+
+### Architecture
+* Frontend: React with custom search components
+* Backend: Node.js/Express API layer
+* Search Engine: Elasticsearch 8.x with custom analyzers
+* Caching: Redis for frequent queries
+
+### Data Flow
+1. User input → Frontend validation → API request
+2. API → Query builder → Elasticsearch
+3. Results → Ranking algorithm → Response formatting
+4. Frontend → Results display with pagination
+
+### Key Integrations
+* User Management Service (authentication)
+* Content Management API (metadata)
+* Analytics Service (tracking)
+"""
+
+# SECURITY CONSIDERATIONS TEMPLATE
+"""
+## 7. Security Considerations
+
+### Access Control
+* Respect existing content permissions
+* Filter results based on user role
+* Audit search queries for sensitive data
+
+### Data Protection
+* Encrypt search queries in logs
+* Anonymize analytics data
+* Implement rate limiting to prevent abuse
+
+### Compliance
+* GDPR: Right to erasure includes search history
+* SOX: Audit trail for financial content searches
+"""
+
+# TESTING STRATEGY TEMPLATE
+"""
+## 8. Testing Strategy
+
+### Testing Layers
+* Unit: Individual search components (>90% coverage)
+* Integration: API endpoints and Elasticsearch queries
+* E2E: Complete user search journeys
+* Performance: Load testing with 10k concurrent users
+* Security: Penetration testing for search injection
+
+### Test Cases
+* Successful multi-criteria searches
+* Empty result handling
+* Search performance under load
+* Permission-based result filtering
+* Edge cases (special characters, long queries)
+"""
+
+# RELEASE STRATEGY TEMPLATE
+"""
+## 9. Release Strategy
+
+### Deployment Phases
+1. **Alpha**: Internal testing (2 weeks)
+2. **Beta**: Limited user group (500 users, 2 weeks)
+3. **Gradual Rollout**: 25% → 50% → 100% over 2 weeks
+
+### Monitoring
+* Search success rate dashboard
+* Performance metrics (response time, error rate)
+* User engagement tracking
+* A/B testing for search ranking algorithms
+
+### Rollback Plan
+* Feature flags for instant disable
+* Database rollback procedures
+* Elasticsearch index rollback
+"""
+
+###############################################################################
+# Best Practices & Validation Rules
+###############################################################################
+
+# Feature Overview Validation
+validateOverview := {
+  hasElevatorPitch: true,
+  impactQuantified: true,
+  stakeholdersIdentified: true,
+  lengthLimit: "1-2 paragraphs"
+}
+
+# Problem Statement Validation
+validateProblem := {
+  hasConcretePainPoint: true,
+  includesCurrentStateData: true,
+  quantifiesImpact: true,
+  stakeholderValidated: true
+}
+
+# Goals Validation
+validateGoals := {
+  followsMoSCoWFramework: true,
+  metricsQuantifiable: true,
+  targetsRealistic: true,
+  timeboxed: true
+}
+
+# User Stories Validation
+validateStories := {
+  followsGherkinFormat: true,
+  hasAcceptanceCriteria: true,
+  coversMainScenarios: true,
+  testable: true
+}
+
+# Technical Approach Validation
+validateTechnical := {
+  architectureDefined: true,
+  technologyStackSelected: true,
+  integrationPointsMapped: true,
+  feasibilityValidated: true
+}
+
+# Completion Checklist
+designComplete := {
+  allMustHaveGoals: "defined",
+  userStoriesTestable: "yes",
+  technicalFeasible: "validated",
+  securityReviewed: "approved",
+  stakeholdersAligned: "signed-off"
+}
+
+###############################################################################
+# KNOWLEDGE ENGINE INTEGRATION ACTIONS
+###############################################################################
+
+action.detectKnowledgeEngine:
+  - Check for Knowledge Engine extension installation
+  - Verify extension is active and running
+  - Retrieve available capabilities and features
+  - Store knowledge engine status in context
+
+action.detectMCPTools:
+  - Scan for MCP tools installation
+  - Verify MCP server is running
+  - List available MCP tools and capabilities
+  - Store MCP tools status in context
+
+action.configureKnowledgeIntegration:
+  - Configure knowledge base connections
+  - Setup intelligent search capabilities
+  - Initialize context-aware processing
+  - Enable dynamic template adaptation
+
+action.setupIntelligentFeatures:
+  - Enable intelligent content suggestions
+  - Setup context-aware validation
+  - Configure adaptive template generation
+  - Initialize knowledge-enhanced workflows
+
+action.leverageKnowledgeBase:
+  - Query knowledge base for relevant information
+  - Apply intelligent content recommendations
+  - Enhance templates with contextual data
+  - Optimize based on historical patterns
+
+action.enhanceWithMCPTools:
+  - Integrate available MCP tools
+  - Enhance processing with external capabilities
+  - Apply cross-platform tool orchestration
+  - Leverage specialized tool functions
+
+action.generateIntelligentSuggestions:
+  - Generate context-aware suggestions
+  - Provide intelligent recommendations
+  - Adapt content based on user patterns
+  - Optimize for maximum impact
+
+action.adaptToContext:
+  - Adapt templates to current context
+  - Apply dynamic configuration
+  - Optimize for available tools
+  - Enhance user experience
+
+###############################################################################
+# KNOWLEDGE ENGINE INTEGRATION GUARDS
+###############################################################################
+
+guard.knowledgeEngineAvailable:
+  - Knowledge Engine extension is installed
+  - Extension is active and running
+  - Required capabilities are available
+  - Integration is properly configured
+
+guard.knowledgeIntegrationComplete:
+  - Knowledge base integration is active
+  - MCP tools are properly configured
+  - Intelligent features are enabled
+  - Context adaptation is working
+
+###############################################################################
+# KNOWLEDGE ENGINE CONFIGURATION
+###############################################################################
+
+## Knowledge Engine Integration Settings
+knowledgeEngineIntegration:
+  enabled: true
+  capabilities: ["search", "query", "knowledge-base", "intelligent-suggestions"]
+  mcpTools: ["context-provider", "tool-orchestrator", "cross-platform-support"]
+  lastUpdated: "2024-01-01T00:00:00Z"
+
+## Integration Points
+integrationPoints:
+  - "Intelligent content suggestions based on knowledge base"
+  - "Context-aware template adaptation"
+  - "Dynamic capability detection and utilization"
+  - "Enhanced validation with knowledge engine insights"
+  - "Cross-platform tool integration via MCP"
+  - "Adaptive processing based on available tools"
+  - "Intelligent error handling and suggestions"
+  - "Context-aware documentation generation"
+
+## Knowledge Engine Features
+knowledgeEngineFeatures:
+  intelligentSearch: true
+  naturalLanguageQuery: true
+  knowledgeBase: true
+  contextAware: true
+  adaptiveTemplates: true
+
+## MCP Tools Integration
+mcpToolsIntegration:
+  enabled: true
+  availableTools: ["context-provider", "tool-orchestrator", "cross-platform-support"]
+  crossPlatformSupport: true
+  toolOrchestration: true
+
+## Enhanced Template Capabilities
+enhancedCapabilities:
+  - "Intelligent content suggestions based on knowledge base"
+  - "Context-aware template adaptation"
+  - "Dynamic capability detection and utilization"
+  - "Enhanced validation with knowledge engine insights"
+  - "Cross-platform tool integration via MCP"
+  - "Adaptive processing based on available tools"
+  - "Intelligent error handling and suggestions"
+  - "Context-aware documentation generation"
+
+###############################################################################
+# END OF FILE
+###############################################################################

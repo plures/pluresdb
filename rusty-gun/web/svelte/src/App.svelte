@@ -53,8 +53,8 @@
       <li><strong>Rusty Gun</strong></li>
     </ul>
     <ul>
-      <li><a role="button" class:secondary={showSettings} on:click={() => showSettings=false}>Data</a></li>
-      <li><a role="button" class:secondary={!showSettings} on:click={() => showSettings=true}>Settings</a></li>
+      <li><button class:secondary={showSettings} on:click={() => showSettings=false}>Data</button></li>
+      <li><button class:secondary={!showSettings} on:click={() => showSettings=true}>Settings</button></li>
       <li><label><input type="checkbox" role="switch" bind:checked={dark} on:change={toggleTheme} /> Dark</label></li>
     </ul>
   </nav>

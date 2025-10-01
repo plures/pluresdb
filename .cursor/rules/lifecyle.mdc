@@ -1,0 +1,805 @@
+---
+alwaysApply: true
+---
+###############################################################################
+# Software Lifecycle Factory Template
+# Purpose: Meta-project orchestrating full software lifecycle from requirements
+#          to production through FSM-driven network of sub-projects:
+#          1. Requirements Repository
+#          2. Feature Design Projects (per approved requirement)
+#          3. Product-Type Projects (extension, web-app, mobile-app, CLI, library, etc.)
+#          4. Feature Test Projects (per design)
+#          5. Feature Code Projects (per test suite)
+#          6. Infrastructure-as-Code Projects (shared or feature-specific)
+#          7. Support & Ops Projects (documentation portals, monitoring dashboards, runbooks)
+# Author: Instructions-as-Code Pipeline
+# Version: 1.0.0
+###############################################################################
+
+machine SoftwareLifecycleFactory {
+
+  ###########################################################################
+  # STATE: Init - Factory Foundation & Structure
+  ###########################################################################
+  state Init {
+    entry => [
+      action.createFactoryStructure,
+      action.initializeGovernance,
+      action.setupBaseRepositories
+    ]
+    guard => guard.factoryStructureValid
+    exit => action.commitFactoryFoundation
+    on => { foundation-ready -> KnowledgeEngineDetection }
+  }
+
+  ###########################################################################
+  # STATE: KnowledgeEngineDetection - Detect and Integrate Knowledge Engine
+  ###########################################################################
+  state KnowledgeEngineDetection {
+    entry => [
+      action.detectKnowledgeEngine,
+      action.detectMCPTools,
+      action.configureKnowledgeIntegration,
+      action.setupIntelligentFeatures
+    ]
+    guard => guard.knowledgeEngineAvailable
+    exit => action.commitKnowledgeIntegration
+    on => { 
+      knowledge-available -> KnowledgeEnhancedProcessing,
+      knowledge-unavailable -> RequirementsSetup
+    }
+  }
+
+  ###########################################################################
+  # STATE: KnowledgeEnhancedProcessing - Enhanced Processing with Knowledge Engine
+  ###########################################################################
+  state KnowledgeEnhancedProcessing {
+    entry => [
+      action.leverageKnowledgeBase,
+      action.enhanceWithMCPTools,
+      action.generateIntelligentSuggestions,
+      action.adaptToContext
+    ]
+    guard => guard.knowledgeIntegrationComplete
+    exit => action.commitEnhancedProcessing
+    on => { enhanced-ready -> RequirementsSetup }
+  }
+
+  ###########################################################################
+  # STATE: RequirementsSetup - Requirements Repository & Processes
+  ###########################################################################
+  state RequirementsSetup {
+    entry => [
+      action.createRequirementsRepo,
+      action.setupRequirementTemplates,
+      action.configureRequirementWorkflow,
+      action.addRequirementValidation
+    ]
+    guard => guard.requirementsSystemReady
+    exit => action.commitRequirementsSetup
+    on => { requirements-ready -> DesignOrchestration }
+  }
+
+  ###########################################################################
+  # STATE: DesignOrchestration - Feature Design Project Management
+  ###########################################################################
+  state DesignOrchestration {
+    entry => [
+      action.setupDesignProjectTemplate,
+      action.configureDesignApprovalFlow,
+      action.createDesignValidationRules,
+      action.setupDesignToTestPipeline
+    ]
+    guard => guard.designOrchestrationComplete
+    exit => action.commitDesignOrchestration
+    on => { design-ready -> ProductTypeSelection }
+  }
+
+  ###########################################################################
+  # STATE: ProductTypeSelection - Product Type Project Templates
+  ###########################################################################
+  state ProductTypeSelection {
+    entry => [
+      action.catalogProductTypes,
+      action.createProductTypeTemplates,
+      action.setupProductTypeSelectionLogic,
+      action.configureProductTypeOrchestration
+    ]
+    guard => guard.productTypesAvailable
+    exit => action.commitProductTypeSelection
+    on => { product-types-ready -> TestingOrchestration }
+  }
+
+  ###########################################################################
+  # STATE: TestingOrchestration - Feature Test Project Management
+  ###########################################################################
+  state TestingOrchestration {
+    entry => [
+      action.setupTestProjectTemplates,
+      action.configureTestExecution,
+      action.createTestToCodePipeline,
+      action.setupTestReporting
+    ]
+    guard => guard.testingOrchestrationReady
+    exit => action.commitTestingOrchestration
+    on => { testing-ready -> CodeOrchestration }
+  }
+
+  ###########################################################################
+  # STATE: CodeOrchestration - Feature Code Project Management  
+  ###########################################################################
+  state CodeOrchestration {
+    entry => [
+      action.setupCodeProjectTemplates,
+      action.configureBranchStrategy,
+      action.setupCodeReview,
+      action.createCodeToInfraPipeline
+    ]
+    guard => guard.codeOrchestrationReady
+    exit => action.commitCodeOrchestration
+    on => { code-ready -> InfrastructureSetup }
+  }
+
+  ###########################################################################
+  # STATE: InfrastructureSetup - Infrastructure-as-Code Projects
+  ###########################################################################
+  state InfrastructureSetup {
+    entry => [
+      action.setupInfraTemplates,
+      action.configureTerraformWorkspaces,
+      action.setupHelmCharts,
+      action.createInfraValidation
+    ]
+    guard => guard.infrastructureReady
+    exit => action.commitInfrastructureSetup
+    on => { infra-ready -> SupportSetup }
+  }
+
+  ###########################################################################
+  # STATE: SupportSetup - Support & Operations Projects
+  ###########################################################################
+  state SupportSetup {
+    entry => [
+      action.createDocumentationPortals,
+      action.setupMonitoringDashboards,
+      action.createRunbooks,
+      action.setupAlertingRules
+    ]
+    guard => guard.supportSystemsReady
+    exit => action.commitSupportSetup
+    on => { support-ready -> DependencyManagement }
+  }
+
+  ###########################################################################
+  # STATE: DependencyManagement - Change Propagation & Version Management
+  ###########################################################################
+  state DependencyManagement {
+    entry => [
+      action.generateDependencyGraph,
+      action.setupChangePropagation,
+      action.configureVersionBumping,
+      action.createGuardClauses
+    ]
+    guard => guard.dependencyGraphValid
+    exit => action.commitDependencyManagement
+    on => { dependencies-ready -> AutomationSetup }
+  }
+
+  ###########################################################################
+  # STATE: AutomationSetup - CI/CD & Tooling Integration
+  ###########################################################################
+  state AutomationSetup {
+    entry => [
+      action.setupFactoryPipelines,
+      action.createCodeGenerators,
+      action.configureChatOps,
+      action.setupFactoryDashboard
+    ]
+    guard => guard.automationReady
+    exit => action.commitAutomationSetup
+    on => { automation-ready -> ObservabilitySetup }
+  }
+
+  ###########################################################################
+  # STATE: ObservabilitySetup - Monitoring & Reporting
+  ###########################################################################
+  state ObservabilitySetup {
+    entry => [
+      action.setupDORAMetrics,
+      action.createFactoryDashboards,
+      action.configureAlerting,
+      action.setupAuditLogging
+    ]
+    guard => guard.observabilityComplete
+    exit => action.commitObservabilitySetup
+    on => { observability-ready -> SecurityCompliance }
+  }
+
+  ###########################################################################
+  # STATE: SecurityCompliance - Security & Compliance Integration
+  ###########################################################################
+  state SecurityCompliance {
+    entry => [
+      action.setupSupplyChainScanning,
+      action.configurePolicyAsCode,
+      action.createSecurityGates,
+      action.setupComplianceReporting
+    ]
+    guard => guard.securityComplianceReady
+    exit => action.commitSecurityCompliance
+    on => { security-ready -> GovernanceSetup }
+  }
+
+  ###########################################################################
+  # STATE: GovernanceSetup - Stakeholder Roles & Processes
+  ###########################################################################
+  state GovernanceSetup {
+    entry => [
+      action.defineStakeholderRoles,
+      action.createGovernanceProcesses,
+      action.setupApprovalWorkflows,
+      action.createEscalationPaths
+    ]
+    guard => guard.governanceReady
+    exit => action.commitGovernanceSetup
+    on => { governance-ready -> FactoryValidation }
+  }
+
+  ###########################################################################
+  # STATE: FactoryValidation - End-to-End Factory Testing
+  ###########################################################################
+  state FactoryValidation {
+    entry => [
+      action.runFactoryValidation,
+      action.testRequirementToProdFlow,
+      action.validateChangePropagation,
+      action.benchmarkPerformance
+    ]
+    guard => guard.factoryValidationPassed
+    exit => action.commitFactoryValidation
+    on => { validation-passed -> FactoryReady, validation-failed -> FixFactory }
+  }
+
+  ###########################################################################
+  # STATE: FixFactory - Fix Factory Issues
+  ###########################################################################
+  state FixFactory {
+    entry => [
+      action.analyzeFactoryFailures,
+      action.createFixPlan,
+      action.implementFactoryFixes
+    ]
+    guard => guard.factoryFixesApplied
+    exit => action.commitFactoryFixes
+    on => { fixes-committed -> FactoryValidation }
+  }
+
+  ###########################################################################
+  # STATE: FactoryReady - Factory Operational
+  ###########################################################################
+  state FactoryReady {
+    entry => [
+      action.enableFactoryOperations,
+      action.startMonitoring,
+      action.notifyStakeholders,
+      action.captureSuccessMetrics
+    ]
+    guard => guard.factoryOperational
+    exit => action.markFactoryLive
+    on => { requirements-received -> RequirementProcessing }
+  }
+
+  ###########################################################################
+  # STATE: RequirementProcessing - Process New Requirements
+  ###########################################################################
+  state RequirementProcessing {
+    entry => [
+      action.ingestRequirement,
+      action.validateRequirement,
+      action.assignRequirementId,
+      action.triggerDesignProject
+    ]
+    guard => guard.requirementValid
+    exit => action.commitRequirementProcessing
+    on => { requirement-processed -> FactoryReady }
+  }
+}
+
+## Factory Overview
+factoryOverview: |
+  The Software Lifecycle Factory is a meta-project that orchestrates the full software 
+  lifecycle—from initial requirements to production support—through a network of sub-projects.
+  All artefacts are driven by finite-state-machines (FSMs) written in SudoLang, enabling 
+  deterministic transitions, automated change-propagation, and zero-drift documentation.
+
+###############################################################################
+# FACTORY CONFIGURATION
+###############################################################################
+
+## Artefact Topology
+artefactTopology: |
+  requirements/
+    *.req.md
+  designs/
+    <req-id>/feature-design-*.md
+  tests/
+    <feature-id>/...
+  products/
+    web-app/, extension/, ...
+  infra/
+    terraform/, helm/, pulumi/
+  support/
+    runbooks/, dashboards/
+
+## Factory Directory Structure
+factoryStructure:
+  requirements/
+    *.req.md                   # Requirement specifications
+    templates/                 # Requirement templates
+    workflows/                 # Approval workflows
+  designs/
+    <req-id>/                  # Per-requirement design projects
+      feature-design-*.md      # Design documents
+      architecture/            # Architecture diagrams
+      apis/                    # API specifications
+  tests/
+    <feature-id>/              # Per-feature test projects
+      unit/                    # Unit test suites
+      integration/             # Integration tests
+      e2e/                     # End-to-end tests
+  products/
+    web-app/                   # Web application projects
+    extension/                 # Browser/VSCode extensions
+    mobile-app/                # Mobile applications
+    cli/                       # Command-line tools
+    library/                   # Reusable libraries
+    api/                       # API services
+  infra/
+    terraform/                 # Infrastructure definitions
+    helm/                      # Kubernetes charts
+    pulumi/                    # Cloud infrastructure
+    docker/                    # Container definitions
+  support/
+    runbooks/                  # Operational procedures
+    dashboards/                # Monitoring dashboards
+    docs/                      # Documentation portals
+    alerts/                    # Alerting configurations
+
+## Objectives & Success Metrics
+factoryObjectives:
+  endToEndCycleTime:
+    metric: "Lead time from requirement to production"
+    target: "< 2 weeks"
+    measurement: "Days from requirement approval to prod deployment"
+  traceabilityCompleteness:
+    metric: "% artifacts linked via IDs"
+    target: "100 %"
+    measurement: "Automated dependency graph completeness"
+  documentationFreshness:
+    metric: "Age of out-of-date docs"
+    target: "< 24 h"
+    measurement: "Time since last doc sync with code changes"
+  cicdReliability:
+    metric: "Failed pipelines per month"
+    target: "< 1"
+    measurement: "Pipeline failure rate across all projects"
+
+## Product Type Catalog
+productTypes:
+  web-app:
+    template: "web-app.sudo"
+    pipeline: "webapp-pipeline.yml"
+    infraTemplate: "webapp-infra"
+  extension:
+    template: "vscode-extension.sudo"
+    pipeline: "extension-pipeline.yml"
+    infraTemplate: "extension-infra"
+  mobile-app:
+    template: "mobile-app.sudo"
+    pipeline: "mobile-pipeline.yml"
+    infraTemplate: "mobile-infra"
+  cli-tool:
+    template: "cli-tool.sudo"
+    pipeline: "cli-pipeline.yml"
+    infraTemplate: "cli-infra"
+  library:
+    template: "library.sudo"
+    pipeline: "library-pipeline.yml"
+    infraTemplate: "library-infra"
+  api-service:
+    template: "api-service.sudo"
+    pipeline: "api-pipeline.yml"
+    infraTemplate: "api-infra"
+
+## Dependency Graph Schema
+dependencyGraph:
+  nodes:
+    - type: "requirement"
+      id: "{req-id}"
+      version: "semver"
+    - type: "design"
+      id: "{design-id}"
+      version: "semver"
+      dependsOn: ["{req-id}"]
+    - type: "test"
+      id: "{test-id}"
+      version: "semver"
+      dependsOn: ["{design-id}"]
+    - type: "code"
+      id: "{code-id}"
+      version: "semver"
+      dependsOn: ["{test-id}"]
+    - type: "infra"
+      id: "{infra-id}"
+      version: "semver"
+      dependsOn: ["{code-id}"]
+
+## Change Propagation Rules
+changePropagationRules:
+  requirementChange:
+    - invalidates: ["design", "test", "code", "infra"]
+    - action: "trigger-redesign"
+    - versionBump: "MAJOR"
+  designChange:
+    - invalidates: ["test", "code", "infra"]
+    - action: "trigger-retest"
+    - versionBump: "MINOR"
+  testChange:
+    - invalidates: ["code", "infra"]
+    - action: "trigger-recode"
+    - versionBump: "MINOR"
+  codeChange:
+    - invalidates: ["infra"]
+    - action: "trigger-redeploy"
+    - versionBump: "PATCH"
+
+## Versioning Strategy
+versioningStrategy:
+  scheme: "semantic"
+  tagFormat: "{artifact-type}/{id}@{version}"
+  examples:
+    - "requirement/REQ-001@1.2.0"
+    - "design/DESIGN-001@2.1.0"
+    - "factory@1.0.0"
+
+## Stakeholder Roles
+stakeholderRoles:
+  factoryOwner:
+    responsibilities: ["Overall governance", "Factory evolution", "Stakeholder alignment"]
+    permissions: ["factory-admin", "all-projects-write"]
+  requirementAuthor:
+    responsibilities: ["Draft & maintain requirements", "Requirement validation"]
+    permissions: ["requirements-write", "designs-read"]
+  designLead:
+    responsibilities: ["Approve feature designs", "Architecture decisions"]
+    permissions: ["designs-write", "requirements-read", "tests-read"]
+  qaLead:
+    responsibilities: ["Own test projects", "Quality gates"]
+    permissions: ["tests-write", "designs-read", "code-read"]
+  techLead:
+    responsibilities: ["Own product-type repos", "Technical decisions"]
+    permissions: ["code-write", "tests-read", "infra-read"]
+  sre:
+    responsibilities: ["Own infra & support artifacts", "Production operations"]
+    permissions: ["infra-write", "support-write", "monitoring-admin"]
+
+###############################################################################
+# FACTORY ACTIONS
+###############################################################################
+
+action.createFactoryStructure:
+  - Create directory structure following factory topology
+  - Initialize .gitignore and .gitattributes for each area
+  - Setup README.md files with navigation structure
+  - Create initial dependency graph file (dependencies.graphml)
+
+action.setupBaseRepositories:
+  - Initialize requirements repository with templates
+  - Create factory configuration files
+  - Setup governance documentation
+  - Initialize stakeholder assignment matrix
+
+action.generateDependencyGraph:
+  - Scan all artifact directories for version metadata
+  - Build machine-readable dependency graph (GraphML format)
+  - Validate graph for circular dependencies
+  - Generate dependency visualization
+
+action.setupChangePropagation:
+  - Implement change detection hooks
+  - Create version bump automation
+  - Setup downstream invalidation triggers
+  - Add change impact analysis
+
+action.createCodeGenerators:
+  - Build project scaffolding generators for each product type
+  - Create FSM-driven code generation templates
+  - Setup generator CLI interface
+  - Add generator validation and testing
+
+action.setupFactoryPipelines:
+  - Create GitHub Actions workflows for factory orchestration
+  - Setup multi-repository pipeline coordination
+  - Add cross-project dependency management
+  - Implement factory-wide CI/CD orchestration
+
+action.configureChatOps:
+  - Setup ChatOps command handlers (/requirement, /design, /deploy)
+  - Integrate with factory orchestration
+  - Add permission and approval workflows
+  - Create ChatOps documentation
+
+action.setupDORAMetrics:
+  - Implement deployment frequency tracking
+  - Add lead time measurement
+  - Setup change failure rate monitoring
+  - Create time to recovery tracking
+
+action.runFactoryValidation:
+  - Execute end-to-end requirement-to-production flow
+  - Test change propagation across all artifact types
+  - Validate all factory automation
+  - Benchmark factory performance metrics
+
+###############################################################################
+# FACTORY GUARDS
+###############################################################################
+
+guard.factoryStructureValid:
+  - All required directories exist
+  - Base configuration files present
+  - Dependency graph file initialized
+  - Stakeholder matrix defined
+
+guard.dependencyGraphValid:
+  - Graph file exists and is parseable
+  - No circular dependencies detected
+  - All artifacts have version metadata
+  - Change propagation rules complete
+
+guard.automationReady:
+  - All factory pipelines operational
+  - Code generators tested and working
+  - ChatOps commands responding
+  - Factory dashboard accessible
+
+guard.factoryValidationPassed:
+  - End-to-end flow completed successfully
+  - All success metrics within targets
+  - No critical issues in validation report
+  - All stakeholder sign-offs obtained
+
+guard.factoryOperational:
+  - Factory monitoring active
+  - All sub-systems healthy
+  - Success metrics baseline captured
+  - Factory ready for production use
+
+###############################################################################
+# CHATOPS COMMANDS
+###############################################################################
+
+chatOpsCommands:
+  "/requirement new <title>":
+    action: "Create new requirement from template"
+    permissions: ["requirement-author", "factory-owner"]
+    
+  "/design approve <design-id>":
+    action: "Approve design and trigger test project"
+    permissions: ["design-lead", "factory-owner"]
+    
+  "/test complete <test-id>":
+    action: "Mark tests complete and trigger code project"
+    permissions: ["qa-lead", "factory-owner"]
+    
+  "/deploy <artifact-id>":
+    action: "Deploy artifact to production"
+    permissions: ["sre", "factory-owner"]
+    
+  "/factory status":
+    action: "Show factory health and metrics"
+    permissions: ["all-stakeholders"]
+
+###############################################################################
+# OBSERVABILITY & MONITORING
+###############################################################################
+
+factoryMonitoring:
+  metrics:
+    - name: "requirements_processed_total"
+      type: "counter"
+      help: "Total requirements processed by factory"
+    - name: "end_to_end_cycle_time_seconds"
+      type: "histogram"
+      help: "Time from requirement to production"
+    - name: "dependency_graph_nodes_total"
+      type: "gauge"
+      help: "Total nodes in dependency graph"
+    - name: "change_propagations_total"
+      type: "counter"
+      help: "Total change propagations triggered"
+      
+  alerts:
+    - name: "FactoryPipelineFailure"
+      condition: "factory_pipeline_failures_total > 0"
+      severity: "critical"
+    - name: "StaleDocumentation"
+      condition: "documentation_age_hours > 24"
+      severity: "warning"
+    - name: "DependencyGraphIncomplete"
+      condition: "dependency_completeness_percent < 100"
+      severity: "warning"
+
+###############################################################################
+# SECURITY & COMPLIANCE
+###############################################################################
+
+securityCompliance:
+  supplyChainScanning:
+    - "Enable Dependabot for all repositories"
+    - "Add SAST scanning to all pipelines"
+    - "Implement container scanning for Docker images"
+    - "Setup license compliance checking"
+    
+  policyAsCode:
+    - "Define OPA policies for deployment gates"
+    - "Add security policies for code changes"
+    - "Implement compliance policies for data handling"
+    - "Create audit policies for access control"
+    
+  auditLogging:
+    - "Log all FSM state transitions"
+    - "Track all artifact version changes"
+    - "Monitor stakeholder access patterns"
+    - "Archive compliance audit trails"
+
+###############################################################################
+# FACTORY CHECKLIST (Must-Have for Operational State)
+###############################################################################
+
+factoryChecklist:
+  foundation:
+    - "Factory Overview & Objectives documented"
+    - "FSM(s) authored in SudoLang and committed"
+    - "Artifact topology directories exist"
+    - "Dependency graph generated & version-controlled"
+    
+  automation:
+    - "Change-propagation rules encoded in guards/actions"
+    - "CI/CD pipelines operational for each sub-project type"
+    - "Code generators/templates published"
+    - "ChatOps commands operational"
+    
+  observability:
+    - "Observability dashboards live"
+    - "DORA metrics baseline captured"
+    - "Alerting rules configured"
+    - "Audit logging operational"
+    
+  governance:
+    - "Security & compliance scans integrated"
+    - "Stakeholder roles assigned and acknowledged"
+    - "Success metrics baseline captured"
+    - "Factory validation completed"
+
+###############################################################################
+# KNOWLEDGE ENGINE INTEGRATION ACTIONS
+###############################################################################
+
+action.detectKnowledgeEngine:
+  - Check for Knowledge Engine extension installation
+  - Verify extension is active and running
+  - Retrieve available capabilities and features
+  - Store knowledge engine status in context
+
+action.detectMCPTools:
+  - Scan for MCP tools installation
+  - Verify MCP server is running
+  - List available MCP tools and capabilities
+  - Store MCP tools status in context
+
+action.configureKnowledgeIntegration:
+  - Configure knowledge base connections
+  - Setup intelligent search capabilities
+  - Initialize context-aware processing
+  - Enable dynamic template adaptation
+
+action.setupIntelligentFeatures:
+  - Enable intelligent content suggestions
+  - Setup context-aware validation
+  - Configure adaptive template generation
+  - Initialize knowledge-enhanced workflows
+
+action.leverageKnowledgeBase:
+  - Query knowledge base for relevant information
+  - Apply intelligent content recommendations
+  - Enhance templates with contextual data
+  - Optimize based on historical patterns
+
+action.enhanceWithMCPTools:
+  - Integrate available MCP tools
+  - Enhance processing with external capabilities
+  - Apply cross-platform tool orchestration
+  - Leverage specialized tool functions
+
+action.generateIntelligentSuggestions:
+  - Generate context-aware suggestions
+  - Provide intelligent recommendations
+  - Adapt content based on user patterns
+  - Optimize for maximum impact
+
+action.adaptToContext:
+  - Adapt templates to current context
+  - Apply dynamic configuration
+  - Optimize for available tools
+  - Enhance user experience
+
+###############################################################################
+# KNOWLEDGE ENGINE INTEGRATION GUARDS
+###############################################################################
+
+guard.knowledgeEngineAvailable:
+  - Knowledge Engine extension is installed
+  - Extension is active and running
+  - Required capabilities are available
+  - Integration is properly configured
+
+guard.knowledgeIntegrationComplete:
+  - Knowledge base integration is active
+  - MCP tools are properly configured
+  - Intelligent features are enabled
+  - Context adaptation is working
+
+###############################################################################
+# KNOWLEDGE ENGINE CONFIGURATION
+###############################################################################
+
+## Knowledge Engine Integration Settings
+knowledgeEngineIntegration:
+  enabled: true
+  capabilities: ["search", "query", "knowledge-base", "intelligent-suggestions"]
+  mcpTools: ["context-provider", "tool-orchestrator", "cross-platform-support"]
+  lastUpdated: "2024-01-01T00:00:00Z"
+
+## Integration Points
+integrationPoints:
+  - "Intelligent factory orchestration based on knowledge base"
+  - "Context-aware project type selection"
+  - "Dynamic capability detection and utilization"
+  - "Enhanced validation with knowledge engine insights"
+  - "Cross-platform tool integration via MCP"
+  - "Adaptive processing based on available tools"
+  - "Intelligent error handling and suggestions"
+  - "Context-aware documentation generation"
+
+## Knowledge Engine Features
+knowledgeEngineFeatures:
+  intelligentSearch: true
+  naturalLanguageQuery: true
+  knowledgeBase: true
+  contextAware: true
+  adaptiveTemplates: true
+
+## MCP Tools Integration
+mcpToolsIntegration:
+  enabled: true
+  availableTools: ["context-provider", "tool-orchestrator", "cross-platform-support"]
+  crossPlatformSupport: true
+  toolOrchestration: true
+
+## Enhanced Factory Capabilities
+enhancedCapabilities:
+  - "Intelligent factory orchestration based on knowledge base"
+  - "Context-aware project type selection and configuration"
+  - "Dynamic capability detection and utilization"
+  - "Enhanced validation with knowledge engine insights"
+  - "Cross-platform tool integration via MCP"
+  - "Adaptive processing based on available tools"
+  - "Intelligent error handling and suggestions"
+  - "Context-aware documentation generation"
+  - "Intelligent dependency management"
+  - "Adaptive change propagation"
+
+###############################################################################
+# END OF TEMPLATE
+###############################################################################

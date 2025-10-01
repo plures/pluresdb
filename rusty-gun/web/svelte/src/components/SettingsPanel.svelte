@@ -17,19 +17,19 @@
 
 <article>
   <h3>Settings</h3>
-  <label>KV Path</label>
-  <input bind:value={$settings.kvPath} on:input={debounced} placeholder="/data/rg.sqlite" />
+  <label for="kvPath">KV Path</label>
+  <input id="kvPath" bind:value={$settings.kvPath} on:input={debounced} placeholder="/data/rg.sqlite" />
   <div class="grid">
     <div>
-      <label>Port</label>
-      <input type="number" bind:value={$settings.port} on:input={debounced} />
+      <label for="port">Port</label>
+      <input id="port" type="number" bind:value={$settings.port} on:input={debounced} />
     </div>
     <div>
-      <label>API Offset</label>
-      <input type="number" bind:value={$settings.apiPortOffset} on:input={debounced} />
+      <label for="apiOffset">API Offset</label>
+      <input id="apiOffset" type="number" bind:value={$settings.apiPortOffset} on:input={debounced} />
     </div>
   </div>
-  <label>Peers (comma separated)</label>
-  <input bind:value={peersText} on:input={onPeers} />
+  <label for="peers">Peers (comma separated)</label>
+  <input id="peers" bind:value={peersText} on:input={onPeers} />
 </article>
 

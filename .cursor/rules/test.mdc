@@ -1,0 +1,502 @@
+---
+alwaysApply: true
+---
+###############################################################################
+# Software Feature Test Suite Template
+# Purpose: Creates executable test suites from approved Feature Design documents
+#          following comprehensive testing best practices and traceability
+# Author: Instructions-as-Code Pipeline  
+# Version: 1.0.0
+###############################################################################
+
+machine SoftwareFeatureTestSuiteLifecycle {
+
+  ###########################################################################
+  # STATE: Init - Project Foundation & Test Framework Setup
+  ###########################################################################
+  state Init {
+    entry => [
+      action.validateFeatureDesignInput,
+      action.extractDesignRequirements,
+      action.setupTestProjectStructure,
+      action.configureTestFrameworks
+    ]
+    guard => guard.featureDesignComplete
+    exit => action.commitTestFoundation
+    on => { foundation-ready -> KnowledgeEngineDetection }
+  }
+
+  ###########################################################################
+  # STATE: KnowledgeEngineDetection - Detect and Integrate Knowledge Engine
+  ###########################################################################
+  state KnowledgeEngineDetection {
+    entry => [
+      action.detectKnowledgeEngine,
+      action.detectMCPTools,
+      action.configureKnowledgeIntegration,
+      action.setupIntelligentFeatures
+    ]
+    guard => guard.knowledgeEngineAvailable
+    exit => action.commitKnowledgeIntegration
+    on => { 
+      knowledge-available -> KnowledgeEnhancedProcessing,
+      knowledge-unavailable -> TestStrategy
+    }
+  }
+
+  ###########################################################################
+  # STATE: KnowledgeEnhancedProcessing - Enhanced Processing with Knowledge Engine
+  ###########################################################################
+  state KnowledgeEnhancedProcessing {
+    entry => [
+      action.leverageKnowledgeBase,
+      action.enhanceWithMCPTools,
+      action.generateIntelligentSuggestions,
+      action.adaptToContext
+    ]
+    guard => guard.knowledgeIntegrationComplete
+    exit => action.commitEnhancedProcessing
+    on => { enhanced-ready -> TestStrategy }
+  }
+
+  ###########################################################################
+  # STATE: TestStrategy - Define Testing Approach & Scope
+  ###########################################################################
+  state TestStrategy {
+    entry => [
+      action.defineTestObjectives,
+      action.mapRequirementsToTestTypes,
+      action.createTraceabilityMatrix,
+      action.establishPassFailCriteria
+    ]
+    guard => guard.strategyComplete
+    exit => action.commitTestStrategy
+    on => { strategy-ready -> TestCases }
+  }
+
+  ###########################################################################
+  # STATE: TestCases - Implement Test Cases & Data
+  ###########################################################################
+  state TestCases {
+    entry => [
+      action.implementUnitTests,
+      action.implementIntegrationTests,
+      action.implementE2ETests,
+      action.createTestData,
+      action.setupMocksAndStubs
+    ]
+    guard => guard.testCasesImplemented
+    exit => action.commitTestImplementation
+    on => { test-cases-ready -> Automation }
+  }
+
+  ###########################################################################
+  # STATE: Automation - CI/CD Integration & Automation Setup
+  ###########################################################################
+  state Automation {
+    entry => [
+      action.setupContinuousIntegration,
+      action.configureCoverageCollection,
+      action.addPerformanceBudgets,
+      action.setupSecurityScanning,
+      action.configureReporting
+    ]
+    guard => guard.automationConfigured
+    exit => action.commitAutomation
+    on => { automation-ready -> Validation }
+  }
+
+  ###########################################################################
+  # STATE: Validation - Test Execution & Validation
+  ###########################################################################
+  state Validation {
+    entry => [
+      action.executeAllTestSuites,
+      action.validateCoverageThreshold,
+      action.checkPerformanceBudgets,
+      action.runSecurityAnalysis,
+      action.generateTestReports
+    ]
+    guard => guard.allTestsPass
+    exit => action.commitValidationResults
+    on => { 
+      validation-success -> Ready,
+      validation-failure -> TestCases
+    }
+  }
+
+  ###########################################################################
+  # STATE: Ready - Test Suite Complete & Documentation
+  ###########################################################################
+  state Ready {
+    entry => [
+      action.generateFinalDocumentation,
+      action.updateTraceabilityMatrix,
+      action.createMaintenanceGuide,
+      action.collectStakeholderApprovals
+    ]
+    guard => guard.stakeholderApprovalComplete
+    exit => action.finalizeTestSuite
+    on => { complete -> Done }
+  }
+
+  ###########################################################################
+  # STATE: Done - Test Suite Published & Handover
+  ###########################################################################
+  state Done {}
+
+}
+
+###############################################################################
+# TEMPLATE STRUCTURE & DOCUMENTATION
+###############################################################################
+
+## Test Project File Structure
+tests/
+  unit/                  # Unit test files
+    feature-unit.test.js
+  integration/           # Integration test files
+    feature-integration.test.js
+  e2e/                  # End-to-end test files
+    feature-e2e.test.js
+  contract/             # Contract/API test files
+    api-contracts.test.js
+  performance/          # Performance test files
+    load-tests.js
+    stress-tests.js
+  security/             # Security test files
+    security-scan.test.js
+  fixtures/             # Test data and fixtures
+    test-data.json
+    mock-responses.json
+  mocks/               # Mock and stub definitions
+    service-mocks.js
+    api-stubs.js
+  utils/               # Test utilities and helpers
+    test-helpers.js
+    assertions.js
+  reports/             # Test execution reports
+    coverage/
+    performance/
+    security/
+  config/              # Test configuration
+    vitest.config.js
+    playwright.config.js
+    ci.yml
+
+## Test Documentation Template
+
+### 1. Test Project Overview
+Purpose: Validate feature implementation against approved design specification
+Scope: All functional and non-functional requirements from Feature Design v${designVersion}
+Entry Criteria: Feature Design document approved and locked
+
+### 2. Source Design Reference (Must-Have)
+- Feature Design File: docs/feature-design-${featureName}.md
+- Design Version: ${designVersion}
+- Commit SHA: ${designCommitSha}
+- Last Modified: ${designLastModified}
+
+### 3. Test Objectives & Scope
+| Objective ID | Requirement / Goal | Covered by Test(s) |
+|--------------|--------------------|--------------------|
+| OBJ-01 | Validate core feature functionality | UT-001, IT-001, E2E-001 |
+| OBJ-02 | Ensure API contract compliance | CT-001, CT-002 |
+| OBJ-03 | Verify performance requirements | PT-001, PT-002 |
+| OBJ-04 | Security vulnerability assessment | ST-001, ST-002 |
+
+### 4. Test Types & Strategy (Must-Have)
+- Unit Tests: Individual functions, components, services
+- Integration Tests: Module interactions, database operations
+- Contract Tests: API endpoints, message formats, schemas
+- End-to-End Tests: Complete user workflows
+- Performance Tests: Load, stress, scalability validation
+- Security Tests: OWASP Top 10, penetration testing
+- Accessibility Tests: WCAG compliance, screen readers
+- Negative Tests: Error handling, edge cases, boundary values
+- Regression Tests: Previously fixed defects validation
+
+### 5. Traceability Matrix (Must-Have)
+| Requirement ID | Description | Test Case ID(s) | Coverage Status |
+|----------------|-------------|-----------------|-----------------|
+| FR-001 | User authentication | UT-001, IT-001, E2E-001 | ✔︎ Complete |
+| FR-002 | Data validation | UT-002, UT-003, IT-002 | ✔︎ Complete |
+| NFR-001 | Response time < 200ms | PT-001 | ✔︎ Complete |
+| NFR-002 | 99.9% uptime | PT-002, ST-003 | ✔︎ Complete |
+
+### 6. Test Case Inventory (Must-Have)
+```gherkin
+Feature: ${featureName}
+  
+  Scenario: Happy path validation
+    Given the system is initialized
+    And valid input data is provided
+    When the feature is executed
+    Then expected results are returned
+    And system state is consistent
+
+  Scenario: Error handling validation
+    Given the system is initialized
+    And invalid input data is provided
+    When the feature is executed
+    Then appropriate error is returned
+    And system remains stable
+
+  Scenario: Edge case validation
+    Given boundary conditions exist
+    When edge case inputs are processed
+    Then system handles gracefully
+    And no data corruption occurs
+```
+
+### 7. Test Data & Fixtures (Must-Have)
+- Valid test datasets: fixtures/valid-data.json
+- Invalid test datasets: fixtures/invalid-data.json
+- Edge case datasets: fixtures/edge-cases.json
+- Performance datasets: fixtures/load-data.json
+- Security test payloads: fixtures/security-payloads.json
+- Mock API responses: mocks/api-responses.json
+- Database seed scripts: fixtures/db-seeds.sql
+
+### 8. Test Environment Requirements
+| Layer | Environment | Configuration |
+|-------|-------------|---------------|
+| Unit | Local/CI | Node.js, test frameworks |
+| Integration | Docker | Database, external services |
+| E2E | Staging | Full application stack |
+| Performance | Dedicated | Load generators, monitoring |
+| Security | Isolated | Security scanning tools |
+
+### 9. Automation & Tooling (Must-Have)
+- Unit Testing: Vitest, Jest
+- E2E Testing: Playwright, Cypress
+- API Testing: SuperTest, Postman/Newman
+- Performance: K6, Artillery, JMeter
+- Security: OWASP ZAP, Snyk, npm audit
+- Coverage: Istanbul, C8
+- CI Pipeline: GitHub Actions, CircleCI, Jenkins
+- Reporting: Allure, Mochawesome
+- Code Quality: ESLint, SonarQube
+- Coverage Threshold: ≥ 90% lines, ≥ 85% branches
+
+### 10. Pass / Fail Criteria
+- All test suites pass with 0 failures
+- Code coverage ≥ 90% lines, ≥ 85% branches  
+- Performance budgets met (response time, throughput)
+- Zero critical or high security vulnerabilities
+- All accessibility standards met (WCAG 2.1 AA)
+- No regressions in existing functionality
+
+### 11. Risks & Mitigations
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Test data unavailable | Medium | High | Prepare synthetic data generators |
+| Environment instability | Medium | Medium | Containerize test environments |
+| Flaky tests | High | Medium | Implement retry mechanisms, improve test isolation |
+| Performance degradation | Low | High | Continuous performance monitoring |
+
+### 12. Schedule & Milestones
+| Milestone | Owner | ETA | Status |
+|-----------|-------|-----|--------|
+| Test strategy complete | QA Lead | Week 1 | ✔︎ Done |
+| Test implementation complete | SDET | Week 2-3 | 🔄 In Progress |
+| Automation pipeline ready | DevOps | Week 3 | ⏳ Pending |
+| First green CI run | Team | Week 4 | ⏳ Pending |
+| Stakeholder sign-off | PO | Week 4 | ⏳ Pending |
+
+### 13. Maintenance & Ownership
+- Test Owner: ${testOwner}
+- QA Lead: ${qaLead}
+- Update Process: Tests updated within 24h of design changes
+- Flaky Test SLA: Max 2% flaky test rate, fixed within 48h
+- Test Review: Monthly test suite health reviews
+- Documentation: Test documentation updated with each release
+
+### 14. Stakeholders & Approvals (Must-Have)
+| Role | Name | Approval Date | Signature |
+|------|------|---------------|-----------|
+| QA Lead | ${qaLead} | ${qaApprovalDate} | ✔︎ |
+| Tech Lead | ${techLead} | ${techApprovalDate} | ✔︎ |
+| Product Owner | ${productOwner} | ${poApprovalDate} | ✔︎ |
+| Security Engineer | ${securityEngineer} | ${securityApprovalDate} | ✔︎ |
+
+## ✅ Must-Have Checklist (Gate to Implementation/Pull-Request)
+- [ ] Source Feature Design linked & version-locked
+- [ ] Test objectives & scope clearly defined
+- [ ] Strategy covers all required test types
+- [ ] Traceability matrix complete and validated  
+- [ ] All test cases implemented and reviewed
+- [ ] Deterministic test data prepared and validated
+- [ ] Automation scripts & CI hooks implemented
+- [ ] Coverage threshold ≥ target (90%/85%)
+- [ ] Pass/fail criteria documented and measurable
+- [ ] Risk assessment completed with mitigations
+- [ ] Test environments configured and stable
+- [ ] Performance budgets defined and monitored
+- [ ] Security scanning integrated and passing
+- [ ] Accessibility testing implemented
+- [ ] Stakeholder approvals collected and documented
+- [ ] Maintenance procedures documented
+- [ ] Test suite documentation complete
+
+###############################################################################
+# GUARDS & VALIDATIONS  
+###############################################################################
+
+guard.featureDesignComplete:
+  - Feature design document exists and is approved
+  - Design version is locked and tagged
+  - All requirements are clearly defined
+  - Acceptance criteria are measurable
+
+guard.strategyComplete:
+  - Test objectives are SMART (Specific, Measurable, Achievable, Relevant, Time-bound)
+  - All test types are identified and justified
+  - Traceability matrix covers all requirements
+  - Risk assessment is comprehensive
+
+guard.testCasesImplemented:
+  - All test cases are implemented and runnable
+  - Test data is deterministic and version controlled
+  - Mocks and stubs are properly configured
+  - Test isolation is maintained
+
+guard.automationConfigured:
+  - CI pipeline executes all test suites
+  - Coverage collection is working
+  - Test reports are generated
+  - Performance monitoring is active
+
+guard.allTestsPass:
+  - Zero test failures across all suites
+  - Coverage thresholds are met
+  - Performance budgets are satisfied
+  - Security scans pass with no critical issues
+
+guard.stakeholderApprovalComplete:
+  - All required stakeholders have approved
+  - Test documentation is complete and reviewed
+  - Maintenance procedures are documented
+  - Handover process is defined
+
+###############################################################################
+# KNOWLEDGE ENGINE INTEGRATION ACTIONS
+###############################################################################
+
+action.detectKnowledgeEngine:
+  - Check for Knowledge Engine extension installation
+  - Verify extension is active and running
+  - Retrieve available capabilities and features
+  - Store knowledge engine status in context
+
+action.detectMCPTools:
+  - Scan for MCP tools installation
+  - Verify MCP server is running
+  - List available MCP tools and capabilities
+  - Store MCP tools status in context
+
+action.configureKnowledgeIntegration:
+  - Configure knowledge base connections
+  - Setup intelligent search capabilities
+  - Initialize context-aware processing
+  - Enable dynamic template adaptation
+
+action.setupIntelligentFeatures:
+  - Enable intelligent content suggestions
+  - Setup context-aware validation
+  - Configure adaptive template generation
+  - Initialize knowledge-enhanced workflows
+
+action.leverageKnowledgeBase:
+  - Query knowledge base for relevant information
+  - Apply intelligent content recommendations
+  - Enhance templates with contextual data
+  - Optimize based on historical patterns
+
+action.enhanceWithMCPTools:
+  - Integrate available MCP tools
+  - Enhance processing with external capabilities
+  - Apply cross-platform tool orchestration
+  - Leverage specialized tool functions
+
+action.generateIntelligentSuggestions:
+  - Generate context-aware suggestions
+  - Provide intelligent recommendations
+  - Adapt content based on user patterns
+  - Optimize for maximum impact
+
+action.adaptToContext:
+  - Adapt templates to current context
+  - Apply dynamic configuration
+  - Optimize for available tools
+  - Enhance user experience
+
+###############################################################################
+# KNOWLEDGE ENGINE INTEGRATION GUARDS
+###############################################################################
+
+guard.knowledgeEngineAvailable:
+  - Knowledge Engine extension is installed
+  - Extension is active and running
+  - Required capabilities are available
+  - Integration is properly configured
+
+guard.knowledgeIntegrationComplete:
+  - Knowledge base integration is active
+  - MCP tools are properly configured
+  - Intelligent features are enabled
+  - Context adaptation is working
+
+###############################################################################
+# KNOWLEDGE ENGINE CONFIGURATION
+###############################################################################
+
+## Knowledge Engine Integration Settings
+knowledgeEngineIntegration:
+  enabled: true
+  capabilities: ["search", "query", "knowledge-base", "intelligent-suggestions"]
+  mcpTools: ["context-provider", "tool-orchestrator", "cross-platform-support"]
+  lastUpdated: "2024-01-01T00:00:00Z"
+
+## Integration Points
+integrationPoints:
+  - "Intelligent test case generation based on knowledge base"
+  - "Context-aware test strategy optimization"
+  - "Dynamic capability detection and utilization"
+  - "Enhanced validation with knowledge engine insights"
+  - "Cross-platform tool integration via MCP"
+  - "Adaptive processing based on available tools"
+  - "Intelligent error handling and suggestions"
+  - "Context-aware documentation generation"
+
+## Knowledge Engine Features
+knowledgeEngineFeatures:
+  intelligentSearch: true
+  naturalLanguageQuery: true
+  knowledgeBase: true
+  contextAware: true
+  adaptiveTemplates: true
+
+## MCP Tools Integration
+mcpToolsIntegration:
+  enabled: true
+  availableTools: ["context-provider", "tool-orchestrator", "cross-platform-support"]
+  crossPlatformSupport: true
+  toolOrchestration: true
+
+## Enhanced Test Suite Capabilities
+enhancedCapabilities:
+  - "Intelligent test case generation based on knowledge base"
+  - "Context-aware test strategy optimization"
+  - "Dynamic capability detection and utilization"
+  - "Enhanced validation with knowledge engine insights"
+  - "Cross-platform tool integration via MCP"
+  - "Adaptive processing based on available tools"
+  - "Intelligent error handling and suggestions"
+  - "Context-aware documentation generation"
+  - "Intelligent test data generation"
+  - "Adaptive test execution optimization"
+
+###############################################################################
+# END OF TEMPLATE
+###############################################################################
