@@ -87,6 +87,25 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
             const nodes = await db.instancesOf(typeName);
             return json(nodes.map((n) => ({ id: n.id, data: n.data })));
           }
+          case "/api/history": {
+            const id = url.searchParams.get("id");
+            if (!id) return json({ error: "missing id" }, 400);
+            const history = await db.getNodeHistory(id);
+            return json(history.map((h) => ({ 
+              id: h.id, 
+              data: h.data, 
+              timestamp: h.timestamp,
+              vectorClock: h.vectorClock,
+              state: h.state
+            })));
+          }
+          case "/api/restore": {
+            const id = url.searchParams.get("id");
+            const timestamp = url.searchParams.get("timestamp");
+            if (!id || !timestamp) return json({ error: "missing id or timestamp" }, 400);
+            await db.restoreNodeVersion(id, parseInt(timestamp));
+            return json({ success: true });
+          }
           default:
             return json({ error: "not found" }, 404);
         }

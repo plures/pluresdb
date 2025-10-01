@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" 
+           Name="Rusty Gun" 
+           Language="1033" 
+           Version="1.0.0" 
+           Manufacturer="Rusty Gun" 
+           UpgradeCode="PUT-GUID-HERE">
+    
+    <Package InstallerVersion="200" 
+             Compressed="yes" 
+             InstallScope="perMachine"
+             Description="P2P Graph Database with SQLite Compatibility"
+             Comments="Rusty Gun - Local-first, peer-to-peer graph database"
+             Manufacturer="Rusty Gun" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="ProductFeature" Title="Rusty Gun" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="WebUI" />
+      <ComponentRef Id="ConfigFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+      <ComponentRef Id="RegistryEntries" />
+    </Feature>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="RustyGun">
+          <Component Id="MainExecutable" Guid="*">
+            <File Id="RustyGunExe" 
+                  Name="rusty-gun.exe" 
+                  Source="$(var.SourceDir)\rusty-gun.exe" 
+                  KeyPath="yes" />
+          </Component>
+
+          <Directory Id="WebUIFolder" Name="web">
+            <Component Id="WebUI" Guid="*">
+              <File Id="WebUIFiles" 
+                    Name="index.html" 
+                    Source="$(var.SourceDir)\web\dist\index.html" 
+                    KeyPath="yes" />
+              <File Id="WebUICSS" 
+                    Name="index.css" 
+                    Source="$(var.SourceDir)\web\dist\assets\index-*.css" />
+              <File Id="WebUIJS" 
+                    Name="index.js" 
+                    Source="$(var.SourceDir)\web\dist\assets\index-*.js" />
+            </Component>
+          </Directory>
+
+          <Directory Id="ConfigFolder" Name="config">
+            <Component Id="ConfigFiles" Guid="*">
+              <File Id="ConfigFile" 
+                    Name="deno.json" 
+                    Source="$(var.SourceDir)\deno.json" 
+                    KeyPath="yes" />
+              <File Id="ConfigTS" 
+                    Name="config.ts" 
+                    Source="$(var.SourceDir)\src\config.ts" />
+            </Component>
+          </Directory>
+        </Directory>
+      </Directory>
+
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ProgramMenuDir" Name="Rusty Gun">
+          <Component Id="StartMenuShortcut" Guid="*">
+            <Shortcut Id="StartMenuShortcut" 
+                      Directory="ProgramMenuDir" 
+                      Name="Rusty Gun" 
+                      WorkingDirectory="INSTALLFOLDER" 
+                      Icon="RustyGunIcon" 
+                      IconIndex="0" 
+                      Advertise="yes" />
+            <RemoveFolder Id="ProgramMenuDir" On="uninstall" />
+            <RegistryValue Root="HKCU" 
+                          Key="Software\Rusty Gun" 
+                          Name="installed" 
+                          Type="integer" 
+                          Value="1" 
+                          KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+
+      <Directory Id="DesktopFolder">
+        <Component Id="DesktopShortcut" Guid="*">
+          <Shortcut Id="DesktopShortcut" 
+                    Directory="DesktopFolder" 
+                    Name="Rusty Gun" 
+                    WorkingDirectory="INSTALLFOLDER" 
+                    Icon="RustyGunIcon" 
+                    IconIndex="0" 
+                    Advertise="yes" />
+          <RemoveFolder Id="DesktopShortcut" On="uninstall" />
+        </Component>
+      </Directory>
+    </Directory>
+
+    <Component Id="RegistryEntries" Guid="*">
+      <RegistryKey Root="HKLM" Key="SOFTWARE\Rusty Gun">
+        <RegistryValue Name="InstallPath" 
+                      Type="string" 
+                      Value="[INSTALLFOLDER]" />
+        <RegistryValue Name="Version" 
+                      Type="string" 
+                      Value="1.0.0" />
+      </RegistryKey>
+      <RegistryKey Root="HKLM" Key="SOFTWARE\Rusty Gun\Capabilities">
+        <RegistryValue Name="ApplicationDescription" 
+                      Type="string" 
+                      Value="P2P Graph Database with SQLite Compatibility" />
+        <RegistryValue Name="ApplicationName" 
+                      Type="string" 
+                      Value="Rusty Gun" />
+      </RegistryKey>
+    </Component>
+
+    <Icon Id="RustyGunIcon" SourceFile="$(var.SourceDir)\assets\icon.ico" />
+
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <UIRef Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.SourceDir)\assets\license.rtf" />
+    <WixVariable Id="WixUIBannerBmp" Value="$(var.SourceDir)\assets\banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="$(var.SourceDir)\assets\dialog.bmp" />
+
+    <CustomAction Id="LaunchRustyGun" 
+                  FileKey="RustyGunExe" 
+                  ExeCommand="serve" 
+                  Return="asyncNoWait" />
+
+    <InstallExecuteSequence>
+      <Custom Action="LaunchRustyGun" After="InstallFinalize">NOT Installed</Custom>
+    </InstallExecuteSequence>
+  </Product>
+</Wix>

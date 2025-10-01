@@ -9,8 +9,26 @@
   import HistoryViewer from './components/HistoryViewer.svelte'
   import CRDTInspector from './components/CRDTInspector.svelte'
   import ImportExport from './components/ImportExport.svelte'
-  import Toasts from './components/Toasts.svelte'
-  let activeView: 'data' | 'types' | 'history' | 'crdt' | 'import' | 'settings' = 'data'
+  import GraphView from './components/GraphView.svelte'
+  import VectorExplorer from './components/VectorExplorer.svelte'
+  import FacetedSearch from './components/FacetedSearch.svelte'
+  import Notebooks from './components/Notebooks.svelte'
+  import QueryBuilder from './components/QueryBuilder.svelte'
+  import RulesBuilder from './components/RulesBuilder.svelte'
+  import TasksScheduler from './components/TasksScheduler.svelte'
+  import MeshPanel from './components/MeshPanel.svelte'
+  import StorageIndexes from './components/StorageIndexes.svelte'
+  import Profiling from './components/Profiling.svelte'
+  import SecurityPanel from './components/SecurityPanel.svelte'
+  import PackagingPanel from './components/PackagingPanel.svelte'
+  import BillingPanel from './components/BillingPanel.svelte'
+import SQLiteCompatibility from './components/SQLiteCompatibility.svelte'
+import P2PEcosystem from './components/P2PEcosystem.svelte'
+import IdentityDiscovery from './components/IdentityDiscovery.svelte'
+import EncryptedSharing from './components/EncryptedSharing.svelte'
+import CrossDeviceSync from './components/CrossDeviceSync.svelte'
+import Toasts from './components/Toasts.svelte'
+  let activeView: 'data' | 'types' | 'history' | 'crdt' | 'import' | 'graph' | 'vector' | 'faceted' | 'notebooks' | 'queries' | 'rules' | 'tasks' | 'mesh' | 'storage' | 'profiling' | 'security' | 'packaging' | 'billing' | 'sqlite' | 'p2p' | 'identity' | 'sharing' | 'sync' | 'settings' = 'data'
   let dark = false
 
   async function loadConfig(){
@@ -136,13 +154,193 @@
       <li role="none">
         <button 
           role="menuitem"
-          class:secondary={activeView !== 'settings'} 
-          on:click={() => activeView = 'settings'}
-          aria-current={activeView === 'settings' ? 'page' : undefined}
+          class:secondary={activeView !== 'graph'} 
+          on:click={() => activeView = 'graph'}
+          aria-current={activeView === 'graph' ? 'page' : undefined}
         >
-          Settings
+          Graph
         </button>
       </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'vector'} 
+          on:click={() => activeView = 'vector'}
+          aria-current={activeView === 'vector' ? 'page' : undefined}
+        >
+          Vector
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'faceted'} 
+          on:click={() => activeView = 'faceted'}
+          aria-current={activeView === 'faceted' ? 'page' : undefined}
+        >
+          Search
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'notebooks'} 
+          on:click={() => activeView = 'notebooks'}
+          aria-current={activeView === 'notebooks' ? 'page' : undefined}
+        >
+          Notebooks
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'queries'} 
+          on:click={() => activeView = 'queries'}
+          aria-current={activeView === 'queries' ? 'page' : undefined}
+        >
+          Queries
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'rules'} 
+          on:click={() => activeView = 'rules'}
+          aria-current={activeView === 'rules' ? 'page' : undefined}
+        >
+          Rules
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'tasks'} 
+          on:click={() => activeView = 'tasks'}
+          aria-current={activeView === 'tasks' ? 'page' : undefined}
+        >
+          Tasks
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'mesh'} 
+          on:click={() => activeView = 'mesh'}
+          aria-current={activeView === 'mesh' ? 'page' : undefined}
+        >
+          Mesh
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'storage'} 
+          on:click={() => activeView = 'storage'}
+          aria-current={activeView === 'storage' ? 'page' : undefined}
+        >
+          Storage
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'profiling'} 
+          on:click={() => activeView = 'profiling'}
+          aria-current={activeView === 'profiling' ? 'page' : undefined}
+        >
+          Profiling
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'security'} 
+          on:click={() => activeView = 'security'}
+          aria-current={activeView === 'security' ? 'page' : undefined}
+        >
+          Security
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'packaging'} 
+          on:click={() => activeView = 'packaging'}
+          aria-current={activeView === 'packaging' ? 'page' : undefined}
+        >
+          Packaging
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'billing'} 
+          on:click={() => activeView = 'billing'}
+          aria-current={activeView === 'billing' ? 'page' : undefined}
+        >
+          Billing
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'sqlite'} 
+          on:click={() => activeView = 'sqlite'}
+          aria-current={activeView === 'sqlite' ? 'page' : undefined}
+        >
+          SQLite
+        </button>
+      </li>
+    <li role="none">
+      <button 
+        role="menuitem"
+        class:secondary={activeView !== 'p2p'} 
+        on:click={() => activeView = 'p2p'}
+        aria-current={activeView === 'p2p' ? 'page' : undefined}
+      >
+        P2P
+      </button>
+    </li>
+    <li role="none">
+      <button 
+        role="menuitem"
+        class:secondary={activeView !== 'identity'} 
+        on:click={() => activeView = 'identity'}
+        aria-current={activeView === 'identity' ? 'page' : undefined}
+      >
+        Identity
+      </button>
+    </li>
+    <li role="none">
+      <button 
+        role="menuitem"
+        class:secondary={activeView !== 'sharing'} 
+        on:click={() => activeView = 'sharing'}
+        aria-current={activeView === 'sharing' ? 'page' : undefined}
+      >
+        Sharing
+      </button>
+    </li>
+    <li role="none">
+      <button 
+        role="menuitem"
+        class:secondary={activeView !== 'sync'} 
+        on:click={() => activeView = 'sync'}
+        aria-current={activeView === 'sync' ? 'page' : undefined}
+      >
+        Sync
+      </button>
+    </li>
+    <li role="none">
+      <button 
+        role="menuitem"
+        class:secondary={activeView !== 'settings'} 
+        on:click={() => activeView = 'settings'}
+        aria-current={activeView === 'settings' ? 'page' : undefined}
+      >
+        Settings
+      </button>
+    </li>
       <li role="none">
         <label>
           <input 
@@ -184,10 +382,82 @@
     <div role="main">
       <ImportExport />
     </div>
-  {:else if activeView === 'settings'}
+  {:else if activeView === 'graph'}
     <div role="main">
-      <SettingsPanel />
+      <GraphView />
     </div>
+  {:else if activeView === 'vector'}
+    <div role="main">
+      <VectorExplorer />
+    </div>
+  {:else if activeView === 'faceted'}
+    <div role="main">
+      <FacetedSearch />
+    </div>
+  {:else if activeView === 'notebooks'}
+    <div role="main">
+      <Notebooks />
+    </div>
+  {:else if activeView === 'queries'}
+    <div role="main">
+      <QueryBuilder />
+    </div>
+  {:else if activeView === 'rules'}
+    <div role="main">
+      <RulesBuilder />
+    </div>
+  {:else if activeView === 'tasks'}
+    <div role="main">
+      <TasksScheduler />
+    </div>
+  {:else if activeView === 'mesh'}
+    <div role="main">
+      <MeshPanel />
+    </div>
+  {:else if activeView === 'storage'}
+    <div role="main">
+      <StorageIndexes />
+    </div>
+  {:else if activeView === 'profiling'}
+    <div role="main">
+      <Profiling />
+    </div>
+  {:else if activeView === 'security'}
+    <div role="main">
+      <SecurityPanel />
+    </div>
+  {:else if activeView === 'packaging'}
+    <div role="main">
+      <PackagingPanel />
+    </div>
+  {:else if activeView === 'billing'}
+    <div role="main">
+      <BillingPanel />
+    </div>
+  {:else if activeView === 'sqlite'}
+    <div role="main">
+      <SQLiteCompatibility />
+    </div>
+    {:else if activeView === 'p2p'}
+      <div role="main">
+        <P2PEcosystem />
+      </div>
+    {:else if activeView === 'identity'}
+      <div role="main">
+        <IdentityDiscovery />
+      </div>
+    {:else if activeView === 'sharing'}
+      <div role="main">
+        <EncryptedSharing />
+      </div>
+    {:else if activeView === 'sync'}
+      <div role="main">
+        <CrossDeviceSync />
+      </div>
+    {:else if activeView === 'settings'}
+      <div role="main">
+        <SettingsPanel />
+      </div>
   {/if}
 
   <Toasts />

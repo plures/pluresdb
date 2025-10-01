@@ -183,6 +183,19 @@ export class GunDB {
     return results;
   }
 
+  async getNodeHistory(id: string): Promise<NodeRecord[]> {
+    return await this.storage.getNodeHistory(id);
+  }
+
+  async restoreNodeVersion(id: string, timestamp: number): Promise<void> {
+    const history = await this.getNodeHistory(id);
+    const version = history.find(v => v.timestamp === timestamp);
+    if (!version) throw new Error(`Version not found for node ${id} at timestamp ${timestamp}`);
+    
+    // Restore by putting the historical version
+    await this.put(id, version.data);
+  }
+
   async setType(id: string, typeName: string): Promise<void> {
     const existing = await this.storage.getNode(id);
     const data: Record<string, unknown> = existing ? existing.data : {};

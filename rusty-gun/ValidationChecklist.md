@@ -95,6 +95,256 @@ item has concrete, testable criteria.
   - Inline error/warning indicators
   - JSON syntax validation with position-aware errors
 
+## UI Phase 2 - Data Modeling & Insight
+
+- [x] Type & Schema Explorer
+  - Visual type list with instance counts
+  - Per-type schema editor with JSON Schema validation
+  - Schema save/delete functionality
+  - Type creation with sample instances
+  - Real-time schema validation with error display
+  - Responsive grid layout (types list + details)
+  - Accessibility: ARIA labels, keyboard navigation
+
+- [x] History & Time Travel
+  - Per-node version history with timestamps
+  - Visual diff between versions
+  - Version restoration capability
+  - Vector clock and field state inspection
+  - Time-based version navigation
+  - Metadata display for each version
+  - Responsive grid layout (versions + details)
+  - Accessibility: ARIA labels, keyboard navigation
+
+- [x] CRDT Inspector
+  - Conflict detection and visualization
+  - Field-level state inspection
+  - Vector clock analysis
+  - Merge information display
+  - Conflict resolution tools (UI ready)
+  - Raw node data inspection
+  - Responsive grid layout for different views
+  - Accessibility: ARIA labels, keyboard navigation
+
+- [x] Import/Export Wizard
+  - JSON and CSV export formats
+  - Type-based data filtering
+  - CSV field mapping interface
+  - Data preview and validation
+  - Download and clipboard copy functionality
+  - Batch import with progress tracking
+  - Tab-based interface (Export/Import)
+  - Accessibility: ARIA labels, keyboard navigation
+
+## UI Phase 3 - Graph & Vector Exploration
+
+- [x] Interactive Graph View
+  - Cytoscape.js integration with multiple layout algorithms
+  - Type-based filtering and color coding
+  - Search-to-highlight functionality
+  - Lasso selection mode
+  - Node and edge interaction
+  - Export to PNG functionality
+  - Responsive design with mobile support
+
+- [x] Vector Explorer
+  - Vector search with similarity scoring
+  - Embedding inspector with statistics
+  - Nearest neighbors panel
+  - Vector visualization and analysis
+  - Export vector data functionality
+  - Index type selection (Brute-force, HNSW future)
+  - Real-time vector statistics
+
+- [x] Faceted Search
+  - Multi-faceted filtering (Type, Time, Tags, Text, Date Range)
+  - Saved searches with persistence
+  - Quick actions for common operations
+  - Export search results
+  - Advanced text search across all data
+  - Time-based filtering with predefined ranges
+  - Tag-based filtering and extraction
+
+- [x] Graph Canvas Integration
+  - Graph canvas synced to node selection
+  - Vector search panel with KNN previews
+  - Interactive node selection and highlighting
+  - Real-time graph updates
+  - Cross-component data synchronization
+
+## UI Phase 4 - Query, Rules & Automations + Notebooks
+
+- [x] Interactive Notebooks
+  - Scriptable cells with JavaScript/TypeScript execution
+  - Markdown cells for documentation and notes
+  - Code execution with API access and sandboxed environment
+  - Output display with formatted results
+  - Cell management (add, delete, move up/down)
+  - Notebook persistence with localStorage
+  - Import/Export functionality for notebooks
+  - Real-time execution with status indicators
+  - Default welcome notebook with examples
+
+- [x] Visual Query Builder
+  - Visual query builder with drag-and-drop interface
+  - AND/OR operations for complex queries
+  - Field operations (equals, contains, starts with, etc.)
+  - Saved queries with persistence
+  - Raw DSL mode for advanced users
+  - Query execution with results display
+  - Export/Import functionality
+  - Real-time query building with visual feedback
+
+- [x] Rules Builder
+  - Visual conditions → actions interface
+  - Property setting and relation creation
+  - Rule engine integration
+  - Rule testing and validation
+  - Rule management with enable/disable
+  - Rule execution with logging
+  - Export/Import functionality
+
+- [x] Tasks Scheduler
+  - Scheduled jobs (re-embed, cleanup, backup, custom)
+  - Task logs and run-now functionality
+  - Job management and monitoring
+  - Automation workflows
+  - Cron-like scheduling with presets
+  - Real-time task monitoring
+  - Export/Import functionality
+
+## UI Phase 5 - Mesh, Performance & Ops
+
+- [x] Mesh Panel
+  - Peer list with connection state monitoring
+  - Bandwidth and message rate tracking
+  - Snapshot creation and management
+  - Synchronization controls with progress tracking
+  - Mesh logs with real-time monitoring
+  - Auto-refresh functionality
+  - Peer connection management (connect/disconnect)
+
+- [x] Storage & Indexes Dashboard
+  - Storage statistics with usage visualization
+  - Index management (vector, text, numeric, composite)
+  - Performance metrics for each index
+  - Backup/restore functionality (full and incremental)
+  - Compaction control with progress tracking
+  - Storage usage visualization with progress bars
+  - Index creation and deletion
+
+- [x] Profiling Dashboard
+  - Slow operations tracking with detailed information
+  - Large nodes identification with access patterns
+  - Top talkers monitoring with bandwidth and message counts
+  - Performance suggestions with priority levels and actions
+  - Tabbed interface for organized data viewing
+  - Real-time monitoring with auto-refresh
+  - Suggestion management (apply/dismiss)
+
+## UI Phase 6 - Security, Packaging & Deploy
+
+- [x] Security & Authentication
+  - User management with role-based access control
+  - Role management with permission assignment
+  - Policy management with resource-based access control
+  - API token management with expiration and revocation
+  - Security settings with session timeout and password policies
+  - RBAC implementation by type/action
+  - Two-factor authentication support
+  - API rate limiting configuration
+
+- [x] Packaging & Deployment
+  - Docker containerization with image building and management
+  - Windows MSI packaging with installer creation
+  - Winget package preparation and publishing
+  - Update management with in-app update checking
+  - Deployment management with environment control
+  - Build logs with real-time progress tracking
+  - Health monitoring with status checks
+
+## UI Billing System - Payment & Billing Management
+
+- [x] Subscription Management
+  - Plan selection with Free, Pro, and Enterprise tiers
+  - Pricing tiers with monthly and yearly billing cycles
+  - Plan features with detailed feature lists and limits
+  - Subscription status tracking (active, cancelled, past_due, trialing)
+  - Plan changes with seamless upgrades and downgrades
+  - Cancellation management with end-of-period cancellation
+  - Reactivation of cancelled subscriptions
+
+- [x] Payment Processing
+  - Multiple payment methods (Credit Card, Bank Account, PayPal)
+  - Payment method management with add/remove functionality
+  - Default payment method selection
+  - Card information with masked display and expiry dates
+  - Payment security with secure tokenization
+  - Payment method validation with real-time checks
+
+- [x] Usage Tracking & Metered Billing
+  - Resource monitoring for nodes, storage, users, and API calls
+  - Usage visualization with progress bars and percentage indicators
+  - Limit enforcement with real-time usage tracking
+  - Overage alerts when approaching limits
+  - Unlimited plans support for enterprise customers
+  - Bandwidth tracking for network usage monitoring
+
+- [x] Invoice Management
+  - Invoice generation with automatic billing
+  - Invoice status tracking (paid, pending, failed, draft)
+  - Invoice download with PDF generation
+  - Payment history with detailed transaction records
+  - Due date management with automated reminders
+  - Invoice numbering with sequential numbering system
+
+- [x] Billing Analytics
+  - Revenue dashboard with monthly and total revenue tracking
+  - Subscription metrics with active subscription counts
+  - Churn rate analysis with customer retention metrics
+  - ARPU tracking (Average Revenue Per User)
+  - Growth rate analysis with percentage growth tracking
+  - Business intelligence for data-driven decisions
+
+## UI Phase 7 - P2P Ecosystem & Local-First Development
+
+- [x] Identity & Discovery
+  - [x] Identity node creation and management
+  - [x] Public key generation and management
+  - [x] Peer search and discovery interface
+  - [x] Connection request system (send/receive/accept/reject)
+  - [x] Peer profile management (name, email, location, tags)
+  - [x] Acceptance policy configuration per device type
+  - [x] Real-time peer status monitoring
+
+- [x] Encrypted Data Sharing
+  - [x] Node-level encryption with target public keys
+  - [x] Encryption key management (RSA, ECDSA, Ed25519)
+  - [x] Access policy creation and management
+  - [x] Data sharing workflow (share/accept/reject/revoke)
+  - [x] Sharing history and audit trail
+  - [x] Conflict resolution for shared data
+  - [x] Granular access control (read-only, read-write, admin)
+
+- [x] Cross-Device Sync
+  - [x] Automatic device discovery and connection
+  - [x] Real-time data synchronization
+  - [x] Conflict detection and resolution
+  - [x] Offline operation queuing
+  - [x] Sync status monitoring and metrics
+  - [x] Device management (add/remove/connect/disconnect)
+  - [x] Sync settings and policy configuration
+  - [x] Performance metrics and bandwidth monitoring
+
+- [x] Local-First Development
+  - [x] Offline-first data storage
+  - [x] Local operation queuing
+  - [x] Automatic sync when online
+  - [x] Conflict resolution strategies
+  - [x] Data integrity validation
+  - [x] Backup and restore capabilities
+  - [x] Cross-platform compatibility
+
 ## Future Milestones (Not yet implemented)
 
 - [ ] Advanced CRDT parity with HAM
