@@ -5,8 +5,12 @@
   import NodeDetail from './components/NodeDetail.svelte'
   import SearchPanel from './components/SearchPanel.svelte'
   import SettingsPanel from './components/SettingsPanel.svelte'
+  import TypeExplorer from './components/TypeExplorer.svelte'
+  import HistoryViewer from './components/HistoryViewer.svelte'
+  import CRDTInspector from './components/CRDTInspector.svelte'
+  import ImportExport from './components/ImportExport.svelte'
   import Toasts from './components/Toasts.svelte'
-  let showSettings = false
+  let activeView: 'data' | 'types' | 'history' | 'crdt' | 'import' | 'settings' = 'data'
   let dark = false
 
   async function loadConfig(){
@@ -82,9 +86,9 @@
       <li role="none">
         <button 
           role="menuitem"
-          class:secondary={showSettings} 
-          on:click={() => showSettings=false}
-          aria-current={!showSettings ? 'page' : undefined}
+          class:secondary={activeView !== 'data'} 
+          on:click={() => activeView = 'data'}
+          aria-current={activeView === 'data' ? 'page' : undefined}
         >
           Data
         </button>
@@ -92,9 +96,49 @@
       <li role="none">
         <button 
           role="menuitem"
-          class:secondary={!showSettings} 
-          on:click={() => showSettings=true}
-          aria-current={showSettings ? 'page' : undefined}
+          class:secondary={activeView !== 'types'} 
+          on:click={() => activeView = 'types'}
+          aria-current={activeView === 'types' ? 'page' : undefined}
+        >
+          Types
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'history'} 
+          on:click={() => activeView = 'history'}
+          aria-current={activeView === 'history' ? 'page' : undefined}
+        >
+          History
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'crdt'} 
+          on:click={() => activeView = 'crdt'}
+          aria-current={activeView === 'crdt' ? 'page' : undefined}
+        >
+          CRDT
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'import'} 
+          on:click={() => activeView = 'import'}
+          aria-current={activeView === 'import' ? 'page' : undefined}
+        >
+          Import/Export
+        </button>
+      </li>
+      <li role="none">
+        <button 
+          role="menuitem"
+          class:secondary={activeView !== 'settings'} 
+          on:click={() => activeView = 'settings'}
+          aria-current={activeView === 'settings' ? 'page' : undefined}
         >
           Settings
         </button>
@@ -114,7 +158,7 @@
     </ul>
   </nav>
 
-  {#if !showSettings}
+  {#if activeView === 'data'}
     <div class="grid" role="main">
       <section aria-label="Node list and filters">
         <NodeList />
@@ -124,7 +168,23 @@
         <SearchPanel />
       </section>
     </div>
-  {:else}
+  {:else if activeView === 'types'}
+    <div role="main">
+      <TypeExplorer />
+    </div>
+  {:else if activeView === 'history'}
+    <div role="main">
+      <HistoryViewer />
+    </div>
+  {:else if activeView === 'crdt'}
+    <div role="main">
+      <CRDTInspector />
+    </div>
+  {:else if activeView === 'import'}
+    <div role="main">
+      <ImportExport />
+    </div>
+  {:else if activeView === 'settings'}
     <div role="main">
       <SettingsPanel />
     </div>
