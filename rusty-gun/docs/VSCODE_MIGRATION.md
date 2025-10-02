@@ -8,7 +8,7 @@ This guide helps you migrate your VSCode extension from SQLite to Rusty Gun, gai
 - **Offline-First**: Work without internet connection
 - **Vector Search**: Semantic search across your data
 - **Encrypted Sharing**: Secure data sharing between peers
-- **SQLite Compatibility**: Minimal code changes required
+- **SQLite Compatibility**: **Zero code changes required!** 🎉
 
 ## 📋 Migration Steps
 
@@ -45,35 +45,31 @@ import { open } from 'sqlite';
 
 **After (Rusty Gun):**
 ```typescript
-import { SQLiteCompatibleAPI } from 'rusty-gun';
+import sqlite3 from 'rusty-gun';
+import { open } from 'rusty-gun';
 ```
 
-### 4. Update Database Initialization
+### 4. That's It! 🎉
 
-**Before (SQLite):**
+**No other changes needed!** Your existing SQLite code will work exactly the same:
+
 ```typescript
+// This works exactly the same as before!
 const db = await open({
   filename: path.join(context.globalStorageUri.fsPath, 'database.db'),
   driver: sqlite3.Database
 });
+
+// All your existing SQLite operations work unchanged
+await db.exec('CREATE TABLE IF NOT EXISTS settings (key TEXT, value TEXT)');
+await db.run('INSERT INTO settings VALUES (?, ?)', ['theme', 'dark']);
+const settings = await db.all('SELECT * FROM settings');
 ```
 
-**After (Rusty Gun):**
-```typescript
-const db = new SQLiteCompatibleAPI({
-  config: {
-    dataDir: path.join(context.globalStorageUri.fsPath, 'rusty-gun'),
-    port: 34567,
-    host: 'localhost'
-  }
-});
+### 5. Database Operations (No Changes Required!)
 
-await db.start();
-```
+**All SQLite operations work exactly the same:**
 
-### 5. Update Database Operations
-
-**Before (SQLite):**
 ```typescript
 // Create tables
 await db.exec(`
@@ -95,38 +91,27 @@ await db.run('UPDATE settings SET value = ? WHERE key = ?', ['light', 'theme']);
 
 // Delete data
 await db.run('DELETE FROM settings WHERE key = ?', ['theme']);
+
+// Transactions
+await db.transaction(async (db) => {
+  await db.run('INSERT INTO settings VALUES (?, ?)', ['key1', 'value1']);
+  await db.run('INSERT INTO settings VALUES (?, ?)', ['key2', 'value2']);
+});
+
+// Prepared statements
+const stmt = db.prepare('INSERT INTO settings VALUES (?, ?)');
+await stmt.run(['key3', 'value3']);
+stmt.finalize();
 ```
 
-**After (Rusty Gun):**
-```typescript
-// Create tables (same as SQLite)
-await db.exec(`
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  )
-`);
-
-// Insert data (same as SQLite)
-await db.run('INSERT INTO settings VALUES (?, ?)', ['theme', 'dark']);
-
-// Query data (same as SQLite)
-const settings = await db.all('SELECT * FROM settings');
-const setting = await db.get('SELECT * FROM settings WHERE key = ?', ['theme']);
-
-// Update data (same as SQLite)
-await db.run('UPDATE settings SET value = ? WHERE key = ?', ['light', 'theme']);
-
-// Delete data (same as SQLite)
-await db.run('DELETE FROM settings WHERE key = ?', ['theme']);
-```
+**All existing SQLite code works without any changes!** ✨
 
 ### 6. Add P2P Features (Optional)
 
 ```typescript
 import { RustyGunNode } from 'rusty-gun';
 
-// Initialize P2P capabilities
+// Initialize P2P capabilities (uses same data directory as SQLite)
 const p2p = new RustyGunNode({
   config: {
     dataDir: path.join(context.globalStorageUri.fsPath, 'rusty-gun'),
@@ -158,25 +143,21 @@ Here's a complete example of migrating a VSCode extension:
 
 ```typescript
 import * as vscode from 'vscode';
-import { SQLiteCompatibleAPI, RustyGunNode } from 'rusty-gun';
+import sqlite3 from 'rusty-gun';
+import { open } from 'rusty-gun';
+import { RustyGunNode } from 'rusty-gun';
 import * as path from 'path';
 
 export class MyExtension {
-  private db: SQLiteCompatibleAPI;
+  private db: any; // SQLite-compatible database
   private p2p: RustyGunNode;
   private context: vscode.ExtensionContext;
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
     
-    // Initialize database
-    this.db = new SQLiteCompatibleAPI({
-      config: {
-        dataDir: path.join(context.globalStorageUri.fsPath, 'rusty-gun'),
-        port: 34567,
-        host: 'localhost'
-      }
-    });
+    // Initialize database (exactly like SQLite!)
+    this.db = null; // Will be initialized in activate()
 
     // Initialize P2P (optional)
     this.p2p = new RustyGunNode({
@@ -189,8 +170,12 @@ export class MyExtension {
   }
 
   async activate() {
-    // Start database
-    await this.db.start();
+    // Start database (exactly like SQLite!)
+    this.db = await open({
+      filename: path.join(this.context.globalStorageUri.fsPath, 'database.db'),
+      driver: sqlite3.Database
+    });
+    
     await this.p2p.start();
 
     // Set up database schema
@@ -201,7 +186,7 @@ export class MyExtension {
   }
 
   async deactivate() {
-    await this.db.stop();
+    await this.db.close();
     await this.p2p.stop();
   }
 
@@ -257,8 +242,11 @@ export class MyExtension {
       const query = await vscode.window.showInputBox({ prompt: 'Search query' });
       
       if (query) {
-        // Use vector search for semantic search
-        const results = await this.db.vectorSearch(query, 10);
+        // Use SQL LIKE for text search (same as SQLite)
+        const results = await this.db.all(
+          'SELECT * FROM documents WHERE content LIKE ?', 
+          [`%${query}%`]
+        );
         
         // Display results
         const doc = await vscode.workspace.openTextDocument({
