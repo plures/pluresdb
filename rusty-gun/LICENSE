@@ -1,6 +1,6 @@
-Rusty Gun Database - Open Source License
+PluresDB - Open Source License
 
-Copyright (c) 2024 Rusty Gun Team
+Copyright (c) 2024 Plures Organization
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -16,50 +16,14 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ===============================================================================
-BUSINESS MODEL
-===============================================================================
-
-Rusty Gun is open source software licensed under AGPL v3. We generate revenue
-through:
-
-1. **Commercial Support & Services**
-   - Professional support and consulting
-   - Custom development and integrations
-   - Training and documentation
-   - SLA guarantees and priority support
-
-2. **Hosted Services**
-   - Managed Rusty Gun instances
-   - Cloud-based deployment and scaling
-   - Monitoring and maintenance services
-   - Backup and disaster recovery
-
-3. **Enterprise Features**
-   - Advanced security and compliance tools
-   - Enterprise-grade monitoring and alerting
-   - Custom integrations and APIs
-   - White-label solutions
-
-4. **Community & Ecosystem**
-   - Premium documentation and tutorials
-   - Community events and conferences
-   - Certification programs
-   - Marketplace for extensions and plugins
-
-===============================================================================
 LICENSE COMPLIANCE
 ===============================================================================
 
 AGPL v3 requires that:
-- All modifications to Rusty Gun must be open source
-- If you provide Rusty Gun as a service, you must offer source code to users
+- All modifications to PluresDB must be open source
+- If you provide PluresDB as a service, you must offer source code to users
 - Derivative works must be licensed under AGPL v3
 - You cannot add additional restrictions
-
-For commercial use without open source obligations, contact us for:
-- Commercial licensing options
-- Enterprise support agreements
-- Custom development contracts
 
 ===============================================================================
 THIRD-PARTY LICENSES
@@ -72,7 +36,7 @@ Dependencies (MIT License):
 - serde: https://github.com/serde-rs/serde
 - axum: https://github.com/tokio-rs/axum
 - sqlx: https://github.com/launchbadge/sqlx
-- hnsw_rs: https://github.com/rusty-gun/hnsw_rs
+- hnsw_rs: https://github.com/plures/hnsw_rs
 
 JavaScript Dependencies (MIT License):
 - axios: https://github.com/axios/axios
@@ -85,22 +49,21 @@ All third-party components maintain their original licenses and copyrights.
 CONTACT INFORMATION
 ===============================================================================
 
-Website: https://rusty-gun.com
-Email: legal@rusty-gun.com
-GitHub: https://github.com/rusty-gun/rusty-gun
-Documentation: https://docs.rusty-gun.com
+GitHub: https://github.com/plures/pluresdb
+Issues: https://github.com/plures/pluresdb/issues
+Discussions: https://github.com/plures/pluresdb/discussions
 
-For commercial licensing inquiries:
-Email: licensing@rusty-gun.com
-Sales: sales@rusty-gun.com
+For security issues, please see SECURITY.md
 
 ===============================================================================
 LEGAL NOTICE
 ===============================================================================
 
 This license ensures that:
-- Rusty Gun remains free and open source
+- PluresDB remains free and open source
 - All modifications must be shared with the community
+- Network use triggers the requirement to share source code
+- The software and community benefit from all improvements
 - Commercial users can still build businesses on top of Rusty Gun
 - We can generate revenue through services and support
 - The ecosystem benefits from shared improvements

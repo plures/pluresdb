@@ -1,8 +1,8 @@
-# Rusty Gun
+# PluresDB
 
-[![npm version](https://badge.fury.io/js/rusty-gun.svg)](https://badge.fury.io/js/rusty-gun)
+[![npm version](https://badge.fury.io/js/pluresdb.svg)](https://badge.fury.io/js/pluresdb)
 [![Deno version](https://img.shields.io/badge/deno-v1.40.0-blue)](https://deno.land)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
 **P2P Graph Database with SQLite Compatibility** - A local-first, offline-first database for modern applications.
 
@@ -12,25 +12,25 @@
 
 ```bash
 # npm
-npm install rusty-gun
+npm install pluresdb
 
 # yarn
-yarn add rusty-gun
+yarn add pluresdb
 
 # pnpm
-pnpm add rusty-gun
+pnpm add pluresdb
 
 # Deno
-deno install -A -n rusty-gun https://deno.land/x/rusty_gun@v1.0.0/src/main.ts
+deno install -A -n pluresdb https://deno.land/x/pluresdb@v1.0.0/src/main.ts
 ```
 
 ### Basic Usage
 
 ```typescript
-import { RustyGunNode, SQLiteCompatibleAPI } from 'rusty-gun';
+import { PluresNode, SQLiteCompatibleAPI } from 'pluresdb';
 
 // Start the database
-const db = new RustyGunNode({
+const db = new PluresNode({
   config: {
     port: 34567,
     host: 'localhost',
@@ -89,23 +89,23 @@ const results = await sqlite.vectorSearch('machine learning', 10);
 
 ```bash
 # Windows
-winget install rusty-gun.rusty-gun
+winget install plures.pluresdb
 
 # macOS
-brew install rusty-gun/rusty-gun/rusty-gun
+brew install plures/pluresdb/pluresdb
 
 # Linux (NixOS)
-nix-env -iA nixpkgs.rusty-gun
+nix-env -iA nixpkgs.pluresdb
 
 # Universal install script
-curl -fsSL https://raw.githubusercontent.com/rusty-gun/rusty-gun/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/plures/pluresdb/main/install.sh | bash
 ```
 
 ### Docker
 
 ```bash
-docker pull rusty-gun/rusty-gun:latest
-docker run -p 34567:34567 -p 34568:34568 rusty-gun/rusty-gun:latest
+docker pull plures/pluresdb:latest
+docker run -p 34567:34567 -p 34568:34568 plures/pluresdb:latest
 ```
 
 ## 🔧 VSCode Extension Integration
@@ -113,13 +113,13 @@ docker run -p 34567:34567 -p 34568:34568 rusty-gun/rusty-gun:latest
 Perfect for VSCode extensions that currently use SQLite:
 
 ```typescript
-import { SQLiteCompatibleAPI } from 'rusty-gun';
+import { SQLiteCompatibleAPI } from 'pluresdb';
 
 export function activate(context: vscode.ExtensionContext) {
-  // Replace your SQLite database with Rusty Gun
+  // Replace your SQLite database with PluresDB
   const db = new SQLiteCompatibleAPI({
     config: {
-      dataDir: path.join(context.globalStorageUri.fsPath, 'rusty-gun')
+      dataDir: path.join(context.globalStorageUri.fsPath, 'pluresdb')
     }
   });
 
@@ -181,8 +181,8 @@ await db.syncWithDevice(deviceId);
 
 Migrating from SQLite is straightforward:
 
-1. **Install Rusty Gun**: `npm install rusty-gun`
-2. **Replace imports**: Change `sqlite3` to `rusty-gun`
+1. **Install PluresDB**: `npm install pluresdb`
+2. **Replace imports**: Change `sqlite3` to `pluresdb`
 3. **Update initialization**: Use `SQLiteCompatibleAPI` instead of `sqlite3.Database`
 4. **Keep your queries**: All SQL queries work the same way
 
@@ -191,8 +191,8 @@ Migrating from SQLite is straightforward:
 import sqlite3 from 'sqlite3';
 const db = new sqlite3.Database('./data.db');
 
-// After (Rusty Gun)
-import { SQLiteCompatibleAPI } from 'rusty-gun';
+// After (PluresDB)
+import { SQLiteCompatibleAPI } from 'pluresdb';
 const db = new SQLiteCompatibleAPI();
 ```
 
@@ -233,19 +233,18 @@ const db = new SQLiteCompatibleAPI();
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-**Note**: By contributing to Rusty Gun, you agree that your contributions will be licensed under the AGPL v3 license.
+**Note**: By contributing to PluresDB, you agree that your contributions will be licensed under the AGPL v3 license.
 
 ## 📄 License
 
-This project is licensed under the GNU Affero General Public License v3.0 (AGPL v3). This ensures that all modifications to Rusty Gun remain open source. See [LICENSE](LICENSE) for details.
-
-For commercial use without open source obligations, contact us at licensing@rusty-gun.com.
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL v3). This ensures that all modifications to PluresDB remain open source. See [LICENSE](LICENSE) for details.
 
 ## 🆘 Support
 
-- **Issues**: [GitHub Issues](https://github.com/rusty-gun/rusty-gun/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/rusty-gun/rusty-gun/discussions)
-- **Discord**: [Join our Discord](https://discord.gg/rusty-gun)
+- **Issues**: [GitHub Issues](https://github.com/plures/pluresdb/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/plures/pluresdb/discussions)
+
+For security issues, please see our [Security Policy](SECURITY.md).
 
 ## 🙏 Acknowledgments
 
@@ -258,4 +257,4 @@ For commercial use without open source obligations, contact us at licensing@rust
 
 **Ready to build the future of local-first applications?** 🚀
 
-[Get Started](packaging/INSTALLATION.md) | [View Examples](examples/) | [Join Community](https://discord.gg/rusty-gun)
+[Get Started](packaging/INSTALLATION.md) | [View Examples](examples/) | [GitHub Discussions](https://github.com/plures/pluresdb/discussions)
