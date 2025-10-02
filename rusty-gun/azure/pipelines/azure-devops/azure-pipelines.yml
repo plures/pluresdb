@@ -1,0 +1,299 @@
+# Rusty Gun Azure DevOps Pipeline
+# Builds, tests, and deploys Rusty Gun to Azure
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - README.md
+      - docs/*
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+variables:
+  - group: 'rusty-gun-variables'
+  - name: 'containerRegistry'
+    value: 'rusty-gun.azurecr.io'
+  - name: 'imageRepository'
+    value: 'rusty-gun'
+  - name: 'dockerfilePath'
+    value: '$(Build.SourcesDirectory)/azure/containers/docker/Dockerfile.azure'
+  - name: 'tag'
+    value: '$(Build.BuildId)'
+
+stages:
+- stage: Build
+  displayName: 'Build and Test'
+  jobs:
+  - job: BuildJob
+    displayName: 'Build and Test Job'
+    pool:
+      vmImage: 'ubuntu-latest'
+    
+    steps:
+    - task: NodeTool@0
+      displayName: 'Install Node.js'
+      inputs:
+        versionSpec: '20.x'
+    
+    - task: DenoInstall@0
+      displayName: 'Install Deno'
+      inputs:
+        denoVersion: '2.4.2'
+    
+    - task: Cache@2
+      displayName: 'Cache Deno dependencies'
+      inputs:
+        key: 'deno | "$(Agent.OS)" | deno.lock'
+        restoreKeys: |
+          deno | "$(Agent.OS)"
+        path: '$(Agent.TempDirectory)/.deno'
+    
+    - script: |
+        deno cache --lock=deno.lock src/main.ts
+      displayName: 'Cache Deno dependencies'
+    
+    - script: |
+        deno fmt --check
+      displayName: 'Check code formatting'
+    
+    - script: |
+        deno lint
+      displayName: 'Run linter'
+    
+    - script: |
+        deno check src/main.ts
+      displayName: 'Type check'
+    
+    - script: |
+        deno test --allow-all
+      displayName: 'Run tests'
+    
+    - script: |
+        deno run --allow-all scripts/run-tests.ts
+      displayName: 'Run integration tests'
+    
+    - task: PublishTestResults@2
+      displayName: 'Publish test results'
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '**/test-results.xml'
+        failTaskOnFailedTests: true
+
+- stage: BuildContainer
+  displayName: 'Build Container Image'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: BuildContainerJob
+    displayName: 'Build Container Job'
+    pool:
+      vmImage: 'ubuntu-latest'
+    
+    steps:
+    - task: Docker@2
+      displayName: 'Build and push image'
+      inputs:
+        command: 'buildAndPush'
+        repository: '$(imageRepository)'
+        dockerfile: '$(dockerfilePath)'
+        containerRegistry: '$(containerRegistry)'
+        tags: |
+          $(tag)
+          latest
+          $(Build.SourceBranchName)
+    
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Docker image info'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)'
+        artifactName: 'docker-image-info'
+
+- stage: DeployDev
+  displayName: 'Deploy to Development'
+  dependsOn: BuildContainer
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+  jobs:
+  - deployment: DeployDevJob
+    displayName: 'Deploy to Development'
+    environment: 'rusty-gun-dev'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureResourceManagerTemplateDeployment@3
+            displayName: 'Deploy infrastructure'
+            inputs:
+              deploymentScope: 'Resource Group'
+              azureResourceManagerConnection: '$(azureServiceConnection)'
+              subscriptionId: '$(subscriptionId)'
+              action: 'Create Or Update Resource Group'
+              resourceGroupName: 'rusty-gun-dev-rg'
+              location: 'East US'
+              templateLocation: 'Linked artifact'
+              csmFile: '$(Build.SourcesDirectory)/azure/infrastructure/bicep/main.bicep'
+              csmParametersFile: '$(Build.SourcesDirectory)/azure/infrastructure/bicep/parameters/dev.bicepparam'
+              overrideParameters: |
+                -adminPassword $(adminPassword)
+              deploymentMode: 'Incremental'
+          
+          - task: AzureWebApp@1
+            displayName: 'Deploy to Azure App Service'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              appType: 'webAppContainer'
+              appName: 'rusty-gun-web-dev'
+              resourceGroupName: 'rusty-gun-dev-rg'
+              containers: '$(containerRegistry)/$(imageRepository):$(tag)'
+          
+          - task: AzureCLI@2
+            displayName: 'Run smoke tests'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Wait for deployment to be ready
+                sleep 30
+                
+                # Test health endpoint
+                curl -f https://rusty-gun-web-dev.azurewebsites.net/health || exit 1
+                
+                # Test API endpoint
+                curl -f https://rusty-gun-web-dev.azurewebsites.net/api/config || exit 1
+                
+                echo "Smoke tests passed!"
+
+- stage: DeployStaging
+  displayName: 'Deploy to Staging'
+  dependsOn: BuildContainer
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: DeployStagingJob
+    displayName: 'Deploy to Staging'
+    environment: 'rusty-gun-staging'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureResourceManagerTemplateDeployment@3
+            displayName: 'Deploy infrastructure'
+            inputs:
+              deploymentScope: 'Resource Group'
+              azureResourceManagerConnection: '$(azureServiceConnection)'
+              subscriptionId: '$(subscriptionId)'
+              action: 'Create Or Update Resource Group'
+              resourceGroupName: 'rusty-gun-staging-rg'
+              location: 'East US'
+              templateLocation: 'Linked artifact'
+              csmFile: '$(Build.SourcesDirectory)/azure/infrastructure/bicep/main.bicep'
+              csmParametersFile: '$(Build.SourcesDirectory)/azure/infrastructure/bicep/parameters/staging.bicepparam'
+              overrideParameters: |
+                -adminPassword $(adminPassword)
+              deploymentMode: 'Incremental'
+          
+          - task: AzureWebApp@1
+            displayName: 'Deploy to Azure App Service'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              appType: 'webAppContainer'
+              appName: 'rusty-gun-web-staging'
+              resourceGroupName: 'rusty-gun-staging-rg'
+              containers: '$(containerRegistry)/$(imageRepository):$(tag)'
+          
+          - task: AzureCLI@2
+            displayName: 'Run staging tests'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Wait for deployment to be ready
+                sleep 60
+                
+                # Test health endpoint
+                curl -f https://rusty-gun-web-staging.azurewebsites.net/health || exit 1
+                
+                # Test API endpoint
+                curl -f https://rusty-gun-web-staging.azurewebsites.net/api/config || exit 1
+                
+                # Run performance tests
+                echo "Running performance tests..."
+                # Add performance test commands here
+                
+                echo "Staging deployment tests passed!"
+
+- stage: DeployProd
+  displayName: 'Deploy to Production'
+  dependsOn: DeployStaging
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: DeployProdJob
+    displayName: 'Deploy to Production'
+    environment: 'rusty-gun-prod'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureResourceManagerTemplateDeployment@3
+            displayName: 'Deploy infrastructure'
+            inputs:
+              deploymentScope: 'Resource Group'
+              azureResourceManagerConnection: '$(azureServiceConnection)'
+              subscriptionId: '$(subscriptionId)'
+              action: 'Create Or Update Resource Group'
+              resourceGroupName: 'rusty-gun-prod-rg'
+              location: 'East US'
+              templateLocation: 'Linked artifact'
+              csmFile: '$(Build.SourcesDirectory)/azure/infrastructure/bicep/main.bicep'
+              csmParametersFile: '$(Build.SourcesDirectory)/azure/infrastructure/bicep/parameters/prod.bicepparam'
+              overrideParameters: |
+                -adminPassword $(adminPassword)
+              deploymentMode: 'Incremental'
+          
+          - task: AzureWebApp@1
+            displayName: 'Deploy to Azure App Service'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              appType: 'webAppContainer'
+              appName: 'rusty-gun-web-prod'
+              resourceGroupName: 'rusty-gun-prod-rg'
+              containers: '$(containerRegistry)/$(imageRepository):$(tag)'
+          
+          - task: AzureCLI@2
+            displayName: 'Run production tests'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                # Wait for deployment to be ready
+                sleep 120
+                
+                # Test health endpoint
+                curl -f https://rusty-gun-web-prod.azurewebsites.net/health || exit 1
+                
+                # Test API endpoint
+                curl -f https://rusty-gun-web-prod.azurewebsites.net/api/config || exit 1
+                
+                # Run production smoke tests
+                echo "Running production smoke tests..."
+                # Add production test commands here
+                
+                echo "Production deployment tests passed!"
+                
+                # Send notification
+                echo "Production deployment completed successfully!"

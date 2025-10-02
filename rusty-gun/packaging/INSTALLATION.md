@@ -4,6 +4,20 @@ Rusty Gun can be installed using various package managers and methods. Choose th
 
 ## Quick Start
 
+### Docker (Recommended - Easiest)
+```bash
+# Pull and run with Docker
+docker run -p 34567:34567 -p 34568:34568 rusty-gun/rusty-gun:latest
+
+# Or with persistent storage
+docker run -p 34567:34567 -p 34568:34568 -v rusty-gun-data:/app/data rusty-gun/rusty-gun:latest
+
+# Open web UI
+open http://localhost:34568  # macOS
+start http://localhost:34568  # Windows
+xdg-open http://localhost:34568  # Linux
+```
+
 ### Windows (winget)
 ```powershell
 winget install rusty-gun.rusty-gun
@@ -172,37 +186,93 @@ deno run -A https://deno.land/x/rusty_gun@v1.0.0/src/main.ts serve
 **Requirements:**
 - Deno 1.40.0 or later
 
-### 7. Docker
+### 7. Docker (Recommended)
 
-Run using Docker:
+Docker is the easiest way to get started with Rusty Gun. No installation required!
+
+#### Quick Start with Docker
 
 ```bash
-# Pull the image
-docker pull rusty-gun/rusty-gun:latest
-
-# Run the container
+# Pull and run the latest image
 docker run -p 34567:34567 -p 34568:34568 rusty-gun/rusty-gun:latest
 
-# Or with persistent storage
+# With persistent storage
 docker run -p 34567:34567 -p 34568:34568 -v rusty-gun-data:/app/data rusty-gun/rusty-gun:latest
 ```
 
-**Docker Compose:**
+#### Using Docker Compose (Recommended)
+
+Create a `docker-compose.yml` file:
+
 ```yaml
 version: '3.8'
 services:
   rusty-gun:
     image: rusty-gun/rusty-gun:latest
     ports:
-      - "34567:34567"
-      - "34568:34568"
+      - "34567:34567"  # API port
+      - "34568:34568"  # Web UI port
     volumes:
       - rusty-gun-data:/app/data
+      - rusty-gun-config:/app/config
+    environment:
+      - RUSTY_GUN_PORT=34567
+      - RUSTY_GUN_WEB_PORT=34568
+      - RUSTY_GUN_HOST=0.0.0.0
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "deno", "run", "-A", "--allow-net", "src/healthcheck.ts"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   rusty-gun-data:
+  rusty-gun-config:
 ```
+
+Then run:
+```bash
+# Start Rusty Gun
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop Rusty Gun
+docker-compose down
+```
+
+#### Production Deployment
+
+For production, use the production configuration:
+
+```bash
+# Clone the repository
+git clone https://github.com/rusty-gun/rusty-gun.git
+cd rusty-gun/packaging/docker
+
+# Start with production settings
+docker-compose -f docker-compose.prod.yml up -d
+
+# With Nginx reverse proxy
+docker-compose -f docker-compose.prod.yml --profile with-nginx up -d
+
+# With Redis caching
+docker-compose -f docker-compose.prod.yml --profile with-redis up -d
+```
+
+**Requirements:**
+- Docker 20.10 or later
+- Docker Compose 2.0 or later (optional but recommended)
+
+**Benefits:**
+- No installation required
+- Consistent environment across platforms
+- Easy updates and rollbacks
+- Built-in health checks
+- Production-ready configurations
+- Automatic restarts
 
 ### 8. Manual Installation
 

@@ -1,0 +1,220 @@
+{
+  "id": "rusty-gun-dashboard",
+  "name": "Rusty Gun Production Dashboard",
+  "type": "Microsoft.Portal/dashboards",
+  "location": "eastus",
+  "tags": {
+    "environment": "production",
+    "application": "rusty-gun",
+    "team": "devops"
+  },
+  "properties": {
+    "lenses": {
+      "0": {
+        "order": 0,
+        "parts": {
+          "0": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "colSpan": 6,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "inputs": [],
+              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+              "settings": {
+                "content": {
+                  "Query": "AppTraces\n| where TimeGenerated > ago(1h)\n| where AppRoleName contains \"rusty-gun\"\n| summarize count() by bin(TimeGenerated, 5m), SeverityLevel\n| render timechart",
+                  "IsQueryBasedOnTimeRange": true,
+                  "Title": "Application Traces (Last Hour)",
+                  "TimeContext": {
+                    "durationMs": 3600000
+                  },
+                  "QueryType": 0,
+                  "ResourceType": "microsoft.insights/components"
+                }
+              }
+            }
+          },
+          "1": {
+            "position": {
+              "x": 6,
+              "y": 0,
+              "colSpan": 6,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "inputs": [],
+              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+              "settings": {
+                "content": {
+                  "Query": "Perf\n| where TimeGenerated > ago(1h)\n| where CounterName == \"CPU Percentage\" or CounterName == \"Memory Percentage\"\n| where Computer contains \"rusty-gun\"\n| summarize avg(CounterValue) by bin(TimeGenerated, 5m), CounterName\n| render timechart",
+                  "IsQueryBasedOnTimeRange": true,
+                  "Title": "CPU and Memory Usage",
+                  "TimeContext": {
+                    "durationMs": 3600000
+                  },
+                  "QueryType": 0,
+                  "ResourceType": "microsoft.insights/components"
+                }
+              }
+            }
+          },
+          "2": {
+            "position": {
+              "x": 0,
+              "y": 4,
+              "colSpan": 4,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "inputs": [],
+              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+              "settings": {
+                "content": {
+                  "Query": "requests\n| where TimeGenerated > ago(1h)\n| where name contains \"rusty-gun\"\n| summarize count() by bin(TimeGenerated, 5m), resultCode\n| render timechart",
+                  "IsQueryBasedOnTimeRange": true,
+                  "Title": "Request Rate by Status Code",
+                  "TimeContext": {
+                    "durationMs": 3600000
+                  },
+                  "QueryType": 0,
+                  "ResourceType": "microsoft.insights/components"
+                }
+              }
+            }
+          },
+          "3": {
+            "position": {
+              "x": 4,
+              "y": 4,
+              "colSpan": 4,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "inputs": [],
+              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+              "settings": {
+                "content": {
+                  "Query": "requests\n| where TimeGenerated > ago(1h)\n| where name contains \"rusty-gun\"\n| summarize avg(duration) by bin(TimeGenerated, 5m)\n| render timechart",
+                  "IsQueryBasedOnTimeRange": true,
+                  "Title": "Average Response Time",
+                  "TimeContext": {
+                    "durationMs": 3600000
+                  },
+                  "QueryType": 0,
+                  "ResourceType": "microsoft.insights/components"
+                }
+              }
+            }
+          },
+          "4": {
+            "position": {
+              "x": 8,
+              "y": 4,
+              "colSpan": 4,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "inputs": [],
+              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+              "settings": {
+                "content": {
+                  "Query": "exceptions\n| where TimeGenerated > ago(1h)\n| where name contains \"rusty-gun\"\n| summarize count() by bin(TimeGenerated, 5m), type\n| render timechart",
+                  "IsQueryBasedOnTimeRange": true,
+                  "Title": "Exceptions by Type",
+                  "TimeContext": {
+                    "durationMs": 3600000
+                  },
+                  "QueryType": 0,
+                  "ResourceType": "microsoft.insights/components"
+                }
+              }
+            }
+          },
+          "5": {
+            "position": {
+              "x": 0,
+              "y": 8,
+              "colSpan": 6,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "inputs": [],
+              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+              "settings": {
+                "content": {
+                  "Query": "customMetrics\n| where TimeGenerated > ago(1h)\n| where name contains \"rusty-gun\"\n| summarize avg(value) by bin(TimeGenerated, 5m), name\n| render timechart",
+                  "IsQueryBasedOnTimeRange": true,
+                  "Title": "Custom Metrics",
+                  "TimeContext": {
+                    "durationMs": 3600000
+                  },
+                  "QueryType": 0,
+                  "ResourceType": "microsoft.insights/components"
+                }
+              }
+            }
+          },
+          "6": {
+            "position": {
+              "x": 6,
+              "y": 8,
+              "colSpan": 6,
+              "rowSpan": 4
+            },
+            "metadata": {
+              "inputs": [],
+              "type": "Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart",
+              "settings": {
+                "content": {
+                  "Query": "AzureMetrics\n| where TimeGenerated > ago(1h)\n| where ResourceProvider == \"MICROSOFT.WEB\"\n| where ResourceId contains \"rusty-gun\"\n| summarize avg(Average) by bin(TimeGenerated, 5m), MetricName\n| render timechart",
+                  "IsQueryBasedOnTimeRange": true,
+                  "Title": "Azure Resource Metrics",
+                  "TimeContext": {
+                    "durationMs": 3600000
+                  },
+                  "QueryType": 0,
+                  "ResourceType": "microsoft.insights/components"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "metadata": {
+      "model": {
+        "timeRange": {
+          "value": {
+            "relative": {
+              "duration": 24,
+              "timeUnit": 1
+            }
+          },
+          "type": "MsPortalFx.Composition.Configuration.ValueTypes.TimeRange"
+        },
+        "filterLocale": {
+          "value": "en-us"
+        },
+        "filters": {
+          "value": {
+            "MsPortalFx_TimeRange": {
+              "model": {
+                "format": "utc",
+                "granularity": "auto",
+                "relative": "24h"
+              },
+              "displayCache": {
+                "name": "UTC (Coordinated Universal Time)",
+                "value": "Past 24 hours"
+              },
+              "filteredPartIds": []
+            }
+          }
+        }
+      }
+    }
+  }
+}

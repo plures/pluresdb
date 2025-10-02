@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rusty Gun Vector Search Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border-left: 5px solid #667eea;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            border: 1px solid #e1e5e9;
+        }
+
+        .result-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .result-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .result-score {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .result-id {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .result-text {
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .result-metadata {
+            font-size: 12px;
+            color: #888;
+            background: #e9ecef;
+            padding: 5px 8px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid #c3e6cb;
+        }
+
+        .demo-data {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .demo-data h3 {
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+
+        .demo-data p {
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e1e5e9;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            border-bottom-color: #667eea;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Rusty Gun Vector Search</h1>
+            <p>Semantic search powered by HNSW and embeddings</p>
+        </div>
+
+        <div class="content">
+            <!-- Demo Data Section -->
+            <div class="demo-data">
+                <h3>📚 Demo Data</h3>
+                <p>This demo includes sample documents about machine learning, artificial intelligence, and data science.</p>
+                <p>Try searching for terms like "neural networks", "deep learning", "data analysis", or "machine learning algorithms".</p>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <div class="tab active" onclick="showTab('search')">Search</div>
+                <div class="tab" onclick="showTab('add')">Add Content</div>
+                <div class="tab" onclick="showTab('stats')">Statistics</div>
+                <div class="tab" onclick="showTab('embedding')">Generate Embedding</div>
+            </div>
+
+            <!-- Search Tab -->
+            <div id="search" class="tab-content active">
+                <div class="section">
+                    <h2>🔍 Semantic Search</h2>
+                    <div class="form-group">
+                        <label for="searchQuery">Search Query</label>
+                        <input type="text" id="searchQuery" placeholder="Enter your search query..." value="machine learning algorithms">
+                    </div>
+                    <div class="form-group">
+                        <label for="searchLimit">Results Limit</label>
+                        <input type="number" id="searchLimit" value="5" min="1" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label for="searchThreshold">Similarity Threshold</label>
+                        <input type="range" id="searchThreshold" min="0" max="1" step="0.1" value="0.3">
+                        <span id="thresholdValue">0.3</span>
+                    </div>
+                    <button class="btn" onclick="performSearch()">Search</button>
+                    <button class="btn btn-secondary" onclick="loadSampleData()">Load Sample Data</button>
+                </div>
+
+                <div id="searchResults" class="results" style="display: none;">
+                    <h3>Search Results</h3>
+                    <div id="searchResultsList"></div>
+                </div>
+            </div>
+
+            <!-- Add Content Tab -->
+            <div id="add" class="tab-content">
+                <div class="section">
+                    <h2>➕ Add Content</h2>
+                    <div class="form-group">
+                        <label for="contentId">Content ID</label>
+                        <input type="text" id="contentId" placeholder="Enter unique ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="contentText">Text Content</label>
+                        <textarea id="contentText" placeholder="Enter text content to be indexed..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="contentMetadata">Metadata (JSON)</label>
+                        <textarea id="contentMetadata" placeholder='{"type": "document", "category": "tech"}'></textarea>
+                    </div>
+                    <button class="btn" onclick="addContent()">Add Content</button>
+                    <button class="btn btn-success" onclick="addSampleContent()">Add Sample Content</button>
+                </div>
+
+                <div id="addResult" style="display: none;"></div>
+            </div>
+
+            <!-- Statistics Tab -->
+            <div id="stats" class="tab-content">
+                <div class="section">
+                    <h2>📊 Statistics</h2>
+                    <button class="btn" onclick="loadStats()">Refresh Statistics</button>
+                </div>
+
+                <div id="statsResults" class="results" style="display: none;">
+                    <h3>Vector Search Statistics</h3>
+                    <div id="statsContent"></div>
+                </div>
+            </div>
+
+            <!-- Generate Embedding Tab -->
+            <div id="embedding" class="tab-content">
+                <div class="section">
+                    <h2>🧠 Generate Embedding</h2>
+                    <div class="form-group">
+                        <label for="embeddingText">Text to Embed</label>
+                        <textarea id="embeddingText" placeholder="Enter text to generate embedding for..."></textarea>
+                    </div>
+                    <button class="btn" onclick="generateEmbedding()">Generate Embedding</button>
+                </div>
+
+                <div id="embeddingResults" class="results" style="display: none;">
+                    <h3>Embedding Result</h3>
+                    <div id="embeddingContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:34569/api/vector';
+        
+        // Tab switching
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+
+        // Update threshold value display
+        document.getElementById('searchThreshold').addEventListener('input', function() {
+            document.getElementById('thresholdValue').textContent = this.value;
+        });
+
+        // Load sample data
+        async function loadSampleData() {
+            const sampleData = [
+                {
+                    id: "doc1",
+                    text: "Machine learning is a subset of artificial intelligence that focuses on algorithms that can learn from data without being explicitly programmed.",
+                    metadata: {"type": "document", "category": "AI", "title": "Introduction to Machine Learning"}
+                },
+                {
+                    id: "doc2", 
+                    text: "Deep learning uses neural networks with multiple layers to model and understand complex patterns in data.",
+                    metadata: {"type": "document", "category": "AI", "title": "Deep Learning Fundamentals"}
+                },
+                {
+                    id: "doc3",
+                    text: "Data science combines statistics, programming, and domain expertise to extract insights from data.",
+                    metadata: {"type": "document", "category": "Data Science", "title": "Data Science Overview"}
+                },
+                {
+                    id: "doc4",
+                    text: "Natural language processing enables computers to understand, interpret, and generate human language.",
+                    metadata: {"type": "document", "category": "NLP", "title": "Natural Language Processing"}
+                },
+                {
+                    id: "doc5",
+                    text: "Computer vision allows machines to interpret and understand visual information from the world.",
+                    metadata: {"type": "document", "category": "Computer Vision", "title": "Computer Vision Basics"}
+                }
+            ];
+
+            try {
+                const response = await fetch(`${API_BASE}/text/batch`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ items: sampleData })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('Sample data loaded successfully!', 'success');
+                } else {
+                    showMessage(`Error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error loading sample data: ${error.message}`, 'error');
+            }
+        }
+
+        // Perform semantic search
+        async function performSearch() {
+            const query = document.getElementById('searchQuery').value;
+            const limit = parseInt(document.getElementById('searchLimit').value);
+            const threshold = parseFloat(document.getElementById('searchThreshold').value);
+
+            if (!query.trim()) {
+                showMessage('Please enter a search query', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/search/text`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        limit: limit,
+                        threshold: threshold
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    displaySearchResults(result.data);
+                } else {
+                    showMessage(`Search error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Search failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Display search results
+        function displaySearchResults(data) {
+            const resultsDiv = document.getElementById('searchResults');
+            const resultsList = document.getElementById('searchResultsList');
+            
+            resultsDiv.style.display = 'block';
+            
+            if (data.results.length === 0) {
+                resultsList.innerHTML = '<p>No results found. Try adjusting your search query or threshold.</p>';
+                return;
+            }
+
+            let html = `<p><strong>Found ${data.results.length} results for "${data.query}"</strong></p>`;
+            
+            data.results.forEach(result => {
+                html += `
+                    <div class="result-item">
+                        <span class="result-score">${(result.score * 100).toFixed(1)}% similar</span>
+                        <div class="result-id">ID: ${result.id}</div>
+                        <div class="result-text">${result.metadata.title || 'No title'}</div>
+                        <div class="result-metadata">${JSON.stringify(result.metadata, null, 2)}</div>
+                    </div>
+                `;
+            });
+            
+            resultsList.innerHTML = html;
+        }
+
+        // Add content
+        async function addContent() {
+            const id = document.getElementById('contentId').value;
+            const text = document.getElementById('contentText').value;
+            const metadataText = document.getElementById('contentMetadata').value;
+
+            if (!id.trim() || !text.trim()) {
+                showMessage('Please enter both ID and text content', 'error');
+                return;
+            }
+
+            let metadata = {};
+            if (metadataText.trim()) {
+                try {
+                    metadata = JSON.parse(metadataText);
+                } catch (e) {
+                    showMessage('Invalid JSON in metadata field', 'error');
+                    return;
+                }
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/text`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        id: id,
+                        text: text,
+                        metadata: metadata
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('Content added successfully!', 'success');
+                    document.getElementById('contentId').value = '';
+                    document.getElementById('contentText').value = '';
+                    document.getElementById('contentMetadata').value = '';
+                } else {
+                    showMessage(`Error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error adding content: ${error.message}`, 'error');
+            }
+        }
+
+        // Add sample content
+        function addSampleContent() {
+            document.getElementById('contentId').value = 'sample_' + Date.now();
+            document.getElementById('contentText').value = 'This is a sample document about artificial intelligence and machine learning technologies.';
+            document.getElementById('contentMetadata').value = '{"type": "document", "category": "AI", "title": "Sample Document"}';
+        }
+
+        // Load statistics
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_BASE}/stats`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayStats(result.data);
+                } else {
+                    showMessage(`Error loading stats: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error loading stats: ${error.message}`, 'error');
+            }
+        }
+
+        // Display statistics
+        function displayStats(data) {
+            const statsDiv = document.getElementById('statsResults');
+            const statsContent = document.getElementById('statsContent');
+            
+            statsDiv.style.display = 'block';
+            
+            const html = `
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-value">${data.stats.vector_count}</div>
+                        <div class="stat-label">Vectors</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.stats.dimensions}</div>
+                        <div class="stat-label">Dimensions</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${(data.stats.index_size / 1024).toFixed(1)} KB</div>
+                        <div class="stat-label">Index Size</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.stats.cache_size}</div>
+                        <div class="stat-label">Cache Entries</div>
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <h4>Model Information</h4>
+                    <p><strong>Model:</strong> ${data.model_info.model_name}</p>
+                    <p><strong>Dimensions:</strong> ${data.model_info.dimensions}</p>
+                    <p><strong>Max Text Length:</strong> ${data.model_info.max_text_length}</p>
+                    <p><strong>Cache Enabled:</strong> ${data.model_info.cache_enabled ? 'Yes' : 'No'}</p>
+                </div>
+            `;
+            
+            statsContent.innerHTML = html;
+        }
+
+        // Generate embedding
+        async function generateEmbedding() {
+            const text = document.getElementById('embeddingText').value;
+
+            if (!text.trim()) {
+                showMessage('Please enter text to embed', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/embedding`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayEmbedding(result.data);
+                } else {
+                    showMessage(`Error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error generating embedding: ${error.message}`, 'error');
+            }
+        }
+
+        // Display embedding result
+        function displayEmbedding(data) {
+            const resultsDiv = document.getElementById('embeddingResults');
+            const contentDiv = document.getElementById('embeddingContent');
+            
+            resultsDiv.style.display = 'block';
+            
+            const html = `
+                <p><strong>Text:</strong> ${data.text}</p>
+                <p><strong>Model:</strong> ${data.model}</p>
+                <p><strong>Dimensions:</strong> ${data.dimensions}</p>
+                <p><strong>Vector (first 10 values):</strong> [${data.vector.slice(0, 10).map(v => v.toFixed(4)).join(', ')}...]</p>
+                <details>
+                    <summary>Full Vector</summary>
+                    <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto;">${JSON.stringify(data.vector, null, 2)}</pre>
+                </details>
+            `;
+            
+            contentDiv.innerHTML = html;
+        }
+
+        // Show message
+        function showMessage(message, type) {
+            const addResult = document.getElementById('addResult');
+            addResult.style.display = 'block';
+            addResult.className = type;
+            addResult.textContent = message;
+            
+            setTimeout(() => {
+                addResult.style.display = 'none';
+            }, 5000);
+        }
+
+        // Load sample data on page load
+        window.addEventListener('load', function() {
+            loadSampleData();
+        });
+    </script>
+</body>
+</html>
+
