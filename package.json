@@ -1,14 +1,87 @@
 {
+  "name": "pluresdb",
+  "version": "1.0.0",
+  "description": "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications",
+  "main": "dist/node-index.js",
+  "types": "dist/node-index.d.ts",
+  "bin": {
+    "pluresdb": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc && npm run build:web",
+    "build:web": "cd web/svelte && npm install && npm run build",
+    "dev": "deno run -A --watch src/main.ts serve --port 34567",
+    "start": "node dist/cli.js serve",
+    "test": "deno test -A",
+    "prepublishOnly": "npm run build",
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "keywords": [
+    "database",
+    "graph-database",
+    "p2p",
+    "sqlite",
+    "local-first",
+    "offline-first",
+    "crdt",
+    "vector-search",
+    "deno",
+    "typescript",
+    "vscode",
+    "extension",
+    "embedded",
+    "sync",
+    "encryption"
+  ],
+  "author": "Plures Organization",
+  "license": "AGPL-3.0",
+  "homepage": "https://github.com/plures/pluresdb#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/plures/pluresdb.git"
+  },
+  "bugs": {
+    "url": "https://github.com/plures/pluresdb/issues"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "files": [
+    "dist/",
+    "web/dist/",
+    "src/",
+    "examples/",
+    "scripts/",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.1",
-    "ajv": "^8.17.1",
-    "chromadb": "^3.0.10",
-    "cytoscape": "^3.33.1",
-    "cytoscape-cola": "^2.5.1",
-    "cytoscape-cose-bilkent": "^4.1.0",
-    "cytoscape-dagre": "^2.5.0",
-    "gun": "^0.2020.1241",
-    "neo4j-driver": "^5.28.1",
-    "sqlite3": "^5.1.7"
+    "ws": "^8.14.2",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/ws": "^8.5.10",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {
+    "deno": ">=1.40.0"
+  },
+  "peerDependenciesMeta": {
+    "deno": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "deno": "^1.40.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }
