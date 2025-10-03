@@ -29,9 +29,9 @@ coverage/
 .cache/deno/
 
 # Build outputs
-rusty-gun/rusty-gun*
-rusty-gun/bin/
-rusty-gun/dist/
+pluresdb/pluresdb*
+pluresdb/bin/
+pluresdb/dist/
 dist/
 out/
 build/
@@ -52,6 +52,11 @@ bin/
 
 # Node (not typically used with Deno, but safe to ignore if present)
 node_modules/
-rusty-gun/web/dist/
+pluresdb/web/dist/
+
+
+
+# Rust/Cargo build artifacts
+target/
 
 
