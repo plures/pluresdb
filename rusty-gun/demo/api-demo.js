@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * Rusty Gun SQLite Compatibility API Demo
+ * PluresDB SQLite Compatibility API Demo
  * 
- * This demo proves that Rusty Gun can do everything SQLite can do
+ * This demo proves that PluresDB can do everything SQLite can do
  * by demonstrating real API calls and responses.
  */
 
@@ -28,7 +28,7 @@ const DEMO_DATA = {
         { id: 5, name: 'Charlie Wilson', email: 'charlie@example.com', age: 42, created_at: '2024-01-05 14:00:00' }
     ],
     posts: [
-        { id: 1, user_id: 1, title: 'Getting Started with Rusty Gun', content: 'This is a comprehensive guide...', published: true, created_at: '2024-01-01 15:00:00' },
+        { id: 1, user_id: 1, title: 'Getting Started with PluresDB', content: 'This is a comprehensive guide...', published: true, created_at: '2024-01-01 15:00:00' },
         { id: 2, user_id: 2, title: 'Advanced SQL Techniques', content: 'Learn advanced SQL patterns...', published: true, created_at: '2024-01-02 16:00:00' },
         { id: 3, user_id: 1, title: 'P2P Database Architecture', content: 'Understanding distributed databases...', published: false, created_at: '2024-01-03 17:00:00' }
     ]
@@ -108,8 +108,8 @@ class SQLiteCompatibilityDemo {
     }
 
     async runAllTests() {
-        logSection('🚀 RUSTY GUN SQLITE COMPATIBILITY DEMO');
-        log('Proving that Rusty Gun can do everything SQLite can do!', 'bright');
+        logSection('🚀 PLURESDB SQLITE COMPATIBILITY DEMO');
+        log('Proving that PluresDB can do everything SQLite can do!', 'bright');
         
         try {
             await this.testServerConnection();
@@ -523,7 +523,7 @@ class SQLiteCompatibilityDemo {
     }
 
     async testP2PFeatures() {
-        logSection('15. P2P Features (Rusty Gun Extensions)');
+        logSection('15. P2P Features (PluresDB Extensions)');
         
         try {
             const response = await makeRequest({
@@ -553,7 +553,7 @@ class SQLiteCompatibilityDemo {
     }
 
     async testOfflineCapabilities() {
-        logSection('16. Offline-First Capabilities (Rusty Gun Extensions)');
+        logSection('16. Offline-First Capabilities (PluresDB Extensions)');
         
         try {
             const response = await makeRequest({
@@ -596,21 +596,21 @@ class SQLiteCompatibilityDemo {
         log(`Success Rate: ${successRate}%`, successRate >= 90 ? 'green' : 'yellow');
         
         if (successRate >= 95) {
-            log('\n🎉 EXCELLENT! Rusty Gun demonstrates 95%+ SQLite compatibility!', 'green');
+            log('\n🎉 EXCELLENT! PluresDB demonstrates 95%+ SQLite compatibility!', 'green');
         } else if (successRate >= 90) {
-            log('\n✅ GOOD! Rusty Gun shows strong SQLite compatibility!', 'yellow');
+            log('\n✅ GOOD! PluresDB shows strong SQLite compatibility!', 'yellow');
         } else {
             log('\n⚠️  Some tests failed. Check the implementation.', 'red');
         }
         
-        log('\n🚀 BONUS FEATURES: Rusty Gun goes beyond SQLite with:', 'cyan');
+        log('\n🚀 BONUS FEATURES: PluresDB goes beyond SQLite with:', 'cyan');
         log('   • P2P Data Synchronization', 'cyan');
         log('   • Offline-First Capabilities', 'cyan');
         log('   • Real-time Conflict Resolution', 'cyan');
         log('   • Vector Search & Graph Queries', 'cyan');
         log('   • Enterprise Security & Billing', 'cyan');
         
-        log('\n🏆 CONCLUSION: Rusty Gun is a complete SQLite replacement', 'bright');
+        log('\n🏆 CONCLUSION: PluresDB is a complete SQLite replacement', 'bright');
         log('   with additional modern features for distributed applications!', 'bright');
     }
 }

@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { PluresNode, SQLiteCompatibleAPI } from 'pluresdb';
 
 export class PluresExtension {
-  private rustyGun: PluresNode;
+  private plures: PluresNode;
   private sqliteAPI: SQLiteCompatibleAPI;
   private context: vscode.ExtensionContext;
 
@@ -15,7 +15,7 @@ export class PluresExtension {
     this.context = context;
     
     // Initialize PluresDB with VSCode-specific configuration
-    this.rustyGun = new PluresNode({
+    this.plures = new PluresNode({
       config: {
         port: 34567,
         host: 'localhost',
@@ -43,15 +43,15 @@ export class PluresExtension {
   }
 
   private setupEventHandlers() {
-    this.rustyGun.on('started', () => {
+    this.plures.on('started', () => {
       vscode.window.showInformationMessage('PluresDB database started');
     });
 
-    this.rustyGun.on('stopped', () => {
+    this.plures.on('stopped', () => {
       vscode.window.showInformationMessage('PluresDB database stopped');
     });
 
-    this.rustyGun.on('error', (error) => {
+    this.plures.on('error', (error) => {
       vscode.window.showErrorMessage(`PluresDB error: ${error.message}`);
     });
   }
@@ -59,7 +59,7 @@ export class PluresExtension {
   async activate() {
     try {
       // Start PluresDB
-      await this.rustyGun.start();
+      await this.plures.start();
       await this.sqliteAPI.start();
 
       // Register commands
@@ -76,7 +76,7 @@ export class PluresExtension {
 
   async deactivate() {
     try {
-      await this.rustyGun.stop();
+      await this.plures.stop();
       await this.sqliteAPI.stop();
     } catch (error) {
       console.error('Error stopping PluresDB:', error);
@@ -86,7 +86,7 @@ export class PluresExtension {
   private registerCommands() {
     // Command to open PluresDB web UI
     const openWebUI = vscode.commands.registerCommand('pluresdb.openWebUI', () => {
-      const webUrl = this.rustyGun.getWebUrl();
+      const webUrl = this.plures.getWebUrl();
       vscode.env.openExternal(vscode.Uri.parse(webUrl));
     });
 

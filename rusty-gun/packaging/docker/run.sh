@@ -106,11 +106,11 @@ start_pluresdb() {
             -p "$WEB_PORT:34568" \
             -v "$DATA_VOLUME:/app/data" \
             -v "$CONFIG_VOLUME:/app/config" \
-            -e RUSTY_GUN_PORT=34567 \
-            -e RUSTY_GUN_WEB_PORT=34568 \
-            -e RUSTY_GUN_HOST=0.0.0.0 \
-            -e RUSTY_GUN_DATA_DIR=/app/data \
-            -e RUSTY_GUN_CONFIG_DIR=/app/config \
+            -e PLURESDB_PORT=34567 \
+            -e PLURESDB_WEB_PORT=34568 \
+            -e PLURESDB_HOST=0.0.0.0 \
+            -e PLURESDB_DATA_DIR=/app/data \
+            -e PLURESDB_CONFIG_DIR=/app/config \
             "$IMAGE"
     else
         docker run -d \
@@ -119,11 +119,11 @@ start_pluresdb() {
             -p "$WEB_PORT:34568" \
             -v "$DATA_VOLUME:/app/data" \
             -v "$CONFIG_VOLUME:/app/config" \
-            -e RUSTY_GUN_PORT=34567 \
-            -e RUSTY_GUN_WEB_PORT=34568 \
-            -e RUSTY_GUN_HOST=0.0.0.0 \
-            -e RUSTY_GUN_DATA_DIR=/app/data \
-            -e RUSTY_GUN_CONFIG_DIR=/app/config \
+            -e PLURESDB_PORT=34567 \
+            -e PLURESDB_WEB_PORT=34568 \
+            -e PLURESDB_HOST=0.0.0.0 \
+            -e PLURESDB_DATA_DIR=/app/data \
+            -e PLURESDB_CONFIG_DIR=/app/config \
             --restart unless-stopped \
             "$IMAGE"
         

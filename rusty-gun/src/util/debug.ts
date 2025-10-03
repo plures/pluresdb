@@ -1,6 +1,6 @@
 export const DEBUG_ENABLED: boolean = (() => {
   try {
-    const v = Deno.env.get("RUSTY_GUN_DEBUG") ?? "";
+    const v = Deno.env.get("PLURESDB_DEBUG") ?? "";
     return v === "1" || v.toLowerCase() === "true";
   } catch {
     return false;

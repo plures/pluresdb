@@ -296,70 +296,70 @@ export class PluresNode extends EventEmitter {
 
 // SQLite-compatible API for easy migration
 export class SQLiteCompatibleAPI {
-  private rustyGun: PluresNode;
+  private plures: PluresNode;
 
   constructor(options?: PluresDBOptions) {
-    this.rustyGun = new PluresNode(options);
+    this.plures = new PluresNode(options);
   }
 
   async start() {
-    await this.rustyGun.start();
+    await this.plures.start();
   }
 
   async stop() {
-    await this.rustyGun.stop();
+    await this.plures.stop();
   }
 
   // SQLite-compatible methods
   async run(sql: string, params: any[] = []) {
-    return this.rustyGun.query(sql, params);
+    return this.plures.query(sql, params);
   }
 
   async get(sql: string, params: any[] = []) {
-    const result = await this.rustyGun.query(sql, params);
+    const result = await this.plures.query(sql, params);
     return result.rows?.[0] || null;
   }
 
   async all(sql: string, params: any[] = []) {
-    const result = await this.rustyGun.query(sql, params);
+    const result = await this.plures.query(sql, params);
     return result.rows || [];
   }
 
   async exec(sql: string) {
-    return this.rustyGun.query(sql);
+    return this.plures.query(sql);
   }
 
   // Additional PluresDB specific methods
   async put(key: string, value: any) {
-    return this.rustyGun.put(key, value);
+    return this.plures.put(key, value);
   }
 
   async getValue(key: string) {
-    return this.rustyGun.get(key);
+    return this.plures.get(key);
   }
 
   async delete(key: string) {
-    return this.rustyGun.delete(key);
+    return this.plures.delete(key);
   }
 
   async vectorSearch(query: string, limit = 10) {
-    return this.rustyGun.vectorSearch(query, limit);
+    return this.plures.vectorSearch(query, limit);
   }
 
   async list(prefix?: string) {
-    return this.rustyGun.list(prefix);
+    return this.plures.list(prefix);
   }
 
   getApiUrl() {
-    return this.rustyGun.getApiUrl();
+    return this.plures.getApiUrl();
   }
 
   getWebUrl() {
-    return this.rustyGun.getWebUrl();
+    return this.plures.getWebUrl();
   }
 
   isRunning() {
-    return this.rustyGun.isServerRunning();
+    return this.plures.isServerRunning();
   }
 }
 

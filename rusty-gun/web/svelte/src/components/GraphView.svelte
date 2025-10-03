@@ -333,7 +333,7 @@
     if (cy) {
       const png = cy.png({ scale: 2, full: true })
       const link = document.createElement('a')
-      link.download = `rusty-gun-graph-${Date.now()}.png`
+      link.download = `pluresdb-graph-${Date.now()}.png`
       link.href = png
       link.click()
       toast('Graph exported as PNG', 'success')

@@ -49,7 +49,7 @@
   
   function loadTasks() {
     try {
-      const saved = localStorage.getItem('rusty-gun-tasks')
+      const saved = localStorage.getItem('pluresdb-tasks')
       if (saved) {
         tasks = JSON.parse(saved)
         updateNextRuns()
@@ -61,7 +61,7 @@
   
   function saveTasks() {
     try {
-      localStorage.setItem('rusty-gun-tasks', JSON.stringify(tasks))
+      localStorage.setItem('pluresdb-tasks', JSON.stringify(tasks))
     } catch (error) {
       console.error('Error saving tasks:', error)
     }

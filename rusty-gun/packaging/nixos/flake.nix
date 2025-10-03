@@ -1,5 +1,5 @@
 {
-  description = "Rusty Gun - P2P Graph Database with SQLite Compatibility";
+  description = "PluresDB - P2P Graph Database with SQLite Compatibility";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -10,22 +10,22 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        rusty-gun = pkgs.callPackage ./default.nix { };
+        pluresdb = pkgs.callPackage ./default.nix { };
       in
       {
         packages = {
-          default = rusty-gun;
-          rusty-gun = rusty-gun;
+          default = pluresdb;
+          pluresdb = pluresdb;
         };
 
         apps = {
           default = flake-utils.lib.mkApp {
-            drv = rusty-gun;
-            exePath = "/bin/rusty-gun";
+            drv = pluresdb;
+            exePath = "/bin/pluresdb";
           };
           serve = flake-utils.lib.mkApp {
-            drv = rusty-gun;
-            exePath = "/bin/rusty-gun-server";
+            drv = pluresdb;
+            exePath = "/bin/pluresdb-server";
           };
         };
 

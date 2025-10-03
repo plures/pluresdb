@@ -62,13 +62,13 @@ Nginx configuration for production deployment with:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `RUSTY_GUN_PORT` | `34567` | API server port |
-| `RUSTY_GUN_WEB_PORT` | `34568` | Web UI port |
-| `RUSTY_GUN_HOST` | `0.0.0.0` | Bind address |
-| `RUSTY_GUN_DATA_DIR` | `/app/data` | Data directory |
-| `RUSTY_GUN_CONFIG_DIR` | `/app/config` | Config directory |
-| `RUSTY_GUN_LOG_LEVEL` | `info` | Log level |
-| `RUSTY_GUN_PRODUCTION` | `false` | Production mode |
+| `PLURESDB_PORT` | `34567` | API server port |
+| `PLURESDB_WEB_PORT` | `34568` | Web UI port |
+| `PLURESDB_HOST` | `0.0.0.0` | Bind address |
+| `PLURESDB_DATA_DIR` | `/app/data` | Data directory |
+| `PLURESDB_CONFIG_DIR` | `/app/config` | Config directory |
+| `PLURESDB_LOG_LEVEL` | `info` | Log level |
+| `PLURESDB_PRODUCTION` | `false` | Production mode |
 
 ## Volumes
 

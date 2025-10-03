@@ -5,12 +5,12 @@
 const { PluresNode, SQLiteCompatibleAPI } = require('./dist/node-index.js');
 
 async function testPackage() {
-  console.log('🧪 Testing Rusty Gun npm package...\n');
+  console.log('🧪 Testing PluresDB npm package...\n');
 
   try {
     // Test 1: Create PluresNode instance
     console.log('1. Creating PluresNode instance...');
-    const rustyGun = new PluresNode({
+    const plures = new PluresNode({
       config: {
         port: 34567,
         host: 'localhost',
@@ -34,16 +34,16 @@ async function testPackage() {
 
     // Test 3: Check configuration
     console.log('3. Checking configuration...');
-    console.log('   API URL:', rustyGun.getApiUrl());
-    console.log('   Web URL:', rustyGun.getWebUrl());
-    console.log('   Is Running:', rustyGun.isServerRunning());
+    console.log('   API URL:', plures.getApiUrl());
+    console.log('   Web URL:', plures.getWebUrl());
+    console.log('   Is Running:', plures.isServerRunning());
     console.log('✅ Configuration looks good');
 
     // Test 4: Test event emitter functionality
     console.log('4. Testing event emitter...');
-    rustyGun.on('started', () => console.log('   Event: started'));
-    rustyGun.on('stopped', () => console.log('   Event: stopped'));
-    rustyGun.on('error', (error) => console.log('   Event: error', error.message));
+    plures.on('started', () => console.log('   Event: started'));
+    plures.on('stopped', () => console.log('   Event: stopped'));
+    plures.on('error', (error) => console.log('   Event: error', error.message));
     console.log('✅ Event emitter working');
 
     console.log('\n🎉 All tests passed! The npm package is working correctly.');

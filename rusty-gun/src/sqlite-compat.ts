@@ -19,7 +19,7 @@ export interface DatabaseOptions {
 }
 
 export class Database {
-  private rustyGun: PluresNode;
+  private plures: PluresNode;
   private filename: string;
   private isOpen: boolean = false;
   private verbose: boolean = false;
@@ -30,7 +30,7 @@ export class Database {
     
     // Initialize PluresDB with the SQLite file path
     const dataDir = join(options.filename, '..', 'pluresdb');
-    this.rustyGun = new PluresNode({
+    this.plures = new PluresNode({
       config: {
         dataDir,
         port: 34567,
@@ -45,7 +45,7 @@ export class Database {
     }
 
     try {
-      await this.rustyGun.start();
+      await this.plures.start();
       this.isOpen = true;
       
       if (this.verbose) {
@@ -64,7 +64,7 @@ export class Database {
     }
 
     try {
-      await this.rustyGun.stop();
+      await this.plures.stop();
       this.isOpen = false;
       
       if (this.verbose) {
@@ -228,7 +228,7 @@ export class Database {
     const columns = tableMatch[2].split(',').map(col => col.trim());
     
     // Store table schema in PluresDB
-    await this.rustyGun.put(`schema:${tableName}`, {
+    await this.plures.put(`schema:${tableName}`, {
       name: tableName,
       columns: columns,
       created_at: new Date().toISOString()
@@ -248,12 +248,12 @@ export class Database {
     const tableName = tableMatch[1];
     
     // Remove table schema and all data
-    await this.rustyGun.delete(`schema:${tableName}`);
+    await this.plures.delete(`schema:${tableName}`);
     
     // Delete all rows for this table
-    const rows = await this.rustyGun.query(`table:${tableName}:*`);
+    const rows = await this.plures.query(`table:${tableName}:*`);
     for (const row of rows) {
-      await this.rustyGun.delete(row.id);
+      await this.plures.delete(row.id);
     }
 
     if (this.verbose) {
@@ -294,7 +294,7 @@ export class Database {
     row.created_at = new Date().toISOString();
 
     // Store in PluresDB
-    await this.rustyGun.put(`table:${tableName}:${id}`, row);
+    await this.plures.put(`table:${tableName}:${id}`, row);
 
     if (this.verbose) {
       console.log(`Row inserted into ${tableName}:`, row);
@@ -329,7 +329,7 @@ export class Database {
     });
 
     // Find rows to update
-    const rows = await this.rustyGun.query(`table:${tableName}:*`);
+    const rows = await this.plures.query(`table:${tableName}:*`);
     let changes = 0;
 
     for (const row of rows) {
@@ -337,13 +337,13 @@ export class Database {
         // Simple WHERE clause evaluation (basic implementation)
         if (this.evaluateWhereClause(row, whereClause, params)) {
           const updatedRow = { ...row, ...updates, updated_at: new Date().toISOString() };
-          await this.rustyGun.put(row.id, updatedRow);
+          await this.plures.put(row.id, updatedRow);
           changes++;
         }
       } else {
         // Update all rows
         const updatedRow = { ...row, ...updates, updated_at: new Date().toISOString() };
-        await this.rustyGun.put(row.id, updatedRow);
+        await this.plures.put(row.id, updatedRow);
         changes++;
       }
     }
@@ -365,19 +365,19 @@ export class Database {
     const whereClause = deleteMatch[2];
 
     // Find rows to delete
-    const rows = await this.rustyGun.query(`table:${tableName}:*`);
+    const rows = await this.plures.query(`table:${tableName}:*`);
     let changes = 0;
 
     for (const row of rows) {
       if (whereClause) {
         // Simple WHERE clause evaluation
         if (this.evaluateWhereClause(row, whereClause, params)) {
-          await this.rustyGun.delete(row.id);
+          await this.plures.delete(row.id);
           changes++;
         }
       } else {
         // Delete all rows
-        await this.rustyGun.delete(row.id);
+        await this.plures.delete(row.id);
         changes++;
       }
     }
@@ -402,7 +402,7 @@ export class Database {
     const limit = selectMatch[5] ? parseInt(selectMatch[5]) : undefined;
 
     // Get all rows for the table
-    const rows = await this.rustyGun.query(`table:${tableName}:*`);
+    const rows = await this.plures.query(`table:${tableName}:*`);
     let results = rows;
 
     // Apply WHERE clause

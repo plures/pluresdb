@@ -4,7 +4,7 @@
  */
 import * as vscode from 'vscode';
 export declare class PluresExtension {
-    private rustyGun;
+    private plures;
     private sqliteAPI;
     private context;
     constructor(context: vscode.ExtensionContext);

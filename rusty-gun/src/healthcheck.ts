@@ -5,9 +5,9 @@
  * Verifies that PluresDB is running and responding correctly
  */
 
-const API_PORT = Deno.env.get("RUSTY_GUN_PORT") || "34567";
-const WEB_PORT = Deno.env.get("RUSTY_GUN_WEB_PORT") || "34568";
-const HOST = Deno.env.get("RUSTY_GUN_HOST") || "localhost";
+const API_PORT = Deno.env.get("PLURESDB_PORT") || "34567";
+const WEB_PORT = Deno.env.get("PLURESDB_WEB_PORT") || "34568";
+const HOST = Deno.env.get("PLURESDB_HOST") || "localhost";
 
 interface HealthStatus {
   status: "healthy" | "unhealthy";
@@ -71,7 +71,7 @@ async function checkWebHealth(): Promise<boolean> {
 async function checkDatabaseHealth(): Promise<boolean> {
   try {
     // Check if data directory exists and is writable
-    const dataDir = Deno.env.get("RUSTY_GUN_DATA_DIR") || "./data";
+    const dataDir = Deno.env.get("PLURESDB_DATA_DIR") || "./data";
     
     try {
       await Deno.stat(dataDir);

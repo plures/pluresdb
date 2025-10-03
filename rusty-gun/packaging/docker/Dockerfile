@@ -1,4 +1,4 @@
-# Multi-stage build for Rusty Gun
+# Multi-stage build for PluresDB
 # Stage 1: Build Svelte UI
 FROM node:20-alpine AS webbuild
 WORKDIR /app/web
@@ -9,11 +9,11 @@ RUN cd svelte && npm ci --no-fund --no-audit --only=production && npm run build
 FROM rust:1.75-alpine AS rustbuild
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
-COPY rusty-gun-core/ ./rusty-gun-core/
-COPY rusty-gun-cli/ ./rusty-gun-cli/
-COPY rusty-gun-storage/ ./rusty-gun-storage/
-COPY rusty-gun-network/ ./rusty-gun-network/
-COPY rusty-gun-api/ ./rusty-gun-api/
+COPY pluresdb-core/ ./pluresdb-core/
+COPY pluresdb-cli/ ./pluresdb-cli/
+COPY pluresdb-storage/ ./pluresdb-storage/
+COPY pluresdb-network/ ./pluresdb-network/
+COPY pluresdb-api/ ./pluresdb-api/
 RUN cargo build --release
 
 # Stage 3: Final runtime image
@@ -26,8 +26,8 @@ RUN apk add --no-cache \
     tzdata
 
 # Create app user for security
-RUN addgroup -g 1001 -S rusty-gun && \
-    adduser -S rusty-gun -u 1001 -G rusty-gun
+RUN addgroup -g 1001 -S pluresdb && \
+    adduser -S pluresdb -u 1001 -G pluresdb
 
 # Set working directory
 WORKDIR /app
@@ -37,14 +37,14 @@ COPY . .
 COPY --from=webbuild /app/web/dist ./web/dist
 
 # Copy Rust binary if built
-COPY --from=rustbuild /app/target/release/rusty-gun ./bin/rusty-gun
+COPY --from=rustbuild /app/target/release/pluresdb ./bin/pluresdb
 
 # Create data directory and set permissions
 RUN mkdir -p /app/data && \
-    chown -R rusty-gun:rusty-gun /app
+    chown -R pluresdb:pluresdb /app
 
 # Switch to non-root user
-USER rusty-gun
+USER pluresdb
 
 # Expose ports (API and Web UI)
 EXPOSE 34567 34568

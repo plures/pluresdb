@@ -1,4 +1,4 @@
-# Multi-stage build: build Svelte UI, then run Rusty Gun with Deno
+# Multi-stage build: build Svelte UI, then run PluresDB with Deno
 
 FROM node:20-bullseye AS webbuild
 WORKDIR /app/web

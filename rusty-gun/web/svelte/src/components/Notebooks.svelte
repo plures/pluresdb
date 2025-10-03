@@ -32,7 +32,7 @@
   
   function loadNotebooks() {
     try {
-      const saved = localStorage.getItem('rusty-gun-notebooks')
+      const saved = localStorage.getItem('pluresdb-notebooks')
       if (saved) {
         notebooks = JSON.parse(saved)
       } else {
@@ -47,7 +47,7 @@
   
   function saveNotebooks() {
     try {
-      localStorage.setItem('rusty-gun-notebooks', JSON.stringify(notebooks))
+      localStorage.setItem('pluresdb-notebooks', JSON.stringify(notebooks))
     } catch (error) {
       console.error('Error saving notebooks:', error)
     }
@@ -61,7 +61,7 @@
         {
           id: `cell-${Date.now()}`,
           type: 'markdown',
-          content: '# Welcome to Rusty Gun Notebooks!\n\nThis is a markdown cell. You can write documentation, notes, and explanations here.\n\n## Getting Started\n\n1. Create a new code cell to run JavaScript/TypeScript\n2. Use the API to interact with your data\n3. Visualize results with charts and tables\n\nTry creating a code cell below!',
+          content: '# Welcome to PluresDB Notebooks!\n\nThis is a markdown cell. You can write documentation, notes, and explanations here.\n\n## Getting Started\n\n1. Create a new code cell to run JavaScript/TypeScript\n2. Use the API to interact with your data\n3. Visualize results with charts and tables\n\nTry creating a code cell below!',
           status: 'idle'
         },
         {

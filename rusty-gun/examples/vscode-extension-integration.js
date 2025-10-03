@@ -43,13 +43,13 @@ exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 const pluresdb_1 = require("pluresdb");
 class PluresExtension {
-    rustyGun;
+    plures;
     sqliteAPI;
     context;
     constructor(context) {
         this.context = context;
         // Initialize PluresDB with VSCode-specific configuration
-        this.rustyGun = new pluresdb_1.PluresNode({
+        this.plures = new pluresdb_1.PluresNode({
             config: {
                 port: 34567,
                 host: 'localhost',
@@ -74,20 +74,20 @@ class PluresExtension {
         this.setupEventHandlers();
     }
     setupEventHandlers() {
-        this.rustyGun.on('started', () => {
+        this.plures.on('started', () => {
             vscode.window.showInformationMessage('PluresDB database started');
         });
-        this.rustyGun.on('stopped', () => {
+        this.plures.on('stopped', () => {
             vscode.window.showInformationMessage('PluresDB database stopped');
         });
-        this.rustyGun.on('error', (error) => {
+        this.plures.on('error', (error) => {
             vscode.window.showErrorMessage(`PluresDB error: ${error.message}`);
         });
     }
     async activate() {
         try {
             // Start PluresDB
-            await this.rustyGun.start();
+            await this.plures.start();
             await this.sqliteAPI.start();
             // Register commands
             this.registerCommands();
@@ -101,7 +101,7 @@ class PluresExtension {
     }
     async deactivate() {
         try {
-            await this.rustyGun.stop();
+            await this.plures.stop();
             await this.sqliteAPI.stop();
         }
         catch (error) {
@@ -111,7 +111,7 @@ class PluresExtension {
     registerCommands() {
         // Command to open PluresDB web UI
         const openWebUI = vscode.commands.registerCommand('pluresdb.openWebUI', () => {
-            const webUrl = this.rustyGun.getWebUrl();
+            const webUrl = this.plures.getWebUrl();
             vscode.env.openExternal(vscode.Uri.parse(webUrl));
         });
         // Command to execute SQL query

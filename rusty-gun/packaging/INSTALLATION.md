@@ -216,9 +216,9 @@ services:
       - pluresdb-data:/app/data
       - pluresdb-config:/app/config
     environment:
-      - RUSTY_GUN_PORT=34567
-      - RUSTY_GUN_WEB_PORT=34568
-      - RUSTY_GUN_HOST=0.0.0.0
+      - PLURESDB_PORT=34567
+      - PLURESDB_WEB_PORT=34568
+      - PLURESDB_HOST=0.0.0.0
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "deno", "run", "-A", "--allow-net", "src/healthcheck.ts"]
@@ -323,8 +323,8 @@ PluresDB can be configured using:
 
 3. **Environment variables:**
    ```bash
-   export RUSTY_GUN_PORT=8080
-   export RUSTY_GUN_HOST=0.0.0.0
+   export PLURESDB_PORT=8080
+   export PLURESDB_HOST=0.0.0.0
    pluresdb serve
    ```
 

@@ -188,7 +188,7 @@
     }
     
     savedSearches = [...savedSearches, search]
-    localStorage.setItem('rusty-gun-saved-searches', JSON.stringify(savedSearches))
+    localStorage.setItem('pluresdb-saved-searches', JSON.stringify(savedSearches))
     
     searchName = ''
     showSaveDialog = false
@@ -197,7 +197,7 @@
   
   function loadSavedSearches() {
     try {
-      const saved = localStorage.getItem('rusty-gun-saved-searches')
+      const saved = localStorage.getItem('pluresdb-saved-searches')
       if (saved) {
         savedSearches = JSON.parse(saved)
       }
@@ -219,7 +219,7 @@
   
   function deleteSavedSearch(searchId: string) {
     savedSearches = savedSearches.filter(s => s.id !== searchId)
-    localStorage.setItem('rusty-gun-saved-searches', JSON.stringify(savedSearches))
+    localStorage.setItem('pluresdb-saved-searches', JSON.stringify(savedSearches))
     toast('Search deleted', 'success')
   }
   
@@ -242,7 +242,7 @@
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `rusty-gun-search-${Date.now()}.json`
+    a.download = `pluresdb-search-${Date.now()}.json`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 
 /**
- * Real Performance Benchmark: Rusty Gun vs Gun.js
+ * Real Performance Benchmark: PluresDB vs Gun.js
  * 
  * This script runs actual performance tests to get real metrics
- * for comparing Rusty Gun and Gun.js.
+ * for comparing PluresDB and Gun.js.
  */
 
 const http = require('http');
 const { performance } = require('perf_hooks');
 
 // Test configuration
-const RUSTY_GUN_URL = 'http://localhost:34568';
+const PLURESDB_URL = 'http://localhost:34568';
 const TEST_ITERATIONS = 100;
 const CONCURRENT_USERS = 50;
 
@@ -273,22 +273,22 @@ async function runBenchmark() {
     log('🚀 Starting Real Performance Benchmark', 'cyan');
     log('=====================================', 'cyan');
     
-    // Test Rusty Gun
-    log('\n🦀 Testing Rusty Gun...', 'yellow');
+    // Test PluresDB
+    log('\n🦀 Testing PluresDB...', 'yellow');
     
-    const rustyGunConnection = await testPluresDBConnection();
-    if (!rustyGunConnection.success) {
-        log('❌ Rusty Gun connection failed:', 'red');
-        log(`   Error: ${rustyGunConnection.error}`, 'red');
-        log('   Make sure Rusty Gun is running on http://localhost:34568', 'yellow');
+    const pluresConnection = await testPluresDBConnection();
+    if (!pluresConnection.success) {
+        log('❌ PluresDB connection failed:', 'red');
+        log(`   Error: ${pluresConnection.error}`, 'red');
+        log('   Make sure PluresDB is running on http://localhost:34568', 'yellow');
         return;
     }
     
-    log(`✅ Rusty Gun connection: ${rustyGunConnection.responseTime.toFixed(2)}ms`, 'green');
+    log(`✅ PluresDB connection: ${pluresConnection.responseTime.toFixed(2)}ms`, 'green');
     
-    const rustyGunQueries = await testPluresDBQueries();
-    const rustyGunMemory = await testPluresDBMemoryUsage();
-    const rustyGunConcurrency = await testPluresDBConcurrency();
+    const pluresQueries = await testPluresDBQueries();
+    const pluresMemory = await testPluresDBMemoryUsage();
+    const pluresConcurrency = await testPluresDBConcurrency();
     
     // Simulate Gun.js (since we can't run it in this environment)
     log('\n🔫 Simulating Gun.js performance...', 'yellow');
@@ -300,50 +300,50 @@ async function runBenchmark() {
     
     // Connection comparison
     log('\n🔌 Connection Speed:', 'blue');
-    log(`   Rusty Gun: ${rustyGunConnection.responseTime.toFixed(2)}ms`, 'green');
+    log(`   PluresDB: ${pluresConnection.responseTime.toFixed(2)}ms`, 'green');
     log(`   Gun.js:    ${gunJsResults.connection.responseTime.toFixed(2)}ms`, 'yellow');
-    log(`   Winner:    ${rustyGunConnection.responseTime < gunJsResults.connection.responseTime ? '🦀 Rusty Gun' : '🔫 Gun.js'}`, 'cyan');
+    log(`   Winner:    ${pluresConnection.responseTime < gunJsResults.connection.responseTime ? '🦀 PluresDB' : '🔫 Gun.js'}`, 'cyan');
     
     // Query performance
     log('\n⚡ Query Performance:', 'blue');
-    for (let i = 0; i < Math.min(rustyGunQueries.length, gunJsResults.queries.length); i++) {
-        const rusty = rustyGunQueries[i];
+    for (let i = 0; i < Math.min(pluresQueries.length, gunJsResults.queries.length); i++) {
+        const rusty = pluresQueries[i];
         const gun = gunJsResults.queries[i];
         
         log(`   Query ${i + 1}:`, 'white');
-        log(`     Rusty Gun: ${rusty.avgTime.toFixed(2)}ms (${rusty.successRate.toFixed(1)}% success)`, 'green');
+        log(`     PluresDB: ${rusty.avgTime.toFixed(2)}ms (${rusty.successRate.toFixed(1)}% success)`, 'green');
         log(`     Gun.js:    ${gun.avgTime.toFixed(2)}ms (${gun.successRate.toFixed(1)}% success)`, 'yellow');
-        log(`     Winner:    ${rusty.avgTime < gun.avgTime ? '🦀 Rusty Gun' : '🔫 Gun.js'}`, 'cyan');
+        log(`     Winner:    ${rusty.avgTime < gun.avgTime ? '🦀 PluresDB' : '🔫 Gun.js'}`, 'cyan');
     }
     
     // Memory usage
     log('\n💾 Memory Usage:', 'blue');
-    const rustyMemoryMB = (rustyGunMemory.heapUsed / 1024 / 1024).toFixed(1);
+    const rustyMemoryMB = (pluresMemory.heapUsed / 1024 / 1024).toFixed(1);
     const gunMemoryMB = (gunJsResults.memory.heapUsed / 1024 / 1024).toFixed(1);
-    log(`   Rusty Gun: ${rustyMemoryMB}MB`, 'green');
+    log(`   PluresDB: ${rustyMemoryMB}MB`, 'green');
     log(`   Gun.js:    ${gunMemoryMB}MB`, 'yellow');
-    log(`   Winner:    ${rustyGunMemory.heapUsed < gunJsResults.memory.heapUsed ? '🦀 Rusty Gun' : '🔫 Gun.js'}`, 'cyan');
+    log(`   Winner:    ${pluresMemory.heapUsed < gunJsResults.memory.heapUsed ? '🦀 PluresDB' : '🔫 Gun.js'}`, 'cyan');
     
     // Concurrency
     log('\n👥 Concurrency:', 'blue');
-    log(`   Rusty Gun: ${rustyGunConcurrency.successfulUsers}/${rustyGunConcurrency.totalUsers} users (${rustyGunConcurrency.successRate.toFixed(1)}% success)`, 'green');
+    log(`   PluresDB: ${pluresConcurrency.successfulUsers}/${pluresConcurrency.totalUsers} users (${pluresConcurrency.successRate.toFixed(1)}% success)`, 'green');
     log(`   Gun.js:    ${gunJsResults.concurrency.successfulUsers}/${gunJsResults.concurrency.totalUsers} users (${gunJsResults.concurrency.successRate.toFixed(1)}% success)`, 'yellow');
-    log(`   Winner:    ${rustyGunConcurrency.successRate > gunJsResults.concurrency.successRate ? '🦀 Rusty Gun' : '🔫 Gun.js'}`, 'cyan');
+    log(`   Winner:    ${pluresConcurrency.successRate > gunJsResults.concurrency.successRate ? '🦀 PluresDB' : '🔫 Gun.js'}`, 'cyan');
     
     // Summary
     log('\n🏆 SUMMARY', 'cyan');
     log('==========', 'cyan');
     
     const rustyWins = [
-        rustyGunConnection.responseTime < gunJsResults.connection.responseTime,
-        rustyGunQueries.some(q => q.avgTime < gunJsResults.queries[0].avgTime),
-        rustyGunMemory.heapUsed < gunJsResults.memory.heapUsed,
-        rustyGunConcurrency.successRate > gunJsResults.concurrency.successRate
+        pluresConnection.responseTime < gunJsResults.connection.responseTime,
+        pluresQueries.some(q => q.avgTime < gunJsResults.queries[0].avgTime),
+        pluresMemory.heapUsed < gunJsResults.memory.heapUsed,
+        pluresConcurrency.successRate > gunJsResults.concurrency.successRate
     ].filter(Boolean).length;
     
-    log(`Rusty Gun wins: ${rustyWins}/4 categories`, 'green');
-    const perfImprovement = ((gunJsResults.queries[0].avgTime / rustyGunQueries[0].avgTime) - 1) * 100;
-    const memEfficiency = ((gunJsResults.memory.heapUsed / rustyGunMemory.heapUsed) - 1) * 100;
+    log(`PluresDB wins: ${rustyWins}/4 categories`, 'green');
+    const perfImprovement = ((gunJsResults.queries[0].avgTime / pluresQueries[0].avgTime) - 1) * 100;
+    const memEfficiency = ((gunJsResults.memory.heapUsed / pluresMemory.heapUsed) - 1) * 100;
     log(`Performance improvement: ${perfImprovement.toFixed(1)}% faster`, 'green');
     log(`Memory efficiency: ${memEfficiency.toFixed(1)}% less memory`, 'green');
     

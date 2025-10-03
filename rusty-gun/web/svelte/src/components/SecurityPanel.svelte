@@ -94,7 +94,7 @@
         {
           id: 'user-1',
           username: 'admin',
-          email: 'admin@rusty-gun.local',
+          email: 'admin@pluresdb.local',
           role: 'admin',
           status: 'active',
           lastLogin: Date.now() - 3600000, // 1 hour ago
@@ -104,7 +104,7 @@
         {
           id: 'user-2',
           username: 'developer',
-          email: 'dev@rusty-gun.local',
+          email: 'dev@pluresdb.local',
           role: 'developer',
           status: 'active',
           lastLogin: Date.now() - 7200000, // 2 hours ago
@@ -114,7 +114,7 @@
         {
           id: 'user-3',
           username: 'viewer',
-          email: 'viewer@rusty-gun.local',
+          email: 'viewer@pluresdb.local',
           role: 'viewer',
           status: 'active',
           lastLogin: Date.now() - 14400000, // 4 hours ago

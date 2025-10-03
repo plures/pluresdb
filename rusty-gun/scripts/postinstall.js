@@ -1,5 +1,5 @@
 /**
- * Post-install script for Rusty Gun npm package
+ * Post-install script for PluresDB npm package
  * This script ensures Deno is available and sets up the environment
  */
 
@@ -61,11 +61,11 @@ function installDeno() {
 
 function createStartScript() {
   const scriptContent = `#!/bin/bash
-# Rusty Gun start script
+# PluresDB start script
 export DENO_INSTALL="$HOME/.deno"
 export PATH="$DENO_INSTALL/bin:$PATH"
 
-# Start Rusty Gun
+# Start PluresDB
 deno run -A "${path.join(__dirname, '../src/main.ts')}" serve "$@"
 `;
 
@@ -84,11 +84,11 @@ deno run -A "${path.join(__dirname, '../src/main.ts')}" serve "$@"
 
 function createWindowsStartScript() {
   const scriptContent = `@echo off
-REM Rusty Gun start script for Windows
+REM PluresDB start script for Windows
 set DENO_INSTALL=%USERPROFILE%\\.deno
 set PATH=%DENO_INSTALL%\\bin;%PATH%
 
-REM Start Rusty Gun
+REM Start PluresDB
 deno run -A "${path.join(__dirname, '../src/main.ts')}" serve %*
 `;
 
@@ -106,7 +106,7 @@ deno run -A "${path.join(__dirname, '../src/main.ts')}" serve %*
 
 async function main() {
   try {
-    log('Setting up Rusty Gun...');
+    log('Setting up PluresDB...');
     
     // Check if Deno is installed
     const denoInstalled = await isDenoInstalled();
