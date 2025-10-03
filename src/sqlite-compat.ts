@@ -1,8 +1,9 @@
 // SQLite Compatible API for PluresDB
 // Provides drop-in replacement for sqlite3 and sqlite packages
 
-import { PluresNode } from './main.ts';
-import { join } from 'https://deno.land/std@0.208.0/path/mod.ts';
+import { dirname, resolve } from "node:path";
+
+import { PluresNode } from "./node-wrapper.ts";
 
 export interface SQLiteConfig {
   filename: string;
@@ -18,6 +19,8 @@ export interface DatabaseOptions {
   verbose?: boolean;
 }
 
+type RowRecord = Record<string, unknown>;
+
 export class Database {
   private plures: PluresNode;
   private filename: string;
@@ -27,15 +30,15 @@ export class Database {
   constructor(options: DatabaseOptions) {
     this.filename = options.filename;
     this.verbose = options.verbose || false;
-    
+
     // Initialize PluresDB with the SQLite file path
-    const dataDir = join(options.filename, '..', 'pluresdb');
+    const dataDir = resolve(dirname(options.filename), "pluresdb");
     this.plures = new PluresNode({
       config: {
         dataDir,
         port: 34567,
-        host: 'localhost'
-      }
+        host: "localhost",
+      },
     });
   }
 
@@ -47,14 +50,14 @@ export class Database {
     try {
       await this.plures.start();
       this.isOpen = true;
-      
+
       if (this.verbose) {
         console.log(`Database opened: ${this.filename}`);
       }
-      
+
       return this;
     } catch (error) {
-      throw new Error(`Failed to open database: ${error.message}`);
+      throw new Error(`Failed to open database: ${formatError(error)}`);
     }
   }
 
@@ -66,107 +69,107 @@ export class Database {
     try {
       await this.plures.stop();
       this.isOpen = false;
-      
+
       if (this.verbose) {
         console.log(`Database closed: ${this.filename}`);
       }
     } catch (error) {
-      throw new Error(`Failed to close database: ${error.message}`);
+      throw new Error(`Failed to close database: ${formatError(error)}`);
     }
   }
 
   // SQLite-compatible methods
   async exec(sql: string): Promise<void> {
     if (!this.isOpen) {
-      throw new Error('Database is not open');
+      throw new Error("Database is not open");
     }
 
     try {
       // Parse SQL and execute
       const statements = this.parseSQL(sql);
-      
+
       for (const statement of statements) {
         await this.executeStatement(statement);
       }
     } catch (error) {
-      throw new Error(`SQL execution failed: ${error.message}`);
+      throw new Error(`SQL execution failed: ${formatError(error)}`);
     }
   }
 
   async run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
     if (!this.isOpen) {
-      throw new Error('Database is not open');
+      throw new Error("Database is not open");
     }
 
     try {
       const result = await this.executeStatement({ sql, params });
       return {
         lastID: result.lastID || 0,
-        changes: result.changes || 0
+        changes: result.changes || 0,
       };
     } catch (error) {
-      throw new Error(`SQL run failed: ${error.message}`);
+      throw new Error(`SQL run failed: ${formatError(error)}`);
     }
   }
 
   async get(sql: string, params: any[] = []): Promise<any> {
     if (!this.isOpen) {
-      throw new Error('Database is not open');
+      throw new Error("Database is not open");
     }
 
     try {
       const results = await this.executeQuery(sql, params);
       return results.length > 0 ? results[0] : undefined;
     } catch (error) {
-      throw new Error(`SQL get failed: ${error.message}`);
+      throw new Error(`SQL get failed: ${formatError(error)}`);
     }
   }
 
   async all(sql: string, params: any[] = []): Promise<any[]> {
     if (!this.isOpen) {
-      throw new Error('Database is not open');
+      throw new Error("Database is not open");
     }
 
     try {
       return await this.executeQuery(sql, params);
     } catch (error) {
-      throw new Error(`SQL all failed: ${error.message}`);
+      throw new Error(`SQL all failed: ${formatError(error)}`);
     }
   }
 
   async each(sql: string, params: any[] = [], callback: (row: any) => void): Promise<number> {
     if (!this.isOpen) {
-      throw new Error('Database is not open');
+      throw new Error("Database is not open");
     }
 
     try {
       const results = await this.executeQuery(sql, params);
       let count = 0;
-      
+
       for (const row of results) {
         callback(row);
         count++;
       }
-      
+
       return count;
     } catch (error) {
-      throw new Error(`SQL each failed: ${error.message}`);
+      throw new Error(`SQL each failed: ${formatError(error)}`);
     }
   }
 
   // Transaction support
   async transaction<T>(fn: (db: Database) => Promise<T>): Promise<T> {
     if (!this.isOpen) {
-      throw new Error('Database is not open');
+      throw new Error("Database is not open");
     }
 
     try {
-      await this.exec('BEGIN TRANSACTION');
+      await this.exec("BEGIN TRANSACTION");
       const result = await fn(this);
-      await this.exec('COMMIT');
+      await this.exec("COMMIT");
       return result;
     } catch (error) {
-      await this.exec('ROLLBACK');
+      await this.exec("ROLLBACK");
       throw error;
     }
   }
@@ -179,27 +182,28 @@ export class Database {
   // Private helper methods
   private parseSQL(sql: string): Array<{ sql: string; params?: any[] }> {
     // Simple SQL parser - split by semicolon and trim
-    const statements = sql.split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-    
-    return statements.map(statement => ({ sql: statement }));
+    const statements = sql
+      .split(";")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    return statements.map((statement) => ({ sql: statement }));
   }
 
   private async executeStatement(statement: { sql: string; params?: any[] }): Promise<any> {
     const sql = statement.sql.toLowerCase().trim();
-    
-    if (sql.startsWith('create table')) {
+
+    if (sql.startsWith("create table")) {
       return await this.createTable(statement.sql);
-    } else if (sql.startsWith('drop table')) {
+    } else if (sql.startsWith("drop table")) {
       return await this.dropTable(statement.sql);
-    } else if (sql.startsWith('insert')) {
+    } else if (sql.startsWith("insert")) {
       return await this.insert(statement.sql, statement.params || []);
-    } else if (sql.startsWith('update')) {
+    } else if (sql.startsWith("update")) {
       return await this.update(statement.sql, statement.params || []);
-    } else if (sql.startsWith('delete')) {
+    } else if (sql.startsWith("delete")) {
       return await this.delete(statement.sql, statement.params || []);
-    } else if (sql.startsWith('begin') || sql.startsWith('commit') || sql.startsWith('rollback')) {
+    } else if (sql.startsWith("begin") || sql.startsWith("commit") || sql.startsWith("rollback")) {
       // Transaction commands - handled by transaction method
       return { changes: 0 };
     } else {
@@ -207,10 +211,10 @@ export class Database {
     }
   }
 
-  private async executeQuery(sql: string, params: any[]): Promise<any[]> {
+  private async executeQuery(sql: string, params: any[]): Promise<RowRecord[]> {
     const sqlLower = sql.toLowerCase().trim();
-    
-    if (sqlLower.startsWith('select')) {
+
+    if (sqlLower.startsWith("select")) {
       return await this.select(sql, params);
     } else {
       throw new Error(`Unsupported query: ${sql}`);
@@ -225,13 +229,13 @@ export class Database {
     }
 
     const tableName = tableMatch[1];
-    const columns = tableMatch[2].split(',').map(col => col.trim());
-    
+    const columns = tableMatch[2].split(",").map((col) => col.trim());
+
     // Store table schema in PluresDB
     await this.plures.put(`schema:${tableName}`, {
       name: tableName,
       columns: columns,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     });
 
     if (this.verbose) {
@@ -246,14 +250,14 @@ export class Database {
     }
 
     const tableName = tableMatch[1];
-    
+
     // Remove table schema and all data
     await this.plures.delete(`schema:${tableName}`);
-    
+
     // Delete all rows for this table
-    const rows = await this.plures.query(`table:${tableName}:*`);
+    const rows: RowRecord[] = await this.plures.query(`table:${tableName}:*`);
     for (const row of rows) {
-      await this.plures.delete(row.id);
+      await this.plures.delete(getRowId(row));
     }
 
     if (this.verbose) {
@@ -262,18 +266,20 @@ export class Database {
   }
 
   private async insert(sql: string, params: any[]): Promise<{ lastID: number; changes: number }> {
-    const insertMatch = sql.match(/INSERT\s+(?:INTO\s+)?(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
+    const insertMatch = sql.match(
+      /INSERT\s+(?:INTO\s+)?(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i,
+    );
     if (!insertMatch) {
       throw new Error(`Invalid INSERT statement: ${sql}`);
     }
 
     const tableName = insertMatch[1];
-    const columns = insertMatch[2].split(',').map(col => col.trim());
-    const values = insertMatch[3].split(',').map(val => val.trim());
-    
+    const columns = insertMatch[2].split(",").map((col) => col.trim());
+    const values = insertMatch[3].split(",").map((val) => val.trim());
+
     // Replace ? placeholders with actual values
     const actualValues = values.map((val, index) => {
-      if (val === '?') {
+      if (val === "?") {
         return params[index] || null;
       } else if (val.startsWith("'") && val.endsWith("'")) {
         return val.slice(1, -1); // Remove quotes
@@ -314,12 +320,12 @@ export class Database {
     const whereClause = updateMatch[3];
 
     // Parse SET clause
-    const setPairs = setClause.split(',').map(pair => pair.trim());
+    const setPairs = setClause.split(",").map((pair) => pair.trim());
     const updates: any = {};
-    
+
     setPairs.forEach((pair, index) => {
-      const [column, value] = pair.split('=').map(s => s.trim());
-      if (value === '?') {
+      const [column, value] = pair.split("=").map((s) => s.trim());
+      if (value === "?") {
         updates[column] = params[index] || null;
       } else if (value.startsWith("'") && value.endsWith("'")) {
         updates[column] = value.slice(1, -1);
@@ -329,7 +335,7 @@ export class Database {
     });
 
     // Find rows to update
-    const rows = await this.plures.query(`table:${tableName}:*`);
+    const rows: RowRecord[] = await this.plures.query(`table:${tableName}:*`);
     let changes = 0;
 
     for (const row of rows) {
@@ -337,13 +343,13 @@ export class Database {
         // Simple WHERE clause evaluation (basic implementation)
         if (this.evaluateWhereClause(row, whereClause, params)) {
           const updatedRow = { ...row, ...updates, updated_at: new Date().toISOString() };
-          await this.plures.put(row.id, updatedRow);
+          await this.plures.put(getRowId(row), updatedRow);
           changes++;
         }
       } else {
         // Update all rows
         const updatedRow = { ...row, ...updates, updated_at: new Date().toISOString() };
-        await this.plures.put(row.id, updatedRow);
+        await this.plures.put(getRowId(row), updatedRow);
         changes++;
       }
     }
@@ -365,19 +371,19 @@ export class Database {
     const whereClause = deleteMatch[2];
 
     // Find rows to delete
-    const rows = await this.plures.query(`table:${tableName}:*`);
+    const rows: RowRecord[] = await this.plures.query(`table:${tableName}:*`);
     let changes = 0;
 
     for (const row of rows) {
       if (whereClause) {
         // Simple WHERE clause evaluation
         if (this.evaluateWhereClause(row, whereClause, params)) {
-          await this.plures.delete(row.id);
+          await this.plures.delete(getRowId(row));
           changes++;
         }
       } else {
         // Delete all rows
-        await this.plures.delete(row.id);
+        await this.plures.delete(getRowId(row));
         changes++;
       }
     }
@@ -389,8 +395,10 @@ export class Database {
     return { changes };
   }
 
-  private async select(sql: string, params: any[]): Promise<any[]> {
-    const selectMatch = sql.match(/SELECT\s+(.+?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?(?:\s+ORDER\s+BY\s+(.+))?(?:\s+LIMIT\s+(\d+))?/i);
+  private async select(sql: string, params: any[]): Promise<RowRecord[]> {
+    const selectMatch = sql.match(
+      /SELECT\s+(.+?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?(?:\s+ORDER\s+BY\s+(.+))?(?:\s+LIMIT\s+(\d+))?/i,
+    );
     if (!selectMatch) {
       throw new Error(`Invalid SELECT statement: ${sql}`);
     }
@@ -402,26 +410,19 @@ export class Database {
     const limit = selectMatch[5] ? parseInt(selectMatch[5]) : undefined;
 
     // Get all rows for the table
-    const rows = await this.plures.query(`table:${tableName}:*`);
-    let results = rows;
+    const rows: RowRecord[] = await this.plures.query(`table:${tableName}:*`);
+    let results: RowRecord[] = rows;
 
     // Apply WHERE clause
     if (whereClause) {
-      results = results.filter(row => this.evaluateWhereClause(row, whereClause, params));
+      results = results.filter((row) => this.evaluateWhereClause(row, whereClause, params));
     }
 
     // Apply ORDER BY
     if (orderBy) {
       const [column, direction] = orderBy.split(/\s+/);
-      results.sort((a, b) => {
-        const aVal = a[column];
-        const bVal = b[column];
-        if (direction && direction.toLowerCase() === 'desc') {
-          return bVal > aVal ? 1 : -1;
-        } else {
-          return aVal > bVal ? 1 : -1;
-        }
-      });
+      const isDesc = direction?.toLowerCase() === "desc";
+      results.sort((a, b) => compareValues(a[column], b[column], isDesc));
     }
 
     // Apply LIMIT
@@ -430,11 +431,11 @@ export class Database {
     }
 
     // Select specific columns
-    if (columns !== '*') {
-      const columnList = columns.split(',').map(col => col.trim());
-      results = results.map(row => {
-        const selectedRow: any = {};
-        columnList.forEach(col => {
+    if (columns !== "*") {
+      const columnList = columns.split(",").map((col) => col.trim());
+      results = results.map((row) => {
+        const selectedRow: RowRecord = {};
+        columnList.forEach((col) => {
           selectedRow[col] = row[col];
         });
         return selectedRow;
@@ -448,10 +449,10 @@ export class Database {
     return results;
   }
 
-  private evaluateWhereClause(row: any, whereClause: string, params: any[]): boolean {
+  private evaluateWhereClause(row: RowRecord, whereClause: string, params: any[]): boolean {
     // Simple WHERE clause evaluation
     // This is a basic implementation - in production, you'd want a proper SQL parser
-    
+
     // Handle simple equality comparisons
     const equalityMatch = whereClause.match(/(\w+)\s*=\s*\?/);
     if (equalityMatch) {
@@ -471,6 +472,56 @@ export class Database {
     // Default to true for unsupported WHERE clauses
     return true;
   }
+}
+
+function formatError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown error";
+  }
+}
+
+function getRowId(row: RowRecord): string {
+  const id = row["id"];
+  if (typeof id === "string" && id.length > 0) {
+    return id;
+  }
+  throw new Error("Row is missing a valid string id");
+}
+
+function compareValues(a: unknown, b: unknown, desc = false): number {
+  const normalize = (value: unknown): string => {
+    if (value === null || value === undefined) {
+      return "";
+    }
+    if (typeof value === "string") {
+      return value;
+    }
+    if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+      return value.toString();
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  };
+
+  const normalizedA = normalize(a);
+  const normalizedB = normalize(b);
+  const result = normalizedA.localeCompare(normalizedB, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+
+  return desc ? -result : result;
 }
 
 export class PreparedStatement {
@@ -504,12 +555,14 @@ export class PreparedStatement {
 }
 
 // SQLite3 driver compatibility
-export class Database as SQLite3Database {
+export class SQLite3Database extends Database {
   constructor(filename: string, callback?: (err: Error | null) => void) {
     super({ filename });
-    
+
     if (callback) {
-      this.open().then(() => callback(null)).catch(err => callback(err));
+      this.open()
+        .then(() => callback(null))
+        .catch((err) => callback(err));
     }
   }
 

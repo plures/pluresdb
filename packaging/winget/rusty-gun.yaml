@@ -15,7 +15,7 @@ Description: |
   PluresDB is a local-first, peer-to-peer graph database with SQLite compatibility.
   It provides offline-first data storage, encrypted data sharing, cross-device sync,
   and a comprehensive web UI for data exploration and management.
-  
+
   Features:
   - P2P graph database with CRDT conflict resolution
   - SQLite-compatible API (95% compatibility)
@@ -29,109 +29,109 @@ Description: |
 
 Moniker: pluresdb
 Tags:
-- database
-- graph-database
-- p2p
-- sqlite
-- local-first
-- offline-first
-- deno
-- typescript
-- crdt
-- vector-search
+  - database
+  - graph-database
+  - p2p
+  - sqlite
+  - local-first
+  - offline-first
+  - deno
+  - typescript
+  - crdt
+  - vector-search
 
 InstallerType: zip
 Installers:
-- Architecture: x64
-  InstallerUrl: https://github.com/pluresdb/pluresdb/releases/download/v1.0.0/pluresdb-windows-x64.zip
-  InstallerSha256: PLACEHOLDER_SHA256
-  InstallerType: zip
-  InstallerLocale: en-US
-  InstallerSwitches:
-    Silent: /S
-    SilentWithProgress: /S
-    Interactive: /I
-    Upgrade: /U
-    Log: /L
-    Custom: /C
-  InstallerSuccessCodes:
-    - 0
-    - 3010
-  UpgradeBehavior: install
-  Commands:
-    - pluresdb
-  FileExtensions:
-    - .pluresdb
-  Protocols:
-    - pluresdb
-  Capabilities:
-    - FileSystem
-    - InternetClient
-    - InternetClientServer
-    - PrivateNetworkClientServer
-  RestartBehavior: suppress
-  InstallationMetadata:
-    InstallationType: Portable
-    InstallationScope: User
-    InstallLocationRequired: false
-    RequireExplicitUpgrade: false
-    UnsupportedOSArchitectures: []
-    UnsupportedArguments: []
-    UnsupportedOSVersions: []
-    MinimumOSVersion: 10.0.17763.0
-    MaximumOSVersion: 10.0.99999.0
-    AppsAndFeaturesEntries:
-      - DisplayName: PluresDB
-        DisplayVersion: 1.0.0
-        Publisher: PluresDB
-        ProductCode: {12345678-1234-1234-1234-123456789012}
-        UpgradeCode: {87654321-4321-4321-4321-210987654321}
-        InstallerType: zip
-    ElevationRequirement: user
-    Installers:
-      - Architecture: x64
-        InstallerUrl: https://github.com/pluresdb/pluresdb/releases/download/v1.0.0/pluresdb-windows-x64.zip
-        InstallerSha256: PLACEHOLDER_SHA256
-        InstallerType: zip
-        InstallerLocale: en-US
-        InstallerSwitches:
-          Silent: /S
-          SilentWithProgress: /S
-          Interactive: /I
-          Upgrade: /U
-          Log: /L
-          Custom: /C
-        InstallerSuccessCodes:
-          - 0
-          - 3010
-        UpgradeBehavior: install
-        Commands:
-          - pluresdb
-        FileExtensions:
-          - .pluresdb
-        Protocols:
-          - pluresdb
-        Capabilities:
-          - FileSystem
-          - InternetClient
-          - InternetClientServer
-          - PrivateNetworkClientServer
-        RestartBehavior: suppress
-        InstallationMetadata:
-          InstallationType: Portable
-          InstallationScope: User
-          InstallLocationRequired: false
-          RequireExplicitUpgrade: false
-          UnsupportedOSArchitectures: []
-          UnsupportedArguments: []
-          UnsupportedOSVersions: []
-          MinimumOSVersion: 10.0.17763.0
-          MaximumOSVersion: 10.0.99999.0
-          AppsAndFeaturesEntries:
-            - DisplayName: PluresDB
-              DisplayVersion: 1.0.0
-              Publisher: PluresDB
-              ProductCode: {12345678-1234-1234-1234-123456789012}
-              UpgradeCode: {87654321-4321-4321-4321-210987654321}
-              InstallerType: zip
-          ElevationRequirement: user
+  - Architecture: x64
+    InstallerUrl: https://github.com/pluresdb/pluresdb/releases/download/v1.0.0/pluresdb-windows-x64.zip
+    InstallerSha256: PLACEHOLDER_SHA256
+    InstallerType: zip
+    InstallerLocale: en-US
+    InstallerSwitches:
+      Silent: /S
+      SilentWithProgress: /S
+      Interactive: /I
+      Upgrade: /U
+      Log: /L
+      Custom: /C
+    InstallerSuccessCodes:
+      - 0
+      - 3010
+    UpgradeBehavior: install
+    Commands:
+      - pluresdb
+    FileExtensions:
+      - .pluresdb
+    Protocols:
+      - pluresdb
+    Capabilities:
+      - FileSystem
+      - InternetClient
+      - InternetClientServer
+      - PrivateNetworkClientServer
+    RestartBehavior: suppress
+    InstallationMetadata:
+      InstallationType: Portable
+      InstallationScope: User
+      InstallLocationRequired: false
+      RequireExplicitUpgrade: false
+      UnsupportedOSArchitectures: []
+      UnsupportedArguments: []
+      UnsupportedOSVersions: []
+      MinimumOSVersion: 10.0.17763.0
+      MaximumOSVersion: 10.0.99999.0
+      AppsAndFeaturesEntries:
+        - DisplayName: PluresDB
+          DisplayVersion: 1.0.0
+          Publisher: PluresDB
+          ProductCode: { 12345678-1234-1234-1234-123456789012 }
+          UpgradeCode: { 87654321-4321-4321-4321-210987654321 }
+          InstallerType: zip
+      ElevationRequirement: user
+      Installers:
+        - Architecture: x64
+          InstallerUrl: https://github.com/pluresdb/pluresdb/releases/download/v1.0.0/pluresdb-windows-x64.zip
+          InstallerSha256: PLACEHOLDER_SHA256
+          InstallerType: zip
+          InstallerLocale: en-US
+          InstallerSwitches:
+            Silent: /S
+            SilentWithProgress: /S
+            Interactive: /I
+            Upgrade: /U
+            Log: /L
+            Custom: /C
+          InstallerSuccessCodes:
+            - 0
+            - 3010
+          UpgradeBehavior: install
+          Commands:
+            - pluresdb
+          FileExtensions:
+            - .pluresdb
+          Protocols:
+            - pluresdb
+          Capabilities:
+            - FileSystem
+            - InternetClient
+            - InternetClientServer
+            - PrivateNetworkClientServer
+          RestartBehavior: suppress
+          InstallationMetadata:
+            InstallationType: Portable
+            InstallationScope: User
+            InstallLocationRequired: false
+            RequireExplicitUpgrade: false
+            UnsupportedOSArchitectures: []
+            UnsupportedArguments: []
+            UnsupportedOSVersions: []
+            MinimumOSVersion: 10.0.17763.0
+            MaximumOSVersion: 10.0.99999.0
+            AppsAndFeaturesEntries:
+              - DisplayName: PluresDB
+                DisplayVersion: 1.0.0
+                Publisher: PluresDB
+                ProductCode: { 12345678-1234-1234-1234-123456789012 }
+                UpgradeCode: { 87654321-4321-4321-4321-210987654321 }
+                InstallerType: zip
+            ElevationRequirement: user

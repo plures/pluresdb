@@ -57,10 +57,3 @@ function cosine(a: Float32Array, b: Float32Array): number {
   for (let i = 0; i < len; i++) dot += a[i] * b[i];
   return dot;
 }
-
-
-
-
-
-
-

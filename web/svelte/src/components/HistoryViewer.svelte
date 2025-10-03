@@ -1,112 +1,121 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { push as toast } from '../lib/toasts'
-  import JsonEditor from './JsonEditor.svelte'
-  
-  let nodeId = ''
-  let history: Array<{
-    id: string
-    data: Record<string, unknown>
-    timestamp: number
-    vectorClock: Record<string, number>
-    state?: Record<string, number>
-  }> = []
-  let selectedVersion: number | null = null
-  let loading = false
-  let dark = false
-  let showDiff = false
+  import { onMount } from "svelte";
+  import { push as toast } from "../lib/toasts";
+  import JsonEditor from "./JsonEditor.svelte";
 
-  $: dark = (document.documentElement.getAttribute('data-theme') === 'dark')
+  let nodeId = "";
+  let history: Array<{
+    id: string;
+    data: Record<string, unknown>;
+    timestamp: number;
+    vectorClock: Record<string, number>;
+    state?: Record<string, number>;
+  }> = [];
+  let selectedVersion: number | null = null;
+  let loading = false;
+  let dark = false;
+  let showDiff = false;
+
+  $: dark = document.documentElement.getAttribute("data-theme") === "dark";
 
   async function loadHistory() {
-    if (!nodeId.trim()) return
-    
-    loading = true
+    if (!nodeId.trim()) return;
+
+    loading = true;
     try {
-      const res = await fetch(`/api/history?id=${encodeURIComponent(nodeId)}`)
-      if (!res.ok) throw new Error('Failed to load history')
-      history = await res.json()
-      
+      const res = await fetch(`/api/history?id=${encodeURIComponent(nodeId)}`);
+      if (!res.ok) throw new Error("Failed to load history");
+      history = await res.json();
+
       if (history.length > 0) {
-        selectedVersion = history[0].timestamp // Most recent
+        selectedVersion = history[0].timestamp; // Most recent
       }
     } catch (error) {
-      toast('Failed to load history', 'error')
-      console.error('Error loading history:', error)
+      toast("Failed to load history", "error");
+      console.error("Error loading history:", error);
     } finally {
-      loading = false
+      loading = false;
     }
   }
 
   async function restoreVersion(timestamp: number) {
-    if (!nodeId || !confirm('Are you sure you want to restore this version? This will overwrite the current data.')) return
-    
+    if (
+      !nodeId ||
+      !confirm(
+        "Are you sure you want to restore this version? This will overwrite the current data.",
+      )
+    )
+      return;
+
     try {
-      const res = await fetch(`/api/restore?id=${encodeURIComponent(nodeId)}&timestamp=${timestamp}`, {
-        method: 'POST'
-      })
-      
-      if (!res.ok) throw new Error('Failed to restore version')
-      
-      toast('Version restored successfully', 'success')
-      await loadHistory() // Reload to show updated history
+      const res = await fetch(
+        `/api/restore?id=${encodeURIComponent(nodeId)}&timestamp=${timestamp}`,
+        {
+          method: "POST",
+        },
+      );
+
+      if (!res.ok) throw new Error("Failed to restore version");
+
+      toast("Version restored successfully", "success");
+      await loadHistory(); // Reload to show updated history
     } catch (error) {
-      toast('Failed to restore version', 'error')
-      console.error('Error restoring version:', error)
+      toast("Failed to restore version", "error");
+      console.error("Error restoring version:", error);
     }
   }
 
   function formatTimestamp(timestamp: number): string {
-    return new Date(timestamp).toLocaleString()
+    return new Date(timestamp).toLocaleString();
   }
 
   function getVersionData(timestamp: number) {
-    return history.find(h => h.timestamp === timestamp)?.data || {}
+    return history.find((h) => h.timestamp === timestamp)?.data || {};
   }
 
   function getVersionDiff(timestamp: number) {
-    const current = history[0]?.data || {}
-    const version = getVersionData(timestamp)
-    
-    const changes: Array<{ field: string; old: any; new: any }> = []
-    
+    const current = history[0]?.data || {};
+    const version = getVersionData(timestamp);
+
+    const changes: Array<{ field: string; old: any; new: any }> = [];
+
     // Check for changes
-    const allKeys = new Set([...Object.keys(current), ...Object.keys(version)])
+    const allKeys = new Set([...Object.keys(current), ...Object.keys(version)]);
     for (const key of allKeys) {
-      const oldVal = current[key]
-      const newVal = version[key]
-      
+      const oldVal = current[key];
+      const newVal = version[key];
+
       if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-        changes.push({ field: key, old: oldVal, new: newVal })
+        changes.push({ field: key, old: oldVal, new: newVal });
       }
     }
-    
-    return changes
+
+    return changes;
   }
 
   function selectVersion(timestamp: number) {
-    selectedVersion = timestamp
+    selectedVersion = timestamp;
   }
 </script>
 
 <section aria-labelledby="history-heading">
   <h3 id="history-heading">History & Time Travel</h3>
-  
+
   <div class="history-controls">
     <div class="input-group">
       <label for="node-id-input">Node ID</label>
-      <input 
+      <input
         id="node-id-input"
-        type="text" 
-        bind:value={nodeId} 
+        type="text"
+        bind:value={nodeId}
         placeholder="Enter node ID to view history"
-        on:keydown={(e) => e.key === 'Enter' && loadHistory()}
+        on:keydown={(e) => e.key === "Enter" && loadHistory()}
       />
       <button on:click={loadHistory} disabled={loading || !nodeId.trim()}>
-        {loading ? 'Loading...' : 'Load History'}
+        {loading ? "Loading..." : "Load History"}
       </button>
     </div>
-    
+
     {#if history.length > 0}
       <div class="view-controls">
         <label>
@@ -128,7 +137,7 @@
               class="version-item"
               class:selected={selectedVersion === version.timestamp}
               on:click={() => selectVersion(version.timestamp)}
-              on:keydown={(e) => e.key === 'Enter' && selectVersion(version.timestamp)}
+              on:keydown={(e) => e.key === "Enter" && selectVersion(version.timestamp)}
               aria-label="Select version from {formatTimestamp(version.timestamp)}"
             >
               <div class="version-header">
@@ -154,7 +163,7 @@
             <h4>Version Details</h4>
             <div class="version-actions">
               {#if selectedVersion !== history[0]?.timestamp}
-                <button 
+                <button
                   on:click={() => restoreVersion(selectedVersion)}
                   class="restore-button"
                   aria-label="Restore this version"
@@ -164,7 +173,7 @@
               {/if}
             </div>
           </div>
-          
+
           <div class="version-content">
             {#if showDiff && selectedVersion !== history[0]?.timestamp}
               <div class="diff-section">
@@ -188,18 +197,18 @@
                 </div>
               </div>
             {/if}
-            
+
             <div class="data-section">
               <h5>Data</h5>
               <div role="region" aria-label="Version data editor">
-                <JsonEditor 
-                  {dark} 
+                <JsonEditor
+                  {dark}
                   value={JSON.stringify(getVersionData(selectedVersion), null, 2)}
-                  onChange={() => {}} 
+                  onChange={() => {}}
                 />
               </div>
             </div>
-            
+
             <div class="metadata-section">
               <h5>Metadata</h5>
               <div class="metadata-grid">
@@ -209,11 +218,19 @@
                 </div>
                 <div class="metadata-item">
                   <span class="label">Vector Clock:</span>
-                  <code class="value">{JSON.stringify(history.find(h => h.timestamp === selectedVersion)?.vectorClock || {})}</code>
+                  <code class="value"
+                    >{JSON.stringify(
+                      history.find((h) => h.timestamp === selectedVersion)?.vectorClock || {},
+                    )}</code
+                  >
                 </div>
                 <div class="metadata-item">
                   <span class="label">Field States:</span>
-                  <code class="value">{JSON.stringify(history.find(h => h.timestamp === selectedVersion)?.state || {})}</code>
+                  <code class="value"
+                    >{JSON.stringify(
+                      history.find((h) => h.timestamp === selectedVersion)?.state || {},
+                    )}</code
+                  >
                 </div>
               </div>
             </div>
@@ -399,7 +416,8 @@
     gap: 0.25rem;
   }
 
-  .old-value, .new-value {
+  .old-value,
+  .new-value {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -417,14 +435,16 @@
     min-width: 3rem;
   }
 
-  .old-value code, .new-value code {
+  .old-value code,
+  .new-value code {
     background: rgba(0, 0, 0, 0.05);
     padding: 0.25rem 0.5rem;
     border-radius: 3px;
     font-size: 0.875rem;
   }
 
-  .data-section, .metadata-section {
+  .data-section,
+  .metadata-section {
     margin-bottom: 1.5rem;
   }
 
@@ -461,7 +481,7 @@
     .history-grid {
       grid-template-columns: 1fr;
     }
-    
+
     .history-controls {
       flex-direction: column;
       align-items: stretch;

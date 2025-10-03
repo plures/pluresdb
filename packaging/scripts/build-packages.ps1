@@ -2,31 +2,62 @@
 # This script builds packages for all supported platforms and package managers
 
 param(
-    [string]$Version = "1.0.0",
+    [string]$Version,
     [string]$OutputDir = "dist",
     [switch]$SkipTests = $false,
     [switch]$SkipWebUI = $false
 )
 
+$ErrorActionPreference = "Stop"
+
+$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$RepoRoot = (Resolve-Path (Join-Path $ScriptRoot "..\..")).Path
+$OutputPath = Join-Path $ScriptRoot $OutputDir
+
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $cargoPath = Join-Path $RepoRoot "Cargo.toml"
+    if (-not (Test-Path $cargoPath)) {
+        throw "Cargo.toml not found at $cargoPath. Provide -Version explicitly."
+    }
+
+    $cargoContent = Get-Content $cargoPath
+    $packageVersion = $null
+    $inPackageSection = $false
+
+    foreach ($line in $cargoContent) {
+        if ($line -match '^\s*\[.+\]') {
+            $inPackageSection = $line -match '^\s*\[package\]'
+            continue
+        }
+
+        if ($inPackageSection -and $line -match '^\s*version\s*=\s*"(?<ver>.+?)"') {
+            $packageVersion = $matches['ver']
+            break
+        }
+    }
+
+    if (-not $packageVersion) {
+        throw "Unable to determine version from Cargo.toml. Provide -Version explicitly."
+    }
+
+    $Version = $packageVersion
+}
+
 Write-Host "🚀 Building PluresDB Packages v$Version" -ForegroundColor Green
 
-# Create output directory
-if (Test-Path $OutputDir) {
-    Remove-Item $OutputDir -Recurse -Force
-}
-New-Item -ItemType Directory -Path $OutputDir | Out-Null
+Push-Location $ScriptRoot
 
 # Function to run tests
 function Test-Project {
     if (-not $SkipTests) {
         Write-Host "🧪 Running tests..." -ForegroundColor Yellow
-        Set-Location "..\..\"
-        deno test -A
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Tests failed!"
-            exit 1
+        Push-Location $RepoRoot
+        try {
+            deno test -A
         }
-        Set-Location "packaging\scripts"
+        finally {
+            Pop-Location
+        }
     }
 }
 
@@ -34,49 +65,51 @@ function Test-Project {
 function Build-WebUI {
     if (-not $SkipWebUI) {
         Write-Host "🎨 Building web UI..." -ForegroundColor Yellow
-        Set-Location "..\..\web\svelte"
-        npm install
-        npm run build
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Web UI build failed!"
-            exit 1
+        $webPath = Join-Path $RepoRoot "web\svelte"
+        Push-Location $webPath
+        try {
+            npm install
+            npm run build
         }
-        Set-Location "..\..\..\packaging\scripts"
+        finally {
+            Pop-Location
+        }
     }
 }
 
 # Function to build Deno binary
 function Build-DenoBinary {
     Write-Host "🔨 Building Deno binary..." -ForegroundColor Yellow
-    Set-Location "..\..\"
-    deno compile -A --output "packaging\scripts\$OutputDir\pluresdb.exe" src/main.ts
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Deno binary build failed!"
-        exit 1
+    $outputBinary = Join-Path $OutputPath "pluresdb.exe"
+    Push-Location $RepoRoot
+    try {
+        deno compile -A --no-lock --output $outputBinary src/main.ts
     }
-    Set-Location "packaging\scripts"
+    finally {
+        Pop-Location
+    }
 }
 
 # Function to create Windows ZIP package
 function New-WindowsZip {
     Write-Host "📦 Creating Windows ZIP package..." -ForegroundColor Yellow
     
-    $zipDir = "$OutputDir\windows-x64"
+    $zipDir = Join-Path $OutputPath "windows-x64"
     New-Item -ItemType Directory -Path $zipDir | Out-Null
     
     # Copy binary
-    Copy-Item "$OutputDir\pluresdb.exe" "$zipDir\"
+    Copy-Item (Join-Path $OutputPath "pluresdb.exe") "$zipDir\"
     
     # Copy web UI
-    Copy-Item "..\..\web\dist" "$zipDir\web" -Recurse
+    Copy-Item (Join-Path $RepoRoot "web\dist") "$zipDir\web" -Recurse
     
     # Copy config files
-    Copy-Item "..\..\deno.json" "$zipDir\"
-    Copy-Item "..\..\src\config.ts" "$zipDir\"
+    Copy-Item (Join-Path $RepoRoot "deno.json") "$zipDir\"
+    Copy-Item (Join-Path $RepoRoot "src\config.ts") "$zipDir\"
     
     # Copy README and LICENSE
-    Copy-Item "..\..\README.md" "$zipDir\"
-    Copy-Item "..\..\LICENSE" "$zipDir\"
+    Copy-Item (Join-Path $RepoRoot "README.md") "$zipDir\"
+    Copy-Item (Join-Path $RepoRoot "LICENSE") "$zipDir\"
     
     # Create installer script
     $installScript = @"
@@ -106,7 +139,7 @@ pluresdb.exe serve --port 34567
     $installScript | Out-File -FilePath "$zipDir\install.bat" -Encoding ASCII
     
     # Create ZIP
-    Compress-Archive -Path "$zipDir\*" -DestinationPath "$OutputDir\pluresdb-windows-x64.zip" -Force
+    Compress-Archive -Path "$zipDir\*" -DestinationPath (Join-Path $OutputPath "pluresdb-windows-x64.zip") -Force
     Remove-Item $zipDir -Recurse -Force
 }
 
@@ -122,35 +155,73 @@ function New-MSIInstaller {
         return
     }
     
+    # Derive MSI-safe version (WiX requires numeric Major.Minor.Build[.Revision])
+    try {
+        $msiVersion = ([Version]($Version.Split('-')[0])).ToString()
+    } catch {
+        throw "Version '$Version' is not a valid MSI product version."
+    }
+
+    # Discover hashed web asset filenames for WiX variables
+    $webAssetsPath = Join-Path $RepoRoot "web\dist\assets"
+    if (-not (Test-Path $webAssetsPath)) {
+        throw "Web assets folder not found at $webAssetsPath. Build the web UI before creating the MSI."
+    }
+
+    $cssFile = Get-ChildItem -Path $webAssetsPath -Filter "index-*.css" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $jsFile = Get-ChildItem -Path $webAssetsPath -Filter "index-*.js" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+    if (-not $cssFile -or -not $jsFile) {
+        throw "Unable to locate built web assets (index-*.css/js) in $webAssetsPath."
+    }
+
     # Prepare source directory for MSI
-    $msiSourceDir = "$OutputDir\msi-source"
+    $msiSourceDir = Join-Path $OutputPath "msi-source"
     New-Item -ItemType Directory -Path $msiSourceDir | Out-Null
     
     # Copy files
-    Copy-Item "$OutputDir\pluresdb.exe" "$msiSourceDir\"
-    Copy-Item "..\..\web\dist" "$msiSourceDir\web" -Recurse
-    Copy-Item "..\..\deno.json" "$msiSourceDir\"
-    Copy-Item "..\..\src\config.ts" "$msiSourceDir\"
-    
-    # Create assets directory
-    New-Item -ItemType Directory -Path "$msiSourceDir\assets" | Out-Null
+    Copy-Item (Join-Path $OutputPath "pluresdb.exe") "$msiSourceDir\"
+
+    $msiWebDistDir = Join-Path $msiSourceDir "web\dist"
+    New-Item -ItemType Directory -Path $msiWebDistDir -Force | Out-Null
+    Copy-Item (Join-Path $RepoRoot "web\dist\*") $msiWebDistDir -Recurse
+
+    Copy-Item (Join-Path $RepoRoot "deno.json") "$msiSourceDir\"
+
+    $msiSrcDir = Join-Path $msiSourceDir "src"
+    New-Item -ItemType Directory -Path $msiSrcDir -Force | Out-Null
+    Copy-Item (Join-Path $RepoRoot "src\config.ts") $msiSrcDir
     
     # Compile WiX source
-    & candle.exe "..\msi\pluresdb.wxs" -o "$OutputDir\pluresdb.wixobj" -dSourceDir="$msiSourceDir"
+    $candleArgs = @(
+        (Join-Path $ScriptRoot "..\msi\pluresdb.wxs")
+        "-o", (Join-Path $OutputPath "pluresdb.wixobj")
+        "-dSourceDir=$msiSourceDir"
+        "-dProductVersion=$msiVersion"
+        "-dWebCssFile=$($cssFile.Name)"
+        "-dWebJsFile=$($jsFile.Name)"
+        "-ext", "WixUIExtension"
+    )
+    & candle.exe @candleArgs
     if ($LASTEXITCODE -ne 0) {
         Write-Error "WiX compilation failed!"
         return
     }
     
     # Link MSI
-    & light.exe "$OutputDir\pluresdb.wixobj" -o "$OutputDir\pluresdb.msi"
+    $lightArgs = @(
+        (Join-Path $OutputPath "pluresdb.wixobj")
+        "-o", (Join-Path $OutputPath "pluresdb.msi")
+        "-ext", "WixUIExtension"
+    )
+    & light.exe @lightArgs
     if ($LASTEXITCODE -ne 0) {
         Write-Error "MSI linking failed!"
         return
     }
     
     # Cleanup
-    Remove-Item "$OutputDir\pluresdb.wixobj"
+    Remove-Item (Join-Path $OutputPath "pluresdb.wixobj")
     Remove-Item $msiSourceDir -Recurse -Force
 }
 
@@ -158,18 +229,18 @@ function New-MSIInstaller {
 function New-DenoPackage {
     Write-Host "📦 Creating Deno package..." -ForegroundColor Yellow
     
-    $denoDir = "$OutputDir\deno"
+    $denoDir = Join-Path $OutputPath "deno"
     New-Item -ItemType Directory -Path $denoDir | Out-Null
     
     # Copy source files
-    Copy-Item "..\..\src" "$denoDir\" -Recurse
-    Copy-Item "..\..\examples" "$denoDir\" -Recurse
-    Copy-Item "..\..\README.md" "$denoDir\"
-    Copy-Item "..\..\LICENSE" "$denoDir\"
-    Copy-Item "..\deno\deno.json" "$denoDir\"
+    Copy-Item (Join-Path $RepoRoot "src") "$denoDir\" -Recurse
+    Copy-Item (Join-Path $RepoRoot "examples") "$denoDir\" -Recurse
+    Copy-Item (Join-Path $RepoRoot "README.md") "$denoDir\"
+    Copy-Item (Join-Path $RepoRoot "LICENSE") "$denoDir\"
+    Copy-Item (Join-Path $ScriptRoot "..\deno\deno.json") "$denoDir\"
     
     # Create ZIP
-    Compress-Archive -Path "$denoDir\*" -DestinationPath "$OutputDir\pluresdb-deno.zip" -Force
+    Compress-Archive -Path "$denoDir\*" -DestinationPath (Join-Path $OutputPath "pluresdb-deno.zip") -Force
     Remove-Item $denoDir -Recurse -Force
 }
 
@@ -177,14 +248,14 @@ function New-DenoPackage {
 function New-NixOSPackage {
     Write-Host "📦 Creating NixOS package..." -ForegroundColor Yellow
     
-    $nixDir = "$OutputDir\nixos"
+    $nixDir = Join-Path $OutputPath "nixos"
     New-Item -ItemType Directory -Path $nixDir | Out-Null
     
     # Copy Nix files
-    Copy-Item "..\nixos\*" "$nixDir\"
+    Copy-Item (Join-Path $ScriptRoot "..\nixos\*") "$nixDir\"
     
     # Create ZIP
-    Compress-Archive -Path "$nixDir\*" -DestinationPath "$OutputDir\pluresdb-nixos.zip" -Force
+    Compress-Archive -Path "$nixDir\*" -DestinationPath (Join-Path $OutputPath "pluresdb-nixos.zip") -Force
     Remove-Item $nixDir -Recurse -Force
 }
 
@@ -192,7 +263,7 @@ function New-NixOSPackage {
 function Update-WingetManifest {
     Write-Host "📦 Updating winget manifest..." -ForegroundColor Yellow
     
-    $manifestPath = "..\winget\pluresdb.yaml"
+    $manifestPath = Join-Path $ScriptRoot "..\winget\pluresdb.yaml"
     $manifest = Get-Content $manifestPath -Raw
     
     # Update version
@@ -200,16 +271,27 @@ function Update-WingetManifest {
     
     # Update download URL
     $manifest = $manifest -replace "InstallerUrl: .*", "InstallerUrl: https://github.com/pluresdb/pluresdb/releases/download/v$Version/pluresdb-windows-x64.zip"
-    
-    # Calculate SHA256 (placeholder for now)
-    $sha256 = "PLACEHOLDER_SHA256"
-    $manifest = $manifest -replace "InstallerSha256: .*", "InstallerSha256: $sha256"
+
+    # Calculate SHA256 of generated ZIP package
+    $zipPath = Join-Path $OutputPath "pluresdb-windows-x64.zip"
+    if (-not (Test-Path $zipPath)) {
+        throw "Expected Windows ZIP package at $zipPath to compute InstallerSha256."
+    }
+
+    $zipHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToUpper()
+    $manifest = $manifest -replace "InstallerSha256: .*", "InstallerSha256: $zipHash"
     
     $manifest | Out-File -FilePath $manifestPath -Encoding UTF8
 }
 
 # Main execution
 try {
+    # Create output directory
+    if (Test-Path $OutputPath) {
+        Remove-Item $OutputPath -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $OutputPath | Out-Null
+
     Test-Project
     Build-WebUI
     Build-DenoBinary
@@ -220,11 +302,11 @@ try {
     Update-WingetManifest
     
     Write-Host "✅ All packages built successfully!" -ForegroundColor Green
-    Write-Host "📁 Output directory: $OutputDir" -ForegroundColor Cyan
+    Write-Host "📁 Output directory: $OutputPath" -ForegroundColor Cyan
     
     # List created files
     Write-Host "`n📋 Created packages:" -ForegroundColor Yellow
-    Get-ChildItem $OutputDir -Name | ForEach-Object { Write-Host "  - $_" -ForegroundColor White }
+    Get-ChildItem $OutputPath -Name | ForEach-Object { Write-Host "  - $_" -ForegroundColor White }
     
     Write-Host "`n🚀 Next steps:" -ForegroundColor Green
     Write-Host "  1. Test the packages" -ForegroundColor White
@@ -235,4 +317,7 @@ try {
 } catch {
     Write-Error "Build failed: $($_.Exception.Message)"
     exit 1
+}
+finally {
+    Pop-Location
 }

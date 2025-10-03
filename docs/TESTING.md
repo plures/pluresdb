@@ -14,7 +14,7 @@ PluresDB uses a multi-layered testing approach:
 
 ## Test Structure
 
-```
+```text
 src/tests/
 ├── unit/                    # Unit tests
 │   ├── core.test.ts        # Core database functionality
@@ -36,12 +36,31 @@ src/tests/
 
 ## Running Tests
 
+### Dogfooding Smoke Test
+
+Use the automated dogfooding script to spin up an in-process PluresDB node, exercise the HTTP API, and run the CLI against the same backing store. It is ideal for quick local validation before publishing builds.
+
+```bash
+deno run -A --unstable-kv --no-lock scripts/dogfood.ts
+```
+
+The script performs the following checks:
+
+- Starts an ephemeral mesh node and HTTP API in memory.
+- Writes, reads, lists, searches, and restores data through the HTTP endpoints.
+- Fetches the bundled web UI to ensure static assets resolve.
+- Invokes the CLI (`src/main.ts`) for `put`, `get`, `list`, and `vsearch` operations pointed at the same KV store.
+
+All state is stored in a temporary directory and removed on completion. The flags ensure compatibility with the repository lockfile and the unstable KV API currently used by PluresDB. The script exits with a non-zero status if any step fails, making it suitable for CI smoke checks.
+
 ### All Tests
+
 ```bash
 deno task test
 ```
 
 ### Specific Test Categories
+
 ```bash
 # Unit tests only
 deno task test:unit
@@ -60,6 +79,7 @@ deno task test:e2e
 ```
 
 ### Test Coverage
+
 ```bash
 # Generate coverage report
 deno task test:coverage
@@ -70,6 +90,7 @@ deno task test:coverage
 ```
 
 ### Watch Mode
+
 ```bash
 # Run tests in watch mode
 deno task test:watch
@@ -87,6 +108,7 @@ Unit tests focus on individual components and functions:
 - **CRDT Operations**: Conflict resolution, vector clocks
 
 Example:
+
 ```typescript
 Deno.test("Core Database - Basic CRUD Operations", async () => {
   const db = new GunDB();
@@ -102,7 +124,30 @@ Integration tests verify component interactions:
 - **API Server**: HTTP endpoints, WebSocket connections
 - **Cross-Component**: Database + Network + API integration
 
+> **Note:** Mesh networking tests are disabled by default to avoid long-running websocket simulations during routine `deno test` or `npm test` runs. Enable them explicitly when you need end-to-end mesh coverage.
+
+#### Enabling Mesh Networking Tests
+
+Set the `RUN_MESH_TESTS` environment variable to `true` (or `1`) before invoking the integration suite. Example commands:
+
+- **PowerShell (Windows)**
+
+  ```powershell
+  $env:RUN_MESH_TESTS = "true"
+  deno test -A --unstable-kv --parallel src/tests/integration/
+  Remove-Item Env:RUN_MESH_TESTS
+  ```
+
+- **bash/zsh (macOS/Linux)**
+
+  ```bash
+  RUN_MESH_TESTS=true deno test -A --unstable-kv --parallel src/tests/integration/
+  ```
+
+You can optionally override the default timeout for each mesh assertion by exporting `RUN_MESH_TEST_TIMEOUT_MS` (defaults to `10000`).
+
 Example:
+
 ```typescript
 Deno.test("Mesh Network - Basic Connection and Sync", async () => {
   const dbA = new GunDB();
@@ -121,13 +166,14 @@ Performance tests validate system performance:
 - **Response Times**: Latency measurements
 
 Example:
+
 ```typescript
 Deno.test("Performance - Bulk Insert Operations", async () => {
   const count = 1000;
   const metrics = await measureOperation(async () => {
     // ... bulk insert operations
   }, count);
-  
+
   assertEquals(metrics.operationsPerSecond > 100, true);
 });
 ```
@@ -142,13 +188,11 @@ Security tests ensure system security:
 - **Type Confusion**: Object prototype attacks
 
 Example:
+
 ```typescript
 Deno.test("Security - SQL Injection Prevention", async () => {
-  const maliciousInputs = [
-    "'; DROP TABLE users; --",
-    "' OR '1'='1"
-  ];
-  
+  const maliciousInputs = ["'; DROP TABLE users; --", "' OR '1'='1"];
+
   for (const input of maliciousInputs) {
     // ... test input validation
   }
@@ -233,20 +277,20 @@ Tests run on multiple configurations:
 
 ## Writing Tests
 
-### Test Structure
+### Sample Test Structure
 
 ```typescript
 Deno.test("Test Name", async () => {
   // Arrange
   const db = new GunDB();
   await db.ready(kvPath);
-  
+
   // Act
   const result = await db.someOperation();
-  
+
   // Assert
   assertEquals(result, expectedValue);
-  
+
   // Cleanup
   await db.close();
 });

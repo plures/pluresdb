@@ -1,27 +1,27 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { push as toast } from '../lib/toasts'
+  import { onMount } from "svelte";
+  import { push as toast } from "../lib/toasts";
 
   // Identity Management
   let identity = {
-    id: '',
-    publicKey: '',
-    name: '',
-    email: '',
-    phone: '',
-    picture: '',
-    bio: '',
-    location: '',
+    id: "",
+    publicKey: "",
+    name: "",
+    email: "",
+    phone: "",
+    picture: "",
+    bio: "",
+    location: "",
     tags: [] as string[],
     createdAt: new Date(),
-    lastSeen: new Date()
-  }
+    lastSeen: new Date(),
+  };
 
   // Peer Discovery
-  let discoveredPeers = [] as any[]
-  let searchQuery = ''
-  let searchResults = [] as any[]
-  let isSearching = false
+  let discoveredPeers = [] as any[];
+  let searchQuery = "";
+  let searchResults = [] as any[];
+  let isSearching = false;
 
   // Acceptance Policies
   let acceptancePolicies = {
@@ -29,143 +29,143 @@
       allowDataSharing: true,
       allowFileSharing: false,
       allowLocationSharing: false,
-      maxDataSize: '10MB',
-      allowedTypes: ['text', 'json', 'image'],
-      requireApproval: false
+      maxDataSize: "10MB",
+      allowedTypes: ["text", "json", "image"],
+      requireApproval: false,
     },
     laptop: {
       allowDataSharing: true,
       allowFileSharing: true,
       allowLocationSharing: false,
-      maxDataSize: '100MB',
-      allowedTypes: ['text', 'json', 'image', 'video', 'audio'],
-      requireApproval: false
+      maxDataSize: "100MB",
+      allowedTypes: ["text", "json", "image", "video", "audio"],
+      requireApproval: false,
     },
     phone: {
       allowDataSharing: true,
       allowFileSharing: false,
       allowLocationSharing: true,
-      maxDataSize: '50MB',
-      allowedTypes: ['text', 'json', 'image'],
-      requireApproval: true
+      maxDataSize: "50MB",
+      allowedTypes: ["text", "json", "image"],
+      requireApproval: true,
     },
     server: {
       allowDataSharing: true,
       allowFileSharing: true,
       allowLocationSharing: false,
-      maxDataSize: '1GB',
-      allowedTypes: ['text', 'json', 'image', 'video', 'audio', 'database'],
-      requireApproval: false
-    }
-  }
+      maxDataSize: "1GB",
+      allowedTypes: ["text", "json", "image", "video", "audio", "database"],
+      requireApproval: false,
+    },
+  };
 
-  let currentPolicy = 'default'
+  let currentPolicy = "default";
   let customPolicy = {
     allowDataSharing: true,
     allowFileSharing: false,
     allowLocationSharing: false,
-    maxDataSize: '10MB',
-    allowedTypes: ['text', 'json'],
-    requireApproval: true
-  }
+    maxDataSize: "10MB",
+    allowedTypes: ["text", "json"],
+    requireApproval: true,
+  };
 
   // Peer Requests
-  let pendingRequests = [] as any[]
-  let sentRequests = [] as any[]
+  let pendingRequests = [] as any[];
+  let sentRequests = [] as any[];
 
   onMount(() => {
-    loadIdentity()
-    loadDiscoveredPeers()
-    loadPendingRequests()
-  })
+    loadIdentity();
+    loadDiscoveredPeers();
+    loadPendingRequests();
+  });
 
   function loadIdentity() {
     // Load from local storage or generate new
-    const stored = localStorage.getItem('pluresdb-identity')
+    const stored = localStorage.getItem("pluresdb-identity");
     if (stored) {
-      identity = JSON.parse(stored)
+      identity = JSON.parse(stored);
     } else {
-      generateNewIdentity()
+      generateNewIdentity();
     }
   }
 
   function generateNewIdentity() {
     // Generate a new identity with public key
-    identity.id = generateId()
-    identity.publicKey = generatePublicKey()
-    identity.name = 'Anonymous User'
-    identity.createdAt = new Date()
-    identity.lastSeen = new Date()
-    saveIdentity()
+    identity.id = generateId();
+    identity.publicKey = generatePublicKey();
+    identity.name = "Anonymous User";
+    identity.createdAt = new Date();
+    identity.lastSeen = new Date();
+    saveIdentity();
   }
 
   function generateId(): string {
-    return 'id_' + Math.random().toString(36).substr(2, 9)
+    return "id_" + Math.random().toString(36).substr(2, 9);
   }
 
   function generatePublicKey(): string {
     // In a real implementation, this would generate an actual public key
-    return 'pk_' + Math.random().toString(36).substr(2, 16)
+    return "pk_" + Math.random().toString(36).substr(2, 16);
   }
 
   function saveIdentity() {
-    localStorage.setItem('pluresdb-identity', JSON.stringify(identity))
-    toast.success('Identity saved')
+    localStorage.setItem("pluresdb-identity", JSON.stringify(identity));
+    toast.success("Identity saved");
   }
 
   function loadDiscoveredPeers() {
     // Load discovered peers from local storage
-    const stored = localStorage.getItem('pluresdb-peers')
+    const stored = localStorage.getItem("pluresdb-peers");
     if (stored) {
-      discoveredPeers = JSON.parse(stored)
+      discoveredPeers = JSON.parse(stored);
     }
   }
 
   function loadPendingRequests() {
     // Load pending peer requests
-    const stored = localStorage.getItem('pluresdb-requests')
+    const stored = localStorage.getItem("pluresdb-requests");
     if (stored) {
-      const requests = JSON.parse(stored)
-      pendingRequests = requests.pending || []
-      sentRequests = requests.sent || []
+      const requests = JSON.parse(stored);
+      pendingRequests = requests.pending || [];
+      sentRequests = requests.sent || [];
     }
   }
 
   async function searchPeers() {
-    if (!searchQuery.trim()) return
-    
-    isSearching = true
+    if (!searchQuery.trim()) return;
+
+    isSearching = true;
     try {
       // Simulate peer search
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       // Mock search results
       searchResults = [
         {
-          id: 'peer_1',
-          name: 'Alice Developer',
-          email: 'alice@example.com',
-          location: 'San Francisco, CA',
-          tags: ['developer', 'rust', 'p2p'],
+          id: "peer_1",
+          name: "Alice Developer",
+          email: "alice@example.com",
+          location: "San Francisco, CA",
+          tags: ["developer", "rust", "p2p"],
           lastSeen: new Date(Date.now() - 300000),
-          publicKey: 'pk_alice_123456789'
+          publicKey: "pk_alice_123456789",
         },
         {
-          id: 'peer_2',
-          name: 'Bob Researcher',
-          email: 'bob@university.edu',
-          location: 'Cambridge, UK',
-          tags: ['researcher', 'ai', 'blockchain'],
+          id: "peer_2",
+          name: "Bob Researcher",
+          email: "bob@university.edu",
+          location: "Cambridge, UK",
+          tags: ["researcher", "ai", "blockchain"],
           lastSeen: new Date(Date.now() - 600000),
-          publicKey: 'pk_bob_987654321'
-        }
-      ]
-      
-      toast.success(`Found ${searchResults.length} peers`)
+          publicKey: "pk_bob_987654321",
+        },
+      ];
+
+      toast.success(`Found ${searchResults.length} peers`);
     } catch (error) {
-      toast.error('Search failed: ' + error.message)
+      toast.error("Search failed: " + error.message);
     } finally {
-      isSearching = false
+      isSearching = false;
     }
   }
 
@@ -176,78 +176,81 @@
       to: peer.id,
       message: `Hello ${peer.name}, I'd like to connect with you.`,
       timestamp: new Date(),
-      status: 'pending'
-    }
-    
-    sentRequests.push(request)
-    saveRequests()
-    toast.success(`Peer request sent to ${peer.name}`)
+      status: "pending",
+    };
+
+    sentRequests.push(request);
+    saveRequests();
+    toast.success(`Peer request sent to ${peer.name}`);
   }
 
   function acceptPeerRequest(request: any) {
-    request.status = 'accepted'
-    request.acceptedAt = new Date()
-    
+    request.status = "accepted";
+    request.acceptedAt = new Date();
+
     // Add to discovered peers
     const peer = {
       id: request.from,
-      name: 'Unknown Peer',
-      publicKey: 'pk_unknown',
+      name: "Unknown Peer",
+      publicKey: "pk_unknown",
       lastSeen: new Date(),
-      acceptedAt: new Date()
-    }
-    discoveredPeers.push(peer)
-    
+      acceptedAt: new Date(),
+    };
+    discoveredPeers.push(peer);
+
     // Remove from pending
-    pendingRequests = pendingRequests.filter(r => r.id !== request.id)
-    
-    saveRequests()
-    saveDiscoveredPeers()
-    toast.success('Peer request accepted')
+    pendingRequests = pendingRequests.filter((r) => r.id !== request.id);
+
+    saveRequests();
+    saveDiscoveredPeers();
+    toast.success("Peer request accepted");
   }
 
   function rejectPeerRequest(request: any) {
-    request.status = 'rejected'
-    request.rejectedAt = new Date()
-    
+    request.status = "rejected";
+    request.rejectedAt = new Date();
+
     // Remove from pending
-    pendingRequests = pendingRequests.filter(r => r.id !== request.id)
-    
-    saveRequests()
-    toast.info('Peer request rejected')
+    pendingRequests = pendingRequests.filter((r) => r.id !== request.id);
+
+    saveRequests();
+    toast.info("Peer request rejected");
   }
 
   function saveRequests() {
-    localStorage.setItem('pluresdb-requests', JSON.stringify({
-      pending: pendingRequests,
-      sent: sentRequests
-    }))
+    localStorage.setItem(
+      "pluresdb-requests",
+      JSON.stringify({
+        pending: pendingRequests,
+        sent: sentRequests,
+      }),
+    );
   }
 
   function saveDiscoveredPeers() {
-    localStorage.setItem('pluresdb-peers', JSON.stringify(discoveredPeers))
+    localStorage.setItem("pluresdb-peers", JSON.stringify(discoveredPeers));
   }
 
   function updateAcceptancePolicy() {
-    if (currentPolicy === 'custom') {
+    if (currentPolicy === "custom") {
       // Custom policy is already in customPolicy
     } else {
-      customPolicy = { ...acceptancePolicies[currentPolicy] }
+      customPolicy = { ...acceptancePolicies[currentPolicy] };
     }
-    toast.success('Acceptance policy updated')
+    toast.success("Acceptance policy updated");
   }
 
   function addTag() {
-    const tag = prompt('Enter tag:')
+    const tag = prompt("Enter tag:");
     if (tag && !identity.tags.includes(tag)) {
-      identity.tags.push(tag)
-      saveIdentity()
+      identity.tags.push(tag);
+      saveIdentity();
     }
   }
 
   function removeTag(tag: string) {
-    identity.tags = identity.tags.filter(t => t !== tag)
-    saveIdentity()
+    identity.tags = identity.tags.filter((t) => t !== tag);
+    saveIdentity();
   }
 </script>
 
@@ -270,29 +273,19 @@
       <div class="identity-form">
         <div class="form-group">
           <label for="name">Name</label>
-          <input 
-            id="name"
-            type="text" 
-            bind:value={identity.name}
-            placeholder="Your display name"
-          />
+          <input id="name" type="text" bind:value={identity.name} placeholder="Your display name" />
         </div>
 
         <div class="form-group">
           <label for="email">Email</label>
-          <input 
-            id="email"
-            type="email" 
-            bind:value={identity.email}
-            placeholder="your@email.com"
-          />
+          <input id="email" type="email" bind:value={identity.email} placeholder="your@email.com" />
         </div>
 
         <div class="form-group">
           <label for="phone">Phone</label>
-          <input 
+          <input
             id="phone"
-            type="tel" 
+            type="tel"
             bind:value={identity.phone}
             placeholder="+1 (555) 123-4567"
           />
@@ -300,9 +293,9 @@
 
         <div class="form-group">
           <label for="location">Location</label>
-          <input 
+          <input
             id="location"
-            type="text" 
+            type="text"
             bind:value={identity.location}
             placeholder="City, Country"
           />
@@ -310,7 +303,7 @@
 
         <div class="form-group">
           <label for="bio">Bio</label>
-          <textarea 
+          <textarea
             id="bio"
             bind:value={identity.bio}
             placeholder="Tell others about yourself..."
@@ -319,7 +312,7 @@
         </div>
 
         <div class="form-group">
-          <label>Tags</label>
+          <span class="form-label">Tags</span>
           <div class="tags">
             {#each identity.tags as tag}
               <span class="tag">
@@ -333,22 +326,24 @@
 
         <div class="identity-info">
           <div class="info-item">
-            <strong>ID:</strong> {identity.id}
+            <strong>ID:</strong>
+            {identity.id}
           </div>
           <div class="info-item">
-            <strong>Public Key:</strong> {identity.publicKey}
+            <strong>Public Key:</strong>
+            {identity.publicKey}
           </div>
           <div class="info-item">
-            <strong>Created:</strong> {identity.createdAt.toLocaleDateString()}
+            <strong>Created:</strong>
+            {identity.createdAt.toLocaleDateString()}
           </div>
           <div class="info-item">
-            <strong>Last Seen:</strong> {identity.lastSeen.toLocaleString()}
+            <strong>Last Seen:</strong>
+            {identity.lastSeen.toLocaleString()}
           </div>
         </div>
 
-        <button class="btn btn-primary" on:click={saveIdentity}>
-          Save Identity
-        </button>
+        <button class="btn btn-primary" on:click={saveIdentity}> Save Identity </button>
       </div>
     </div>
 
@@ -356,18 +351,14 @@
     <div class="tab-panel">
       <div class="search-section">
         <div class="search-bar">
-          <input 
-            type="text" 
+          <input
+            type="text"
             bind:value={searchQuery}
             placeholder="Search for peers by name, email, or tags..."
-            on:keydown={(e) => e.key === 'Enter' && searchPeers()}
+            on:keydown={(e) => e.key === "Enter" && searchPeers()}
           />
-          <button 
-            class="btn btn-primary" 
-            on:click={searchPeers}
-            disabled={isSearching}
-          >
-            {isSearching ? 'Searching...' : 'Search'}
+          <button class="btn btn-primary" on:click={searchPeers} disabled={isSearching}>
+            {isSearching ? "Searching..." : "Search"}
           </button>
         </div>
 
@@ -388,10 +379,7 @@
                   <p class="last-seen">Last seen: {peer.lastSeen.toLocaleString()}</p>
                 </div>
                 <div class="peer-actions">
-                  <button 
-                    class="btn btn-success"
-                    on:click={() => sendPeerRequest(peer)}
-                  >
+                  <button class="btn btn-success" on:click={() => sendPeerRequest(peer)}>
                     Send Request
                   </button>
                 </div>
@@ -443,30 +431,21 @@
         <div class="policy-config">
           <div class="form-group">
             <label>
-              <input 
-                type="checkbox" 
-                bind:checked={customPolicy.allowDataSharing}
-              />
+              <input type="checkbox" bind:checked={customPolicy.allowDataSharing} />
               Allow Data Sharing
             </label>
           </div>
 
           <div class="form-group">
             <label>
-              <input 
-                type="checkbox" 
-                bind:checked={customPolicy.allowFileSharing}
-              />
+              <input type="checkbox" bind:checked={customPolicy.allowFileSharing} />
               Allow File Sharing
             </label>
           </div>
 
           <div class="form-group">
             <label>
-              <input 
-                type="checkbox" 
-                bind:checked={customPolicy.allowLocationSharing}
-              />
+              <input type="checkbox" bind:checked={customPolicy.allowLocationSharing} />
               Allow Location Sharing
             </label>
           </div>
@@ -485,13 +464,9 @@
           <div class="form-group">
             <label for="allowed-types">Allowed Data Types:</label>
             <div class="checkbox-group">
-              {#each ['text', 'json', 'image', 'video', 'audio', 'database'] as type}
+              {#each ["text", "json", "image", "video", "audio", "database"] as type}
                 <label>
-                  <input 
-                    type="checkbox" 
-                    bind:group={customPolicy.allowedTypes}
-                    value={type}
-                  />
+                  <input type="checkbox" bind:group={customPolicy.allowedTypes} value={type} />
                   {type}
                 </label>
               {/each}
@@ -500,18 +475,13 @@
 
           <div class="form-group">
             <label>
-              <input 
-                type="checkbox" 
-                bind:checked={customPolicy.requireApproval}
-              />
+              <input type="checkbox" bind:checked={customPolicy.requireApproval} />
               Require Approval for New Peers
             </label>
           </div>
         </div>
 
-        <button class="btn btn-primary" on:click={updateAcceptancePolicy}>
-          Update Policy
-        </button>
+        <button class="btn btn-primary" on:click={updateAcceptancePolicy}> Update Policy </button>
       </div>
     </div>
 
@@ -530,16 +500,10 @@
                 <p class="timestamp">Sent: {request.timestamp.toLocaleString()}</p>
               </div>
               <div class="request-actions">
-                <button 
-                  class="btn btn-success"
-                  on:click={() => acceptPeerRequest(request)}
-                >
+                <button class="btn btn-success" on:click={() => acceptPeerRequest(request)}>
                   Accept
                 </button>
-                <button 
-                  class="btn btn-danger"
-                  on:click={() => rejectPeerRequest(request)}
-                >
+                <button class="btn btn-danger" on:click={() => rejectPeerRequest(request)}>
                   Reject
                 </button>
               </div>
@@ -632,7 +596,8 @@
     margin-bottom: 1.5rem;
   }
 
-  .form-group label {
+  .form-group label,
+  .form-label {
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 500;
@@ -895,12 +860,5 @@
     background: var(--danger-dark);
   }
 
-  .btn-secondary {
-    background: var(--secondary);
-    color: var(--text);
-  }
-
-  .btn-secondary:hover {
-    background: var(--secondary-dark);
-  }
+  /* .btn-secondary styles removed because the class is not used */
 </style>

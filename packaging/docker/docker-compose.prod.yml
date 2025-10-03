@@ -1,12 +1,12 @@
-version: '3.8'
+version: "3.8"
 
 services:
   pluresdb:
     image: pluresdb/pluresdb:latest
     container_name: pluresdb-prod
     ports:
-      - "34567:34567"  # API port
-      - "34568:34568"  # Web UI port
+      - "34567:34567" # API port
+      - "34568:34568" # Web UI port
     volumes:
       - pluresdb-data:/app/data
       - pluresdb-config:/app/config
@@ -31,10 +31,10 @@ services:
       resources:
         limits:
           memory: 1G
-          cpus: '1.0'
+          cpus: "1.0"
         reservations:
           memory: 512M
-          cpus: '0.5'
+          cpus: "0.5"
 
   # Nginx reverse proxy for production
   nginx:

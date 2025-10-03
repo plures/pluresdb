@@ -12,7 +12,3 @@ export function debugLog(...args: unknown[]): void {
   // deno-lint-ignore no-console
   console.log("[pluresdb]", ...args);
 }
-
-
-
-

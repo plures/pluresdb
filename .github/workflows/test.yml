@@ -2,46 +2,46 @@ name: Test Suite
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Deno
-      uses: denoland/setup-deno@v1
-      with:
-        deno-version: v1.40.0
-        
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        
-    - name: Install dependencies
-      run: npm install
-        
-    - name: npm lint
-      run: npm run lint || echo "No npm lint script found"
-      continue-on-error: true
-        
-    - name: npm format check
-      run: npm run fmt:check || echo "No npm fmt:check script found"
-      continue-on-error: true
-        
-    - name: Deno lint
-      run: deno lint
-        
-    - name: Deno format check
-      run: deno fmt --check
-        
-    - name: Run tests
-      run: deno test -A
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.40.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: npm lint
+        run: npm run lint || echo "No npm lint script found"
+        continue-on-error: true
+
+      - name: npm format check
+        run: npm run fmt:check || echo "No npm fmt:check script found"
+        continue-on-error: true
+
+      - name: Deno lint
+        run: deno lint
+
+      - name: Deno format check
+        run: deno fmt --check
+
+      - name: Run tests
+        run: deno test -A

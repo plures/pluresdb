@@ -13,7 +13,7 @@
       }
     },
     {
-      "id": "user:2", 
+      "id": "user:2",
       "name": "Bob Smith",
       "email": "bob@example.com",
       "age": 25,
@@ -27,7 +27,7 @@
     {
       "id": "user:3",
       "name": "Carol Davis",
-      "email": "carol@example.com", 
+      "email": "carol@example.com",
       "age": 35,
       "type": "Person",
       "profile": {
@@ -50,7 +50,7 @@
     {
       "id": "company:2",
       "name": "DataFlow Systems",
-      "type": "Company", 
+      "type": "Company",
       "industry": "Data Analytics",
       "employees": 150,
       "location": "New York, NY",
@@ -69,7 +69,7 @@
       "created": "2024-01-15T10:00:00Z"
     },
     {
-      "id": "doc:2", 
+      "id": "doc:2",
       "title": "Advanced Neural Networks",
       "text": "Deep learning neural networks have revolutionized the field of artificial intelligence with their ability to process complex patterns in data.",
       "content": "This advanced tutorial explores deep learning architectures including CNNs, RNNs, and Transformers, with practical implementation examples.",
@@ -83,7 +83,7 @@
       "title": "Product Strategy for Developer Tools",
       "text": "Building successful developer tools requires understanding the unique needs and workflows of software developers.",
       "content": "This guide covers product strategy, user research, and go-to-market approaches specifically tailored for developer-focused products.",
-      "type": "Document", 
+      "type": "Document",
       "tags": ["product strategy", "developer tools", "business", "strategy"],
       "author": "user:3",
       "created": "2024-01-25T09:15:00Z"
@@ -102,7 +102,7 @@
     },
     {
       "id": "project:2",
-      "name": "AI Research Platform", 
+      "name": "AI Research Platform",
       "type": "Project",
       "description": "Platform for collaborative AI research and experimentation",
       "status": "planning",
@@ -113,7 +113,7 @@
   ],
   "vector_queries": [
     "machine learning algorithms",
-    "artificial intelligence research", 
+    "artificial intelligence research",
     "neural network architectures",
     "deep learning applications",
     "data science techniques",

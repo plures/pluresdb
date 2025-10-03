@@ -16,9 +16,7 @@ clientB.connect(serverUrl);
 
 const id = `bin:crud:${crypto.randomUUID()}`;
 
-const receivedOnB = new Promise<void>((resolve) =>
-  clientB.on(id, (n) => n && resolve())
-);
+const receivedOnB = new Promise<void>((resolve) => clientB.on(id, (n) => n && resolve()));
 
 await clientA.put(id, { text: "compiled works" } as Record<string, unknown>);
 
@@ -28,20 +26,3 @@ await clientA.close();
 await clientB.close();
 
 console.log("COMPILED-CRUD-OK", id);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

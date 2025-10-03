@@ -1,4 +1,5 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+// @ts-nocheck
+import { assertEquals } from "jsr:@std/assert@1.0.14";
 import { GunDB } from "../core/database.ts";
 import { mergeNodes } from "../core/crdt.ts";
 import type { NodeRecord } from "../types/index.ts";
@@ -22,31 +23,33 @@ Deno.test("put and get returns stored data", async () => {
   }
 });
 
-Deno.test({ name: "subscription receives updates", sanitizeOps: false, sanitizeResources: false }, async () => {
-  const db = new GunDB();
-  try {
-    const kvPath = await Deno.makeTempFile({
-      prefix: "kv_",
-      suffix: ".sqlite",
-    });
-    await db.ready(kvPath);
-     const updated = new Promise((resolve) =>
-      db.on(
-        "user:bob",
-        (n) =>
-          n &&
-          (n.data as Record<string, unknown>).age === 42 &&
-          resolve(true),
-      )
-    );
-     await db.put("user:bob", { name: "Bob", age: 41 });
-     await db.put("user:bob", { name: "Bob", age: 42 });
-     const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("timeout: subscription")), 2000));
-     await Promise.race([updated, timeout]);
-  } finally {
-    await db.close();
-  }
-});
+Deno.test(
+  { name: "subscription receives updates", sanitizeOps: false, sanitizeResources: false },
+  async () => {
+    const db = new GunDB();
+    try {
+      const kvPath = await Deno.makeTempFile({
+        prefix: "kv_",
+        suffix: ".sqlite",
+      });
+      await db.ready(kvPath);
+      const updated = new Promise((resolve) =>
+        db.on(
+          "user:bob",
+          (n) => n && (n.data as Record<string, unknown>).age === 42 && resolve(true),
+        ),
+      );
+      await db.put("user:bob", { name: "Bob", age: 41 });
+      await db.put("user:bob", { name: "Bob", age: 42 });
+      const timeout = new Promise((_, rej) =>
+        setTimeout(() => rej(new Error("timeout: subscription")), 2000),
+      );
+      await Promise.race([updated, timeout]);
+    } finally {
+      await db.close();
+    }
+  },
+);
 
 Deno.test("vector search returns relevant notes", async () => {
   const db = new GunDB();
@@ -68,68 +71,75 @@ Deno.test("vector search returns relevant notes", async () => {
   }
 });
 
-Deno.test({ name: "delete emits subscription with null", sanitizeOps: false, sanitizeResources: false }, async () => {
-  const db = new GunDB();
-  try {
-    const kvPath = await Deno.makeTempFile({
-      prefix: "kv_",
-      suffix: ".sqlite",
-    });
-    await db.ready(kvPath);
-    await db.put("user:carol", { name: "Carol" });
-     const deleted = new Promise((resolve) =>
-      db.on("user:carol", (n) => n === null && resolve(true))
-    );
-     await db.delete("user:carol");
-     const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("timeout: delete")), 2000));
-     await Promise.race([deleted, timeout]);
-  } finally {
-    await db.close();
-  }
-});
+Deno.test(
+  { name: "delete emits subscription with null", sanitizeOps: false, sanitizeResources: false },
+  async () => {
+    const db = new GunDB();
+    try {
+      const kvPath = await Deno.makeTempFile({
+        prefix: "kv_",
+        suffix: ".sqlite",
+      });
+      await db.ready(kvPath);
+      await db.put("user:carol", { name: "Carol" });
+      const deleted = new Promise((resolve) =>
+        db.on("user:carol", (n) => n === null && resolve(true)),
+      );
+      await db.delete("user:carol");
+      const timeout = new Promise((_, rej) =>
+        setTimeout(() => rej(new Error("timeout: delete")), 2000),
+      );
+      await Promise.race([deleted, timeout]);
+    } finally {
+      await db.close();
+    }
+  },
+);
 
-Deno.test({
-  name: "mesh snapshot sync and propagation",
-  sanitizeOps: false,
-  sanitizeResources: false,
-}, async () => {
-  function randomPort() {
-    return 18000 + Math.floor(Math.random() * 10000);
-  }
-  const port = randomPort();
-  const serverUrl = `ws://localhost:${port}`;
+Deno.test(
+  {
+    name: "mesh snapshot sync and propagation",
+    sanitizeOps: false,
+    sanitizeResources: false,
+  },
+  async () => {
+    function randomPort() {
+      return 18000 + Math.floor(Math.random() * 10000);
+    }
+    const port = randomPort();
+    const serverUrl = `ws://localhost:${port}`;
 
-  const dbA = new GunDB();
-  const dbB = new GunDB();
-  try {
-    const kvA = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
-    const kvB = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
-    await dbA.ready(kvA);
-    await dbB.ready(kvB);
-    await dbA.serve({ port });
+    const dbA = new GunDB();
+    const dbB = new GunDB();
+    try {
+      const kvA = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
+      const kvB = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
+      await dbA.ready(kvA);
+      await dbB.ready(kvB);
+      await dbA.serve({ port });
 
-    await dbA.put("mesh:one", { text: "hello from A" });
+      await dbA.put("mesh:one", { text: "hello from A" });
 
-    const receivedSnapshot = new Promise((resolve) =>
-      dbB.on("mesh:one", (n) => n && resolve(true))
-    );
-    dbB.connect(serverUrl);
-    await receivedSnapshot;
+      const receivedSnapshot = new Promise((resolve) =>
+        dbB.on("mesh:one", (n) => n && resolve(true)),
+      );
+      dbB.connect(serverUrl);
+      await receivedSnapshot;
 
-    const receivedOnA = new Promise((resolve) =>
-      dbA.on(
-        "mesh:fromB",
-        (n) =>
-          n && (n.data as Record<string, unknown>).who === "B" && resolve(true),
-      )
-    );
-    await dbB.put("mesh:fromB", { who: "B", text: "hi A" });
-    await receivedOnA;
-  } finally {
-    await dbB.close();
-    await dbA.close();
-  }
-});
+      const receivedOnA = new Promise((resolve) =>
+        dbA.on(
+          "mesh:fromB",
+          (n) => n && (n.data as Record<string, unknown>).who === "B" && resolve(true),
+        ),
+      );
+      await dbB.put("mesh:fromB", { who: "B", text: "hi A" });
+      await receivedOnA;
+    } finally {
+      await dbB.close();
+      await dbA.close();
+    }
+  },
+);
 
 // --- Additional tests to cover remaining checklist items ---
 
@@ -226,28 +236,31 @@ Deno.test("CRDT merge: LWW on differing timestamps", () => {
   assertEquals(down.timestamp, t2);
 });
 
-Deno.test({ name: "off stops receiving events", sanitizeOps: false, sanitizeResources: false }, async () => {
-  const db = new GunDB();
-  try {
-    const kvPath = await Deno.makeTempFile({
-      prefix: "kv_",
-      suffix: ".sqlite",
-    });
-    await db.ready(kvPath);
-    let called = false;
-    const id = "user:dave";
-    const cb = () => {
-      called = true;
-    };
-    db.on(id, cb);
-    db.off(id, cb);
-    await db.put(id, { name: "Dave" });
-    await new Promise((r) => setTimeout(r, 200));
-    assertEquals(called, false);
-  } finally {
-    await db.close();
-  }
-});
+Deno.test(
+  { name: "off stops receiving events", sanitizeOps: false, sanitizeResources: false },
+  async () => {
+    const db = new GunDB();
+    try {
+      const kvPath = await Deno.makeTempFile({
+        prefix: "kv_",
+        suffix: ".sqlite",
+      });
+      await db.ready(kvPath);
+      let called = false;
+      const id = "user:dave";
+      const cb = () => {
+        called = true;
+      };
+      db.on(id, cb);
+      db.off(id, cb);
+      await db.put(id, { name: "Dave" });
+      await new Promise((r) => setTimeout(r, 200));
+      assertEquals(called, false);
+    } finally {
+      await db.close();
+    }
+  },
+);
 
 Deno.test("type system helpers: setType + instancesOf", async () => {
   const db = new GunDB();

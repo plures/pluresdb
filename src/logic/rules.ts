@@ -42,5 +42,3 @@ export class RuleEngine {
     }
   }
 }
-
-

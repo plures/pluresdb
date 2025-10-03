@@ -65,7 +65,7 @@ item has concrete, testable criteria.
 
 - [x] Nodes may optionally include `type` string field
 - [x] Basic conventions documented (e.g., `type: "Person"`)
- - [x] Convenience helpers: `setType`, `instancesOf`
+- [x] Convenience helpers: `setType`, `instancesOf`
 
 ## Tests & Quality
 

@@ -5,9 +5,9 @@
  * This allows VSCode extensions to use pluresdb as a regular npm package
  */
 
-import { PluresNode } from './node-wrapper';
-import * as path from 'path';
-import * as fs from 'fs';
+import { PluresNode } from "./node-wrapper";
+import * as path from "path";
+import * as fs from "fs";
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -42,13 +42,13 @@ Examples:
   process.exit(0);
 }
 
-if (command === '--version') {
-  const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
+if (command === "--version") {
+  const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
   console.log(packageJson.version);
   process.exit(0);
 }
 
-if (command === '--help') {
+if (command === "--help") {
   console.log(`
 PluresDB - P2P Graph Database with SQLite Compatibility
 
@@ -82,10 +82,10 @@ const options: any = {};
 let i = 1;
 while (i < args.length) {
   const arg = args[i];
-  if (arg.startsWith('--')) {
+  if (arg.startsWith("--")) {
     const key = arg.substring(2);
     const value = args[i + 1];
-    if (value && !value.startsWith('--')) {
+    if (value && !value.startsWith("--")) {
       options[key] = value;
       i += 2;
     } else {
@@ -99,17 +99,17 @@ while (i < args.length) {
 
 async function main() {
   try {
-    if (command === 'serve') {
+    if (command === "serve") {
       const config = {
         port: options.port ? parseInt(options.port) : 34567,
-        host: options.host || 'localhost',
-        dataDir: options['data-dir'] || path.join(require('os').homedir(), '.pluresdb'),
-        webPort: options['web-port'] ? parseInt(options['web-port']) : 34568,
-        logLevel: options['log-level'] || 'info'
+        host: options.host || "localhost",
+        dataDir: options["data-dir"] || path.join(require("os").homedir(), ".pluresdb"),
+        webPort: options["web-port"] ? parseInt(options["web-port"]) : 34568,
+        logLevel: options["log-level"] || "info",
       };
 
       const plures = new PluresNode({ config, autoStart: true });
-      
+
       console.log(`🚀 PluresDB server starting...`);
       console.log(`📊 API: http://${config.host}:${config.port}`);
       console.log(`🌐 Web UI: http://${config.host}:${config.webPort}`);
@@ -117,8 +117,8 @@ async function main() {
       console.log(`\nPress Ctrl+C to stop the server`);
 
       // Handle graceful shutdown
-      process.on('SIGINT', async () => {
-        console.log('\n🛑 Shutting down PluresDB...');
+      process.on("SIGINT", async () => {
+        console.log("\n🛑 Shutting down PluresDB...");
         await plures.stop();
         process.exit(0);
       });
@@ -128,12 +128,12 @@ async function main() {
     } else {
       // For other commands, we need to start the server first
       const plures = new PluresNode({ autoStart: true });
-      
+
       try {
         switch (command) {
-          case 'put':
+          case "put":
             if (args.length < 3) {
-              console.error('Error: put command requires key and value');
+              console.error("Error: put command requires key and value");
               process.exit(1);
             }
             const key = args[1];
@@ -142,23 +142,23 @@ async function main() {
             console.log(`✅ Stored: ${key}`);
             break;
 
-          case 'get':
+          case "get":
             if (args.length < 2) {
-              console.error('Error: get command requires key');
+              console.error("Error: get command requires key");
               process.exit(1);
             }
             const getKey = args[1];
             const result = await plures.get(getKey);
             if (result === null) {
-              console.log('Key not found');
+              console.log("Key not found");
             } else {
               console.log(JSON.stringify(result, null, 2));
             }
             break;
 
-          case 'delete':
+          case "delete":
             if (args.length < 2) {
-              console.error('Error: delete command requires key');
+              console.error("Error: delete command requires key");
               process.exit(1);
             }
             const deleteKey = args[1];
@@ -166,9 +166,9 @@ async function main() {
             console.log(`✅ Deleted: ${deleteKey}`);
             break;
 
-          case 'query':
+          case "query":
             if (args.length < 2) {
-              console.error('Error: query command requires SQL');
+              console.error("Error: query command requires SQL");
               process.exit(1);
             }
             const sql = args[1];
@@ -176,9 +176,9 @@ async function main() {
             console.log(JSON.stringify(queryResult, null, 2));
             break;
 
-          case 'vsearch':
+          case "vsearch":
             if (args.length < 2) {
-              console.error('Error: vsearch command requires query');
+              console.error("Error: vsearch command requires query");
               process.exit(1);
             }
             const searchQuery = args[1];
@@ -187,16 +187,16 @@ async function main() {
             console.log(JSON.stringify(searchResult, null, 2));
             break;
 
-          case 'list':
+          case "list":
             const prefix = args[1];
             const listResult = await plures.list(prefix);
             console.log(JSON.stringify(listResult, null, 2));
             break;
 
-          case 'config':
-            if (args[1] === 'set') {
+          case "config":
+            if (args[1] === "set") {
               if (args.length < 4) {
-                console.error('Error: config set requires key and value');
+                console.error("Error: config set requires key and value");
                 process.exit(1);
               }
               const configKey = args[2];
@@ -219,13 +219,13 @@ async function main() {
       }
     }
   } catch (error) {
-    console.error('Error:', error instanceof Error ? error.message : String(error));
+    console.error("Error:", error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 }
 
 // Run the main function
-main().catch(error => {
-  console.error('Fatal error:', error instanceof Error ? error.message : String(error));
+main().catch((error) => {
+  console.error("Fatal error:", error instanceof Error ? error.message : String(error));
   process.exit(1);
 });

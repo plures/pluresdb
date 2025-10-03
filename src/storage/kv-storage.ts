@@ -11,7 +11,9 @@ export class KvStorage {
     if (this.kv) {
       try {
         this.kv.close();
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       this.kv = null;
     }
     // Allow microtasks to flush for callers awaiting close()
@@ -34,7 +36,7 @@ export class KvStorage {
   async setNode(node: NodeRecord): Promise<void> {
     const kv = this.ensureKv();
     await kv.set(["node", node.id], node);
-    
+
     // Store version history
     const historyKey = ["history", node.id, node.timestamp];
     await kv.set(historyKey, node);

@@ -20,23 +20,50 @@ yarn add pluresdb
 # pnpm
 pnpm add pluresdb
 
-# Deno
-deno install -A -n pluresdb https://deno.land/x/pluresdb@v1.0.0/src/main.ts
+# Deno (JSR)
+deno add @plures/pluresdb
+```
+
+### Development Prerequisites (Rust Components)
+
+If you plan to build or test the Rust crates in this repository, make sure `libclang` is available so
+bindgen-based dependencies (like `zstd-sys`) can compile. On Windows you can automate this setup with:
+
+```powershell
+pwsh ./scripts/setup-libclang.ps1 -ConfigureCurrentProcess
+```
+
+The script will detect or install LLVM (via `winget`/`choco`), set the `LIBCLANG_PATH` environment variable,
+and update the current session so that `cargo build` / `cargo test` can run without manual configuration.
+Restart your terminal if you omit the `-ConfigureCurrentProcess` flag.
+
+## 📦 Packaging Artifacts
+
+Generate Windows, MSI, Deno, and Nix release bundles with the helper script:
+
+```powershell
+pwsh ./packaging/scripts/build-packages.ps1
+```
+
+The script automatically reads the release version from `Cargo.toml`. Override it for pre-release cuts if needed:
+
+```powershell
+pwsh ./packaging/scripts/build-packages.ps1 -Version 1.1.0-rc1
 ```
 
 ### Basic Usage
 
 ```typescript
-import { PluresNode, SQLiteCompatibleAPI } from 'pluresdb';
+import { PluresNode, SQLiteCompatibleAPI } from "pluresdb";
 
 // Start the database
 const db = new PluresNode({
   config: {
     port: 34567,
-    host: 'localhost',
-    dataDir: './data'
+    host: "localhost",
+    dataDir: "./data",
   },
-  autoStart: true
+  autoStart: true,
 });
 
 // Use SQLite-compatible API
@@ -52,18 +79,40 @@ await sqlite.exec(`
 `);
 
 // Insert data
-await sqlite.run('INSERT INTO users (name, email) VALUES (?, ?)', ['John', 'john@example.com']);
+await sqlite.run("INSERT INTO users (name, email) VALUES (?, ?)", ["John", "john@example.com"]);
 
 // Query data
-const users = await sqlite.all('SELECT * FROM users');
+const users = await sqlite.all("SELECT * FROM users");
 
 // Vector search
-const results = await sqlite.vectorSearch('machine learning', 10);
+const results = await sqlite.vectorSearch("machine learning", 10);
+```
+
+#### In Deno
+
+```ts
+import { GunDB, startApiServer } from "jsr:@plures/pluresdb";
+
+const db = new GunDB();
+await db.ready();
+
+// start the mesh listener and optional HTTP API
+db.serve({ port: 34567 });
+const api = startApiServer({ port: 8080, db });
+
+await db.put("user:alice", { name: "Alice", email: "alice@example.com" });
+const record = await db.get("user:alice");
+console.log(record);
+
+// remember to close when the process exits
+await db.close();
+api.close();
 ```
 
 ## 🎯 Features
 
 ### Core Database
+
 - **P2P Graph Database**: Distributed, peer-to-peer data storage
 - **SQLite Compatibility**: 95% SQLite API compatibility for easy migration
 - **CRDT Conflict Resolution**: Automatic conflict resolution for distributed data
@@ -71,12 +120,14 @@ const results = await sqlite.vectorSearch('machine learning', 10);
 - **Local-First**: Offline-first data storage with sync when online
 
 ### P2P Ecosystem
+
 - **Identity Management**: Public key infrastructure for peer identification
 - **Encrypted Sharing**: End-to-end encrypted data sharing between peers
 - **Cross-Device Sync**: Automatic synchronization across all your devices
 - **Acceptance Policies**: Granular control over what data to accept from peers
 
 ### Developer Experience
+
 - **TypeScript Support**: Full TypeScript definitions included
 - **VSCode Integration**: Easy integration with VSCode extensions
 - **Web UI**: Comprehensive 24-tab management interface
@@ -113,20 +164,20 @@ docker run -p 34567:34567 -p 34568:34568 plures/pluresdb:latest
 Perfect for VSCode extensions that currently use SQLite:
 
 ```typescript
-import { SQLiteCompatibleAPI } from 'pluresdb';
+import { SQLiteCompatibleAPI } from "pluresdb";
 
 export function activate(context: vscode.ExtensionContext) {
   // Replace your SQLite database with PluresDB
   const db = new SQLiteCompatibleAPI({
     config: {
-      dataDir: path.join(context.globalStorageUri.fsPath, 'pluresdb')
-    }
+      dataDir: path.join(context.globalStorageUri.fsPath, "pluresdb"),
+    },
   });
 
   // Use the same SQLite API you're familiar with
-  await db.exec('CREATE TABLE settings (key TEXT, value TEXT)');
-  await db.run('INSERT INTO settings VALUES (?, ?)', ['theme', 'dark']);
-  const settings = await db.all('SELECT * FROM settings');
+  await db.exec("CREATE TABLE settings (key TEXT, value TEXT)");
+  await db.run("INSERT INTO settings VALUES (?, ?)", ["theme", "dark"]);
+  const settings = await db.all("SELECT * FROM settings");
 }
 ```
 
@@ -147,33 +198,33 @@ Access the comprehensive web interface at `http://localhost:34568`:
 
 ```typescript
 // Database operations
-await sqlite.exec(sql);                    // Execute SQL
-await sqlite.run(sql, params);             // Run SQL with parameters
-await sqlite.get(sql, params);             // Get single row
-await sqlite.all(sql, params);             // Get all rows
+await sqlite.exec(sql); // Execute SQL
+await sqlite.run(sql, params); // Run SQL with parameters
+await sqlite.get(sql, params); // Get single row
+await sqlite.all(sql, params); // Get all rows
 
 // Key-value operations
-await sqlite.put(key, value);              // Store key-value pair
-await sqlite.getValue(key);                // Get value by key
-await sqlite.delete(key);                  // Delete key
+await sqlite.put(key, value); // Store key-value pair
+await sqlite.getValue(key); // Get value by key
+await sqlite.delete(key); // Delete key
 
 // Vector search
-await sqlite.vectorSearch(query, limit);   // Semantic search
+await sqlite.vectorSearch(query, limit); // Semantic search
 ```
 
 ### P2P API
 
 ```typescript
 // Identity management
-await db.createIdentity({ name: 'John', email: 'john@example.com' });
-await db.searchPeers('developer');
+await db.createIdentity({ name: "John", email: "john@example.com" });
+await db.searchPeers("developer");
 
 // Encrypted sharing
-await db.shareNode(nodeId, targetPeerId, { accessLevel: 'read-only' });
+await db.shareNode(nodeId, targetPeerId, { accessLevel: "read-only" });
 await db.acceptSharedNode(sharedNodeId);
 
 // Cross-device sync
-await db.addDevice({ name: 'My Phone', type: 'phone' });
+await db.addDevice({ name: "My Phone", type: "phone" });
 await db.syncWithDevice(deviceId);
 ```
 
@@ -188,11 +239,11 @@ Migrating from SQLite is straightforward:
 
 ```typescript
 // Before (SQLite)
-import sqlite3 from 'sqlite3';
-const db = new sqlite3.Database('./data.db');
+import sqlite3 from "sqlite3";
+const db = new sqlite3.Database("./data.db");
 
 // After (PluresDB)
-import { SQLiteCompatibleAPI } from 'pluresdb';
+import { SQLiteCompatibleAPI } from "pluresdb";
 const db = new SQLiteCompatibleAPI();
 ```
 
@@ -203,6 +254,17 @@ const db = new SQLiteCompatibleAPI();
 - **Access Control**: Granular permissions and policies
 - **Audit Trail**: Complete logging of all activities
 - **Local-First**: Your data stays on your devices
+- **Payload Sanitization**: Incoming records are scrubbed to neutralize prototype pollution and function injection attempts
+
+## 🧪 Testing & Verification
+
+PluresDB ships with a unified verification workflow that compiles the TypeScript entry points and runs every Deno test suite (integration, performance, security, and unit).
+
+```powershell
+npm run verify
+```
+
+The command executes `tsc -p tsconfig.json` followed by `deno test -A --unstable-kv`, ensuring shipping builds stay green.
 
 ## 📊 Performance
 

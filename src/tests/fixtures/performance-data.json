@@ -8,7 +8,7 @@
       "expected_ops_per_sec": 1000
     },
     {
-      "name": "medium_records", 
+      "name": "medium_records",
       "description": "Medium records (1KB each)",
       "record_size": 1024,
       "record_count": 1000,
@@ -16,7 +16,7 @@
     },
     {
       "name": "large_records",
-      "description": "Large records (10KB each)", 
+      "description": "Large records (10KB each)",
       "record_size": 10240,
       "record_count": 100,
       "expected_ops_per_sec": 100

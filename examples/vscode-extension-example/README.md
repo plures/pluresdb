@@ -12,11 +12,13 @@ This is an example VSCode extension that demonstrates how to integrate PluresDB 
 ## Installation
 
 1. Install dependencies:
+
    ```bash
    npm install
    ```
 
 2. Compile the extension:
+
    ```bash
    npm run compile
    ```
@@ -35,32 +37,32 @@ This is an example VSCode extension that demonstrates how to integrate PluresDB 
 ## Code Example
 
 ```typescript
-import { SQLiteCompatibleAPI } from 'pluresdb';
+import { SQLiteCompatibleAPI } from "pluresdb";
 
 // Initialize database
 const db = new SQLiteCompatibleAPI({
-    config: {
-        dataDir: path.join(context.globalStorageUri.fsPath, 'pluresdb'),
-        port: 34567,
-        host: 'localhost'
-    }
+  config: {
+    dataDir: path.join(context.globalStorageUri.fsPath, "pluresdb"),
+    port: 34567,
+    host: "localhost",
+  },
 });
 
 // Start database
 await db.start();
 
 // Store data
-await db.put('user:123', { name: 'John', email: 'john@example.com' });
+await db.put("user:123", { name: "John", email: "john@example.com" });
 
 // Retrieve data
-const user = await db.getValue('user:123');
+const user = await db.getValue("user:123");
 
 // Vector search
-const results = await db.vectorSearch('machine learning', 10);
+const results = await db.vectorSearch("machine learning", 10);
 
 // SQL queries
-await db.exec('CREATE TABLE users (id TEXT, name TEXT)');
-const users = await db.all('SELECT * FROM users');
+await db.exec("CREATE TABLE users (id TEXT, name TEXT)");
+const users = await db.all("SELECT * FROM users");
 ```
 
 ## Migration from SQLite
@@ -69,11 +71,11 @@ If you're migrating from SQLite, the API is nearly identical:
 
 ```typescript
 // Before (SQLite)
-import sqlite3 from 'sqlite3';
-const db = new sqlite3.Database('./data.db');
+import sqlite3 from "sqlite3";
+const db = new sqlite3.Database("./data.db");
 
 // After (PluresDB)
-import { SQLiteCompatibleAPI } from 'pluresdb';
+import { SQLiteCompatibleAPI } from "pluresdb";
 const db = new SQLiteCompatibleAPI();
 await db.start();
 ```
@@ -91,4 +93,3 @@ await db.start();
 - [PluresDB Documentation](../../README.md)
 - [VSCode Extension API](https://code.visualstudio.com/api)
 - [Migration Guide](../../docs/VSCODE_MIGRATION.md)
-

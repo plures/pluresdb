@@ -6,14 +6,29 @@ export interface ApiServerHandle {
   close: () => void;
 }
 
+const STATIC_ROOT = new URL("../../web/svelte/dist/", import.meta.url);
+
+function corsHeaders(extra?: Record<string, string>): Headers {
+  const headers = new Headers(extra);
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  headers.set("Vary", "Origin");
+  return headers;
+}
+
 export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHandle {
   const { port, db } = opts;
-  const STATIC_ROOT = "web/dist";
 
   const handler = async (req: Request): Promise<Response> => {
     try {
       const url = new URL(req.url);
       const path = url.pathname;
+
+      if (req.method === "OPTIONS") {
+        return new Response(null, { status: 200, headers: corsHeaders() });
+      }
+
       if (path === "/api/events") {
         const stream = new ReadableStream({
           start(controller) {
@@ -24,15 +39,39 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
             };
             const cb = (e: { id: string; node: unknown | null }) => send(e);
             db.onAny(cb as any);
-            // Send initial list snapshot
             (async () => {
               for await (const n of db.list()) send({ id: n.id, node: { id: n.id, data: n.data } });
             })();
             return () => db.offAny(cb as any);
           },
         });
-        return new Response(stream, { headers: { "content-type": "text/event-stream" } });
+        return new Response(stream, {
+          headers: corsHeaders({ "content-type": "text/event-stream" }),
+        });
       }
+
+      if (path.startsWith("/api/nodes/")) {
+        const id = decodeURIComponent(path.slice("/api/nodes/".length));
+        if (req.method === "GET") {
+          const val = await db.get<Record<string, unknown>>(id);
+          if (!val) return json({ error: "not found" }, 404);
+          return json(val);
+        }
+        if (req.method === "PUT") {
+          const body = await req.json().catch(() => null);
+          if (!body || typeof body !== "object" || Array.isArray(body)) {
+            return json({ error: "invalid json" }, 400);
+          }
+          await db.put(id, body as Record<string, unknown>);
+          return json({ ok: true });
+        }
+        if (req.method === "DELETE") {
+          await db.delete(id);
+          return json({ ok: true });
+        }
+        return json({ error: "method" }, 405);
+      }
+
       if (path.startsWith("/api/")) {
         switch (path) {
           case "/api/config": {
@@ -41,11 +80,10 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
               return json(cfg);
             }
             if (req.method === "POST") {
-              const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+              const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
               if (!body) return json({ error: "missing body" }, 400);
-              // Merge shallow
               const current = await loadConfig();
-              const next = { ...current, ...body } as any;
+              const next = { ...current, ...body } as Record<string, unknown>;
               await saveConfig(next);
               return json({ ok: true });
             }
@@ -59,7 +97,9 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
           }
           case "/api/put": {
             if (req.method !== "POST") return json({ error: "method" }, 405);
-            const body = await req.json().catch(() => null) as { id?: string; data?: Record<string, unknown> } | null;
+            const body = (await req.json().catch(() => null)) as
+              | { id?: string; data?: Record<string, unknown> }
+              | null;
             if (!body?.id || !body?.data) return json({ error: "missing body {id,data}" }, 400);
             await db.put(body.id, body.data);
             return json({ ok: true });
@@ -71,6 +111,17 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
             return json({ ok: true });
           }
           case "/api/search": {
+            if (req.method === "POST") {
+              const payload = (await req.json().catch(() => null)) as
+                | { query?: string | number[]; limit?: number }
+                | null;
+              if (!payload || (!payload.query && payload.query !== "")) {
+                return json({ error: "missing query" }, 400);
+              }
+              const limit = Number.isFinite(payload.limit) ? payload.limit! : 5;
+              const nodes = await db.vectorSearch(payload.query ?? "", limit);
+              return json(nodes.map((n) => ({ id: n.id, data: n.data })));
+            }
             const q = url.searchParams.get("q") ?? "";
             const k = Number(url.searchParams.get("k") ?? "5");
             const nodes = await db.vectorSearch(q, Number.isFinite(k) ? k : 5);
@@ -78,7 +129,9 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
           }
           case "/api/list": {
             const out: Array<{ id: string; data: Record<string, unknown> }> = [];
-            for await (const n of db.list()) out.push({ id: n.id, data: n.data as Record<string, unknown> });
+            for await (const n of db.list()) {
+              out.push({ id: n.id, data: n.data as Record<string, unknown> });
+            }
             return json(out);
           }
           case "/api/instances": {
@@ -91,13 +144,15 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
             const id = url.searchParams.get("id");
             if (!id) return json({ error: "missing id" }, 400);
             const history = await db.getNodeHistory(id);
-            return json(history.map((h) => ({ 
-              id: h.id, 
-              data: h.data, 
-              timestamp: h.timestamp,
-              vectorClock: h.vectorClock,
-              state: h.state
-            })));
+            return json(
+              history.map((h) => ({
+                id: h.id,
+                data: h.data,
+                timestamp: h.timestamp,
+                vectorClock: h.vectorClock,
+                state: h.state,
+              })),
+            );
           }
           case "/api/restore": {
             const id = url.searchParams.get("id");
@@ -110,31 +165,39 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
             return json({ error: "not found" }, 404);
         }
       }
-      // Static UI
+
       if (req.method === "GET") {
-        // Map URL to local file under web/dist
         const mapPath = path === "/" ? "/index.html" : path;
-        const filePath = `${STATIC_ROOT}${mapPath}`;
+        const fileUrl = new URL(mapPath.startsWith("/") ? `.${mapPath}` : mapPath, STATIC_ROOT);
         try {
-          const data = await Deno.readFile(filePath);
-          const contentType = mapPath.endsWith(".html") ? "text/html; charset=utf-8" :
-                             mapPath.endsWith(".js") ? "application/javascript" :
-                             mapPath.endsWith(".css") ? "text/css" :
-                             mapPath.endsWith(".json") ? "application/json" :
-                             mapPath.endsWith(".svg") ? "image/svg+xml" :
-                             mapPath.endsWith(".png") ? "image/png" :
-                             "application/octet-stream";
-          return new Response(data, { headers: { "content-type": contentType } });
+          const data = await Deno.readFile(fileUrl);
+          const contentType = mapPath.endsWith(".html")
+            ? "text/html; charset=utf-8"
+            : mapPath.endsWith(".js")
+              ? "application/javascript"
+              : mapPath.endsWith(".css")
+                ? "text/css"
+                : mapPath.endsWith(".json")
+                  ? "application/json"
+                  : mapPath.endsWith(".svg")
+                    ? "image/svg+xml"
+                    : mapPath.endsWith(".png")
+                      ? "image/png"
+                      : "application/octet-stream";
+          return new Response(data, { headers: corsHeaders({ "content-type": contentType }) });
         } catch {
-          // fallback to inline minimal UI
           if (path === "/" || path === "/index.html") {
-            return new Response(INDEX_HTML, { headers: { "content-type": "text/html; charset=utf-8" } });
+            return new Response(INDEX_HTML, {
+              headers: corsHeaders({ "content-type": "text/html; charset=utf-8" }),
+            });
           }
         }
       }
-      return new Response("Not Found", { status: 404 });
+
+      return new Response("Not Found", { status: 404, headers: corsHeaders() });
     } catch (e) {
-      const msg = (e && typeof e === 'object' && 'message' in e) ? String((e as any).message) : String(e);
+      const msg =
+        e && typeof e === "object" && "message" in e ? String((e as any).message) : String(e);
       return json({ error: msg }, 500);
     }
   };
@@ -142,12 +205,21 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
   const server = Deno.serve({ port, onListen: () => {} }, handler);
   return {
     url: `http://localhost:${port}`,
-    close: () => { try { server.shutdown(); } catch { /* ignore */ } },
+    close: () => {
+      try {
+        server.shutdown();
+      } catch {
+        /* ignore */
+      }
+    },
   };
 }
 
 function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: corsHeaders({ "content-type": "application/json" }),
+  });
 }
 
 const INDEX_HTML = `<!doctype html>
@@ -260,5 +332,3 @@ const INDEX_HTML = `<!doctype html>
   </script>
  </body>
  </html>`;
-
-

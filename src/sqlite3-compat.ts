@@ -1,21 +1,23 @@
 // SQLite3 Compatible API for PluresDB
 // Provides drop-in replacement for sqlite3 package
 
-import { Database as PluresDBDatabase } from './sqlite-compat.ts';
+import { Database as PluresDBDatabase } from "./sqlite-compat.ts";
 
 export class Database extends PluresDBDatabase {
   constructor(filename: string, callback?: (err: Error | null) => void) {
     super({ filename });
-    
+
     if (callback) {
-      this.open().then(() => callback(null)).catch(err => callback(err));
+      this.open()
+        .then(() => callback(null))
+        .catch((err) => callback(err));
     }
   }
 
   // SQLite3 specific methods
   serialize(callback?: (err: Error | null, sql: string) => void): void {
     if (callback) {
-      callback(null, '-- Serialization not supported in PluresDB');
+      callback(null, "-- Serialization not supported in PluresDB");
     }
   }
 
@@ -35,7 +37,7 @@ export class Database extends PluresDBDatabase {
 
   loadExtension(path: string, callback?: (err: Error | null) => void): void {
     if (callback) {
-      callback(new Error('Extensions not supported in PluresDB'), null);
+      callback(new Error("Extensions not supported in PluresDB"), null);
     }
   }
 }

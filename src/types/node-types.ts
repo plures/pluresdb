@@ -7,7 +7,7 @@ export interface PluresDBConfig {
   host?: string;
   dataDir?: string;
   webPort?: number;
-  logLevel?: 'debug' | 'info' | 'warn' | 'error';
+  logLevel?: "debug" | "info" | "warn" | "error";
 }
 
 export interface PluresDBOptions {
@@ -36,14 +36,14 @@ export interface Peer {
   email: string;
   publicKey: string;
   lastSeen: Date;
-  status: 'online' | 'offline' | 'connecting';
+  status: "online" | "offline" | "connecting";
 }
 
 export interface SharedNode {
   id: string;
   nodeId: string;
   peerId: string;
-  accessLevel: 'read-only' | 'read-write' | 'admin';
+  accessLevel: "read-only" | "read-write" | "admin";
   encrypted: boolean;
   createdAt: Date;
   expiresAt?: Date;
@@ -52,9 +52,9 @@ export interface SharedNode {
 export interface Device {
   id: string;
   name: string;
-  type: 'laptop' | 'phone' | 'server' | 'desktop';
+  type: "laptop" | "phone" | "server" | "desktop";
   lastSync: Date;
-  status: 'online' | 'offline' | 'syncing';
+  status: "online" | "offline" | "syncing";
 }
 
 export interface SyncStatus {
@@ -64,4 +64,3 @@ export interface SyncStatus {
   connectedPeers: number;
   syncProgress: number;
 }
-

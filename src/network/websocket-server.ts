@@ -49,7 +49,9 @@ export function startMeshServer(args: {
           send: (obj: unknown) => {
             try {
               socket.send(JSON.stringify(obj));
-            } catch { /* ignore */ }
+            } catch {
+              /* ignore */
+            }
           },
           broadcast,
         });
@@ -71,34 +73,43 @@ export function startMeshServer(args: {
     close: () => {
       try {
         server.shutdown();
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       for (const s of sockets) {
         try {
           s.close();
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       sockets.clear();
     },
   };
 }
 
-export function connectToPeer(url: string, handlers: {
-  onOpen?: (socket: WebSocket) => void;
-  onMessage?: (msg: unknown, socket: WebSocket) => void;
-  onClose?: (socket: WebSocket) => void;
-}): WebSocket {
+export function connectToPeer(
+  url: string,
+  handlers: {
+    onOpen?: (socket: WebSocket) => void;
+    onMessage?: (msg: unknown, socket: WebSocket) => void;
+    onClose?: (socket: WebSocket) => void;
+  },
+): WebSocket {
   const socket = new WebSocket(url);
   if (handlers.onOpen) socket.onopen = () => handlers.onOpen?.(socket);
   if (handlers.onMessage) {
     socket.onmessage = (e) => {
       try {
         handlers.onMessage?.(JSON.parse(e.data), socket);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     };
   }
   if (handlers.onClose) socket.onclose = () => handlers.onClose?.(socket);
-  socket.onerror = () => {/* ignore */};
+  socket.onerror = () => {
+    /* ignore */
+  };
   return socket;
 }
-
- 

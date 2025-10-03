@@ -41,12 +41,9 @@ async function ensureDirForFile(filePath: string): Promise<void> {
   const sep = filePath.includes("\\") ? "\\" : "/";
   const dir = filePath.split(sep).slice(0, -1).join(sep);
   if (!dir) return;
-  try { await Deno.mkdir(dir, { recursive: true }); } catch { /* ignore */ }
+  try {
+    await Deno.mkdir(dir, { recursive: true });
+  } catch {
+    /* ignore */
+  }
 }
-
-
-
-
-
-
-

@@ -10,11 +10,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
-    
+
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

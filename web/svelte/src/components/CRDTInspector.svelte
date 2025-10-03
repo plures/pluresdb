@@ -1,144 +1,148 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { push as toast } from '../lib/toasts'
-  import JsonEditor from './JsonEditor.svelte'
-  
-  let nodeId = ''
-  let nodeData: any = null
-  let loading = false
-  let dark = false
-  let showFieldStates = true
-  let showVectorClock = true
+  import { onMount } from "svelte";
+  import { push as toast } from "../lib/toasts";
+  import JsonEditor from "./JsonEditor.svelte";
 
-  $: dark = (document.documentElement.getAttribute('data-theme') === 'dark')
+  let nodeId = "";
+  let nodeData: any = null;
+  let loading = false;
+  let dark = false;
+  let showFieldStates = true;
+  let showVectorClock = true;
+
+  $: dark = document.documentElement.getAttribute("data-theme") === "dark";
 
   async function loadNode() {
-    if (!nodeId.trim()) return
-    
-    loading = true
+    if (!nodeId.trim()) return;
+
+    loading = true;
     try {
-      const res = await fetch(`/api/get?id=${encodeURIComponent(nodeId)}`)
-      if (!res.ok) throw new Error('Failed to load node')
-      nodeData = await res.json()
+      const res = await fetch(`/api/get?id=${encodeURIComponent(nodeId)}`);
+      if (!res.ok) throw new Error("Failed to load node");
+      nodeData = await res.json();
     } catch (error) {
-      toast('Failed to load node', 'error')
-      console.error('Error loading node:', error)
+      toast("Failed to load node", "error");
+      console.error("Error loading node:", error);
     } finally {
-      loading = false
+      loading = false;
     }
   }
 
   function formatTimestamp(timestamp: number): string {
-    return new Date(timestamp).toLocaleString()
+    return new Date(timestamp).toLocaleString();
   }
 
   function getFieldStates() {
-    if (!nodeData?.state) return []
-    
-    return Object.entries(nodeData.state).map(([field, timestamp]) => ({
-      field,
-      timestamp: timestamp as number,
-      age: Date.now() - (timestamp as number),
-      formatted: formatTimestamp(timestamp as number)
-    })).sort((a, b) => b.timestamp - a.timestamp)
+    if (!nodeData?.state) return [];
+
+    return Object.entries(nodeData.state)
+      .map(([field, timestamp]) => ({
+        field,
+        timestamp: timestamp as number,
+        age: Date.now() - (timestamp as number),
+        formatted: formatTimestamp(timestamp as number),
+      }))
+      .sort((a, b) => b.timestamp - a.timestamp);
   }
 
   function getVectorClockEntries() {
-    if (!nodeData?.vectorClock) return []
-    
-    return Object.entries(nodeData.vectorClock).map(([peerId, clock]) => ({
-      peerId,
-      clock: clock as number
-    })).sort((a, b) => b.clock - a.clock)
+    if (!nodeData?.vectorClock) return [];
+
+    return Object.entries(nodeData.vectorClock)
+      .map(([peerId, clock]) => ({
+        peerId,
+        clock: clock as number,
+      }))
+      .sort((a, b) => b.clock - a.clock);
   }
 
   function getConflicts() {
-    if (!nodeData?.state) return []
-    
-    const conflicts = []
-    const fieldStates = getFieldStates()
-    const now = Date.now()
-    
+    if (!nodeData?.state) return [];
+
+    const conflicts = [];
+    const fieldStates = getFieldStates();
+    const now = Date.now();
+
     // Find fields that might have conflicts (same timestamp from different peers)
-    const fieldGroups = new Map<string, typeof fieldStates>()
+    const fieldGroups = new Map<string, typeof fieldStates>();
     for (const field of fieldStates) {
       if (!fieldGroups.has(field.field)) {
-        fieldGroups.set(field.field, [])
+        fieldGroups.set(field.field, []);
       }
-      fieldGroups.get(field.field)!.push(field)
+      fieldGroups.get(field.field)!.push(field);
     }
-    
+
     for (const [field, states] of fieldGroups) {
       if (states.length > 1) {
         // Check if there are multiple states with the same timestamp
-        const timestampGroups = new Map<number, typeof states>()
+        const timestampGroups = new Map<number, typeof states>();
         for (const state of states) {
           if (!timestampGroups.has(state.timestamp)) {
-            timestampGroups.set(state.timestamp, [])
+            timestampGroups.set(state.timestamp, []);
           }
-          timestampGroups.get(state.timestamp)!.push(state)
+          timestampGroups.get(state.timestamp)!.push(state);
         }
-        
+
         for (const [timestamp, sameTimeStates] of timestampGroups) {
           if (sameTimeStates.length > 1) {
             conflicts.push({
               field,
               timestamp,
               count: sameTimeStates.length,
-              states: sameTimeStates
-            })
+              states: sameTimeStates,
+            });
           }
         }
       }
     }
-    
-    return conflicts
+
+    return conflicts;
   }
 
   function getMergeInfo() {
-    if (!nodeData) return null
-    
+    if (!nodeData) return null;
+
     return {
       lastMerge: nodeData.timestamp,
       totalFields: Object.keys(nodeData.data || {}).length,
       fieldStates: Object.keys(nodeData.state || {}).length,
       peers: Object.keys(nodeData.vectorClock || {}).length,
       hasVector: !!nodeData.vector,
-      vectorLength: nodeData.vector?.length || 0
-    }
+      vectorLength: nodeData.vector?.length || 0,
+    };
   }
 
-  function forceResolveConflict(field: string, resolution: 'keep' | 'delete') {
-    if (!nodeData) return
-    
-    const newData = { ...nodeData.data }
-    if (resolution === 'delete') {
-      delete newData[field]
+  function forceResolveConflict(field: string, resolution: "keep" | "delete") {
+    if (!nodeData) return;
+
+    const newData = { ...nodeData.data };
+    if (resolution === "delete") {
+      delete newData[field];
     }
-    
+
     // This would need a new API endpoint to force resolve conflicts
-    toast('Conflict resolution not yet implemented', 'info')
+    toast("Conflict resolution not yet implemented", "info");
   }
 </script>
 
 <section aria-labelledby="crdt-heading">
   <h3 id="crdt-heading">CRDT Inspector</h3>
-  
+
   <div class="crdt-controls">
     <div class="input-group">
       <label for="node-id-input">Node ID</label>
-      <input 
+      <input
         id="node-id-input"
-        type="text" 
-        bind:value={nodeId} 
+        type="text"
+        bind:value={nodeId}
         placeholder="Enter node ID to inspect CRDT state"
-        on:keydown={(e) => e.key === 'Enter' && loadNode()}
+        on:keydown={(e) => e.key === "Enter" && loadNode()}
       />
       <button on:click={loadNode} disabled={loading || !nodeId.trim()}>
-        {loading ? 'Loading...' : 'Inspect Node'}
+        {loading ? "Loading..." : "Inspect Node"}
       </button>
     </div>
-    
+
     {#if nodeData}
       <div class="view-controls">
         <label>
@@ -194,18 +198,20 @@
               <div class="conflict-item">
                 <div class="conflict-header">
                   <code class="field-name">{conflict.field}</code>
-                  <span class="conflict-count">{conflict.count} states at {formatTimestamp(conflict.timestamp)}</span>
+                  <span class="conflict-count"
+                    >{conflict.count} states at {formatTimestamp(conflict.timestamp)}</span
+                  >
                 </div>
                 <div class="conflict-actions">
-                  <button 
-                    on:click={() => forceResolveConflict(conflict.field, 'keep')}
+                  <button
+                    on:click={() => forceResolveConflict(conflict.field, "keep")}
                     class="keep-button"
                     aria-label="Keep field {conflict.field}"
                   >
                     Keep
                   </button>
-                  <button 
-                    on:click={() => forceResolveConflict(conflict.field, 'delete')}
+                  <button
+                    on:click={() => forceResolveConflict(conflict.field, "delete")}
                     class="delete-button"
                     aria-label="Delete field {conflict.field}"
                   >
@@ -253,11 +259,7 @@
       <div class="raw-data">
         <h4>Raw Node Data</h4>
         <div role="region" aria-label="Raw node data">
-            <JsonEditor 
-              {dark} 
-              value={JSON.stringify(nodeData, null, 2)}
-              onChange={() => {}} 
-            />
+          <JsonEditor {dark} value={JSON.stringify(nodeData, null, 2)} onChange={() => {}} />
         </div>
       </div>
     </div>
@@ -293,7 +295,11 @@
     gap: 1rem;
   }
 
-  .merge-info, .conflicts-section, .field-states, .vector-clock, .raw-data {
+  .merge-info,
+  .conflicts-section,
+  .field-states,
+  .vector-clock,
+  .raw-data {
     border: 1px solid var(--pico-muted-border-color);
     border-radius: 8px;
     padding: 1rem;
@@ -374,7 +380,8 @@
     font-size: 0.875rem;
   }
 
-  .field-list, .clock-list {
+  .field-list,
+  .clock-list {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -382,7 +389,8 @@
     overflow-y: auto;
   }
 
-  .field-item, .clock-item {
+  .field-item,
+  .clock-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -392,7 +400,9 @@
     background: rgba(0, 0, 0, 0.02);
   }
 
-  .field-timestamp, .field-age, .clock-value {
+  .field-timestamp,
+  .field-age,
+  .clock-value {
     font-size: 0.875rem;
     color: var(--pico-muted-color);
   }
@@ -416,7 +426,7 @@
       flex-direction: column;
       align-items: stretch;
     }
-    
+
     .crdt-grid {
       grid-template-columns: 1fr;
     }

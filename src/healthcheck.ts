@@ -25,17 +25,17 @@ async function checkApiHealth(): Promise<boolean> {
     const response = await fetch(`http://${HOST}:${API_PORT}/api/health`, {
       method: "GET",
       headers: {
-        "Accept": "application/json",
-        "User-Agent": "pluresdb-healthcheck/1.0.0"
+        Accept: "application/json",
+        "User-Agent": "pluresdb-healthcheck/1.0.0",
       },
-      signal: AbortSignal.timeout(5000) // 5 second timeout
+      signal: AbortSignal.timeout(5000), // 5 second timeout
     });
-    
+
     if (!response.ok) {
       console.error(`API health check failed: ${response.status} ${response.statusText}`);
       return false;
     }
-    
+
     const data = await response.json();
     return data.status === "healthy" || data.status === "ok";
   } catch (error) {
@@ -49,17 +49,17 @@ async function checkWebHealth(): Promise<boolean> {
     const response = await fetch(`http://${HOST}:${WEB_PORT}/`, {
       method: "GET",
       headers: {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "User-Agent": "pluresdb-healthcheck/1.0.0"
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "User-Agent": "pluresdb-healthcheck/1.0.0",
       },
-      signal: AbortSignal.timeout(5000) // 5 second timeout
+      signal: AbortSignal.timeout(5000), // 5 second timeout
     });
-    
+
     if (!response.ok) {
       console.error(`Web health check failed: ${response.status} ${response.statusText}`);
       return false;
     }
-    
+
     const contentType = response.headers.get("content-type");
     return contentType?.includes("text/html") || contentType?.includes("application/json");
   } catch (error) {
@@ -72,19 +72,19 @@ async function checkDatabaseHealth(): Promise<boolean> {
   try {
     // Check if data directory exists and is writable
     const dataDir = Deno.env.get("PLURESDB_DATA_DIR") || "./data";
-    
+
     try {
       await Deno.stat(dataDir);
     } catch {
       // Data directory doesn't exist, try to create it
       await Deno.mkdir(dataDir, { recursive: true });
     }
-    
+
     // Test write permissions
     const testFile = `${dataDir}/.healthcheck-test`;
     await Deno.writeTextFile(testFile, "healthcheck");
     await Deno.remove(testFile);
-    
+
     return true;
   } catch (error) {
     console.error(`Database health check error: ${error.message}`);
@@ -94,39 +94,39 @@ async function checkDatabaseHealth(): Promise<boolean> {
 
 async function main(): Promise<void> {
   const startTime = Date.now();
-  
+
   console.log("Starting PluresDB health check...");
   console.log(`API: http://${HOST}:${API_PORT}/api/health`);
   console.log(`Web: http://${HOST}:${WEB_PORT}/`);
-  
+
   // Run health checks in parallel
   const [apiHealthy, webHealthy, dbHealthy] = await Promise.all([
     checkApiHealth(),
     checkWebHealth(),
-    checkDatabaseHealth()
+    checkDatabaseHealth(),
   ]);
-  
+
   const uptime = Date.now() - startTime;
   const allHealthy = apiHealthy && webHealthy && dbHealthy;
-  
+
   const healthStatus: HealthStatus = {
     status: allHealthy ? "healthy" : "unhealthy",
     checks: {
       api: apiHealthy,
       web: webHealthy,
-      database: dbHealthy
+      database: dbHealthy,
     },
     timestamp: new Date().toISOString(),
-    uptime
+    uptime,
   };
-  
+
   console.log("Health check results:");
   console.log(`  API Server: ${apiHealthy ? "✓" : "✗"}`);
   console.log(`  Web UI: ${webHealthy ? "✓" : "✗"}`);
   console.log(`  Database: ${dbHealthy ? "✓" : "✗"}`);
   console.log(`  Overall: ${allHealthy ? "✓ Healthy" : "✗ Unhealthy"}`);
   console.log(`  Response time: ${uptime}ms`);
-  
+
   if (allHealthy) {
     console.log("Health check passed");
     Deno.exit(0);

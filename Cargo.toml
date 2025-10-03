@@ -1,25 +1,15 @@
-[workspace]
-resolver = "2"
-members = [
-    "pluresdb-core",
-    "pluresdb-storage", 
-    "pluresdb-network",
-    "pluresdb-api",
-    "pluresdb-cli",
-    "pluresdb-web",
-    "pluresdb-vscode",
-    "pluresdb-benchmarks"
-]
 
-[workspace.package]
-version = "1.0.0"
+[package]
+name = "pluresdb"
+version = "1.0.1"
 edition = "2021"
 authors = ["Plures Organization"]
 license = "AGPL-3.0"
 repository = "https://github.com/plures/pluresdb"
 description = "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications"
 
-[workspace.dependencies]
+# Package dependencies
+[dependencies]
 # Core dependencies
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

@@ -50,19 +50,11 @@
     "check": "deno check src/main.ts",
     "install": "deno install -A -n pluresdb https://deno.land/x/pluresdb@v1.0.0/src/main.ts"
   },
-  "files": [
-    "src/",
-    "examples/",
-    "README.md",
-    "LICENSE",
-    "deno.json"
-  ],
+  "files": ["src/", "examples/", "README.md", "LICENSE", "deno.json"],
   "engines": {
     "deno": ">=1.40.0"
   },
-  "unstable": [
-    "kv"
-  ],
+  "unstable": ["kv"],
   "compilerOptions": {
     "allowJs": true,
     "lib": ["deno.window", "deno.ns", "deno.unstable"],

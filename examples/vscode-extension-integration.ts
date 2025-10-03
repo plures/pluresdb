@@ -3,265 +3,39 @@
  * This shows how to integrate PluresDB into a VSCode extension
  */
 
-import * as vscode from 'vscode';
-import { PluresNode, SQLiteCompatibleAPI } from 'pluresdb';
+import * as vscode from "vscode";
+import {
+  createPluresExtension,
+  PluresVSCodeExtension,
+  ExtensionContextLike,
+  VSCodeAPI,
+} from "../src/vscode/extension.ts";
 
-export class PluresExtension {
-  private plures: PluresNode;
-  private sqliteAPI: SQLiteCompatibleAPI;
-  private context: vscode.ExtensionContext;
+let extensionInstance: PluresVSCodeExtension | undefined;
 
-  constructor(context: vscode.ExtensionContext) {
-    this.context = context;
-    
-    // Initialize PluresDB with VSCode-specific configuration
-    this.plures = new PluresNode({
-      config: {
-        port: 34567,
-        host: 'localhost',
-        dataDir: path.join(context.globalStorageUri.fsPath, 'pluresdb'),
-        webPort: 34568,
-        logLevel: 'info'
-      },
-      autoStart: false // We'll start it manually
-    });
+export async function activate(context: vscode.ExtensionContext) {
+  const mappedContext: ExtensionContextLike = {
+    subscriptions: context.subscriptions,
+    globalStorageUri: { fsPath: context.globalStorageUri.fsPath },
+  };
 
-    // Create SQLite-compatible API
-    this.sqliteAPI = new SQLiteCompatibleAPI({
-      config: {
-        port: 34567,
-        host: 'localhost',
-        dataDir: path.join(context.globalStorageUri.fsPath, 'pluresdb'),
-        webPort: 34568,
-        logLevel: 'info'
-      },
-      autoStart: false
-    });
+  const vscodeApi = vscode as unknown as VSCodeAPI;
+  extensionInstance = createPluresExtension(vscodeApi, mappedContext);
 
-    // Set up event handlers
-    this.setupEventHandlers();
-  }
+  await extensionInstance.activate();
 
-  private setupEventHandlers() {
-    this.plures.on('started', () => {
-      vscode.window.showInformationMessage('PluresDB database started');
-    });
-
-    this.plures.on('stopped', () => {
-      vscode.window.showInformationMessage('PluresDB database stopped');
-    });
-
-    this.plures.on('error', (error) => {
-      vscode.window.showErrorMessage(`PluresDB error: ${error.message}`);
-    });
-  }
-
-  async activate() {
-    try {
-      // Start PluresDB
-      await this.plures.start();
-      await this.sqliteAPI.start();
-
-      // Register commands
-      this.registerCommands();
-
-      // Set up database schema
-      await this.setupDatabase();
-
-      vscode.window.showInformationMessage('PluresDB extension activated');
-    } catch (error) {
-      vscode.window.showErrorMessage(`Failed to activate PluresDB: ${error.message}`);
-    }
-  }
-
-  async deactivate() {
-    try {
-      await this.plures.stop();
-      await this.sqliteAPI.stop();
-    } catch (error) {
-      console.error('Error stopping PluresDB:', error);
-    }
-  }
-
-  private registerCommands() {
-    // Command to open PluresDB web UI
-    const openWebUI = vscode.commands.registerCommand('pluresdb.openWebUI', () => {
-      const webUrl = this.plures.getWebUrl();
-      vscode.env.openExternal(vscode.Uri.parse(webUrl));
-    });
-
-    // Command to execute SQL query
-    const executeQuery = vscode.commands.registerCommand('pluresdb.executeQuery', async () => {
-      const sql = await vscode.window.showInputBox({
-        prompt: 'Enter SQL query',
-        placeHolder: 'SELECT * FROM users'
+  context.subscriptions.push({
+    dispose: () => {
+      extensionInstance?.deactivate().catch((error) => {
+        console.error("Failed to deactivate PluresDB extension", error);
       });
+    },
+  });
 
-      if (sql) {
-        try {
-          const result = await this.sqliteAPI.all(sql);
-          const doc = await vscode.workspace.openTextDocument({
-            content: JSON.stringify(result, null, 2),
-            language: 'json'
-          });
-          await vscode.window.showTextDocument(doc);
-        } catch (error) {
-          vscode.window.showErrorMessage(`Query failed: ${error.message}`);
-        }
-      }
-    });
-
-    // Command to perform vector search
-    const vectorSearch = vscode.commands.registerCommand('pluresdb.vectorSearch', async () => {
-      const query = await vscode.window.showInputBox({
-        prompt: 'Enter search query',
-        placeHolder: 'machine learning'
-      });
-
-      if (query) {
-        try {
-          const results = await this.sqliteAPI.vectorSearch(query, 10);
-          const doc = await vscode.workspace.openTextDocument({
-            content: JSON.stringify(results, null, 2),
-            language: 'json'
-          });
-          await vscode.window.showTextDocument(doc);
-        } catch (error) {
-          vscode.window.showErrorMessage(`Vector search failed: ${error.message}`);
-        }
-      }
-    });
-
-    // Command to store data
-    const storeData = vscode.commands.registerCommand('pluresdb.storeData', async () => {
-      const key = await vscode.window.showInputBox({
-        prompt: 'Enter key',
-        placeHolder: 'user:123'
-      });
-
-      if (key) {
-        const value = await vscode.window.showInputBox({
-          prompt: 'Enter value (JSON)',
-          placeHolder: '{"name": "John", "email": "john@example.com"}'
-        });
-
-        if (value) {
-          try {
-            const parsedValue = JSON.parse(value);
-            await this.sqliteAPI.put(key, parsedValue);
-            vscode.window.showInformationMessage(`Stored data for key: ${key}`);
-          } catch (error) {
-            vscode.window.showErrorMessage(`Failed to store data: ${error.message}`);
-          }
-        }
-      }
-    });
-
-    // Command to retrieve data
-    const retrieveData = vscode.commands.registerCommand('pluresdb.retrieveData', async () => {
-      const key = await vscode.window.showInputBox({
-        prompt: 'Enter key to retrieve',
-        placeHolder: 'user:123'
-      });
-
-      if (key) {
-        try {
-          const value = await this.sqliteAPI.getValue(key);
-          if (value) {
-            const doc = await vscode.workspace.openTextDocument({
-              content: JSON.stringify(value, null, 2),
-              language: 'json'
-            });
-            await vscode.window.showTextDocument(doc);
-          } else {
-            vscode.window.showInformationMessage('Key not found');
-          }
-        } catch (error) {
-          vscode.window.showErrorMessage(`Failed to retrieve data: ${error.message}`);
-        }
-      }
-    });
-
-    // Register all commands
-    this.context.subscriptions.push(
-      openWebUI,
-      executeQuery,
-      vectorSearch,
-      storeData,
-      retrieveData
-    );
-  }
-
-  private async setupDatabase() {
-    // Create tables for common VSCode extension use cases
-    const tables = [
-      `CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS documents (
-        id TEXT PRIMARY KEY,
-        content TEXT,
-        language TEXT,
-        file_path TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS search_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        query TEXT,
-        results_count INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`
-    ];
-
-    for (const sql of tables) {
-      try {
-        await this.sqliteAPI.exec(sql);
-      } catch (error) {
-        console.error('Error creating table:', error);
-      }
-    }
-  }
-
-  // Public API methods for other parts of the extension
-  async storeSetting(key: string, value: any) {
-    return this.sqliteAPI.put(`settings:${key}`, value);
-  }
-
-  async getSetting(key: string) {
-    return this.sqliteAPI.getValue(`settings:${key}`);
-  }
-
-  async storeDocument(id: string, content: string, language: string, filePath: string) {
-    return this.sqliteAPI.put(`documents:${id}`, {
-      content,
-      language,
-      filePath,
-      updatedAt: new Date().toISOString()
-    });
-  }
-
-  async searchDocuments(query: string) {
-    return this.sqliteAPI.vectorSearch(query, 20);
-  }
-
-  async executeSQL(sql: string, params: any[] = []) {
-    return this.sqliteAPI.all(sql, params);
-  }
+  return extensionInstance;
 }
 
-// Extension activation function
-export function activate(context: vscode.ExtensionContext) {
-  const extension = new PluresExtension(context);
-  extension.activate();
-  return extension;
+export async function deactivate() {
+  await extensionInstance?.deactivate();
+  extensionInstance = undefined;
 }
-
-// Extension deactivation function
-export function deactivate(extension: PluresExtension) {
-  extension.deactivate();
-}
-

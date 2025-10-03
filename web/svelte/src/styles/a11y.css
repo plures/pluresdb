@@ -7,13 +7,13 @@
   --pico-contrast-inverse: #ffffff;
   --pico-muted-color: #57606a; /* Improved from default for better contrast */
   --pico-muted-border-color: #d0d7de;
-  
+
   /* Primary colors with WCAG AA compliance */
   --pico-primary: #0969da; /* GitHub blue with good contrast */
   --pico-primary-hover: #0550ae;
   --pico-primary-focus: rgba(9, 105, 218, 0.25);
   --pico-primary-inverse: #ffffff;
-  
+
   /* Semantic colors */
   --success-color: #1a7f37; /* Dark green for good contrast */
   --error-color: #cf222e; /* Red with sufficient contrast */
@@ -27,13 +27,13 @@
   --pico-contrast-inverse: #0d1117;
   --pico-muted-color: #8b949e; /* Improved for better contrast on dark background */
   --pico-muted-border-color: #30363d;
-  
+
   /* Primary colors for dark mode */
   --pico-primary: #58a6ff; /* Lighter blue for dark backgrounds */
   --pico-primary-hover: #79c0ff;
   --pico-primary-focus: rgba(88, 166, 255, 0.25);
   --pico-primary-inverse: #0d1117;
-  
+
   /* Semantic colors for dark mode */
   --success-color: #3fb950; /* Lighter green for dark mode */
   --error-color: #f85149; /* Lighter red for dark mode */
@@ -194,4 +194,3 @@ nav {
 .skip-link:focus {
   top: 0;
 }
-

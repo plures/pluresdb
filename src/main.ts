@@ -34,7 +34,9 @@ if (import.meta.main) {
       }
       const ki = rest.indexOf("--kv");
       if (ki >= 0 && rest[ki + 1]) kvPath = rest[ki + 1];
-      const peers = (cfg.peers ?? []).concat(rest.filter((v) => v.startsWith("ws://") || v.startsWith("wss://")));
+      const peers = (cfg.peers ?? []).concat(
+        rest.filter((v) => v.startsWith("ws://") || v.startsWith("wss://")),
+      );
 
       const db = new GunDB();
       await db.ready(kvPath);
@@ -52,7 +54,10 @@ if (import.meta.main) {
     }
     case "put": {
       const [id, json, ...flags] = rest;
-      if (!id || !json) { printUsage(); Deno.exit(1); }
+      if (!id || !json) {
+        printUsage();
+        Deno.exit(1);
+      }
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
@@ -66,7 +71,10 @@ if (import.meta.main) {
     }
     case "get": {
       const [id, ...flags] = rest;
-      if (!id) { printUsage(); Deno.exit(1); }
+      if (!id) {
+        printUsage();
+        Deno.exit(1);
+      }
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
@@ -79,7 +87,10 @@ if (import.meta.main) {
     }
     case "delete": {
       const [id, ...flags] = rest;
-      if (!id) { printUsage(); Deno.exit(1); }
+      if (!id) {
+        printUsage();
+        Deno.exit(1);
+      }
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
@@ -92,24 +103,31 @@ if (import.meta.main) {
     }
     case "vsearch": {
       const [query, kRaw, ...flags] = rest;
-      if (!query || !kRaw) { printUsage(); Deno.exit(1); }
+      if (!query || !kRaw) {
+        printUsage();
+        Deno.exit(1);
+      }
       const k = Number(kRaw);
-      if (!Number.isFinite(k)) { printUsage(); Deno.exit(1); }
+      if (!Number.isFinite(k)) {
+        printUsage();
+        Deno.exit(1);
+      }
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
       const db = new GunDB();
       await db.ready(kvPath);
       const results = await db.vectorSearch(query, k);
-      console.log(
-        JSON.stringify(results.map((n) => ({ id: n.id, data: n.data }))),
-      );
+      console.log(JSON.stringify(results.map((n) => ({ id: n.id, data: n.data }))));
       await db.close();
       break;
     }
     case "type": {
       const [id, typeName, ...flags] = rest;
-      if (!id || !typeName) { printUsage(); Deno.exit(1); }
+      if (!id || !typeName) {
+        printUsage();
+        Deno.exit(1);
+      }
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
@@ -122,7 +140,10 @@ if (import.meta.main) {
     }
     case "instances": {
       const [typeName, ...flags] = rest;
-      if (!typeName) { printUsage(); Deno.exit(1); }
+      if (!typeName) {
+        printUsage();
+        Deno.exit(1);
+      }
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
@@ -140,10 +161,8 @@ if (import.meta.main) {
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
       const db = new GunDB();
       await db.ready(kvPath);
-      const out: Array<{ id: string; data: Record<string, unknown> }> = [];
-      for await (const node of (db as any)["storage"].listNodes()) {
-        out.push({ id: node.id, data: node.data as Record<string, unknown> });
-      }
+      const nodes = await db.getAll();
+      const out = nodes.map((node) => ({ id: node.id, data: node.data as Record<string, unknown> }));
       console.log(JSON.stringify(out));
       await db.close();
       break;
@@ -155,7 +174,10 @@ if (import.meta.main) {
     }
     case "config:set": {
       const [key, value] = rest;
-      if (!key || value === undefined) { printUsage(); Deno.exit(1); }
+      if (!key || value === undefined) {
+        printUsage();
+        Deno.exit(1);
+      }
       const cfg = await loadConfig();
       (cfg as any)[key] = /^[0-9]+$/.test(value) ? Number(value) : value;
       await saveConfig(cfg);

@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   pluresdb:
@@ -8,8 +8,8 @@ services:
     image: pluresdb/pluresdb:latest
     container_name: pluresdb
     ports:
-      - "34567:34567"  # API port
-      - "34568:34568"  # Web UI port
+      - "34567:34567" # API port
+      - "34568:34568" # Web UI port
     volumes:
       - pluresdb-data:/app/data
       - pluresdb-config:/app/config

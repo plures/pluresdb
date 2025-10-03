@@ -40,10 +40,13 @@ docker run -p 34567:34567 -p 34568:34568 \
 ## Configuration Files
 
 ### docker-compose.yml
+
 Basic Docker Compose configuration for development and testing.
 
 ### docker-compose.prod.yml
+
 Production-ready configuration with:
+
 - Resource limits
 - Nginx reverse proxy (optional)
 - SSL/TLS support
@@ -51,7 +54,9 @@ Production-ready configuration with:
 - Rate limiting
 
 ### nginx.conf
+
 Nginx configuration for production deployment with:
+
 - SSL termination
 - Load balancing
 - Security headers
@@ -60,15 +65,15 @@ Nginx configuration for production deployment with:
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PLURESDB_PORT` | `34567` | API server port |
-| `PLURESDB_WEB_PORT` | `34568` | Web UI port |
-| `PLURESDB_HOST` | `0.0.0.0` | Bind address |
-| `PLURESDB_DATA_DIR` | `/app/data` | Data directory |
+| Variable              | Default       | Description      |
+| --------------------- | ------------- | ---------------- |
+| `PLURESDB_PORT`       | `34567`       | API server port  |
+| `PLURESDB_WEB_PORT`   | `34568`       | Web UI port      |
+| `PLURESDB_HOST`       | `0.0.0.0`     | Bind address     |
+| `PLURESDB_DATA_DIR`   | `/app/data`   | Data directory   |
 | `PLURESDB_CONFIG_DIR` | `/app/config` | Config directory |
-| `PLURESDB_LOG_LEVEL` | `info` | Log level |
-| `PLURESDB_PRODUCTION` | `false` | Production mode |
+| `PLURESDB_LOG_LEVEL`  | `info`        | Log level        |
+| `PLURESDB_PRODUCTION` | `false`       | Production mode  |
 
 ## Volumes
 
@@ -87,6 +92,7 @@ Nginx configuration for production deployment with:
 ## Profiles
 
 ### with-redis
+
 Enables Redis for caching and session storage:
 
 ```bash
@@ -94,6 +100,7 @@ docker-compose --profile with-redis up -d
 ```
 
 ### with-nginx
+
 Enables Nginx reverse proxy for production:
 
 ```bash
@@ -130,11 +137,13 @@ docker-compose -f docker-compose.prod.yml --profile with-redis up -d
 ## Health Checks
 
 The container includes health checks that verify:
+
 - API server is responding
 - Web UI is accessible
 - Database connectivity
 
 View health status:
+
 ```bash
 docker ps
 docker inspect pluresdb --format='{{.State.Health.Status}}'
@@ -143,6 +152,7 @@ docker inspect pluresdb --format='{{.State.Health.Status}}'
 ## Monitoring
 
 ### View Logs
+
 ```bash
 # All services
 docker-compose logs -f
@@ -152,6 +162,7 @@ docker-compose logs -f pluresdb
 ```
 
 ### Resource Usage
+
 ```bash
 # Container stats
 docker stats
@@ -171,6 +182,7 @@ docker stats pluresdb
 ## Troubleshooting
 
 ### Container won't start
+
 ```bash
 # Check logs
 docker-compose logs pluresdb
@@ -180,6 +192,7 @@ docker ps -a
 ```
 
 ### Port conflicts
+
 ```bash
 # Check what's using the ports
 netstat -tulpn | grep :34567
@@ -190,6 +203,7 @@ docker run -p 8080:34567 -p 8081:34568 plures/pluresdb:latest
 ```
 
 ### Permission issues
+
 ```bash
 # Fix volume permissions
 docker-compose down
@@ -198,6 +212,7 @@ docker-compose up -d
 ```
 
 ### Database issues
+
 ```bash
 # Reset database
 docker-compose down -v
@@ -207,6 +222,7 @@ docker-compose up -d
 ## Development
 
 ### Building from source
+
 ```bash
 # Build with development dependencies
 docker build -f packaging/docker/Dockerfile \
@@ -215,6 +231,7 @@ docker build -f packaging/docker/Dockerfile \
 ```
 
 ### Running tests
+
 ```bash
 # Run tests in container
 docker run --rm plures/pluresdb:latest test
@@ -233,6 +250,7 @@ When modifying Docker configurations:
 ## Support
 
 For Docker-related issues:
+
 - Check the logs: `docker-compose logs -f`
 - Verify configuration: `docker-compose config`
 - Test connectivity: `curl http://localhost:34567/api/config`

@@ -5,6 +5,7 @@ This document lists all third-party software components used in PluresDB Databas
 ## Rust Dependencies
 
 ### Core Runtime
+
 - **tokio** (MIT License) - Async runtime for Rust
   - Copyright (c) 2023 Tokio Contributors
   - https://github.com/tokio-rs/tokio
@@ -18,6 +19,7 @@ This document lists all third-party software components used in PluresDB Databas
   - https://github.com/serde-rs/serde
 
 ### HTTP and Web
+
 - **axum** (MIT License) - Web framework
   - Copyright (c) 2021 Axum Contributors
   - https://github.com/tokio-rs/axum
@@ -31,6 +33,7 @@ This document lists all third-party software components used in PluresDB Databas
   - https://github.com/tower-rs/tower-http
 
 ### Database and Storage
+
 - **sqlx** (MIT License) - Async SQL toolkit
   - Copyright (c) 2019-2023 LaunchBadge LLC
   - https://github.com/launchbadge/sqlx
@@ -44,6 +47,7 @@ This document lists all third-party software components used in PluresDB Databas
   - https://github.com/facebook/rocksdb
 
 ### Networking
+
 - **quinn** (MIT License) - QUIC protocol implementation
   - Copyright (c) 2019 Quinn Contributors
   - https://github.com/quinn-rs/quinn
@@ -57,11 +61,13 @@ This document lists all third-party software components used in PluresDB Databas
   - https://github.com/libp2p/rust-libp2p
 
 ### Vector Search
+
 - **hnsw_rs** (MIT License) - Hierarchical Navigable Small World
   - Copyright (c) 2024 PluresDB Team
   - https://github.com/plures/hnsw_rs
 
 ### Cryptography
+
 - **ring** (MIT License) - Cryptography library
   - Copyright (c) 2015-2019 The ring-rs developers
   - https://github.com/briansmith/ring
@@ -75,6 +81,7 @@ This document lists all third-party software components used in PluresDB Databas
   - https://github.com/RustCrypto/AEADs
 
 ### CLI and Utilities
+
 - **clap** (MIT License) - Command line parser
   - Copyright (c) 2015-2023 Kevin B. Knapp
   - https://github.com/clap-rs/clap
@@ -88,6 +95,7 @@ This document lists all third-party software components used in PluresDB Databas
   - https://github.com/console-rs/indicatif
 
 ### Testing and Benchmarking
+
 - **criterion** (MIT License) - Benchmarking framework
   - Copyright (c) 2017 Jorge Aparicio
   - https://github.com/bheisler/criterion.rs
@@ -97,6 +105,7 @@ This document lists all third-party software components used in PluresDB Databas
   - https://github.com/proptest-rs/proptest
 
 ### Logging
+
 - **tracing** (MIT License) - Application tracing
   - Copyright (c) 2019 Tokio Contributors
   - https://github.com/tokio-rs/tracing
@@ -108,11 +117,13 @@ This document lists all third-party software components used in PluresDB Databas
 ## JavaScript/TypeScript Dependencies
 
 ### HTTP Client
+
 - **axios** (MIT License) - HTTP client
   - Copyright (c) 2014-present Matt Zabriskie
   - https://github.com/axios/axios
 
 ### Graph Visualization
+
 - **cytoscape** (MIT License) - Graph visualization
   - Copyright (c) 2013-2023 Cytoscape Consortium
   - https://github.com/cytoscape/cytoscape.js
@@ -130,6 +141,7 @@ This document lists all third-party software components used in PluresDB Databas
   - https://github.com/dagrejs/dagre
 
 ### Code Editor
+
 - **monaco-editor** (MIT License) - Code editor
   - Copyright (c) Microsoft Corporation
   - https://github.com/microsoft/monaco-editor
@@ -137,11 +149,13 @@ This document lists all third-party software components used in PluresDB Databas
 ## Web UI Dependencies
 
 ### Frontend Framework
+
 - **leptos** (MIT License) - Rust frontend framework
   - Copyright (c) 2022 Leptos Contributors
   - https://github.com/leptos-rs/leptos
 
 ### Build Tools
+
 - **wasm-bindgen** (MIT License) - WebAssembly bindings
   - Copyright (c) 2016 The Rust and WebAssembly Working Group
   - https://github.com/rustwasm/wasm-bindgen
@@ -153,21 +167,25 @@ This document lists all third-party software components used in PluresDB Databas
 ## Development Dependencies
 
 ### TypeScript
+
 - **typescript** (Apache-2.0 License) - TypeScript compiler
   - Copyright (c) Microsoft Corporation
   - https://github.com/microsoft/TypeScript
 
 ### Linting
+
 - **eslint** (MIT License) - JavaScript linter
   - Copyright (c) 2012-2023 OpenJS Foundation
   - https://github.com/eslint/eslint
 
 ### Testing
+
 - **@vscode/test-electron** (MIT License) - VSCode testing
   - Copyright (c) Microsoft Corporation
   - https://github.com/microsoft/vscode-test
 
 ### Packaging
+
 - **vsce** (MIT License) - VSCode extension packager
   - Copyright (c) Microsoft Corporation
   - https://github.com/microsoft/vscode-vsce
@@ -175,6 +193,7 @@ This document lists all third-party software components used in PluresDB Databas
 ## License Summary
 
 All dependencies are licensed under permissive open source licenses:
+
 - **MIT License**: Most dependencies
 - **Apache-2.0 License**: Some Microsoft and Rust projects
 

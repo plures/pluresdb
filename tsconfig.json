@@ -27,14 +27,8 @@
     "src/node-index.ts",
     "src/node-wrapper.ts",
     "src/cli.ts",
-    "src/types/node-types.ts"
+    "src/types/node-types.ts",
+    "src/vscode/extension.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "web",
-    "packaging",
-    "demo",
-    "docs"
-  ]
+  "exclude": ["node_modules", "dist", "web", "packaging", "demo", "docs"]
 }

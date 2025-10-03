@@ -10,7 +10,8 @@ Deno.test("rule engine classification: Person.age >= 18 -> adult = true", async 
     const rule: Rule = {
       name: "adultClassifier",
       whenType: "Person",
-      predicate: (node) => typeof (node.data as any).age === "number" && (node.data as any).age >= 18,
+      predicate: (node) =>
+        typeof (node.data as any).age === "number" && (node.data as any).age >= 18,
       action: async (ctx, node) => {
         const data = { ...(node.data as Record<string, unknown>), adult: true };
         await ctx.db.put(node.id, data);
@@ -27,5 +28,3 @@ Deno.test("rule engine classification: Person.age >= 18 -> adult = true", async 
     await db.close();
   }
 });
-
-

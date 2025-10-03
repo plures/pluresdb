@@ -11,7 +11,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,6 +25,6 @@ jobs:
         run: |
           # Install deno_mirror CLI
           deno install --allow-all --name deno_mirror https://deno.land/x/deno_mirror/cli.ts
-          
+
           # Mirror to deno.land/x
           deno_mirror --repo=${{ github.repository }} --tag=${{ github.ref_name }}

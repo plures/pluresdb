@@ -1,336 +1,334 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { push as toast } from '../lib/toasts'
+  import { onMount } from "svelte";
+  import { push as toast } from "../lib/toasts";
 
   // Data Sharing
-  let sharedNodes = [] as any[]
-  let receivedNodes = [] as any[]
+  let sharedNodes = [] as any[];
+  let receivedNodes = [] as any[];
   let sharingForm = {
-    nodeId: '',
-    targetPeerId: '',
-    message: '',
-    encryptionType: 'public-key',
-    expiration: 'never',
-    accessLevel: 'read-only'
-  }
+    nodeId: "",
+    targetPeerId: "",
+    message: "",
+    encryptionType: "public-key",
+    expiration: "never",
+    accessLevel: "read-only",
+  };
 
   // Encryption Keys
-  let encryptionKeys = [] as any[]
+  let encryptionKeys = [] as any[];
   let keyForm = {
-    name: '',
-    type: 'rsa',
+    name: "",
+    type: "rsa",
     keySize: 2048,
-    description: ''
-  }
+    description: "",
+  };
 
   // Access Control
-  let accessPolicies = [] as any[]
+  let accessPolicies = [] as any[];
   let policyForm = {
-    name: '',
-    description: '',
+    name: "",
+    description: "",
     rules: [] as any[],
-    isActive: true
-  }
+    isActive: true,
+  };
 
   // Sharing History
-  let sharingHistory = [] as any[]
+  let sharingHistory = [] as any[];
 
   onMount(() => {
-    loadSharedNodes()
-    loadReceivedNodes()
-    loadEncryptionKeys()
-    loadAccessPolicies()
-    loadSharingHistory()
-  })
+    loadSharedNodes();
+    loadReceivedNodes();
+    loadEncryptionKeys();
+    loadAccessPolicies();
+    loadSharingHistory();
+  });
 
   function loadSharedNodes() {
-    const stored = localStorage.getItem('pluresdb-shared-nodes')
+    const stored = localStorage.getItem("pluresdb-shared-nodes");
     if (stored) {
-      sharedNodes = JSON.parse(stored)
+      sharedNodes = JSON.parse(stored);
     }
   }
 
   function loadReceivedNodes() {
-    const stored = localStorage.getItem('pluresdb-received-nodes')
+    const stored = localStorage.getItem("pluresdb-received-nodes");
     if (stored) {
-      receivedNodes = JSON.parse(stored)
+      receivedNodes = JSON.parse(stored);
     }
   }
 
   function loadEncryptionKeys() {
-    const stored = localStorage.getItem('pluresdb-encryption-keys')
+    const stored = localStorage.getItem("pluresdb-encryption-keys");
     if (stored) {
-      encryptionKeys = JSON.parse(stored)
+      encryptionKeys = JSON.parse(stored);
     } else {
       // Generate default keys
-      generateDefaultKeys()
+      generateDefaultKeys();
     }
   }
 
   function loadAccessPolicies() {
-    const stored = localStorage.getItem('pluresdb-access-policies')
+    const stored = localStorage.getItem("pluresdb-access-policies");
     if (stored) {
-      accessPolicies = JSON.parse(stored)
+      accessPolicies = JSON.parse(stored);
     } else {
       // Create default policies
-      createDefaultPolicies()
+      createDefaultPolicies();
     }
   }
 
   function loadSharingHistory() {
-    const stored = localStorage.getItem('pluresdb-sharing-history')
+    const stored = localStorage.getItem("pluresdb-sharing-history");
     if (stored) {
-      sharingHistory = JSON.parse(stored)
+      sharingHistory = JSON.parse(stored);
     }
   }
 
   function generateDefaultKeys() {
     encryptionKeys = [
       {
-        id: 'key_1',
-        name: 'My Primary Key',
-        type: 'rsa',
+        id: "key_1",
+        name: "My Primary Key",
+        type: "rsa",
         keySize: 2048,
-        publicKey: 'pk_primary_123456789',
-        privateKey: 'sk_primary_123456789',
+        publicKey: "pk_primary_123456789",
+        privateKey: "sk_primary_123456789",
         createdAt: new Date(),
-        isActive: true
+        isActive: true,
       },
       {
-        id: 'key_2',
-        name: 'Backup Key',
-        type: 'rsa',
+        id: "key_2",
+        name: "Backup Key",
+        type: "rsa",
         keySize: 2048,
-        publicKey: 'pk_backup_987654321',
-        privateKey: 'sk_backup_987654321',
+        publicKey: "pk_backup_987654321",
+        privateKey: "sk_backup_987654321",
         createdAt: new Date(),
-        isActive: false
-      }
-    ]
-    saveEncryptionKeys()
+        isActive: false,
+      },
+    ];
+    saveEncryptionKeys();
   }
 
   function createDefaultPolicies() {
     accessPolicies = [
       {
-        id: 'policy_1',
-        name: 'Public Data',
-        description: 'Allow anyone to read this data',
-        rules: [
-          { type: 'allow', action: 'read', condition: 'always' }
-        ],
-        isActive: true
+        id: "policy_1",
+        name: "Public Data",
+        description: "Allow anyone to read this data",
+        rules: [{ type: "allow", action: "read", condition: "always" }],
+        isActive: true,
       },
       {
-        id: 'policy_2',
-        name: 'Friends Only',
-        description: 'Only allow friends to read and write',
+        id: "policy_2",
+        name: "Friends Only",
+        description: "Only allow friends to read and write",
         rules: [
-          { type: 'allow', action: 'read', condition: 'is_friend' },
-          { type: 'allow', action: 'write', condition: 'is_friend' }
+          { type: "allow", action: "read", condition: "is_friend" },
+          { type: "allow", action: "write", condition: "is_friend" },
         ],
-        isActive: true
+        isActive: true,
       },
       {
-        id: 'policy_3',
-        name: 'Encrypted Private',
-        description: 'Require encryption and specific peer',
+        id: "policy_3",
+        name: "Encrypted Private",
+        description: "Require encryption and specific peer",
         rules: [
-          { type: 'require', action: 'encryption', condition: 'always' },
-          { type: 'allow', action: 'read', condition: 'has_valid_key' }
+          { type: "require", action: "encryption", condition: "always" },
+          { type: "allow", action: "read", condition: "has_valid_key" },
         ],
-        isActive: true
-      }
-    ]
-    saveAccessPolicies()
+        isActive: true,
+      },
+    ];
+    saveAccessPolicies();
   }
 
   function saveEncryptionKeys() {
-    localStorage.setItem('pluresdb-encryption-keys', JSON.stringify(encryptionKeys))
+    localStorage.setItem("pluresdb-encryption-keys", JSON.stringify(encryptionKeys));
   }
 
   function saveAccessPolicies() {
-    localStorage.setItem('pluresdb-access-policies', JSON.stringify(accessPolicies))
+    localStorage.setItem("pluresdb-access-policies", JSON.stringify(accessPolicies));
   }
 
   function saveSharedNodes() {
-    localStorage.setItem('pluresdb-shared-nodes', JSON.stringify(sharedNodes))
+    localStorage.setItem("pluresdb-shared-nodes", JSON.stringify(sharedNodes));
   }
 
   function saveReceivedNodes() {
-    localStorage.setItem('pluresdb-received-nodes', JSON.stringify(receivedNodes))
+    localStorage.setItem("pluresdb-received-nodes", JSON.stringify(receivedNodes));
   }
 
   function saveSharingHistory() {
-    localStorage.setItem('pluresdb-sharing-history', JSON.stringify(sharingHistory))
+    localStorage.setItem("pluresdb-sharing-history", JSON.stringify(sharingHistory));
   }
 
   function generateKey() {
     const key = {
-      id: 'key_' + Math.random().toString(36).substr(2, 9),
-      name: keyForm.name || 'New Key',
+      id: "key_" + Math.random().toString(36).substr(2, 9),
+      name: keyForm.name || "New Key",
       type: keyForm.type,
       keySize: keyForm.keySize,
-      publicKey: 'pk_' + Math.random().toString(36).substr(2, 16),
-      privateKey: 'sk_' + Math.random().toString(36).substr(2, 16),
+      publicKey: "pk_" + Math.random().toString(36).substr(2, 16),
+      privateKey: "sk_" + Math.random().toString(36).substr(2, 16),
       description: keyForm.description,
       createdAt: new Date(),
-      isActive: true
-    }
-    
-    encryptionKeys.push(key)
-    saveEncryptionKeys()
-    
+      isActive: true,
+    };
+
+    encryptionKeys.push(key);
+    saveEncryptionKeys();
+
     // Reset form
     keyForm = {
-      name: '',
-      type: 'rsa',
+      name: "",
+      type: "rsa",
       keySize: 2048,
-      description: ''
-    }
-    
-    toast.success('Encryption key generated')
+      description: "",
+    };
+
+    toast.success("Encryption key generated");
   }
 
   function createPolicy() {
     const policy = {
-      id: 'policy_' + Math.random().toString(36).substr(2, 9),
+      id: "policy_" + Math.random().toString(36).substr(2, 9),
       name: policyForm.name,
       description: policyForm.description,
       rules: policyForm.rules,
       isActive: policyForm.isActive,
-      createdAt: new Date()
-    }
-    
-    accessPolicies.push(policy)
-    saveAccessPolicies()
-    
+      createdAt: new Date(),
+    };
+
+    accessPolicies.push(policy);
+    saveAccessPolicies();
+
     // Reset form
     policyForm = {
-      name: '',
-      description: '',
+      name: "",
+      description: "",
       rules: [],
-      isActive: true
-    }
-    
-    toast.success('Access policy created')
+      isActive: true,
+    };
+
+    toast.success("Access policy created");
   }
 
   function addPolicyRule() {
     policyForm.rules.push({
-      type: 'allow',
-      action: 'read',
-      condition: 'always'
-    })
+      type: "allow",
+      action: "read",
+      condition: "always",
+    });
   }
 
   function removePolicyRule(index: number) {
-    policyForm.rules.splice(index, 1)
+    policyForm.rules.splice(index, 1);
   }
 
   function shareNode() {
     if (!sharingForm.nodeId || !sharingForm.targetPeerId) {
-      toast.error('Please fill in all required fields')
-      return
+      toast.error("Please fill in all required fields");
+      return;
     }
 
     const sharedNode = {
-      id: 'shared_' + Math.random().toString(36).substr(2, 9),
+      id: "shared_" + Math.random().toString(36).substr(2, 9),
       nodeId: sharingForm.nodeId,
       targetPeerId: sharingForm.targetPeerId,
       message: sharingForm.message,
       encryptionType: sharingForm.encryptionType,
       expiration: sharingForm.expiration,
       accessLevel: sharingForm.accessLevel,
-      status: 'pending',
+      status: "pending",
       createdAt: new Date(),
-      encryptedData: 'encrypted_' + Math.random().toString(36).substr(2, 16)
-    }
+      encryptedData: "encrypted_" + Math.random().toString(36).substr(2, 16),
+    };
 
-    sharedNodes.push(sharedNode)
-    saveSharedNodes()
+    sharedNodes.push(sharedNode);
+    saveSharedNodes();
 
     // Add to history
     sharingHistory.push({
-      id: 'history_' + Math.random().toString(36).substr(2, 9),
-      type: 'shared',
+      id: "history_" + Math.random().toString(36).substr(2, 9),
+      type: "shared",
       nodeId: sharingForm.nodeId,
       targetPeerId: sharingForm.targetPeerId,
       timestamp: new Date(),
-      status: 'success'
-    })
-    saveSharingHistory()
+      status: "success",
+    });
+    saveSharingHistory();
 
     // Reset form
     sharingForm = {
-      nodeId: '',
-      targetPeerId: '',
-      message: '',
-      encryptionType: 'public-key',
-      expiration: 'never',
-      accessLevel: 'read-only'
-    }
+      nodeId: "",
+      targetPeerId: "",
+      message: "",
+      encryptionType: "public-key",
+      expiration: "never",
+      accessLevel: "read-only",
+    };
 
-    toast.success('Node shared successfully')
+    toast.success("Node shared successfully");
   }
 
   function revokeAccess(sharedNodeId: string) {
-    const node = sharedNodes.find(n => n.id === sharedNodeId)
+    const node = sharedNodes.find((n) => n.id === sharedNodeId);
     if (node) {
-      node.status = 'revoked'
-      node.revokedAt = new Date()
-      saveSharedNodes()
-      toast.success('Access revoked')
+      node.status = "revoked";
+      node.revokedAt = new Date();
+      saveSharedNodes();
+      toast.success("Access revoked");
     }
   }
 
   function acceptReceivedNode(receivedNodeId: string) {
-    const node = receivedNodes.find(n => n.id === receivedNodeId)
+    const node = receivedNodes.find((n) => n.id === receivedNodeId);
     if (node) {
-      node.status = 'accepted'
-      node.acceptedAt = new Date()
-      saveReceivedNodes()
-      toast.success('Received node accepted')
+      node.status = "accepted";
+      node.acceptedAt = new Date();
+      saveReceivedNodes();
+      toast.success("Received node accepted");
     }
   }
 
   function rejectReceivedNode(receivedNodeId: string) {
-    const node = receivedNodes.find(n => n.id === receivedNodeId)
+    const node = receivedNodes.find((n) => n.id === receivedNodeId);
     if (node) {
-      node.status = 'rejected'
-      node.rejectedAt = new Date()
-      saveReceivedNodes()
-      toast.info('Received node rejected')
+      node.status = "rejected";
+      node.rejectedAt = new Date();
+      saveReceivedNodes();
+      toast.info("Received node rejected");
     }
   }
 
   function deleteKey(keyId: string) {
-    encryptionKeys = encryptionKeys.filter(k => k.id !== keyId)
-    saveEncryptionKeys()
-    toast.info('Encryption key deleted')
+    encryptionKeys = encryptionKeys.filter((k) => k.id !== keyId);
+    saveEncryptionKeys();
+    toast.info("Encryption key deleted");
   }
 
   function toggleKeyActive(keyId: string) {
-    const key = encryptionKeys.find(k => k.id === keyId)
+    const key = encryptionKeys.find((k) => k.id === keyId);
     if (key) {
-      key.isActive = !key.isActive
-      saveEncryptionKeys()
-      toast.success(`Key ${key.isActive ? 'activated' : 'deactivated'}`)
+      key.isActive = !key.isActive;
+      saveEncryptionKeys();
+      toast.success(`Key ${key.isActive ? "activated" : "deactivated"}`);
     }
   }
 
   function deletePolicy(policyId: string) {
-    accessPolicies = accessPolicies.filter(p => p.id !== policyId)
-    saveAccessPolicies()
-    toast.info('Access policy deleted')
+    accessPolicies = accessPolicies.filter((p) => p.id !== policyId);
+    saveAccessPolicies();
+    toast.info("Access policy deleted");
   }
 
   function togglePolicyActive(policyId: string) {
-    const policy = accessPolicies.find(p => p.id === policyId)
+    const policy = accessPolicies.find((p) => p.id === policyId);
     if (policy) {
-      policy.isActive = !policy.isActive
-      saveAccessPolicies()
-      toast.success(`Policy ${policy.isActive ? 'activated' : 'deactivated'}`)
+      policy.isActive = !policy.isActive;
+      saveAccessPolicies();
+      toast.success(`Policy ${policy.isActive ? "activated" : "deactivated"}`);
     }
   }
 </script>
@@ -356,9 +354,9 @@
         <h3>Share a Node</h3>
         <div class="form-group">
           <label for="node-id">Node ID</label>
-          <input 
+          <input
             id="node-id"
-            type="text" 
+            type="text"
             bind:value={sharingForm.nodeId}
             placeholder="Enter the ID of the node to share"
           />
@@ -366,9 +364,9 @@
 
         <div class="form-group">
           <label for="target-peer">Target Peer ID</label>
-          <input 
+          <input
             id="target-peer"
-            type="text" 
+            type="text"
             bind:value={sharingForm.targetPeerId}
             placeholder="Enter the peer ID to share with"
           />
@@ -376,7 +374,7 @@
 
         <div class="form-group">
           <label for="message">Message</label>
-          <textarea 
+          <textarea
             id="message"
             bind:value={sharingForm.message}
             placeholder="Optional message for the peer"
@@ -415,9 +413,7 @@
           </select>
         </div>
 
-        <button class="btn btn-primary" on:click={shareNode}>
-          Share Node
-        </button>
+        <button class="btn btn-primary" on:click={shareNode}> Share Node </button>
       </div>
 
       <div class="shared-nodes">
@@ -436,11 +432,8 @@
                 <p class="timestamp">Shared: {node.createdAt.toLocaleString()}</p>
               </div>
               <div class="node-actions">
-                {#if node.status === 'active'}
-                  <button 
-                    class="btn btn-danger"
-                    on:click={() => revokeAccess(node.id)}
-                  >
+                {#if node.status === "active"}
+                  <button class="btn btn-danger" on:click={() => revokeAccess(node.id)}>
                     Revoke
                   </button>
                 {/if}
@@ -469,17 +462,11 @@
                 <p class="timestamp">Received: {node.receivedAt.toLocaleString()}</p>
               </div>
               <div class="node-actions">
-                {#if node.status === 'pending'}
-                  <button 
-                    class="btn btn-success"
-                    on:click={() => acceptReceivedNode(node.id)}
-                  >
+                {#if node.status === "pending"}
+                  <button class="btn btn-success" on:click={() => acceptReceivedNode(node.id)}>
                     Accept
                   </button>
-                  <button 
-                    class="btn btn-danger"
-                    on:click={() => rejectReceivedNode(node.id)}
-                  >
+                  <button class="btn btn-danger" on:click={() => rejectReceivedNode(node.id)}>
                     Reject
                   </button>
                 {/if}
@@ -496,9 +483,9 @@
         <h3>Generate New Key</h3>
         <div class="form-group">
           <label for="key-name">Key Name</label>
-          <input 
+          <input
             id="key-name"
-            type="text" 
+            type="text"
             bind:value={keyForm.name}
             placeholder="Enter a name for this key"
           />
@@ -526,7 +513,7 @@
 
         <div class="form-group">
           <label for="key-description">Description</label>
-          <textarea 
+          <textarea
             id="key-description"
             bind:value={keyForm.description}
             placeholder="Optional description for this key"
@@ -534,9 +521,7 @@
           ></textarea>
         </div>
 
-        <button class="btn btn-primary" on:click={generateKey}>
-          Generate Key
-        </button>
+        <button class="btn btn-primary" on:click={generateKey}> Generate Key </button>
       </div>
 
       <div class="encryption-keys">
@@ -551,22 +536,18 @@
                 <p>Type: {key.type.toUpperCase()}</p>
                 <p>Size: {key.keySize} bits</p>
                 <p>Public Key: {key.publicKey}</p>
-                <p>Status: <span class="status {key.isActive ? 'active' : 'inactive'}">{key.isActive ? 'Active' : 'Inactive'}</span></p>
+                <p>
+                  Status: <span class="status {key.isActive ? 'active' : 'inactive'}"
+                    >{key.isActive ? "Active" : "Inactive"}</span
+                  >
+                </p>
                 <p class="timestamp">Created: {key.createdAt.toLocaleString()}</p>
               </div>
               <div class="key-actions">
-                <button 
-                  class="btn btn-secondary"
-                  on:click={() => toggleKeyActive(key.id)}
-                >
-                  {key.isActive ? 'Deactivate' : 'Activate'}
+                <button class="btn btn-secondary" on:click={() => toggleKeyActive(key.id)}>
+                  {key.isActive ? "Deactivate" : "Activate"}
                 </button>
-                <button 
-                  class="btn btn-danger"
-                  on:click={() => deleteKey(key.id)}
-                >
-                  Delete
-                </button>
+                <button class="btn btn-danger" on:click={() => deleteKey(key.id)}> Delete </button>
               </div>
             </div>
           {/each}
@@ -580,9 +561,9 @@
         <h3>Create Access Policy</h3>
         <div class="form-group">
           <label for="policy-name">Policy Name</label>
-          <input 
+          <input
             id="policy-name"
-            type="text" 
+            type="text"
             bind:value={policyForm.name}
             placeholder="Enter a name for this policy"
           />
@@ -590,7 +571,7 @@
 
         <div class="form-group">
           <label for="policy-description">Description</label>
-          <textarea 
+          <textarea
             id="policy-description"
             bind:value={policyForm.description}
             placeholder="Describe what this policy does"
@@ -599,9 +580,9 @@
         </div>
 
         <div class="form-group">
-          <label>Rules</label>
+          <span class="form-label" id="policy-rules-label">Rules</span>
           {#each policyForm.rules as rule, index}
-            <div class="rule-item">
+            <div class="rule-item" role="group" aria-labelledby="policy-rules-label">
               <select bind:value={rule.type}>
                 <option value="allow">Allow</option>
                 <option value="deny">Deny</option>
@@ -619,37 +600,24 @@
                 <option value="has_valid_key">Has Valid Key</option>
                 <option value="is_owner">Is Owner</option>
               </select>
-              <button 
-                type="button" 
-                class="btn btn-danger"
-                on:click={() => removePolicyRule(index)}
-              >
+              <button type="button" class="btn btn-danger" on:click={() => removePolicyRule(index)}>
                 Remove
               </button>
             </div>
           {/each}
-          <button 
-            type="button" 
-            class="btn btn-secondary"
-            on:click={addPolicyRule}
-          >
+          <button type="button" class="btn btn-secondary" on:click={addPolicyRule}>
             Add Rule
           </button>
         </div>
 
         <div class="form-group">
           <label>
-            <input 
-              type="checkbox" 
-              bind:checked={policyForm.isActive}
-            />
+            <input type="checkbox" bind:checked={policyForm.isActive} />
             Active
           </label>
         </div>
 
-        <button class="btn btn-primary" on:click={createPolicy}>
-          Create Policy
-        </button>
+        <button class="btn btn-primary" on:click={createPolicy}> Create Policy </button>
       </div>
 
       <div class="access-policies">
@@ -665,24 +633,24 @@
                 <div class="rules">
                   {#each policy.rules as rule}
                     <span class="rule">
-                      {rule.type} {rule.action} {rule.condition}
+                      {rule.type}
+                      {rule.action}
+                      {rule.condition}
                     </span>
                   {/each}
                 </div>
-                <p>Status: <span class="status {policy.isActive ? 'active' : 'inactive'}">{policy.isActive ? 'Active' : 'Inactive'}</span></p>
+                <p>
+                  Status: <span class="status {policy.isActive ? 'active' : 'inactive'}"
+                    >{policy.isActive ? "Active" : "Inactive"}</span
+                  >
+                </p>
                 <p class="timestamp">Created: {policy.createdAt.toLocaleString()}</p>
               </div>
               <div class="policy-actions">
-                <button 
-                  class="btn btn-secondary"
-                  on:click={() => togglePolicyActive(policy.id)}
-                >
-                  {policy.isActive ? 'Deactivate' : 'Activate'}
+                <button class="btn btn-secondary" on:click={() => togglePolicyActive(policy.id)}>
+                  {policy.isActive ? "Deactivate" : "Activate"}
                 </button>
-                <button 
-                  class="btn btn-danger"
-                  on:click={() => deletePolicy(policy.id)}
-                >
+                <button class="btn btn-danger" on:click={() => deletePolicy(policy.id)}>
                   Delete
                 </button>
               </div>
@@ -702,7 +670,7 @@
           {#each sharingHistory as entry}
             <div class="history-item">
               <div class="history-info">
-                <h4>{entry.type === 'shared' ? 'Shared' : 'Received'}</h4>
+                <h4>{entry.type === "shared" ? "Shared" : "Received"}</h4>
                 <p>Node: {entry.nodeId}</p>
                 <p>Peer: {entry.targetPeerId || entry.fromPeerId}</p>
                 <p>Status: <span class="status {entry.status}">{entry.status}</span></p>
@@ -790,9 +758,15 @@
     font-weight: 500;
   }
 
+  .form-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
   .form-group input,
-  .form-group textarea,
-  .form-group select {
+  .form-group select,
+  .form-group textarea {
     width: 100%;
     padding: 0.75rem;
     border: 1px solid var(--border);

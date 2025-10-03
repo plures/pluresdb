@@ -1,19 +1,50 @@
 {
   "name": "pluresdb",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications",
   "main": "dist/node-index.js",
   "types": "dist/node-index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/node-index.d.ts",
+      "require": "./dist/node-index.js",
+      "default": "./dist/node-index.js"
+    },
+    "./node": {
+      "types": "./dist/node-index.d.ts",
+      "require": "./dist/node-index.js",
+      "default": "./dist/node-index.js"
+    },
+    "./vscode": {
+      "types": "./dist/vscode/extension.d.ts",
+      "require": "./dist/vscode/extension.js",
+      "default": "./dist/vscode/extension.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "require": "./dist/cli.js",
+      "default": "./dist/cli.js"
+    },
+    "./types": {
+      "types": "./dist/types/node-types.d.ts",
+      "require": "./dist/types/node-types.js",
+      "default": "./dist/types/node-types.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
     "pluresdb": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsc && npm run build:web",
+    "build": "npm run build:lib && npm run build:web",
+    "build:lib": "tsc -p tsconfig.json",
     "build:web": "cd web/svelte && npm install && npm run build",
-    "dev": "deno run -A --watch src/main.ts serve --port 34567",
+    "dev": "deno run -A --unstable-kv --watch src/main.ts serve --port 34567",
     "start": "node dist/cli.js serve",
-    "test": "deno test -A",
-    "prepublishOnly": "npm run build",
+    "test": "deno test -A --unstable-kv",
+    "verify": "npm run build:lib && npm test",
+    "prepare": "npm run build:lib",
+    "prepublishOnly": "npm run verify && npm run build:web",
     "postinstall": "node scripts/postinstall.js"
   },
   "keywords": [
@@ -44,12 +75,12 @@
     "url": "https://github.com/plures/pluresdb/issues"
   },
   "engines": {
-    "node": ">=16.0.0",
+    "node": ">=18.0.0",
     "npm": ">=8.0.0"
   },
   "files": [
     "dist/",
-    "web/dist/",
+    "web/svelte/dist/",
     "src/",
     "examples/",
     "scripts/",
@@ -58,27 +89,24 @@
     "package.json"
   ],
   "dependencies": {
-    "ws": "^8.14.2",
     "cors": "^2.8.5",
-    "express": "^4.18.2"
+    "express": "^4.21.2",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
-    "@types/ws": "^8.5.10",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "typescript": "^5.3.0"
-  },
-  "peerDependencies": {
-    "deno": ">=1.40.0"
-  },
-  "peerDependenciesMeta": {
-    "deno": {
-      "optional": true
-    }
-  },
-  "optionalDependencies": {
-    "deno": "^1.40.0"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.23",
+    "@types/node": "^20.19.19",
+    "@types/vscode": "^1.104.0",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "prettier": "^3.6.2",
+    "prettier-plugin-svelte": "^3.4.0",
+    "typescript": "^5.9.3"
   },
   "publishConfig": {
     "access": "public",

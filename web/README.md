@@ -25,9 +25,3 @@ npm run build
 ```
 
 This outputs to ../dist/. Start PluresDB serve and open the port+1 URL printed in the console.
-
-
-
-
-
-

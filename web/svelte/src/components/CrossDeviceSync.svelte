@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { push as toast } from '../lib/toasts'
+  import { onMount } from "svelte";
+  import { push as toast } from "../lib/toasts";
 
   // Sync Status
   let syncStatus = {
@@ -9,39 +9,39 @@
     pendingChanges: 0,
     conflictsResolved: 0,
     dataTransferred: 0,
-    syncMode: 'realtime' as 'realtime' | 'batch' | 'manual',
+    syncMode: "realtime" as "realtime" | "batch" | "manual",
     compressionEnabled: true,
-    deltaSync: true
-  }
+    deltaSync: true,
+  };
 
   // Connected Devices
-  let connectedDevices = [] as any[]
+  let connectedDevices = [] as any[];
   let deviceForm = {
-    name: '',
-    type: 'laptop',
-    location: '',
-    description: ''
-  }
+    name: "",
+    type: "laptop",
+    location: "",
+    description: "",
+  };
 
   // Sync Queues
-  let outgoingQueue = [] as any[]
-  let incomingQueue = [] as any[]
-  let conflictQueue = [] as any[]
+  let outgoingQueue = [] as any[];
+  let incomingQueue = [] as any[];
+  let conflictQueue = [] as any[];
 
   // Sync Settings
   let syncSettings = {
     autoSync: true,
     syncInterval: 30, // seconds
     maxRetries: 3,
-    conflictResolution: 'manual' as 'manual' | 'automatic' | 'last-write-wins',
+    conflictResolution: "manual" as "manual" | "automatic" | "last-write-wins",
     compressionLevel: 6,
     encryptionEnabled: true,
-    bandwidthLimit: 'unlimited' as 'unlimited' | '1MB' | '10MB' | '100MB',
-    syncOnWiFiOnly: false
-  }
+    bandwidthLimit: "unlimited" as "unlimited" | "1MB" | "10MB" | "100MB",
+    syncOnWiFiOnly: false,
+  };
 
   // Sync History
-  let syncHistory = [] as any[]
+  let syncHistory = [] as any[];
 
   // Performance Metrics
   let performanceMetrics = {
@@ -49,305 +49,319 @@
     totalDataSynced: 0,
     syncSuccessRate: 100,
     conflictRate: 0,
-    bandwidthUsage: 0
-  }
+    bandwidthUsage: 0,
+  };
 
   onMount(() => {
-    loadSyncStatus()
-    loadConnectedDevices()
-    loadSyncQueues()
-    loadSyncSettings()
-    loadSyncHistory()
-    loadPerformanceMetrics()
-    startSyncMonitoring()
-  })
+    loadSyncStatus();
+    loadConnectedDevices();
+    loadSyncQueues();
+    loadSyncSettings();
+    loadSyncHistory();
+    loadPerformanceMetrics();
+    startSyncMonitoring();
+  });
 
   function loadSyncStatus() {
-    const stored = localStorage.getItem('pluresdb-sync-status')
+    const stored = localStorage.getItem("pluresdb-sync-status");
     if (stored) {
-      syncStatus = { ...syncStatus, ...JSON.parse(stored) }
+      syncStatus = { ...syncStatus, ...JSON.parse(stored) };
     }
   }
 
   function loadConnectedDevices() {
-    const stored = localStorage.getItem('pluresdb-connected-devices')
+    const stored = localStorage.getItem("pluresdb-connected-devices");
     if (stored) {
-      connectedDevices = JSON.parse(stored)
+      connectedDevices = JSON.parse(stored);
     } else {
       // Add current device
-      addCurrentDevice()
+      addCurrentDevice();
     }
   }
 
   function loadSyncQueues() {
-    const stored = localStorage.getItem('pluresdb-sync-queues')
+    const stored = localStorage.getItem("pluresdb-sync-queues");
     if (stored) {
-      const queues = JSON.parse(stored)
-      outgoingQueue = queues.outgoing || []
-      incomingQueue = queues.incoming || []
-      conflictQueue = queues.conflicts || []
+      const queues = JSON.parse(stored);
+      outgoingQueue = queues.outgoing || [];
+      incomingQueue = queues.incoming || [];
+      conflictQueue = queues.conflicts || [];
     }
   }
 
   function loadSyncSettings() {
-    const stored = localStorage.getItem('pluresdb-sync-settings')
+    const stored = localStorage.getItem("pluresdb-sync-settings");
     if (stored) {
-      syncSettings = { ...syncSettings, ...JSON.parse(stored) }
+      syncSettings = { ...syncSettings, ...JSON.parse(stored) };
     }
   }
 
   function loadSyncHistory() {
-    const stored = localStorage.getItem('pluresdb-sync-history')
+    const stored = localStorage.getItem("pluresdb-sync-history");
     if (stored) {
-      syncHistory = JSON.parse(stored)
+      syncHistory = JSON.parse(stored);
     }
   }
 
   function loadPerformanceMetrics() {
-    const stored = localStorage.getItem('pluresdb-performance-metrics')
+    const stored = localStorage.getItem("pluresdb-performance-metrics");
     if (stored) {
-      performanceMetrics = { ...performanceMetrics, ...JSON.parse(stored) }
+      performanceMetrics = { ...performanceMetrics, ...JSON.parse(stored) };
     }
   }
 
   function addCurrentDevice() {
     const device = {
-      id: 'device_current',
-      name: 'Current Device',
-      type: 'laptop',
-      location: 'Local',
-      description: 'This device',
+      id: "device_current",
+      name: "Current Device",
+      type: "laptop",
+      location: "Local",
+      description: "This device",
       isOnline: true,
       lastSeen: new Date(),
-      syncStatus: 'connected',
-      dataVersion: 1
-    }
-    connectedDevices.push(device)
-    saveConnectedDevices()
+      syncStatus: "connected",
+      dataVersion: 1,
+    };
+    connectedDevices.push(device);
+    saveConnectedDevices();
   }
 
   function addDevice() {
     const device = {
-      id: 'device_' + Math.random().toString(36).substr(2, 9),
+      id: "device_" + Math.random().toString(36).substr(2, 9),
       name: deviceForm.name,
       type: deviceForm.type,
       location: deviceForm.location,
       description: deviceForm.description,
       isOnline: false,
       lastSeen: new Date(),
-      syncStatus: 'disconnected',
-      dataVersion: 0
-    }
-    
-    connectedDevices.push(device)
-    saveConnectedDevices()
-    
+      syncStatus: "disconnected",
+      dataVersion: 0,
+    };
+
+    connectedDevices.push(device);
+    saveConnectedDevices();
+
     // Reset form
     deviceForm = {
-      name: '',
-      type: 'laptop',
-      location: '',
-      description: ''
-    }
-    
-    toast.success('Device added')
+      name: "",
+      type: "laptop",
+      location: "",
+      description: "",
+    };
+
+    toast.success("Device added");
   }
 
   function removeDevice(deviceId: string) {
-    connectedDevices = connectedDevices.filter(d => d.id !== deviceId)
-    saveConnectedDevices()
-    toast.info('Device removed')
+    connectedDevices = connectedDevices.filter((d) => d.id !== deviceId);
+    saveConnectedDevices();
+    toast.info("Device removed");
   }
 
   function connectDevice(deviceId: string) {
-    const device = connectedDevices.find(d => d.id === deviceId)
+    const device = connectedDevices.find((d) => d.id === deviceId);
     if (device) {
-      device.isOnline = true
-      device.lastSeen = new Date()
-      device.syncStatus = 'connected'
-      saveConnectedDevices()
-      toast.success(`Connected to ${device.name}`)
+      device.isOnline = true;
+      device.lastSeen = new Date();
+      device.syncStatus = "connected";
+      saveConnectedDevices();
+      toast.success(`Connected to ${device.name}`);
     }
   }
 
   function disconnectDevice(deviceId: string) {
-    const device = connectedDevices.find(d => d.id === deviceId)
+    const device = connectedDevices.find((d) => d.id === deviceId);
     if (device) {
-      device.isOnline = false
-      device.syncStatus = 'disconnected'
-      saveConnectedDevices()
-      toast.info(`Disconnected from ${device.name}`)
+      device.isOnline = false;
+      device.syncStatus = "disconnected";
+      saveConnectedDevices();
+      toast.info(`Disconnected from ${device.name}`);
     }
   }
 
   function saveSyncStatus() {
-    localStorage.setItem('pluresdb-sync-status', JSON.stringify(syncStatus))
+    localStorage.setItem("pluresdb-sync-status", JSON.stringify(syncStatus));
   }
 
   function saveConnectedDevices() {
-    localStorage.setItem('pluresdb-connected-devices', JSON.stringify(connectedDevices))
+    localStorage.setItem("pluresdb-connected-devices", JSON.stringify(connectedDevices));
   }
 
   function saveSyncQueues() {
-    localStorage.setItem('pluresdb-sync-queues', JSON.stringify({
-      outgoing: outgoingQueue,
-      incoming: incomingQueue,
-      conflicts: conflictQueue
-    }))
+    localStorage.setItem(
+      "pluresdb-sync-queues",
+      JSON.stringify({
+        outgoing: outgoingQueue,
+        incoming: incomingQueue,
+        conflicts: conflictQueue,
+      }),
+    );
   }
 
   function saveSyncSettings() {
-    localStorage.setItem('pluresdb-sync-settings', JSON.stringify(syncSettings))
+    localStorage.setItem("pluresdb-sync-settings", JSON.stringify(syncSettings));
   }
 
   function saveSyncHistory() {
-    localStorage.setItem('pluresdb-sync-history', JSON.stringify(syncHistory))
+    localStorage.setItem("pluresdb-sync-history", JSON.stringify(syncHistory));
   }
 
   function savePerformanceMetrics() {
-    localStorage.setItem('pluresdb-performance-metrics', JSON.stringify(performanceMetrics))
+    localStorage.setItem("pluresdb-performance-metrics", JSON.stringify(performanceMetrics));
   }
 
   function startSyncMonitoring() {
     // Simulate sync monitoring
     setInterval(() => {
       if (syncSettings.autoSync && syncStatus.isOnline) {
-        performSync()
+        performSync();
       }
-    }, syncSettings.syncInterval * 1000)
+    }, syncSettings.syncInterval * 1000);
   }
 
   async function performSync() {
-    if (!syncStatus.isOnline) return
+    if (!syncStatus.isOnline) return;
 
     try {
       // Simulate sync process
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       // Update sync status
-      syncStatus.lastSync = new Date()
-      syncStatus.pendingChanges = 0
-      syncStatus.dataTransferred += Math.random() * 1000
-      
+      syncStatus.lastSync = new Date();
+      syncStatus.pendingChanges = 0;
+      syncStatus.dataTransferred += Math.random() * 1000;
+
       // Add to history
       syncHistory.unshift({
-        id: 'sync_' + Math.random().toString(36).substr(2, 9),
+        id: "sync_" + Math.random().toString(36).substr(2, 9),
         timestamp: new Date(),
-        status: 'success',
+        status: "success",
         dataTransferred: Math.random() * 1000,
         duration: Math.random() * 2000,
-        conflictsResolved: Math.floor(Math.random() * 5)
-      })
-      
+        conflictsResolved: Math.floor(Math.random() * 5),
+      });
+
       // Keep only last 100 entries
       if (syncHistory.length > 100) {
-        syncHistory = syncHistory.slice(0, 100)
+        syncHistory = syncHistory.slice(0, 100);
       }
-      
-      saveSyncStatus()
-      saveSyncHistory()
-      
-      toast.success('Sync completed successfully')
+
+      saveSyncStatus();
+      saveSyncHistory();
+
+      toast.success("Sync completed successfully");
     } catch (error) {
-      toast.error('Sync failed: ' + error.message)
+      toast.error("Sync failed: " + error.message);
     }
   }
 
   function forceSync() {
-    performSync()
+    performSync();
   }
 
   function pauseSync() {
-    syncSettings.autoSync = false
-    saveSyncSettings()
-    toast.info('Auto-sync paused')
+    syncSettings.autoSync = false;
+    saveSyncSettings();
+    toast.info("Auto-sync paused");
   }
 
   function resumeSync() {
-    syncSettings.autoSync = true
-    saveSyncSettings()
-    toast.success('Auto-sync resumed')
+    syncSettings.autoSync = true;
+    saveSyncSettings();
+    toast.success("Auto-sync resumed");
   }
 
-  function resolveConflict(conflictId: string, resolution: 'mine' | 'theirs' | 'merge') {
-    const conflict = conflictQueue.find(c => c.id === conflictId)
+  function resolveConflict(conflictId: string, resolution: "mine" | "theirs" | "merge") {
+    const conflict = conflictQueue.find((c) => c.id === conflictId);
     if (conflict) {
-      conflict.resolution = resolution
-      conflict.resolvedAt = new Date()
-      conflictQueue = conflictQueue.filter(c => c.id !== conflictId)
-      saveSyncQueues()
-      toast.success('Conflict resolved')
+      conflict.resolution = resolution;
+      conflict.resolvedAt = new Date();
+      conflictQueue = conflictQueue.filter((c) => c.id !== conflictId);
+      saveSyncQueues();
+      toast.success("Conflict resolved");
     }
   }
 
   function clearSyncHistory() {
-    syncHistory = []
-    saveSyncHistory()
-    toast.info('Sync history cleared')
+    syncHistory = [];
+    saveSyncHistory();
+    toast.info("Sync history cleared");
   }
 
   function updateSyncSettings() {
-    saveSyncSettings()
-    toast.success('Sync settings updated')
+    saveSyncSettings();
+    toast.success("Sync settings updated");
   }
 
   function addToOutgoingQueue(nodeId: string, operation: string) {
     const item = {
-      id: 'outgoing_' + Math.random().toString(36).substr(2, 9),
+      id: "outgoing_" + Math.random().toString(36).substr(2, 9),
       nodeId,
       operation,
       timestamp: new Date(),
-      status: 'pending',
-      retries: 0
-    }
-    outgoingQueue.push(item)
-    saveSyncQueues()
+      status: "pending",
+      retries: 0,
+    };
+    outgoingQueue.push(item);
+    saveSyncQueues();
   }
 
   function addToIncomingQueue(nodeId: string, operation: string) {
     const item = {
-      id: 'incoming_' + Math.random().toString(36).substr(2, 9),
+      id: "incoming_" + Math.random().toString(36).substr(2, 9),
       nodeId,
       operation,
       timestamp: new Date(),
-      status: 'pending',
-      retries: 0
-    }
-    incomingQueue.push(item)
-    saveSyncQueues()
+      status: "pending",
+      retries: 0,
+    };
+    incomingQueue.push(item);
+    saveSyncQueues();
   }
 
   function addConflict(nodeId: string, localVersion: any, remoteVersion: any) {
     const conflict = {
-      id: 'conflict_' + Math.random().toString(36).substr(2, 9),
+      id: "conflict_" + Math.random().toString(36).substr(2, 9),
       nodeId,
       localVersion,
       remoteVersion,
       timestamp: new Date(),
-      status: 'pending'
-    }
-    conflictQueue.push(conflict)
-    saveSyncQueues()
+      status: "pending",
+    };
+    conflictQueue.push(conflict);
+    saveSyncQueues();
   }
 
   function getDeviceIcon(type: string): string {
     switch (type) {
-      case 'laptop': return '💻'
-      case 'phone': return '📱'
-      case 'tablet': return '📱'
-      case 'server': return '🖥️'
-      case 'desktop': return '🖥️'
-      default: return '📱'
+      case "laptop":
+        return "💻";
+      case "phone":
+        return "📱";
+      case "tablet":
+        return "📱";
+      case "server":
+        return "🖥️";
+      case "desktop":
+        return "🖥️";
+      default:
+        return "📱";
     }
   }
 
   function getSyncStatusColor(status: string): string {
     switch (status) {
-      case 'connected': return 'var(--success)'
-      case 'disconnected': return 'var(--muted)'
-      case 'syncing': return 'var(--warning)'
-      case 'error': return 'var(--danger)'
-      default: return 'var(--muted)'
+      case "connected":
+        return "var(--success)";
+      case "disconnected":
+        return "var(--muted)";
+      case "syncing":
+        return "var(--warning)";
+      case "error":
+        return "var(--danger)";
+      default:
+        return "var(--muted)";
     }
   }
 </script>
@@ -376,7 +390,7 @@
             <div class="status-info">
               <h3>Sync Status</h3>
               <p class="status-text {syncStatus.isOnline ? 'online' : 'offline'}">
-                {syncStatus.isOnline ? 'Online' : 'Offline'}
+                {syncStatus.isOnline ? "Online" : "Offline"}
               </p>
             </div>
           </div>
@@ -386,7 +400,7 @@
             <div class="status-info">
               <h3>Last Sync</h3>
               <p class="status-text">
-                {syncStatus.lastSync ? syncStatus.lastSync.toLocaleString() : 'Never'}
+                {syncStatus.lastSync ? syncStatus.lastSync.toLocaleString() : "Never"}
               </p>
             </div>
           </div>
@@ -409,18 +423,14 @@
         </div>
 
         <div class="sync-controls">
-          <button 
-            class="btn btn-primary"
-            on:click={forceSync}
-            disabled={!syncStatus.isOnline}
-          >
+          <button class="btn btn-primary" on:click={forceSync} disabled={!syncStatus.isOnline}>
             Force Sync
           </button>
-          <button 
+          <button
             class="btn btn-secondary"
             on:click={syncSettings.autoSync ? pauseSync : resumeSync}
           >
-            {syncSettings.autoSync ? 'Pause Auto-Sync' : 'Resume Auto-Sync'}
+            {syncSettings.autoSync ? "Pause Auto-Sync" : "Resume Auto-Sync"}
           </button>
         </div>
 
@@ -433,7 +443,9 @@
             </div>
             <div class="metric">
               <span class="metric-label">Total Data Synced</span>
-              <span class="metric-value">{(performanceMetrics.totalDataSynced / 1024).toFixed(1)}KB</span>
+              <span class="metric-value"
+                >{(performanceMetrics.totalDataSynced / 1024).toFixed(1)}KB</span
+              >
             </div>
             <div class="metric">
               <span class="metric-label">Sync Success Rate</span>
@@ -454,9 +466,9 @@
         <h3>Add New Device</h3>
         <div class="form-group">
           <label for="device-name">Device Name</label>
-          <input 
+          <input
             id="device-name"
-            type="text" 
+            type="text"
             bind:value={deviceForm.name}
             placeholder="Enter device name"
           />
@@ -476,9 +488,9 @@
 
           <div class="form-group">
             <label for="device-location">Location</label>
-            <input 
+            <input
               id="device-location"
-              type="text" 
+              type="text"
               bind:value={deviceForm.location}
               placeholder="Enter location"
             />
@@ -487,7 +499,7 @@
 
         <div class="form-group">
           <label for="device-description">Description</label>
-          <textarea 
+          <textarea
             id="device-description"
             bind:value={deviceForm.description}
             placeholder="Optional description"
@@ -495,9 +507,7 @@
           ></textarea>
         </div>
 
-        <button class="btn btn-primary" on:click={addDevice}>
-          Add Device
-        </button>
+        <button class="btn btn-primary" on:click={addDevice}> Add Device </button>
       </div>
 
       <div class="connected-devices">
@@ -517,32 +527,23 @@
                 </div>
               </div>
               <div class="device-status">
-                <span 
+                <span
                   class="status-indicator"
                   style="background-color: {getSyncStatusColor(device.syncStatus)}"
                 ></span>
                 <span class="status-text">{device.syncStatus}</span>
               </div>
               <div class="device-actions">
-                {#if device.syncStatus === 'connected'}
-                  <button 
-                    class="btn btn-danger"
-                    on:click={() => disconnectDevice(device.id)}
-                  >
+                {#if device.syncStatus === "connected"}
+                  <button class="btn btn-danger" on:click={() => disconnectDevice(device.id)}>
                     Disconnect
                   </button>
                 {:else}
-                  <button 
-                    class="btn btn-success"
-                    on:click={() => connectDevice(device.id)}
-                  >
+                  <button class="btn btn-success" on:click={() => connectDevice(device.id)}>
                     Connect
                   </button>
                 {/if}
-                <button 
-                  class="btn btn-danger"
-                  on:click={() => removeDevice(device.id)}
-                >
+                <button class="btn btn-danger" on:click={() => removeDevice(device.id)}>
                   Remove
                 </button>
               </div>
@@ -605,21 +606,21 @@
                   <p class="timestamp">Detected: {conflict.timestamp.toLocaleString()}</p>
                 </div>
                 <div class="conflict-actions">
-                  <button 
+                  <button
                     class="btn btn-success"
-                    on:click={() => resolveConflict(conflict.id, 'mine')}
+                    on:click={() => resolveConflict(conflict.id, "mine")}
                   >
                     Use Mine
                   </button>
-                  <button 
+                  <button
                     class="btn btn-warning"
-                    on:click={() => resolveConflict(conflict.id, 'theirs')}
+                    on:click={() => resolveConflict(conflict.id, "theirs")}
                   >
                     Use Theirs
                   </button>
-                  <button 
+                  <button
                     class="btn btn-primary"
-                    on:click={() => resolveConflict(conflict.id, 'merge')}
+                    on:click={() => resolveConflict(conflict.id, "merge")}
                   >
                     Merge
                   </button>
@@ -638,19 +639,16 @@
         <div class="settings-form">
           <div class="form-group">
             <label>
-              <input 
-                type="checkbox" 
-                bind:checked={syncSettings.autoSync}
-              />
+              <input type="checkbox" bind:checked={syncSettings.autoSync} />
               Enable Auto-Sync
             </label>
           </div>
 
           <div class="form-group">
             <label for="sync-interval">Sync Interval (seconds)</label>
-            <input 
+            <input
               id="sync-interval"
-              type="number" 
+              type="number"
               bind:value={syncSettings.syncInterval}
               min="10"
               max="3600"
@@ -659,9 +657,9 @@
 
           <div class="form-group">
             <label for="max-retries">Max Retries</label>
-            <input 
+            <input
               id="max-retries"
-              type="number" 
+              type="number"
               bind:value={syncSettings.maxRetries}
               min="0"
               max="10"
@@ -679,9 +677,9 @@
 
           <div class="form-group">
             <label for="compression-level">Compression Level</label>
-            <input 
+            <input
               id="compression-level"
-              type="range" 
+              type="range"
               bind:value={syncSettings.compressionLevel}
               min="1"
               max="9"
@@ -691,10 +689,7 @@
 
           <div class="form-group">
             <label>
-              <input 
-                type="checkbox" 
-                bind:checked={syncSettings.encryptionEnabled}
-              />
+              <input type="checkbox" bind:checked={syncSettings.encryptionEnabled} />
               Enable Encryption
             </label>
           </div>
@@ -711,17 +706,12 @@
 
           <div class="form-group">
             <label>
-              <input 
-                type="checkbox" 
-                bind:checked={syncSettings.syncOnWiFiOnly}
-              />
+              <input type="checkbox" bind:checked={syncSettings.syncOnWiFiOnly} />
               Sync on WiFi Only
             </label>
           </div>
 
-          <button class="btn btn-primary" on:click={updateSyncSettings}>
-            Save Settings
-          </button>
+          <button class="btn btn-primary" on:click={updateSyncSettings}> Save Settings </button>
         </div>
       </div>
     </div>
@@ -731,12 +721,7 @@
       <div class="sync-history">
         <div class="history-header">
           <h3>Sync History</h3>
-          <button 
-            class="btn btn-danger"
-            on:click={clearSyncHistory}
-          >
-            Clear History
-          </button>
+          <button class="btn btn-danger" on:click={clearSyncHistory}> Clear History </button>
         </div>
         {#if syncHistory.length === 0}
           <p class="empty">No sync history</p>
