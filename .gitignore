@@ -48,6 +48,7 @@ bin/
 .env
 .env.*
 .envrc
+.docs/
 
 # Node (not typically used with Deno, but safe to ignore if present)
 node_modules/
