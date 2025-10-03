@@ -293,7 +293,7 @@ async function runMemoryLeakTests() {
 }
 
 async function main() {
-  console.log("Rusty Gun Memory Benchmarks");
+  console.log("PluresDB Memory Benchmarks");
   console.log("===========================\n");
   
   try {

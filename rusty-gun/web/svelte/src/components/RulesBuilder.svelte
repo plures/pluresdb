@@ -50,7 +50,7 @@
   
   function loadRules() {
     try {
-      const saved = localStorage.getItem('rusty-gun-rules')
+      const saved = localStorage.getItem('pluresdb-rules')
       if (saved) {
         rules = JSON.parse(saved)
       }
@@ -61,7 +61,7 @@
   
   function saveRules() {
     try {
-      localStorage.setItem('rusty-gun-rules', JSON.stringify(rules))
+      localStorage.setItem('pluresdb-rules', JSON.stringify(rules))
     } catch (error) {
       console.error('Error saving rules:', error)
     }

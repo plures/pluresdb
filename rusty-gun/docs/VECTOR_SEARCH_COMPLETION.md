@@ -275,7 +275,7 @@ let embeddings = generator.generate_embeddings_batch(&texts).await?;
 
 ## 🎉 **Achievement Summary**
 
-**We've successfully created a production-ready vector search system for Rusty Gun!**
+**We've successfully created a production-ready vector search system for PluresDB!**
 
 The vector search system provides:
 - **High-Performance Search** with HNSW algorithm
@@ -309,7 +309,7 @@ The vector search system provides:
 - **Multiple Models**: Choose the right embedding model
 - **Configurable**: Tunable parameters for different use cases
 - **Extensible**: Easy to add new models and features
-- **Compatible**: Works with existing Rusty Gun infrastructure
+- **Compatible**: Works with existing PluresDB infrastructure
 
 ### **Usability**
 - **Simple API**: Easy-to-use RESTful interface

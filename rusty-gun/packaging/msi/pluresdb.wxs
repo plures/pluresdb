@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product Id="*" 
-           Name="Rusty Gun" 
+           Name="PluresDB" 
            Language="1033" 
            Version="1.0.0" 
-           Manufacturer="Rusty Gun" 
+           Manufacturer="PluresDB" 
            UpgradeCode="PUT-GUID-HERE">
     
     <Package InstallerVersion="200" 
              Compressed="yes" 
              InstallScope="perMachine"
              Description="P2P Graph Database with SQLite Compatibility"
-             Comments="Rusty Gun - Local-first, peer-to-peer graph database"
-             Manufacturer="Rusty Gun" />
+             Comments="PluresDB - Local-first, peer-to-peer graph database"
+             Manufacturer="PluresDB" />
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <Feature Id="ProductFeature" Title="Rusty Gun" Level="1">
+    <Feature Id="ProductFeature" Title="PluresDB" Level="1">
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="WebUI" />
       <ComponentRef Id="ConfigFiles" />
@@ -28,11 +28,11 @@
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFilesFolder">
-        <Directory Id="INSTALLFOLDER" Name="RustyGun">
+        <Directory Id="INSTALLFOLDER" Name="PluresDB">
           <Component Id="MainExecutable" Guid="*">
-            <File Id="RustyGunExe" 
-                  Name="rusty-gun.exe" 
-                  Source="$(var.SourceDir)\rusty-gun.exe" 
+            <File Id="PluresDBExe" 
+                  Name="pluresdb.exe" 
+                  Source="$(var.SourceDir)\pluresdb.exe" 
                   KeyPath="yes" />
           </Component>
 
@@ -66,18 +66,18 @@
       </Directory>
 
       <Directory Id="ProgramMenuFolder">
-        <Directory Id="ProgramMenuDir" Name="Rusty Gun">
+        <Directory Id="ProgramMenuDir" Name="PluresDB">
           <Component Id="StartMenuShortcut" Guid="*">
             <Shortcut Id="StartMenuShortcut" 
                       Directory="ProgramMenuDir" 
-                      Name="Rusty Gun" 
+                      Name="PluresDB" 
                       WorkingDirectory="INSTALLFOLDER" 
-                      Icon="RustyGunIcon" 
+                      Icon="PluresDBIcon" 
                       IconIndex="0" 
                       Advertise="yes" />
             <RemoveFolder Id="ProgramMenuDir" On="uninstall" />
             <RegistryValue Root="HKCU" 
-                          Key="Software\Rusty Gun" 
+                          Key="Software\PluresDB" 
                           Name="installed" 
                           Type="integer" 
                           Value="1" 
@@ -90,9 +90,9 @@
         <Component Id="DesktopShortcut" Guid="*">
           <Shortcut Id="DesktopShortcut" 
                     Directory="DesktopFolder" 
-                    Name="Rusty Gun" 
+                    Name="PluresDB" 
                     WorkingDirectory="INSTALLFOLDER" 
-                    Icon="RustyGunIcon" 
+                    Icon="PluresDBIcon" 
                     IconIndex="0" 
                     Advertise="yes" />
           <RemoveFolder Id="DesktopShortcut" On="uninstall" />
@@ -101,7 +101,7 @@
     </Directory>
 
     <Component Id="RegistryEntries" Guid="*">
-      <RegistryKey Root="HKLM" Key="SOFTWARE\Rusty Gun">
+      <RegistryKey Root="HKLM" Key="SOFTWARE\PluresDB">
         <RegistryValue Name="InstallPath" 
                       Type="string" 
                       Value="[INSTALLFOLDER]" />
@@ -109,17 +109,17 @@
                       Type="string" 
                       Value="1.0.0" />
       </RegistryKey>
-      <RegistryKey Root="HKLM" Key="SOFTWARE\Rusty Gun\Capabilities">
+      <RegistryKey Root="HKLM" Key="SOFTWARE\PluresDB\Capabilities">
         <RegistryValue Name="ApplicationDescription" 
                       Type="string" 
                       Value="P2P Graph Database with SQLite Compatibility" />
         <RegistryValue Name="ApplicationName" 
                       Type="string" 
-                      Value="Rusty Gun" />
+                      Value="PluresDB" />
       </RegistryKey>
     </Component>
 
-    <Icon Id="RustyGunIcon" SourceFile="$(var.SourceDir)\assets\icon.ico" />
+    <Icon Id="PluresDBIcon" SourceFile="$(var.SourceDir)\assets\icon.ico" />
 
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
     <UIRef Id="WixUI_Minimal" />
@@ -127,13 +127,13 @@
     <WixVariable Id="WixUIBannerBmp" Value="$(var.SourceDir)\assets\banner.bmp" />
     <WixVariable Id="WixUIDialogBmp" Value="$(var.SourceDir)\assets\dialog.bmp" />
 
-    <CustomAction Id="LaunchRustyGun" 
-                  FileKey="RustyGunExe" 
+    <CustomAction Id="LaunchPluresDB" 
+                  FileKey="PluresDBExe" 
                   ExeCommand="serve" 
                   Return="asyncNoWait" />
 
     <InstallExecuteSequence>
-      <Custom Action="LaunchRustyGun" After="InstallFinalize">NOT Installed</Custom>
+      <Custom Action="LaunchPluresDB" After="InstallFinalize">NOT Installed</Custom>
     </InstallExecuteSequence>
   </Product>
 </Wix>

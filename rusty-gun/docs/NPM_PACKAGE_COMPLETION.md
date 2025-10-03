@@ -2,7 +2,7 @@
 
 ## 🎯 **Objective Achieved**
 
-Successfully created a comprehensive npm package for Rusty Gun that enables seamless VSCode extension integration, providing SQLite compatibility with P2P capabilities.
+Successfully created a comprehensive npm package for PluresDB that enables seamless VSCode extension integration, providing SQLite compatibility with P2P capabilities.
 
 ## 📦 **What Was Built**
 
@@ -13,7 +13,7 @@ Successfully created a comprehensive npm package for Rusty Gun that enables seam
 - ✅ **Post-install Script**: Automatic Deno installation and setup
 
 ### **2. Node.js Wrapper**
-- ✅ **RustyGunNode Class**: Main Node.js wrapper for VSCode extensions
+- ✅ **PluresDBNode Class**: Main Node.js wrapper for VSCode extensions
 - ✅ **SQLiteCompatibleAPI Class**: Drop-in replacement for SQLite
 - ✅ **CLI Interface**: Command-line interface for testing and development
 - ✅ **Event System**: Full event emitter support for lifecycle management
@@ -35,7 +35,7 @@ Successfully created a comprehensive npm package for Rusty Gun that enables seam
 ### **SQLite Compatibility**
 ```typescript
 // Drop-in replacement for SQLite
-import { SQLiteCompatibleAPI } from 'rusty-gun';
+import { SQLiteCompatibleAPI } from 'pluresdb';
 
 const db = new SQLiteCompatibleAPI();
 await db.start();
@@ -60,7 +60,7 @@ const results = await db.vectorSearch('machine learning', 10);
 export function activate(context: vscode.ExtensionContext) {
     const db = new SQLiteCompatibleAPI({
         config: {
-            dataDir: path.join(context.globalStorageUri.fsPath, 'rusty-gun')
+            dataDir: path.join(context.globalStorageUri.fsPath, 'pluresdb')
         }
     });
     
@@ -81,35 +81,35 @@ export function activate(context: vscode.ExtensionContext) {
 
 ### **NPM (Primary)**
 ```bash
-npm install rusty-gun
+npm install pluresdb
 ```
 
 ### **Yarn**
 ```bash
-yarn add rusty-gun
+yarn add pluresdb
 ```
 
 ### **PNPM**
 ```bash
-pnpm add rusty-gun
+pnpm add pluresdb
 ```
 
 ### **Package Managers**
 ```bash
 # Windows
-winget install rusty-gun.rusty-gun
+winget install plures.pluresdb
 
 # macOS
-brew install rusty-gun/rusty-gun/rusty-gun
+brew install plures/pluresdb/pluresdb
 
 # Linux
-nix-env -iA nixpkgs.rusty-gun
+nix-env -iA nixpkgs.pluresdb
 ```
 
 ## 🎯 **VSCode Extension Benefits**
 
 ### **Easy Migration**
-- **Minimal Code Changes**: Replace SQLite imports with Rusty Gun
+- **Minimal Code Changes**: Replace SQLite imports with PluresDB
 - **Same API**: Familiar SQLite API with additional features
 - **TypeScript Support**: Full type safety and IntelliSense
 
@@ -145,18 +145,18 @@ nix-env -iA nixpkgs.rusty-gun
 
 ### **1. Install the Package**
 ```bash
-npm install rusty-gun
+npm install pluresdb
 ```
 
 ### **2. Update Your Extension**
 ```typescript
 // Replace SQLite imports
-import { SQLiteCompatibleAPI } from 'rusty-gun';
+import { SQLiteCompatibleAPI } from 'pluresdb';
 
 // Initialize with VSCode context
 const db = new SQLiteCompatibleAPI({
     config: {
-        dataDir: path.join(context.globalStorageUri.fsPath, 'rusty-gun')
+        dataDir: path.join(context.globalStorageUri.fsPath, 'pluresdb')
     }
 });
 ```
@@ -180,16 +180,16 @@ await db.shareData('settings', peerId);
 
 ## 🔗 **Resources**
 
-- **Package**: [npmjs.com/package/rusty-gun](https://npmjs.com/package/rusty-gun)
-- **Repository**: [github.com/rusty-gun/rusty-gun](https://github.com/rusty-gun/rusty-gun)
-- **Documentation**: [rusty-gun.dev](https://rusty-gun.dev)
+- **Package**: [npmjs.com/package/pluresdb](https://npmjs.com/package/pluresdb)
+- **Repository**: [github.com/plures/pluresdb](https://github.com/plures/pluresdb)
+- **Documentation**: [pluresdb.dev](https://pluresdb.dev)
 - **VSCode Example**: [examples/vscode-extension-example](examples/vscode-extension-example)
 
 ---
 
 **🎯 Mission Accomplished!** 
 
-Rusty Gun is now ready for VSCode extension integration with full SQLite compatibility and P2P capabilities. VSCode extensions can easily migrate from SQLite to Rusty Gun and gain powerful P2P features while maintaining their existing codebase.
+PluresDB is now ready for VSCode extension integration with full SQLite compatibility and P2P capabilities. VSCode extensions can easily migrate from SQLite to PluresDB and gain powerful P2P features while maintaining their existing codebase.
 
 **Ready to revolutionize VSCode extensions with P2P capabilities!** 🚀
 

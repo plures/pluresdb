@@ -98,7 +98,7 @@ import Toasts from './components/Toasts.svelte'
 <main class="container">
   <nav aria-label="Main navigation">
     <ul>
-      <li><strong>Rusty Gun</strong></li>
+      <li><strong>PluresDB</strong></li>
     </ul>
     <ul role="menubar" aria-label="View selection">
       <li role="none">

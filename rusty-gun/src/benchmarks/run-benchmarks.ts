@@ -274,7 +274,7 @@ async function runMemoryBenchmarks() {
 }
 
 async function main() {
-  console.log("Rusty Gun Benchmark Suite");
+  console.log("PluresDB Benchmark Suite");
   console.log("========================\n");
   
   try {

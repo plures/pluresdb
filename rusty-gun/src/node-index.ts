@@ -1,5 +1,5 @@
 /**
- * Node.js Entry Point for Rusty Gun
+ * Node.js Entry Point for PluresDB
  * This provides a clean API for VSCode extensions and other Node.js applications
  */
 
@@ -8,22 +8,22 @@ import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { RustyGunConfig, RustyGunOptions } from './types/node-types';
+import { PluresDBConfig, PluresDBOptions } from './types/node-types';
 
-export class RustyGunNode extends EventEmitter {
+export class PluresNode extends EventEmitter {
   private process: ChildProcess | null = null;
-  private config: RustyGunConfig;
+  private config: PluresDBConfig;
   private denoPath: string;
   private isRunning = false;
   private apiUrl: string = '';
 
-  constructor(options: RustyGunOptions = {}) {
+  constructor(options: PluresDBOptions = {}) {
     super();
     
     this.config = {
       port: 34567,
       host: 'localhost',
-      dataDir: path.join(os.homedir(), '.rusty-gun'),
+      dataDir: path.join(os.homedir(), '.pluresdb'),
       webPort: 34568,
       logLevel: 'info',
       ...options.config
@@ -85,7 +85,7 @@ export class RustyGunNode extends EventEmitter {
         // Find the main.ts file
         const mainTsPath = path.join(__dirname, 'main.ts');
         if (!fs.existsSync(mainTsPath)) {
-          throw new Error('Rusty Gun main.ts not found. Please ensure the package is properly installed.');
+          throw new Error('PluresDB main.ts not found. Please ensure the package is properly installed.');
         }
 
         // Start the Deno process
@@ -296,73 +296,73 @@ export class RustyGunNode extends EventEmitter {
 
 // SQLite-compatible API for easy migration
 export class SQLiteCompatibleAPI {
-  private rustyGun: RustyGunNode;
+  private plures: PluresNode;
 
-  constructor(options?: RustyGunOptions) {
-    this.rustyGun = new RustyGunNode(options);
+  constructor(options?: PluresDBOptions) {
+    this.plures = new PluresNode(options);
   }
 
   async start() {
-    await this.rustyGun.start();
+    await this.plures.start();
   }
 
   async stop() {
-    await this.rustyGun.stop();
+    await this.plures.stop();
   }
 
   // SQLite-compatible methods
   async run(sql: string, params: any[] = []) {
-    return this.rustyGun.query(sql, params);
+    return this.plures.query(sql, params);
   }
 
   async get(sql: string, params: any[] = []) {
-    const result = await this.rustyGun.query(sql, params);
+    const result = await this.plures.query(sql, params);
     return result.rows?.[0] || null;
   }
 
   async all(sql: string, params: any[] = []) {
-    const result = await this.rustyGun.query(sql, params);
+    const result = await this.plures.query(sql, params);
     return result.rows || [];
   }
 
   async exec(sql: string) {
-    return this.rustyGun.query(sql);
+    return this.plures.query(sql);
   }
 
-  // Additional Rusty Gun specific methods
+  // Additional PluresDB specific methods
   async put(key: string, value: any) {
-    return this.rustyGun.put(key, value);
+    return this.plures.put(key, value);
   }
 
   async getValue(key: string) {
-    return this.rustyGun.get(key);
+    return this.plures.get(key);
   }
 
   async delete(key: string) {
-    return this.rustyGun.delete(key);
+    return this.plures.delete(key);
   }
 
   async vectorSearch(query: string, limit = 10) {
-    return this.rustyGun.vectorSearch(query, limit);
+    return this.plures.vectorSearch(query, limit);
   }
 
   async list(prefix?: string) {
-    return this.rustyGun.list(prefix);
+    return this.plures.list(prefix);
   }
 
   getApiUrl() {
-    return this.rustyGun.getApiUrl();
+    return this.plures.getApiUrl();
   }
 
   getWebUrl() {
-    return this.rustyGun.getWebUrl();
+    return this.plures.getWebUrl();
   }
 
   isRunning() {
-    return this.rustyGun.isServerRunning();
+    return this.plures.isServerRunning();
   }
 }
 
 // Export the main class and types
-export { RustyGunNode as default };
+export { PluresNode as default };
 export * from './types/node-types';

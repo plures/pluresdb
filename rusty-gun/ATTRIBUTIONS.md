@@ -1,6 +1,6 @@
 # Third-Party Software Attributions
 
-This document lists all third-party software components used in Rusty Gun Database and their respective licenses.
+This document lists all third-party software components used in PluresDB Database and their respective licenses.
 
 ## Rust Dependencies
 
@@ -58,8 +58,8 @@ This document lists all third-party software components used in Rusty Gun Databa
 
 ### Vector Search
 - **hnsw_rs** (MIT License) - Hierarchical Navigable Small World
-  - Copyright (c) 2024 Rusty Gun Team
-  - https://github.com/rusty-gun/hnsw_rs
+  - Copyright (c) 2024 PluresDB Team
+  - https://github.com/plures/hnsw_rs
 
 ### Cryptography
 - **ring** (MIT License) - Cryptography library
@@ -192,4 +192,4 @@ This file is updated whenever new dependencies are added or existing ones are up
 
 ---
 
-**For questions about third-party licenses, contact: legal@rusty-gun.com**
+**For questions about third-party licenses, contact: GitHub Discussions: https://github.com/plures/pluresdb/discussions**

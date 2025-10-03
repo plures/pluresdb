@@ -1,6 +1,6 @@
-# Docker Packaging for Rusty Gun
+# Docker Packaging for PluresDB
 
-This directory contains Docker configurations for running Rusty Gun in containerized environments.
+This directory contains Docker configurations for running PluresDB in containerized environments.
 
 ## Quick Start
 
@@ -8,16 +8,16 @@ This directory contains Docker configurations for running Rusty Gun in container
 
 ```bash
 # Clone the repository
-git clone https://github.com/rusty-gun/rusty-gun.git
-cd rusty-gun/packaging/docker
+git clone https://github.com/plures/pluresdb.git
+cd pluresdb/packaging/docker
 
-# Start Rusty Gun
+# Start PluresDB
 docker-compose up -d
 
 # View logs
 docker-compose logs -f
 
-# Stop Rusty Gun
+# Stop PluresDB
 docker-compose down
 ```
 
@@ -25,16 +25,16 @@ docker-compose down
 
 ```bash
 # Build the image
-docker build -f packaging/docker/Dockerfile -t rusty-gun/rusty-gun:latest .
+docker build -f packaging/docker/Dockerfile -t plures/pluresdb:latest .
 
 # Run the container
-docker run -p 34567:34567 -p 34568:34568 rusty-gun/rusty-gun:latest
+docker run -p 34567:34567 -p 34568:34568 plures/pluresdb:latest
 
 # Run with persistent storage
 docker run -p 34567:34567 -p 34568:34568 \
-  -v rusty-gun-data:/app/data \
-  -v rusty-gun-config:/app/config \
-  rusty-gun/rusty-gun:latest
+  -v pluresdb-data:/app/data \
+  -v pluresdb-config:/app/config \
+  plures/pluresdb:latest
 ```
 
 ## Configuration Files
@@ -62,18 +62,18 @@ Nginx configuration for production deployment with:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `RUSTY_GUN_PORT` | `34567` | API server port |
-| `RUSTY_GUN_WEB_PORT` | `34568` | Web UI port |
-| `RUSTY_GUN_HOST` | `0.0.0.0` | Bind address |
-| `RUSTY_GUN_DATA_DIR` | `/app/data` | Data directory |
-| `RUSTY_GUN_CONFIG_DIR` | `/app/config` | Config directory |
-| `RUSTY_GUN_LOG_LEVEL` | `info` | Log level |
-| `RUSTY_GUN_PRODUCTION` | `false` | Production mode |
+| `PLURESDB_PORT` | `34567` | API server port |
+| `PLURESDB_WEB_PORT` | `34568` | Web UI port |
+| `PLURESDB_HOST` | `0.0.0.0` | Bind address |
+| `PLURESDB_DATA_DIR` | `/app/data` | Data directory |
+| `PLURESDB_CONFIG_DIR` | `/app/config` | Config directory |
+| `PLURESDB_LOG_LEVEL` | `info` | Log level |
+| `PLURESDB_PRODUCTION` | `false` | Production mode |
 
 ## Volumes
 
-- `rusty-gun-data`: Persistent storage for application data
-- `rusty-gun-config`: Configuration files
+- `pluresdb-data`: Persistent storage for application data
+- `pluresdb-config`: Configuration files
 - `redis-data`: Redis data (if using Redis profile)
 
 ## Ports
@@ -137,7 +137,7 @@ The container includes health checks that verify:
 View health status:
 ```bash
 docker ps
-docker inspect rusty-gun --format='{{.State.Health.Status}}'
+docker inspect pluresdb --format='{{.State.Health.Status}}'
 ```
 
 ## Monitoring
@@ -148,7 +148,7 @@ docker inspect rusty-gun --format='{{.State.Health.Status}}'
 docker-compose logs -f
 
 # Specific service
-docker-compose logs -f rusty-gun
+docker-compose logs -f pluresdb
 ```
 
 ### Resource Usage
@@ -157,12 +157,12 @@ docker-compose logs -f rusty-gun
 docker stats
 
 # Specific container
-docker stats rusty-gun
+docker stats pluresdb
 ```
 
 ## Security Considerations
 
-1. **Non-root user**: Container runs as `rusty-gun` user (UID 1001)
+1. **Non-root user**: Container runs as `pluresdb` user (UID 1001)
 2. **Minimal base image**: Uses Alpine Linux for smaller attack surface
 3. **Security headers**: Nginx configuration includes security headers
 4. **Rate limiting**: Prevents abuse with request rate limiting
@@ -173,7 +173,7 @@ docker stats rusty-gun
 ### Container won't start
 ```bash
 # Check logs
-docker-compose logs rusty-gun
+docker-compose logs pluresdb
 
 # Check container status
 docker ps -a
@@ -186,7 +186,7 @@ netstat -tulpn | grep :34567
 netstat -tulpn | grep :34568
 
 # Use different ports
-docker run -p 8080:34567 -p 8081:34568 rusty-gun/rusty-gun:latest
+docker run -p 8080:34567 -p 8081:34568 plures/pluresdb:latest
 ```
 
 ### Permission issues
@@ -211,13 +211,13 @@ docker-compose up -d
 # Build with development dependencies
 docker build -f packaging/docker/Dockerfile \
   --target development \
-  -t rusty-gun/rusty-gun:dev .
+  -t plures/pluresdb:dev .
 ```
 
 ### Running tests
 ```bash
 # Run tests in container
-docker run --rm rusty-gun/rusty-gun:latest test
+docker run --rm plures/pluresdb:latest test
 ```
 
 ## Contributing

@@ -81,7 +81,7 @@
 
   function loadIdentity() {
     // Load from local storage or generate new
-    const stored = localStorage.getItem('rusty-gun-identity')
+    const stored = localStorage.getItem('pluresdb-identity')
     if (stored) {
       identity = JSON.parse(stored)
     } else {
@@ -109,13 +109,13 @@
   }
 
   function saveIdentity() {
-    localStorage.setItem('rusty-gun-identity', JSON.stringify(identity))
+    localStorage.setItem('pluresdb-identity', JSON.stringify(identity))
     toast.success('Identity saved')
   }
 
   function loadDiscoveredPeers() {
     // Load discovered peers from local storage
-    const stored = localStorage.getItem('rusty-gun-peers')
+    const stored = localStorage.getItem('pluresdb-peers')
     if (stored) {
       discoveredPeers = JSON.parse(stored)
     }
@@ -123,7 +123,7 @@
 
   function loadPendingRequests() {
     // Load pending peer requests
-    const stored = localStorage.getItem('rusty-gun-requests')
+    const stored = localStorage.getItem('pluresdb-requests')
     if (stored) {
       const requests = JSON.parse(stored)
       pendingRequests = requests.pending || []
@@ -218,14 +218,14 @@
   }
 
   function saveRequests() {
-    localStorage.setItem('rusty-gun-requests', JSON.stringify({
+    localStorage.setItem('pluresdb-requests', JSON.stringify({
       pending: pendingRequests,
       sent: sentRequests
     }))
   }
 
   function saveDiscoveredPeers() {
-    localStorage.setItem('rusty-gun-peers', JSON.stringify(discoveredPeers))
+    localStorage.setItem('pluresdb-peers', JSON.stringify(discoveredPeers))
   }
 
   function updateAcceptancePolicy() {

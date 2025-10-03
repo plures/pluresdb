@@ -1,7 +1,7 @@
 {
-  "name": "rusty-gun-extension-example",
-  "displayName": "Rusty Gun Extension Example",
-  "description": "Example VSCode extension using Rusty Gun",
+  "name": "pluresdb-extension-example",
+  "displayName": "PluresDB Extension Example",
+  "description": "Example VSCode extension using PluresDB",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.74.0"
@@ -10,25 +10,25 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:rusty-gun-example.helloWorld"
+    "onCommand:pluresdb-example.helloWorld"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "rusty-gun-example.helloWorld",
-        "title": "Hello World from Rusty Gun"
+        "command": "pluresdb-example.helloWorld",
+        "title": "Hello World from PluresDB"
       },
       {
-        "command": "rusty-gun-example.storeData",
-        "title": "Store Data in Rusty Gun"
+        "command": "pluresdb-example.storeData",
+        "title": "Store Data in PluresDB"
       },
       {
-        "command": "rusty-gun-example.retrieveData",
-        "title": "Retrieve Data from Rusty Gun"
+        "command": "pluresdb-example.retrieveData",
+        "title": "Retrieve Data from PluresDB"
       },
       {
-        "command": "rusty-gun-example.searchData",
+        "command": "pluresdb-example.searchData",
         "title": "Search Data with Vector Search"
       }
     ]
@@ -44,7 +44,7 @@
     "typescript": "^4.9.4"
   },
   "dependencies": {
-    "rusty-gun": "file:../.."
+    "pluresdb": "file:../.."
   }
 }
 

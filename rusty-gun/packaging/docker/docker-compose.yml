@@ -1,24 +1,24 @@
 version: '3.8'
 
 services:
-  rusty-gun:
+  pluresdb:
     build:
       context: ../..
       dockerfile: packaging/docker/Dockerfile
-    image: rusty-gun/rusty-gun:latest
-    container_name: rusty-gun
+    image: pluresdb/pluresdb:latest
+    container_name: pluresdb
     ports:
       - "34567:34567"  # API port
       - "34568:34568"  # Web UI port
     volumes:
-      - rusty-gun-data:/app/data
-      - rusty-gun-config:/app/config
+      - pluresdb-data:/app/data
+      - pluresdb-config:/app/config
     environment:
-      - RUSTY_GUN_PORT=34567
-      - RUSTY_GUN_WEB_PORT=34568
-      - RUSTY_GUN_HOST=0.0.0.0
-      - RUSTY_GUN_DATA_DIR=/app/data
-      - RUSTY_GUN_CONFIG_DIR=/app/config
+      - PLURESDB_PORT=34567
+      - PLURESDB_WEB_PORT=34568
+      - PLURESDB_HOST=0.0.0.0
+      - PLURESDB_DATA_DIR=/app/data
+      - PLURESDB_CONFIG_DIR=/app/config
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "deno", "run", "-A", "--allow-net", "src/healthcheck.ts"]
@@ -27,30 +27,30 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - rusty-gun-network
+      - pluresdb-network
 
   # Optional: Redis for caching (if needed)
   redis:
     image: redis:7-alpine
-    container_name: rusty-gun-redis
+    container_name: pluresdb-redis
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
     restart: unless-stopped
     networks:
-      - rusty-gun-network
+      - pluresdb-network
     profiles:
       - with-redis
 
 volumes:
-  rusty-gun-data:
+  pluresdb-data:
     driver: local
-  rusty-gun-config:
+  pluresdb-config:
     driver: local
   redis-data:
     driver: local
 
 networks:
-  rusty-gun-network:
+  pluresdb-network:
     driver: bridge

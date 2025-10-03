@@ -1,17 +1,17 @@
-# Rusty Gun Installation Script for Windows
-# This script installs Rusty Gun on Windows
+# PluresDB Installation Script for Windows
+# This script installs PluresDB on Windows
 
 param(
     [string]$Version = "1.0.0",
     [string]$InstallDir = "$env:USERPROFILE\.local\bin",
-    [string]$ConfigDir = "$env:USERPROFILE\.config\rusty-gun",
-    [string]$DataDir = "$env:USERPROFILE\.local\share\rusty-gun",
+    [string]$ConfigDir = "$env:USERPROFILE\.config\pluresdb",
+    [string]$DataDir = "$env:USERPROFILE\.local\share\pluresdb",
     [switch]$Help
 )
 
 # Show help
 if ($Help) {
-    Write-Host "Rusty Gun Installation Script for Windows" -ForegroundColor Cyan
+    Write-Host "PluresDB Installation Script for Windows" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Usage: .\install.ps1 [OPTIONS]" -ForegroundColor White
     Write-Host ""
@@ -62,7 +62,7 @@ function Install-WithWinget {
     if (Test-Command "winget") {
         Write-Info "Installing via winget..."
         try {
-            winget install rusty-gun.rusty-gun
+            winget install pluresdb.pluresdb
             Write-Success "Installed via winget!"
             return $true
         }
@@ -79,7 +79,7 @@ function Install-WithChocolatey {
     if (Test-Command "choco") {
         Write-Info "Installing via Chocolatey..."
         try {
-            choco install rusty-gun
+            choco install pluresdb
             Write-Success "Installed via Chocolatey!"
             return $true
         }
@@ -96,7 +96,7 @@ function Install-WithScoop {
     if (Test-Command "scoop") {
         Write-Info "Installing via Scoop..."
         try {
-            scoop install rusty-gun
+            scoop install pluresdb
             Write-Success "Installed via Scoop!"
             return $true
         }
@@ -112,9 +112,9 @@ function Install-WithScoop {
 function Install-Binary {
     param([string]$Version, [string]$InstallDir, [string]$ConfigDir, [string]$DataDir)
     
-    $url = "https://github.com/rusty-gun/rusty-gun/releases/download/v$Version/rusty-gun-windows-x64.zip"
+    $url = "https://github.com/pluresdb/pluresdb/releases/download/v$Version/pluresdb-windows-x64.zip"
     
-    Write-Info "Downloading Rusty Gun v$Version for Windows x64..."
+    Write-Info "Downloading PluresDB v$Version for Windows x64..."
     
     # Create temporary directory
     $tempDir = [System.IO.Path]::GetTempPath() + [System.Guid]::NewGuid().ToString()
@@ -122,7 +122,7 @@ function Install-Binary {
     
     try {
         # Download file
-        $zipPath = Join-Path $tempDir "rusty-gun.zip"
+        $zipPath = Join-Path $tempDir "pluresdb.zip"
         Invoke-WebRequest -Uri $url -OutFile $zipPath
         
         # Extract zip
@@ -134,7 +134,7 @@ function Install-Binary {
         New-Item -ItemType Directory -Path $DataDir -Force | Out-Null
         
         # Install binary
-        $binaryPath = Join-Path $tempDir "rusty-gun.exe"
+        $binaryPath = Join-Path $tempDir "pluresdb.exe"
         if (Test-Path $binaryPath) {
             Copy-Item $binaryPath $InstallDir
         }
@@ -156,7 +156,7 @@ function Install-Binary {
             Copy-Item $configTsSource $ConfigDir
         }
         
-        Write-Success "Rusty Gun installed successfully!"
+        Write-Success "PluresDB installed successfully!"
     }
     finally {
         # Cleanup
@@ -183,8 +183,8 @@ function New-DesktopShortcut {
     param([string]$InstallDir)
     
     $desktopPath = [Environment]::GetFolderPath("Desktop")
-    $shortcutPath = Join-Path $desktopPath "Rusty Gun.lnk"
-    $targetPath = Join-Path $InstallDir "rusty-gun.exe"
+    $shortcutPath = Join-Path $desktopPath "PluresDB.lnk"
+    $targetPath = Join-Path $InstallDir "pluresdb.exe"
     
     if (Test-Path $targetPath) {
         $WshShell = New-Object -comObject WScript.Shell
@@ -192,7 +192,7 @@ function New-DesktopShortcut {
         $Shortcut.TargetPath = $targetPath
         $Shortcut.Arguments = "serve"
         $Shortcut.WorkingDirectory = $InstallDir
-        $Shortcut.Description = "Rusty Gun - P2P Graph Database"
+        $Shortcut.Description = "PluresDB - P2P Graph Database"
         $Shortcut.Save()
         
         Write-Success "Desktop shortcut created!"
@@ -201,7 +201,7 @@ function New-DesktopShortcut {
 
 # Main installation function
 function Main {
-    Write-Info "Installing Rusty Gun v$Version..."
+    Write-Info "Installing PluresDB v$Version..."
     
     # Try package managers first
     if (Install-WithWinget) {
@@ -227,7 +227,7 @@ function Main {
     New-DesktopShortcut -InstallDir $InstallDir
     
     Write-Success "Installation complete!"
-    Write-Info "Run 'rusty-gun serve' to start the server"
+    Write-Info "Run 'pluresdb serve' to start the server"
     Write-Info "Web UI will be available at: http://localhost:34568"
     Write-Info "API will be available at: http://localhost:34567"
 }

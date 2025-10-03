@@ -44,21 +44,21 @@
   })
 
   function loadSharedNodes() {
-    const stored = localStorage.getItem('rusty-gun-shared-nodes')
+    const stored = localStorage.getItem('pluresdb-shared-nodes')
     if (stored) {
       sharedNodes = JSON.parse(stored)
     }
   }
 
   function loadReceivedNodes() {
-    const stored = localStorage.getItem('rusty-gun-received-nodes')
+    const stored = localStorage.getItem('pluresdb-received-nodes')
     if (stored) {
       receivedNodes = JSON.parse(stored)
     }
   }
 
   function loadEncryptionKeys() {
-    const stored = localStorage.getItem('rusty-gun-encryption-keys')
+    const stored = localStorage.getItem('pluresdb-encryption-keys')
     if (stored) {
       encryptionKeys = JSON.parse(stored)
     } else {
@@ -68,7 +68,7 @@
   }
 
   function loadAccessPolicies() {
-    const stored = localStorage.getItem('rusty-gun-access-policies')
+    const stored = localStorage.getItem('pluresdb-access-policies')
     if (stored) {
       accessPolicies = JSON.parse(stored)
     } else {
@@ -78,7 +78,7 @@
   }
 
   function loadSharingHistory() {
-    const stored = localStorage.getItem('rusty-gun-sharing-history')
+    const stored = localStorage.getItem('pluresdb-sharing-history')
     if (stored) {
       sharingHistory = JSON.parse(stored)
     }
@@ -146,23 +146,23 @@
   }
 
   function saveEncryptionKeys() {
-    localStorage.setItem('rusty-gun-encryption-keys', JSON.stringify(encryptionKeys))
+    localStorage.setItem('pluresdb-encryption-keys', JSON.stringify(encryptionKeys))
   }
 
   function saveAccessPolicies() {
-    localStorage.setItem('rusty-gun-access-policies', JSON.stringify(accessPolicies))
+    localStorage.setItem('pluresdb-access-policies', JSON.stringify(accessPolicies))
   }
 
   function saveSharedNodes() {
-    localStorage.setItem('rusty-gun-shared-nodes', JSON.stringify(sharedNodes))
+    localStorage.setItem('pluresdb-shared-nodes', JSON.stringify(sharedNodes))
   }
 
   function saveReceivedNodes() {
-    localStorage.setItem('rusty-gun-received-nodes', JSON.stringify(receivedNodes))
+    localStorage.setItem('pluresdb-received-nodes', JSON.stringify(receivedNodes))
   }
 
   function saveSharingHistory() {
-    localStorage.setItem('rusty-gun-sharing-history', JSON.stringify(sharingHistory))
+    localStorage.setItem('pluresdb-sharing-history', JSON.stringify(sharingHistory))
   }
 
   function generateKey() {

@@ -31,139 +31,139 @@
 ### **Server Management**
 ```bash
 # Start server
-rusty-gun server start --host 0.0.0.0 --port 34569 --enable-cors --enable-metrics
+pluresdb server start --host 0.0.0.0 --port 34569 --enable-cors --enable-metrics
 
 # Stop server
-rusty-gun server stop
+pluresdb server stop
 
 # Restart server
-rusty-gun server restart --host 0.0.0.0 --port 34569
+pluresdb server restart --host 0.0.0.0 --port 34569
 
 # Show status
-rusty-gun server status --detailed
+pluresdb server status --detailed
 
 # Show logs
-rusty-gun server logs --lines 100 --follow
+pluresdb server logs --lines 100 --follow
 ```
 
 ### **Node Operations**
 ```bash
 # Create node
-rusty-gun node create --id "user1" --data '{"name": "Alice", "type": "person"}' --tags "important,user"
+pluresdb node create --id "user1" --data '{"name": "Alice", "type": "person"}' --tags "important,user"
 
 # Get node
-rusty-gun node get --id "user1" --json
+pluresdb node get --id "user1" --json
 
 # Update node
-rusty-gun node update --id "user1" --data '{"name": "Alice Smith", "age": 30}'
+pluresdb node update --id "user1" --data '{"name": "Alice Smith", "age": 30}'
 
 # Delete node
-rusty-gun node delete --id "user1" --force
+pluresdb node delete --id "user1" --force
 
 # List nodes
-rusty-gun node list --limit 50 --offset 0 --json
+pluresdb node list --limit 50 --offset 0 --json
 
 # Search nodes
-rusty-gun node search --query "person" --limit 10
+pluresdb node search --query "person" --limit 10
 
 # Show relationships
-rusty-gun node relationships --id "user1" --json
+pluresdb node relationships --id "user1" --json
 ```
 
 ### **Graph Operations**
 ```bash
 # Create relationship
-rusty-gun graph connect --from "user1" --to "project1" --relation-type "works_on" --metadata '{"role": "lead"}'
+pluresdb graph connect --from "user1" --to "project1" --relation-type "works_on" --metadata '{"role": "lead"}'
 
 # Remove relationship
-rusty-gun graph disconnect --from "user1" --to "project1" --relation-type "works_on"
+pluresdb graph disconnect --from "user1" --to "project1" --relation-type "works_on"
 
 # Find path
-rusty-gun graph path --from "user1" --to "project1" --json
+pluresdb graph path --from "user1" --to "project1" --json
 
 # Show stats
-rusty-gun graph stats --json
+pluresdb graph stats --json
 
 # Export graph
-rusty-gun graph export --output "graph.json" --format "json"
+pluresdb graph export --output "graph.json" --format "json"
 ```
 
 ### **Vector Search**
 ```bash
 # Add text content
-rusty-gun vector add --id "doc1" --text "Machine learning algorithms" --metadata '{"title": "ML Intro", "category": "AI"}'
+pluresdb vector add --id "doc1" --text "Machine learning algorithms" --metadata '{"title": "ML Intro", "category": "AI"}'
 
 # Search similar text
-rusty-gun vector search --query "artificial intelligence" --limit 5 --threshold 0.7 --json
+pluresdb vector search --query "artificial intelligence" --limit 5 --threshold 0.7 --json
 
 # Generate embedding
-rusty-gun vector embed --text "Deep learning neural networks" --json
+pluresdb vector embed --text "Deep learning neural networks" --json
 
 # List vector content
-rusty-gun vector list --limit 100 --json
+pluresdb vector list --limit 100 --json
 
 # Show statistics
-rusty-gun vector stats --json
+pluresdb vector stats --json
 
 # Clear all data
-rusty-gun vector clear --force
+pluresdb vector clear --force
 ```
 
 ### **SQL Interface**
 ```bash
 # Execute query
-rusty-gun sql query --query "SELECT * FROM nodes WHERE type = 'person'" --json
+pluresdb sql query --query "SELECT * FROM nodes WHERE type = 'person'" --json
 
 # Explain query
-rusty-gun sql explain --query "SELECT * FROM nodes WHERE type = 'person'"
+pluresdb sql explain --query "SELECT * FROM nodes WHERE type = 'person'"
 ```
 
 ### **Network Management**
 ```bash
 # Show network status
-rusty-gun network status --detailed
+pluresdb network status --detailed
 
 # Connect to peer
-rusty-gun network connect --address "192.168.1.100:34570" --timeout 30
+pluresdb network connect --address "192.168.1.100:34570" --timeout 30
 
 # Disconnect from peer
-rusty-gun network disconnect --peer-id "peer-1"
+pluresdb network disconnect --peer-id "peer-1"
 
 # List peers
-rusty-gun network peers --json
+pluresdb network peers --json
 
 # Start discovery
-rusty-gun network discover --timeout 60
+pluresdb network discover --timeout 60
 ```
 
 ### **Configuration Management**
 ```bash
 # Show configuration
-rusty-gun config show --json
+pluresdb config show --json
 
 # Show specific section
-rusty-gun config show --section "server"
+pluresdb config show --section "server"
 
 # Set configuration
-rusty-gun config set --key "server.port" --value "34569"
+pluresdb config set --key "server.port" --value "34569"
 
 # Get configuration
-rusty-gun config get --key "server.port"
+pluresdb config get --key "server.port"
 
 # Reset configuration
-rusty-gun config reset --force
+pluresdb config reset --force
 
 # Validate configuration
-rusty-gun config validate
+pluresdb config validate
 ```
 
 ### **Version Information**
 ```bash
 # Show version
-rusty-gun version
+pluresdb version
 
 # Show detailed version
-rusty-gun version --detailed --json
+pluresdb version --detailed --json
 ```
 
 ## 🎯 **Key Features Implemented**
@@ -259,7 +259,7 @@ rusty-gun version --detailed --json
 
 ## 🎉 **Achievement Summary**
 
-**We've successfully created a comprehensive CLI tool for Rusty Gun!**
+**We've successfully created a comprehensive CLI tool for PluresDB!**
 
 The CLI tool provides:
 - **Complete Server Management** with start, stop, restart, and monitoring
@@ -276,7 +276,7 @@ The CLI tool provides:
 ## 📊 **Code Quality Metrics**
 
 - **Lines of Code**: ~3,000 lines of production-ready Rust
-- **Command Coverage**: 100% of Rusty Gun functionality
+- **Command Coverage**: 100% of PluresDB functionality
 - **Error Handling**: Comprehensive error handling throughout
 - **Documentation**: Complete inline documentation
 - **Testing**: Full command testing and validation

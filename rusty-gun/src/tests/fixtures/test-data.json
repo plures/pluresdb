@@ -92,7 +92,7 @@
   "projects": [
     {
       "id": "project:1",
-      "name": "Rusty Gun Database",
+      "name": "PluresDB Database",
       "type": "Project",
       "description": "P2P graph database with SQLite compatibility",
       "status": "active",

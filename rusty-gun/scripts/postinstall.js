@@ -1,5 +1,5 @@
 /**
- * Post-install script for Rusty Gun npm package
+ * Post-install script for PluresDB npm package
  * This script ensures Deno is available and sets up the environment
  */
 
@@ -11,11 +11,11 @@ const os = require('os');
 const DENO_VERSION = '1.40.0';
 
 function log(message) {
-  console.log(`[rusty-gun] ${message}`);
+  console.log(`[pluresdb] ${message}`);
 }
 
 function logError(message) {
-  console.error(`[rusty-gun] ERROR: ${message}`);
+  console.error(`[pluresdb] ERROR: ${message}`);
 }
 
 function isDenoInstalled() {
@@ -61,15 +61,15 @@ function installDeno() {
 
 function createStartScript() {
   const scriptContent = `#!/bin/bash
-# Rusty Gun start script
+# PluresDB start script
 export DENO_INSTALL="$HOME/.deno"
 export PATH="$DENO_INSTALL/bin:$PATH"
 
-# Start Rusty Gun
+# Start PluresDB
 deno run -A "${path.join(__dirname, '../src/main.ts')}" serve "$@"
 `;
 
-  const scriptPath = path.join(__dirname, '../bin/rusty-gun.sh');
+  const scriptPath = path.join(__dirname, '../bin/pluresdb.sh');
   const scriptDir = path.dirname(scriptPath);
   
   if (!fs.existsSync(scriptDir)) {
@@ -84,15 +84,15 @@ deno run -A "${path.join(__dirname, '../src/main.ts')}" serve "$@"
 
 function createWindowsStartScript() {
   const scriptContent = `@echo off
-REM Rusty Gun start script for Windows
+REM PluresDB start script for Windows
 set DENO_INSTALL=%USERPROFILE%\\.deno
 set PATH=%DENO_INSTALL%\\bin;%PATH%
 
-REM Start Rusty Gun
+REM Start PluresDB
 deno run -A "${path.join(__dirname, '../src/main.ts')}" serve %*
 `;
 
-  const scriptPath = path.join(__dirname, '../bin/rusty-gun.bat');
+  const scriptPath = path.join(__dirname, '../bin/pluresdb.bat');
   const scriptDir = path.dirname(scriptPath);
   
   if (!fs.existsSync(scriptDir)) {
@@ -106,7 +106,7 @@ deno run -A "${path.join(__dirname, '../src/main.ts')}" serve %*
 
 async function main() {
   try {
-    log('Setting up Rusty Gun...');
+    log('Setting up PluresDB...');
     
     // Check if Deno is installed
     const denoInstalled = await isDenoInstalled();
@@ -134,7 +134,7 @@ async function main() {
     }
     
     // Create data directory
-    const dataDir = path.join(os.homedir(), '.rusty-gun');
+    const dataDir = path.join(os.homedir(), '.pluresdb');
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
       log(`Created data directory: ${dataDir}`);
@@ -142,9 +142,9 @@ async function main() {
     
     log('Setup complete!');
     log('Usage:');
-    log('  npx rusty-gun serve');
+    log('  npx pluresdb serve');
     log('  or');
-    log('  node node_modules/rusty-gun/dist/cli.js serve');
+    log('  node node_modules/pluresdb/dist/cli.js serve');
     
   } catch (error) {
     logError(`Setup failed: ${error.message}`);

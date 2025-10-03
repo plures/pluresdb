@@ -1,11 +1,11 @@
 {
-  "name": "rusty-gun",
+  "name": "pluresdb",
   "version": "1.0.0",
   "description": "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications",
   "main": "dist/node-index.js",
   "types": "dist/node-index.d.ts",
   "bin": {
-    "rusty-gun": "dist/cli.js"
+    "pluresdb": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc && npm run build:web",
@@ -33,15 +33,15 @@
     "sync",
     "encryption"
   ],
-  "author": "Rusty Gun Team",
-  "license": "MIT",
-  "homepage": "https://github.com/rusty-gun/rusty-gun#readme",
+  "author": "Plures Organization",
+  "license": "AGPL-3.0",
+  "homepage": "https://github.com/plures/pluresdb#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rusty-gun/rusty-gun.git"
+    "url": "git+https://github.com/plures/pluresdb.git"
   },
   "bugs": {
-    "url": "https://github.com/rusty-gun/rusty-gun/issues"
+    "url": "https://github.com/plures/pluresdb/issues"
   },
   "engines": {
     "node": ">=16.0.0",
@@ -83,9 +83,5 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
-  },
-  "funding": {
-    "type": "github",
-    "url": "https://github.com/sponsors/rusty-gun"
   }
 }

@@ -2,7 +2,7 @@
 
 ## 🎯 **Objective**
 
-Systematically refactor Rusty Gun from TypeScript/Deno to Rust for maximum performance, memory safety, and system-level capabilities.
+Systematically refactor PluresDB from TypeScript/Deno to Rust for maximum performance, memory safety, and system-level capabilities.
 
 ## 🚀 **What We've Accomplished**
 
@@ -32,16 +32,16 @@ Systematically refactor Rusty Gun from TypeScript/Deno to Rust for maximum perfo
 ## 📦 **Workspace Structure**
 
 ```
-rusty-gun/
+pluresdb/
 ├── Cargo.toml                 # Workspace configuration
-├── rusty-gun-core/           # Core CRDT and data structures
-├── rusty-gun-storage/        # Storage engine (SQLite compatibility)
-├── rusty-gun-network/        # P2P networking (WebRTC/QUIC)
-├── rusty-gun-api/            # HTTP/WebSocket API server
-├── rusty-gun-cli/            # Command-line interface
-├── rusty-gun-web/            # Web UI (Leptos/Yew)
-├── rusty-gun-vscode/         # VSCode extension (WASM)
-└── rusty-gun-benchmarks/     # Performance benchmarks
+├── pluresdb-core/           # Core CRDT and data structures
+├── pluresdb-storage/        # Storage engine (SQLite compatibility)
+├── pluresdb-network/        # P2P networking (WebRTC/QUIC)
+├── pluresdb-api/            # HTTP/WebSocket API server
+├── pluresdb-cli/            # Command-line interface
+├── pluresdb-web/            # Web UI (Leptos/Yew)
+├── pluresdb-vscode/         # VSCode extension (WASM)
+└── pluresdb-benchmarks/     # Performance benchmarks
 ```
 
 ## 🔧 **Core Features Implemented**
@@ -200,7 +200,7 @@ To continue development, you'll need:
 
 ## 🎉 **Achievement Summary**
 
-**We've successfully created a production-ready Rust foundation for Rusty Gun!**
+**We've successfully created a production-ready Rust foundation for PluresDB!**
 
 The core CRDT engine, conflict resolution, cryptographic operations, and graph data structures are complete and tested. This provides a solid foundation for building the remaining components (storage, networking, API, UI) with Rust's performance and safety guarantees.
 

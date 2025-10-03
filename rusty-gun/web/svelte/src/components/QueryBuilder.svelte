@@ -57,7 +57,7 @@
   
   function loadQueries() {
     try {
-      const saved = localStorage.getItem('rusty-gun-queries')
+      const saved = localStorage.getItem('pluresdb-queries')
       if (saved) {
         queries = JSON.parse(saved)
       }
@@ -68,7 +68,7 @@
   
   function saveQueries() {
     try {
-      localStorage.setItem('rusty-gun-queries', JSON.stringify(queries))
+      localStorage.setItem('pluresdb-queries', JSON.stringify(queries))
     } catch (error) {
       console.error('Error saving queries:', error)
     }

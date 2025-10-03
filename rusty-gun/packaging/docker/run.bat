@@ -1,16 +1,16 @@
 @echo off
-REM Rusty Gun Docker Runner Script for Windows
-REM Makes it easy to run Rusty Gun with Docker
+REM PluresDB Docker Runner Script for Windows
+REM Makes it easy to run PluresDB with Docker
 
 setlocal enabledelayedexpansion
 
 REM Default values
-set IMAGE=rusty-gun/rusty-gun:latest
+set IMAGE=pluresdb/pluresdb:latest
 set API_PORT=34567
 set WEB_PORT=34568
-set DATA_VOLUME=rusty-gun-data
-set CONFIG_VOLUME=rusty-gun-config
-set CONTAINER_NAME=rusty-gun
+set DATA_VOLUME=pluresdb-data
+set CONFIG_VOLUME=pluresdb-config
+set CONTAINER_NAME=pluresdb
 set COMMAND=start
 set FOREGROUND=false
 set NO_PULL=false
@@ -37,14 +37,14 @@ echo [ERROR] Unknown option: %~1
 goto :show_usage
 
 :show_usage
-echo Rusty Gun Docker Runner
+echo PluresDB Docker Runner
 echo.
 echo Usage: %0 [COMMAND] [OPTIONS]
 echo.
 echo Commands:
-echo   start     Start Rusty Gun (default)
-echo   stop      Stop Rusty Gun
-echo   restart   Restart Rusty Gun
+echo   start     Start PluresDB (default)
+echo   stop      Stop PluresDB
+echo   restart   Restart PluresDB
 echo   logs      Show logs
 echo   status    Show status
 echo   clean     Remove containers and volumes
@@ -53,7 +53,7 @@ echo.
 echo Options:
 echo   --api-port PORT     API port (default: 34567)
 echo   --web-port PORT     Web UI port (default: 34568)
-echo   --image IMAGE       Docker image (default: rusty-gun/rusty-gun:latest)
+echo   --image IMAGE       Docker image (default: pluresdb/pluresdb:latest)
 echo   --no-pull           Don't pull latest image
 echo   --detach            Run in background (default)
 echo   --foreground        Run in foreground
@@ -79,8 +79,8 @@ echo [INFO] Pulling latest image...
 docker pull %IMAGE%
 goto :eof
 
-:start_rusty_gun
-echo [INFO] Starting Rusty Gun...
+:start_pluresdb
+echo [INFO] Starting PluresDB...
 
 REM Check if container already exists
 docker ps -a --format "table {{.Names}}" | findstr /C:"%CONTAINER_NAME%" >nul
@@ -96,10 +96,10 @@ docker volume create %CONFIG_VOLUME% >nul 2>&1
 
 REM Start container
 if "%FOREGROUND%"=="true" (
-    docker run --name %CONTAINER_NAME% -p %API_PORT%:34567 -p %WEB_PORT%:34568 -v %DATA_VOLUME%:/app/data -v %CONFIG_VOLUME%:/app/config -e RUSTY_GUN_PORT=34567 -e RUSTY_GUN_WEB_PORT=34568 -e RUSTY_GUN_HOST=0.0.0.0 -e RUSTY_GUN_DATA_DIR=/app/data -e RUSTY_GUN_CONFIG_DIR=/app/config %IMAGE%
+    docker run --name %CONTAINER_NAME% -p %API_PORT%:34567 -p %WEB_PORT%:34568 -v %DATA_VOLUME%:/app/data -v %CONFIG_VOLUME%:/app/config -e PLURESDB_PORT=34567 -e PLURESDB_WEB_PORT=34568 -e PLURESDB_HOST=0.0.0.0 -e PLURESDB_DATA_DIR=/app/data -e PLURESDB_CONFIG_DIR=/app/config %IMAGE%
 ) else (
-    docker run -d --name %CONTAINER_NAME% -p %API_PORT%:34567 -p %WEB_PORT%:34568 -v %DATA_VOLUME%:/app/data -v %CONFIG_VOLUME%:/app/config -e RUSTY_GUN_PORT=34567 -e RUSTY_GUN_WEB_PORT=34568 -e RUSTY_GUN_HOST=0.0.0.0 -e RUSTY_GUN_DATA_DIR=/app/data -e RUSTY_GUN_CONFIG_DIR=/app/config --restart unless-stopped %IMAGE%
-    echo [SUCCESS] Rusty Gun started successfully!
+    docker run -d --name %CONTAINER_NAME% -p %API_PORT%:34567 -p %WEB_PORT%:34568 -v %DATA_VOLUME%:/app/data -v %CONFIG_VOLUME%:/app/config -e PLURESDB_PORT=34567 -e PLURESDB_WEB_PORT=34568 -e PLURESDB_HOST=0.0.0.0 -e PLURESDB_DATA_DIR=/app/data -e PLURESDB_CONFIG_DIR=/app/config --restart unless-stopped %IMAGE%
+    echo [SUCCESS] PluresDB started successfully!
     echo [INFO] API: http://localhost:%API_PORT%
     echo [INFO] Web UI: http://localhost:%WEB_PORT%
     echo [INFO] Container name: %CONTAINER_NAME%
@@ -108,22 +108,22 @@ if "%FOREGROUND%"=="true" (
 )
 goto :eof
 
-:stop_rusty_gun
-echo [INFO] Stopping Rusty Gun...
+:stop_pluresdb
+echo [INFO] Stopping PluresDB...
 docker ps --format "table {{.Names}}" | findstr /C:"%CONTAINER_NAME%" >nul
 if not errorlevel 1 (
     docker stop %CONTAINER_NAME%
-    echo [SUCCESS] Rusty Gun stopped successfully!
+    echo [SUCCESS] PluresDB stopped successfully!
 ) else (
-    echo [WARNING] Rusty Gun is not running.
+    echo [WARNING] PluresDB is not running.
 )
 goto :eof
 
-:restart_rusty_gun
-echo [INFO] Restarting Rusty Gun...
-call :stop_rusty_gun
+:restart_pluresdb
+echo [INFO] Restarting PluresDB...
+call :stop_pluresdb
 timeout /t 2 /nobreak >nul
-call :start_rusty_gun
+call :start_pluresdb
 goto :eof
 
 :show_logs
@@ -138,7 +138,7 @@ if not errorlevel 1 (
 goto :eof
 
 :show_status
-echo [INFO] Rusty Gun Status:
+echo [INFO] PluresDB Status:
 echo.
 docker ps --format "table {{.Names}}" | findstr /C:"%CONTAINER_NAME%" >nul
 if not errorlevel 1 (
@@ -159,7 +159,7 @@ if not errorlevel 1 (
 goto :eof
 
 :clean_up
-echo [INFO] Cleaning up Rusty Gun containers and volumes...
+echo [INFO] Cleaning up PluresDB containers and volumes...
 
 REM Stop and remove container
 docker ps -a --format "table {{.Names}}" | findstr /C:"%CONTAINER_NAME%" >nul
@@ -191,12 +191,12 @@ if errorlevel 1 exit /b 1
 
 if "%COMMAND%"=="start" (
     call :pull_image
-    call :start_rusty_gun
+    call :start_pluresdb
 ) else if "%COMMAND%"=="stop" (
-    call :stop_rusty_gun
+    call :stop_pluresdb
 ) else if "%COMMAND%"=="restart" (
     call :pull_image
-    call :restart_rusty_gun
+    call :restart_pluresdb
 ) else if "%COMMAND%"=="logs" (
     call :show_logs
 ) else if "%COMMAND%"=="status" (

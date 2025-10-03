@@ -1,5 +1,5 @@
 /**
- * Node.js Wrapper for Rusty Gun
+ * Node.js Wrapper for PluresDB
  * This module provides a Node.js-compatible API for VSCode extensions
  */
 
@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 
-export interface RustyGunConfig {
+export interface PluresDBConfig {
   port?: number;
   host?: string;
   dataDir?: string;
@@ -17,26 +17,26 @@ export interface RustyGunConfig {
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
 }
 
-export interface RustyGunOptions {
-  config?: RustyGunConfig;
+export interface PluresDBOptions {
+  config?: PluresDBConfig;
   autoStart?: boolean;
   denoPath?: string;
 }
 
-export class RustyGunNode extends EventEmitter {
+export class PluresNode extends EventEmitter {
   private process: ChildProcess | null = null;
-  private config: RustyGunConfig;
+  private config: PluresDBConfig;
   private denoPath: string;
   private isRunning = false;
   private apiUrl: string = '';
 
-  constructor(options: RustyGunOptions = {}) {
+  constructor(options: PluresDBOptions = {}) {
     super();
     
     this.config = {
       port: 34567,
       host: 'localhost',
-      dataDir: path.join(os.homedir(), '.rusty-gun'),
+      dataDir: path.join(os.homedir(), '.pluresdb'),
       webPort: 34568,
       logLevel: 'info',
       ...options.config
@@ -98,7 +98,7 @@ export class RustyGunNode extends EventEmitter {
         // Find the main.ts file
         const mainTsPath = path.join(__dirname, 'main.ts');
         if (!fs.existsSync(mainTsPath)) {
-          throw new Error('Rusty Gun main.ts not found. Please ensure the package is properly installed.');
+          throw new Error('PluresDB main.ts not found. Please ensure the package is properly installed.');
         }
 
         // Start the Deno process
@@ -308,5 +308,5 @@ export class RustyGunNode extends EventEmitter {
 }
 
 // Export the main class and types
-export { RustyGunNode as default };
+export { PluresNode as default };
 export * from './types/index';

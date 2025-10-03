@@ -1,23 +1,23 @@
-# Rusty Gun SQLite Compatibility Demo Runner
-# This script demonstrates that Rusty Gun can do everything SQLite can do
+# PluresDB SQLite Compatibility Demo Runner
+# This script demonstrates that PluresDB can do everything SQLite can do
 
-Write-Host "🚀 Rusty Gun SQLite Compatibility Demo" -ForegroundColor Cyan
+Write-Host "🚀 PluresDB SQLite Compatibility Demo" -ForegroundColor Cyan
 Write-Host "===============================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Check if Rusty Gun is running
-Write-Host "🔍 Checking if Rusty Gun is running..." -ForegroundColor Yellow
+# Check if PluresDB is running
+Write-Host "🔍 Checking if PluresDB is running..." -ForegroundColor Yellow
 try {
     $response = Invoke-WebRequest -Uri "http://localhost:34568/api/config" -TimeoutSec 5
     if ($response.StatusCode -eq 200) {
-        Write-Host "✅ Rusty Gun is running on http://localhost:34568" -ForegroundColor Green
+        Write-Host "✅ PluresDB is running on http://localhost:34568" -ForegroundColor Green
     } else {
-        Write-Host "❌ Rusty Gun is not responding properly" -ForegroundColor Red
+        Write-Host "❌ PluresDB is not responding properly" -ForegroundColor Red
         exit 1
     }
 } catch {
-    Write-Host "❌ Rusty Gun is not running. Please start it first:" -ForegroundColor Red
-    Write-Host "   cd rusty-gun && deno run -A src/main.ts serve --port 34567" -ForegroundColor Yellow
+    Write-Host "❌ PluresDB is not running. Please start it first:" -ForegroundColor Red
+    Write-Host "   cd pluresdb && deno run -A src/main.ts serve --port 34567" -ForegroundColor Yellow
     exit 1
 }
 
@@ -62,7 +62,7 @@ Write-Host "• Advanced features: JSON, window functions, CTEs, FTS" -Foregroun
 Write-Host "• PLUS: P2P sync, offline-first, vector search, graph queries" -ForegroundColor White
 Write-Host ""
 
-Write-Host "🏆 Rusty Gun is a complete SQLite replacement with modern features!" -ForegroundColor Green
+Write-Host "🏆 PluresDB is a complete SQLite replacement with modern features!" -ForegroundColor Green
 Write-Host ""
 
 # Wait for user input

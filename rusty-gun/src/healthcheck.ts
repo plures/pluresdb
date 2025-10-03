@@ -2,12 +2,12 @@
 
 /**
  * Health check script for Docker containers
- * Verifies that Rusty Gun is running and responding correctly
+ * Verifies that PluresDB is running and responding correctly
  */
 
-const API_PORT = Deno.env.get("RUSTY_GUN_PORT") || "34567";
-const WEB_PORT = Deno.env.get("RUSTY_GUN_WEB_PORT") || "34568";
-const HOST = Deno.env.get("RUSTY_GUN_HOST") || "localhost";
+const API_PORT = Deno.env.get("PLURESDB_PORT") || "34567";
+const WEB_PORT = Deno.env.get("PLURESDB_WEB_PORT") || "34568";
+const HOST = Deno.env.get("PLURESDB_HOST") || "localhost";
 
 interface HealthStatus {
   status: "healthy" | "unhealthy";
@@ -26,7 +26,7 @@ async function checkApiHealth(): Promise<boolean> {
       method: "GET",
       headers: {
         "Accept": "application/json",
-        "User-Agent": "rusty-gun-healthcheck/1.0.0"
+        "User-Agent": "pluresdb-healthcheck/1.0.0"
       },
       signal: AbortSignal.timeout(5000) // 5 second timeout
     });
@@ -50,7 +50,7 @@ async function checkWebHealth(): Promise<boolean> {
       method: "GET",
       headers: {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "User-Agent": "rusty-gun-healthcheck/1.0.0"
+        "User-Agent": "pluresdb-healthcheck/1.0.0"
       },
       signal: AbortSignal.timeout(5000) // 5 second timeout
     });
@@ -71,7 +71,7 @@ async function checkWebHealth(): Promise<boolean> {
 async function checkDatabaseHealth(): Promise<boolean> {
   try {
     // Check if data directory exists and is writable
-    const dataDir = Deno.env.get("RUSTY_GUN_DATA_DIR") || "./data";
+    const dataDir = Deno.env.get("PLURESDB_DATA_DIR") || "./data";
     
     try {
       await Deno.stat(dataDir);
@@ -95,7 +95,7 @@ async function checkDatabaseHealth(): Promise<boolean> {
 async function main(): Promise<void> {
   const startTime = Date.now();
   
-  console.log("Starting Rusty Gun health check...");
+  console.log("Starting PluresDB health check...");
   console.log(`API: http://${HOST}:${API_PORT}/api/health`);
   console.log(`Web: http://${HOST}:${WEB_PORT}/`);
   

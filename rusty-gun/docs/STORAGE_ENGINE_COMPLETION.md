@@ -59,7 +59,7 @@ pub trait StorageEngine: Send + Sync {
 // Create SQLite storage
 let config = StorageConfig {
     backend: StorageBackend::Sqlite,
-    path: "./data/rusty-gun.db".to_string(),
+    path: "./data/pluresdb.db".to_string(),
     max_connections: 10,
     enable_wal: true,
     enable_foreign_keys: true,
@@ -115,7 +115,7 @@ for result in results {
 ### **Migration System**
 ```rust
 // Create migration runner
-let pool = SqlitePool::connect("sqlite:./data/rusty-gun.db").await?;
+let pool = SqlitePool::connect("sqlite:./data/pluresdb.db").await?;
 let mut runner = SqliteMigrationRunner::new(pool);
 
 // Run all pending migrations
@@ -267,7 +267,7 @@ To continue development, you'll need:
 
 ## 🎉 **Achievement Summary**
 
-**We've successfully created a production-ready storage engine for Rusty Gun!**
+**We've successfully created a production-ready storage engine for PluresDB!**
 
 The storage engine provides:
 - **Complete SQLite compatibility** with full SQL support
