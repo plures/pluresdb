@@ -548,7 +548,7 @@
           
           <div class="compatibility-info">
             <h5>SQLite Compatibility Level: 95%</h5>
-            <p>Rusty Gun provides comprehensive SQLite compatibility with support for most standard SQL features, transactions, indexes, and constraints. Perfect for drop-in replacement in existing applications.</p>
+            <p>PluresDB provides comprehensive SQLite compatibility with support for most standard SQL features, transactions, indexes, and constraints. Perfect for drop-in replacement in existing applications.</p>
           </div>
         </div>
       {/if}

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Build Packages Script for Rusty Gun
+# Build Packages Script for PluresDB
 # This script builds packages for all supported platforms and package managers
 
 set -e
@@ -46,7 +46,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo "🚀 Building Rusty Gun Packages v$VERSION"
+echo "🚀 Building PluresDB Packages v$VERSION"
 
 # Create output directory
 rm -rf "$OUTPUT_DIR"
@@ -85,7 +85,7 @@ build_webui() {
 build_deno_binary() {
     echo "🔨 Building Deno binary..."
     cd ../../
-    deno compile -A --output "packaging/scripts/$OUTPUT_DIR/rusty-gun" src/main.ts
+    deno compile -A --output "packaging/scripts/$OUTPUT_DIR/pluresdb" src/main.ts
     if [ $? -ne 0 ]; then
         echo "❌ Deno binary build failed!"
         exit 1
@@ -104,8 +104,8 @@ create_linux_package() {
     mkdir -p "$package_dir"
     
     # Copy binary
-    cp "$OUTPUT_DIR/rusty-gun" "$package_dir/"
-    chmod +x "$package_dir/rusty-gun"
+    cp "$OUTPUT_DIR/pluresdb" "$package_dir/"
+    chmod +x "$package_dir/pluresdb"
     
     # Copy web UI
     cp -r "../../web/dist" "$package_dir/web"
@@ -121,9 +121,9 @@ create_linux_package() {
     # Create installer script
     cat > "$package_dir/install.sh" << 'EOF'
 #!/bin/bash
-echo "Installing Rusty Gun..."
+echo "Installing PluresDB..."
 echo ""
-echo "Rusty Gun is a P2P Graph Database with SQLite Compatibility"
+echo "PluresDB is a P2P Graph Database with SQLite Compatibility"
 echo ""
 echo "Features:"
 echo "- Local-first data storage"
@@ -134,19 +134,19 @@ echo "- Encrypted data sharing"
 echo "- Cross-device sync"
 echo "- Comprehensive web UI"
 echo ""
-echo "Starting Rusty Gun server..."
+echo "Starting PluresDB server..."
 echo ""
 echo "Web UI will be available at: http://localhost:34568"
 echo "API will be available at: http://localhost:34567"
 echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
-./rusty-gun serve --port 34567
+./pluresdb serve --port 34567
 EOF
     chmod +x "$package_dir/install.sh"
     
     # Create tarball
-    tar -czf "$OUTPUT_DIR/rusty-gun-$os-$arch.tar.gz" -C "$package_dir" .
+    tar -czf "$OUTPUT_DIR/pluresdb-$os-$arch.tar.gz" -C "$package_dir" .
     rm -rf "$package_dir"
 }
 
@@ -160,8 +160,8 @@ create_macos_package() {
     mkdir -p "$package_dir"
     
     # Copy binary
-    cp "$OUTPUT_DIR/rusty-gun" "$package_dir/"
-    chmod +x "$package_dir/rusty-gun"
+    cp "$OUTPUT_DIR/pluresdb" "$package_dir/"
+    chmod +x "$package_dir/pluresdb"
     
     # Copy web UI
     cp -r "../../web/dist" "$package_dir/web"
@@ -177,9 +177,9 @@ create_macos_package() {
     # Create installer script
     cat > "$package_dir/install.sh" << 'EOF'
 #!/bin/bash
-echo "Installing Rusty Gun..."
+echo "Installing PluresDB..."
 echo ""
-echo "Rusty Gun is a P2P Graph Database with SQLite Compatibility"
+echo "PluresDB is a P2P Graph Database with SQLite Compatibility"
 echo ""
 echo "Features:"
 echo "- Local-first data storage"
@@ -190,19 +190,19 @@ echo "- Encrypted data sharing"
 echo "- Cross-device sync"
 echo "- Comprehensive web UI"
 echo ""
-echo "Starting Rusty Gun server..."
+echo "Starting PluresDB server..."
 echo ""
 echo "Web UI will be available at: http://localhost:34568"
 echo "API will be available at: http://localhost:34567"
 echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
-./rusty-gun serve --port 34567
+./pluresdb serve --port 34567
 EOF
     chmod +x "$package_dir/install.sh"
     
     # Create tarball
-    tar -czf "$OUTPUT_DIR/rusty-gun-macos-$arch.tar.gz" -C "$package_dir" .
+    tar -czf "$OUTPUT_DIR/pluresdb-macos-$arch.tar.gz" -C "$package_dir" .
     rm -rf "$package_dir"
 }
 
@@ -221,7 +221,7 @@ create_deno_package() {
     cp "../deno/deno.json" "$deno_dir/"
     
     # Create tarball
-    tar -czf "$OUTPUT_DIR/rusty-gun-deno.tar.gz" -C "$deno_dir" .
+    tar -czf "$OUTPUT_DIR/pluresdb-deno.tar.gz" -C "$deno_dir" .
     rm -rf "$deno_dir"
 }
 
@@ -236,7 +236,7 @@ create_nixos_package() {
     cp ../nixos/* "$nix_dir/"
     
     # Create tarball
-    tar -czf "$OUTPUT_DIR/rusty-gun-nixos.tar.gz" -C "$nix_dir" .
+    tar -czf "$OUTPUT_DIR/pluresdb-nixos.tar.gz" -C "$nix_dir" .
     rm -rf "$nix_dir"
 }
 
@@ -248,31 +248,31 @@ create_homebrew_formula() {
     mkdir -p "$formula_dir"
     
     # Create formula
-    cat > "$formula_dir/rusty-gun.rb" << EOF
-class RustyGun < Formula
+    cat > "$formula_dir/pluresdb.rb" << EOF
+class PluresDB < Formula
   desc "P2P Graph Database with SQLite Compatibility"
-  homepage "https://github.com/rusty-gun/rusty-gun"
-  url "https://github.com/rusty-gun/rusty-gun/releases/download/v$VERSION/rusty-gun-macos-\#{Hardware::CPU.arch}.tar.gz"
+  homepage "https://github.com/pluresdb/pluresdb"
+  url "https://github.com/pluresdb/pluresdb/releases/download/v$VERSION/pluresdb-macos-\#{Hardware::CPU.arch}.tar.gz"
   sha256 "PLACEHOLDER_SHA256"
   license "MIT"
 
   depends_on "deno"
 
   def install
-    bin.install "rusty-gun"
+    bin.install "pluresdb"
     libexec.install "web"
     libexec.install "deno.json"
     libexec.install "config.ts"
   end
 
   test do
-    system "#{bin}/rusty-gun", "--version"
+    system "#{bin}/pluresdb", "--version"
   end
 end
 EOF
     
     # Create tarball
-    tar -czf "$OUTPUT_DIR/rusty-gun-homebrew.tar.gz" -C "$formula_dir" .
+    tar -czf "$OUTPUT_DIR/pluresdb-homebrew.tar.gz" -C "$formula_dir" .
     rm -rf "$formula_dir"
 }
 

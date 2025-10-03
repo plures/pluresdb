@@ -1,6 +1,6 @@
-# 🚀 Rusty Gun SQLite Compatibility Demo
+# 🚀 PluresDB SQLite Compatibility Demo
 
-This demo **proves** that Rusty Gun can do everything SQLite can do - and more!
+This demo **proves** that PluresDB can do everything SQLite can do - and more!
 
 ## 🎯 **What This Demo Shows**
 
@@ -12,7 +12,7 @@ This demo **proves** that Rusty Gun can do everything SQLite can do - and more!
 - **Advanced Features**: JSON support, window functions, CTEs, full-text search
 - **Performance**: Query optimization, indexing, benchmarking
 
-### 🚀 **Rusty Gun Extensions (Beyond SQLite)**
+### 🚀 **PluresDB Extensions (Beyond SQLite)**
 - **P2P Synchronization**: Real-time data sync across multiple nodes
 - **Offline-First**: Local storage with operation queuing
 - **Vector Search**: Semantic search with embeddings
@@ -22,9 +22,9 @@ This demo **proves** that Rusty Gun can do everything SQLite can do - and more!
 
 ## 🚀 **Quick Start**
 
-### 1. **Start Rusty Gun**
+### 1. **Start PluresDB**
 ```bash
-cd rusty-gun
+cd pluresdb
 deno run -A src/main.ts serve --port 34567
 ```
 
@@ -50,11 +50,11 @@ node demo/api-demo.js
 - **Transaction Management** with ACID compliance
 - **Schema Operations** (CREATE, ALTER, DROP)
 - **Performance Benchmarking** with execution times
-- **Feature Comparison** showing SQLite vs Rusty Gun
+- **Feature Comparison** showing SQLite vs PluresDB
 
 ### 2. **API Demo** (`api-demo.js`)
 - **Comprehensive API Testing** of all endpoints
-- **Real HTTP Requests** to Rusty Gun server
+- **Real HTTP Requests** to PluresDB server
 - **16 Test Categories** covering all SQLite features
 - **Performance Metrics** and timing analysis
 - **P2P Feature Testing** beyond SQLite capabilities
@@ -83,7 +83,7 @@ node demo/api-demo.js
 13. **Full-Text Search** - FTS5 compatible search
 14. **Performance** - Query optimization and benchmarking
 
-### **Rusty Gun Extensions**
+### **PluresDB Extensions**
 15. **P2P Features** - Network management and sync
 16. **Offline Capabilities** - Local storage and queuing
 
@@ -196,7 +196,7 @@ END;
 
 ## 🚀 **Beyond SQLite**
 
-### **What Rusty Gun Adds**
+### **What PluresDB Adds**
 1. **P2P Synchronization** - Real-time data sync across nodes
 2. **Offline-First** - Local storage with operation queuing
 3. **Vector Search** - Semantic search with embeddings
@@ -216,7 +216,7 @@ END;
 
 ## 🏆 **Conclusion**
 
-This demo **proves** that Rusty Gun is:
+This demo **proves** that PluresDB is:
 
 ✅ **A complete SQLite replacement** with 95% compatibility  
 ✅ **A modern P2P database** with real-time sync  
@@ -224,15 +224,15 @@ This demo **proves** that Rusty Gun is:
 ✅ **An enterprise-grade solution** with security and billing  
 ✅ **A future-proof foundation** for modern applications  
 
-**Rusty Gun = SQLite + P2P + Offline + Modern + Enterprise**
+**PluresDB = SQLite + P2P + Offline + Modern + Enterprise**
 
 ## 📞 **Support**
 
 - **Documentation**: [Project README](../README.md)
 - **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/your-repo/discussions)
-- **Email**: support@rusty-gun.dev
+- **Email**: GitHub Issues: https://github.com/plures/pluresdb/issues
 
 ---
 
-**🎉 Ready to see Rusty Gun in action? Run the demo and be amazed!**
+**🎉 Ready to see PluresDB in action? Run the demo and be amazed!**

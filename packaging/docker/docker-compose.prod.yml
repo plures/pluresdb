@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  pluresdb:
+    image: pluresdb/pluresdb:latest
+    container_name: pluresdb-prod
+    ports:
+      - "34567:34567"  # API port
+      - "34568:34568"  # Web UI port
+    volumes:
+      - pluresdb-data:/app/data
+      - pluresdb-config:/app/config
+    environment:
+      - PLURESDB_PORT=34567
+      - PLURESDB_WEB_PORT=34568
+      - PLURESDB_HOST=0.0.0.0
+      - PLURESDB_DATA_DIR=/app/data
+      - PLURESDB_CONFIG_DIR=/app/config
+      - PLURESDB_LOG_LEVEL=info
+      - PLURESDB_PRODUCTION=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "deno", "run", "-A", "--allow-net", "src/healthcheck.ts"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - pluresdb-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Nginx reverse proxy for production
+  nginx:
+    image: nginx:alpine
+    container_name: pluresdb-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - pluresdb
+    restart: unless-stopped
+    networks:
+      - pluresdb-network
+    profiles:
+      - with-nginx
+
+volumes:
+  pluresdb-data:
+    driver: local
+  pluresdb-config:
+    driver: local
+
+networks:
+  pluresdb-network:
+    driver: bridge

@@ -1,0 +1,30 @@
+name: Publish to Deno
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish-deno:
+    name: Publish to Deno Land
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.40.0
+
+      - name: Publish to deno.land/x
+        run: |
+          # Install deno_mirror CLI
+          deno install --allow-all --name deno_mirror https://deno.land/x/deno_mirror/cli.ts
+          
+          # Mirror to deno.land/x
+          deno_mirror --repo=${{ github.repository }} --tag=${{ github.ref_name }}

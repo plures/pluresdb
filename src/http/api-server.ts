@@ -155,7 +155,7 @@ const INDEX_HTML = `<!doctype html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Rusty Gun</title>
+  <title>PluresDB</title>
   <style>
   body { font-family: system-ui, sans-serif; margin: 24px; }
   h1 { margin-top: 0; }
@@ -167,7 +167,7 @@ const INDEX_HTML = `<!doctype html>
   </style>
  </head>
  <body>
-  <h1>Rusty Gun</h1>
+  <h1>PluresDB</h1>
   <p>Reactive UI. Data updates automatically.</p>
   <div style="display:flex; gap:16px; align-items:flex-start;">
     <section style="flex:1; min-width:300px;">

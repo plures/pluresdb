@@ -1,9 +1,9 @@
 # Web UI (Svelte)
 
-This folder contains a Svelte-based reactive UI for Rusty Gun.
+This folder contains a Svelte-based reactive UI for PluresDB.
 
 - svelte/ source using Vite
-- Built assets go to web/dist/ and are served by the Rusty Gun HTTP server
+- Built assets go to web/dist/ and are served by the PluresDB HTTP server
 
 ## Dev
 
@@ -24,7 +24,7 @@ cd web/svelte
 npm run build
 ```
 
-This outputs to ../dist/. Start Rusty Gun serve and open the port+1 URL printed in the console.
+This outputs to ../dist/. Start PluresDB serve and open the port+1 URL printed in the console.
 
 
 

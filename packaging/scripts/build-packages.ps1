@@ -1,4 +1,4 @@
-# Build Packages Script for Rusty Gun
+# Build Packages Script for PluresDB
 # This script builds packages for all supported platforms and package managers
 
 param(
@@ -8,7 +8,7 @@ param(
     [switch]$SkipWebUI = $false
 )
 
-Write-Host "🚀 Building Rusty Gun Packages v$Version" -ForegroundColor Green
+Write-Host "🚀 Building PluresDB Packages v$Version" -ForegroundColor Green
 
 # Create output directory
 if (Test-Path $OutputDir) {
@@ -49,7 +49,7 @@ function Build-WebUI {
 function Build-DenoBinary {
     Write-Host "🔨 Building Deno binary..." -ForegroundColor Yellow
     Set-Location "..\..\"
-    deno compile -A --output "packaging\scripts\$OutputDir\rusty-gun.exe" src/main.ts
+    deno compile -A --output "packaging\scripts\$OutputDir\pluresdb.exe" src/main.ts
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Deno binary build failed!"
         exit 1
@@ -65,7 +65,7 @@ function New-WindowsZip {
     New-Item -ItemType Directory -Path $zipDir | Out-Null
     
     # Copy binary
-    Copy-Item "$OutputDir\rusty-gun.exe" "$zipDir\"
+    Copy-Item "$OutputDir\pluresdb.exe" "$zipDir\"
     
     # Copy web UI
     Copy-Item "..\..\web\dist" "$zipDir\web" -Recurse
@@ -81,9 +81,9 @@ function New-WindowsZip {
     # Create installer script
     $installScript = @"
 @echo off
-echo Installing Rusty Gun...
+echo Installing PluresDB...
 echo.
-echo Rusty Gun is a P2P Graph Database with SQLite Compatibility
+echo PluresDB is a P2P Graph Database with SQLite Compatibility
 echo.
 echo Features:
 echo - Local-first data storage
@@ -94,19 +94,19 @@ echo - Encrypted data sharing
 echo - Cross-device sync
 echo - Comprehensive web UI
 echo.
-echo Starting Rusty Gun server...
+echo Starting PluresDB server...
 echo.
 echo Web UI will be available at: http://localhost:34568
 echo API will be available at: http://localhost:34567
 echo.
 echo Press Ctrl+C to stop the server
 echo.
-rusty-gun.exe serve --port 34567
+pluresdb.exe serve --port 34567
 "@
     $installScript | Out-File -FilePath "$zipDir\install.bat" -Encoding ASCII
     
     # Create ZIP
-    Compress-Archive -Path "$zipDir\*" -DestinationPath "$OutputDir\rusty-gun-windows-x64.zip" -Force
+    Compress-Archive -Path "$zipDir\*" -DestinationPath "$OutputDir\pluresdb-windows-x64.zip" -Force
     Remove-Item $zipDir -Recurse -Force
 }
 
@@ -127,7 +127,7 @@ function New-MSIInstaller {
     New-Item -ItemType Directory -Path $msiSourceDir | Out-Null
     
     # Copy files
-    Copy-Item "$OutputDir\rusty-gun.exe" "$msiSourceDir\"
+    Copy-Item "$OutputDir\pluresdb.exe" "$msiSourceDir\"
     Copy-Item "..\..\web\dist" "$msiSourceDir\web" -Recurse
     Copy-Item "..\..\deno.json" "$msiSourceDir\"
     Copy-Item "..\..\src\config.ts" "$msiSourceDir\"
@@ -136,21 +136,21 @@ function New-MSIInstaller {
     New-Item -ItemType Directory -Path "$msiSourceDir\assets" | Out-Null
     
     # Compile WiX source
-    & candle.exe "..\msi\rusty-gun.wxs" -o "$OutputDir\rusty-gun.wixobj" -dSourceDir="$msiSourceDir"
+    & candle.exe "..\msi\pluresdb.wxs" -o "$OutputDir\pluresdb.wixobj" -dSourceDir="$msiSourceDir"
     if ($LASTEXITCODE -ne 0) {
         Write-Error "WiX compilation failed!"
         return
     }
     
     # Link MSI
-    & light.exe "$OutputDir\rusty-gun.wixobj" -o "$OutputDir\rusty-gun.msi"
+    & light.exe "$OutputDir\pluresdb.wixobj" -o "$OutputDir\pluresdb.msi"
     if ($LASTEXITCODE -ne 0) {
         Write-Error "MSI linking failed!"
         return
     }
     
     # Cleanup
-    Remove-Item "$OutputDir\rusty-gun.wixobj"
+    Remove-Item "$OutputDir\pluresdb.wixobj"
     Remove-Item $msiSourceDir -Recurse -Force
 }
 
@@ -169,7 +169,7 @@ function New-DenoPackage {
     Copy-Item "..\deno\deno.json" "$denoDir\"
     
     # Create ZIP
-    Compress-Archive -Path "$denoDir\*" -DestinationPath "$OutputDir\rusty-gun-deno.zip" -Force
+    Compress-Archive -Path "$denoDir\*" -DestinationPath "$OutputDir\pluresdb-deno.zip" -Force
     Remove-Item $denoDir -Recurse -Force
 }
 
@@ -184,7 +184,7 @@ function New-NixOSPackage {
     Copy-Item "..\nixos\*" "$nixDir\"
     
     # Create ZIP
-    Compress-Archive -Path "$nixDir\*" -DestinationPath "$OutputDir\rusty-gun-nixos.zip" -Force
+    Compress-Archive -Path "$nixDir\*" -DestinationPath "$OutputDir\pluresdb-nixos.zip" -Force
     Remove-Item $nixDir -Recurse -Force
 }
 
@@ -192,14 +192,14 @@ function New-NixOSPackage {
 function Update-WingetManifest {
     Write-Host "📦 Updating winget manifest..." -ForegroundColor Yellow
     
-    $manifestPath = "..\winget\rusty-gun.yaml"
+    $manifestPath = "..\winget\pluresdb.yaml"
     $manifest = Get-Content $manifestPath -Raw
     
     # Update version
     $manifest = $manifest -replace "PackageVersion: .*", "PackageVersion: $Version"
     
     # Update download URL
-    $manifest = $manifest -replace "InstallerUrl: .*", "InstallerUrl: https://github.com/rusty-gun/rusty-gun/releases/download/v$Version/rusty-gun-windows-x64.zip"
+    $manifest = $manifest -replace "InstallerUrl: .*", "InstallerUrl: https://github.com/pluresdb/pluresdb/releases/download/v$Version/pluresdb-windows-x64.zip"
     
     # Calculate SHA256 (placeholder for now)
     $sha256 = "PLACEHOLDER_SHA256"

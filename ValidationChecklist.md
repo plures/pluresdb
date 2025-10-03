@@ -57,7 +57,7 @@ item has concrete, testable criteria.
 
 ## Packaging (Initial)
 
-- [x] `deno task compile` produces a working `rusty-gun` binary
+- [x] `deno task compile` produces a working `pluresdb` binary
 - [x] Binary can `serve` and accept WebSocket connections
 - [x] Basic CRUD via compiled binary verified (scripted)
 
@@ -71,6 +71,25 @@ item has concrete, testable criteria.
 
 - [x] All tests pass: `deno task test`
 - [x] Code formatted and linted cleanly
+- [x] Unit tests cover core functionality (CRUD, subscriptions, vector search)
+- [x] Integration tests cover mesh networking and API server
+- [x] Performance tests validate throughput and memory usage
+- [x] Security tests prevent injection attacks and validate input
+- [x] Test coverage reporting configured and working
+- [x] Benchmark suite for performance monitoring
+- [x] Memory leak detection and prevention
+- [x] Concurrent operation testing
+- [x] Error handling and edge case testing
+
+## VSCode Extension
+
+- [x] Extension compiles without TypeScript errors
+- [x] Extension packages successfully with vsce
+- [x] ESLint configuration working (CommonJS format)
+- [x] Extension activates without module errors
+- [x] All VSCode API calls use correct types (vscode.Command objects)
+- [x] Package size optimized with .vscodeignore
+- [x] Repository and license metadata included
 
 ## UI Phase 1 - Foundation & UX Polish ✅ COMPLETE
 
@@ -255,13 +274,19 @@ item has concrete, testable criteria.
   - API rate limiting configuration
 
 - [x] Packaging & Deployment
-  - Docker containerization with image building and management
-  - Windows MSI packaging with installer creation
-  - Winget package preparation and publishing
-  - Update management with in-app update checking
-  - Deployment management with environment control
-  - Build logs with real-time progress tracking
-  - Health monitoring with status checks
+  - [x] Docker containerization with image building and management
+    - Multi-stage Dockerfile with optimized production image
+    - Docker Compose configurations for development and production
+    - Health check script for container monitoring
+    - Nginx reverse proxy configuration for production
+    - Easy-to-use run scripts for Windows and Unix systems
+    - Comprehensive Docker documentation and examples
+  - [x] Windows MSI packaging with installer creation
+  - [x] Winget package preparation and publishing
+  - [x] Update management with in-app update checking
+  - [x] Deployment management with environment control
+  - [x] Build logs with real-time progress tracking
+  - [x] Health monitoring with status checks
 
 ## UI Billing System - Payment & Billing Management
 
@@ -352,4 +377,4 @@ item has concrete, testable criteria.
 - [ ] Rule engine (Prolog/Datalog integration)
   - [x] Minimal rule engine scaffold and basic classification rule
 - [ ] Auth/Encryption (SEA-like)
-- [ ] Windows Winget/MSI and Nix packaging
+- [x] Windows Winget/MSI and Nix packaging

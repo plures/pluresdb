@@ -1,4 +1,4 @@
-# Multi-stage build: build Svelte UI, then run Rusty Gun with Deno
+# Multi-stage build: build Svelte UI, then run PluresDB with Deno
 
 FROM node:20-bullseye AS webbuild
 WORKDIR /app/web
@@ -10,8 +10,8 @@ WORKDIR /app
 COPY . .
 COPY --from=webbuild /app/web/dist ./web/dist
 
-# Default ports: 8080 (ws) and 8081 (http ui/api)
-EXPOSE 8080 8081
+# Default ports: 34567 (API) and 34568 (Web UI)
+EXPOSE 34567 34568
 
-CMD ["run", "-A", "--unstable-kv", "src/main.ts", "serve", "--port", "8080"]
+CMD ["run", "-A", "--unstable-kv", "src/main.ts", "serve", "--port", "34567", "--web-port", "34568"]
 

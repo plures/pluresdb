@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Simple Real Benchmark: Rusty Gun vs Gun.js
+ * Simple Real Benchmark: PluresDB vs Gun.js
  * 
  * Tests actual working endpoints to get real metrics
  */
@@ -10,7 +10,7 @@ const http = require('http');
 const { performance } = require('perf_hooks');
 
 // Test configuration
-const RUSTY_GUN_URL = 'http://localhost:34568';
+const PLURESDB_URL = 'http://localhost:34568';
 const TEST_ITERATIONS = 50;
 
 // Utility functions
@@ -62,7 +62,7 @@ function makeRequest(options, data = null) {
 }
 
 // Test functions
-async function testRustyGunEndpoints() {
+async function testPluresDBEndpoints() {
     const endpoints = [
         { path: '/api/config', method: 'GET', name: 'Config' },
         { path: '/api/data', method: 'GET', name: 'Data List' },
@@ -116,7 +116,7 @@ async function testRustyGunEndpoints() {
     return results;
 }
 
-async function testRustyGunMemoryUsage() {
+async function testPluresDBMemoryUsage() {
     try {
         // Try to get memory info from the server
         const response = await makeRequest({
@@ -143,7 +143,7 @@ async function testRustyGunMemoryUsage() {
     }
 }
 
-async function testRustyGunConcurrency() {
+async function testPluresDBConcurrency() {
     const concurrentUsers = 20; // Reduced for realistic test
     const promises = [];
     const startTime = performance.now();
@@ -241,12 +241,12 @@ async function runBenchmark() {
     log('=====================================', 'cyan');
     log('Testing actual working endpoints...', 'yellow');
     
-    // Test Rusty Gun
-    log('\n🦀 Testing Rusty Gun...', 'yellow');
+    // Test PluresDB
+    log('\n🦀 Testing PluresDB...', 'yellow');
     
-    const rustyGunEndpoints = await testRustyGunEndpoints();
-    const rustyGunMemory = await testRustyGunMemoryUsage();
-    const rustyGunConcurrency = await testRustyGunConcurrency();
+    const pluresEndpoints = await testPluresDBEndpoints();
+    const pluresMemory = await testPluresDBMemoryUsage();
+    const pluresConcurrency = await testPluresDBConcurrency();
     
     // Simulate Gun.js
     log('\n🔫 Simulating Gun.js performance...', 'yellow');
@@ -258,17 +258,17 @@ async function runBenchmark() {
     
     // Endpoint performance
     log('\n⚡ Endpoint Performance:', 'blue');
-    for (let i = 0; i < Math.min(rustyGunEndpoints.length, gunJsResults.endpoints.length); i++) {
-        const rusty = rustyGunEndpoints[i];
+    for (let i = 0; i < Math.min(pluresEndpoints.length, gunJsResults.endpoints.length); i++) {
+        const rusty = pluresEndpoints[i];
         const gun = gunJsResults.endpoints[i];
         
         log(`   ${rusty.name}:`, 'white');
-        log(`     Rusty Gun: ${rusty.avgTime.toFixed(2)}ms (${rusty.successRate.toFixed(1)}% success)`, 'green');
+        log(`     PluresDB: ${rusty.avgTime.toFixed(2)}ms (${rusty.successRate.toFixed(1)}% success)`, 'green');
         log(`     Gun.js:    ${gun.avgTime.toFixed(2)}ms (${gun.successRate.toFixed(1)}% success)`, 'yellow');
         
         const improvement = ((gun.avgTime - rusty.avgTime) / gun.avgTime) * 100;
         if (improvement > 0) {
-            log(`     Winner:    🦀 Rusty Gun (${improvement.toFixed(1)}% faster)`, 'green');
+            log(`     Winner:    🦀 PluresDB (${improvement.toFixed(1)}% faster)`, 'green');
         } else {
             log(`     Winner:    🔫 Gun.js (${Math.abs(improvement).toFixed(1)}% faster)`, 'yellow');
         }
@@ -276,25 +276,25 @@ async function runBenchmark() {
     
     // Memory usage
     log('\n💾 Memory Usage:', 'blue');
-    const rustyMemoryMB = (rustyGunMemory.heapUsed / 1024 / 1024).toFixed(1);
+    const rustyMemoryMB = (pluresMemory.heapUsed / 1024 / 1024).toFixed(1);
     const gunMemoryMB = (gunJsResults.memory.heapUsed / 1024 / 1024).toFixed(1);
-    log(`   Rusty Gun: ${rustyMemoryMB}MB (${rustyGunMemory.note})`, 'green');
+    log(`   PluresDB: ${rustyMemoryMB}MB (${pluresMemory.note})`, 'green');
     log(`   Gun.js:    ${gunMemoryMB}MB (${gunJsResults.memory.note})`, 'yellow');
     
-    const memImprovement = ((gunJsResults.memory.heapUsed - rustyGunMemory.heapUsed) / gunJsResults.memory.heapUsed) * 100;
+    const memImprovement = ((gunJsResults.memory.heapUsed - pluresMemory.heapUsed) / gunJsResults.memory.heapUsed) * 100;
     if (memImprovement > 0) {
-        log(`   Winner:    🦀 Rusty Gun (${memImprovement.toFixed(1)}% less memory)`, 'green');
+        log(`   Winner:    🦀 PluresDB (${memImprovement.toFixed(1)}% less memory)`, 'green');
     } else {
         log(`   Winner:    🔫 Gun.js (${Math.abs(memImprovement).toFixed(1)}% less memory)`, 'yellow');
     }
     
     // Concurrency
     log('\n👥 Concurrency:', 'blue');
-    log(`   Rusty Gun: ${rustyGunConcurrency.successfulUsers}/${rustyGunConcurrency.totalUsers} users (${rustyGunConcurrency.successRate.toFixed(1)}% success)`, 'green');
+    log(`   PluresDB: ${pluresConcurrency.successfulUsers}/${pluresConcurrency.totalUsers} users (${pluresConcurrency.successRate.toFixed(1)}% success)`, 'green');
     log(`   Gun.js:    ${gunJsResults.concurrency.successfulUsers}/${gunJsResults.concurrency.totalUsers} users (${gunJsResults.concurrency.successRate.toFixed(1)}% success)`, 'yellow');
     
-    if (rustyGunConcurrency.successRate > gunJsResults.concurrency.successRate) {
-        log(`   Winner:    🦀 Rusty Gun`, 'green');
+    if (pluresConcurrency.successRate > gunJsResults.concurrency.successRate) {
+        log(`   Winner:    🦀 PluresDB`, 'green');
     } else {
         log(`   Winner:    🔫 Gun.js`, 'yellow');
     }
@@ -308,29 +308,29 @@ async function runBenchmark() {
     let totalTests = 0;
     
     // Endpoint performance wins
-    for (let i = 0; i < Math.min(rustyGunEndpoints.length, gunJsResults.endpoints.length); i++) {
+    for (let i = 0; i < Math.min(pluresEndpoints.length, gunJsResults.endpoints.length); i++) {
         totalTests++;
-        if (rustyGunEndpoints[i].avgTime < gunJsResults.endpoints[i].avgTime) {
+        if (pluresEndpoints[i].avgTime < gunJsResults.endpoints[i].avgTime) {
             rustyWins++;
         }
     }
     
     // Memory win
     totalTests++;
-    if (rustyGunMemory.heapUsed < gunJsResults.memory.heapUsed) {
+    if (pluresMemory.heapUsed < gunJsResults.memory.heapUsed) {
         rustyWins++;
     }
     
     // Concurrency win
     totalTests++;
-    if (rustyGunConcurrency.successRate > gunJsResults.concurrency.successRate) {
+    if (pluresConcurrency.successRate > gunJsResults.concurrency.successRate) {
         rustyWins++;
     }
     
-    log(`Rusty Gun wins: ${rustyWins}/${totalTests} categories`, 'green');
+    log(`PluresDB wins: ${rustyWins}/${totalTests} categories`, 'green');
     
     // Overall performance improvement
-    const avgRustyTime = rustyGunEndpoints.reduce((sum, r) => sum + r.avgTime, 0) / rustyGunEndpoints.length;
+    const avgRustyTime = pluresEndpoints.reduce((sum, r) => sum + r.avgTime, 0) / pluresEndpoints.length;
     const avgGunTime = gunJsResults.endpoints.reduce((sum, r) => sum + r.avgTime, 0) / gunJsResults.endpoints.length;
     const overallImprovement = ((avgGunTime - avgRustyTime) / avgGunTime) * 100;
     
@@ -343,7 +343,7 @@ async function runBenchmark() {
     log(`Memory efficiency: ${memImprovement.toFixed(1)}% less memory than Gun.js`, 'green');
     
     log('\n✅ Real benchmark completed!', 'green');
-    log('These are actual measured metrics from the running Rusty Gun server.', 'cyan');
+    log('These are actual measured metrics from the running PluresDB server.', 'cyan');
 }
 
 // Run the benchmark

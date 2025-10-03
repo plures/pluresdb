@@ -49,7 +49,7 @@
         containerRunning: true,
         lastBuild: Date.now() - 3600000, // 1 hour ago
         imageSize: '245 MB',
-        containerId: 'rusty-gun-123'
+        containerId: 'pluresdb-123'
       }
       
       windowsStatus = {
@@ -107,7 +107,7 @@
       dockerStatus.imageBuilt = true
       dockerStatus.lastBuild = Date.now()
       dockerStatus.imageSize = '245 MB'
-      dockerStatus.containerId = `rusty-gun-${Date.now()}`
+      dockerStatus.containerId = `pluresdb-${Date.now()}`
       
       toast('Docker image built successfully', 'success')
     } catch (error) {
@@ -380,7 +380,7 @@
                 </span>
               </div>
               <div class="status-details">
-                <span>Package: rusty-gun</span>
+                <span>Package: pluresdb</span>
               </div>
             </div>
           </div>

@@ -83,7 +83,7 @@
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `rusty-gun-export-${exportType}-${Date.now()}.${exportFormat}`
+    a.download = `pluresdb-export-${exportType}-${Date.now()}.${exportFormat}`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

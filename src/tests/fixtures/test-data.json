@@ -1,0 +1,124 @@
+{
+  "users": [
+    {
+      "id": "user:1",
+      "name": "Alice Johnson",
+      "email": "alice@example.com",
+      "age": 30,
+      "type": "Person",
+      "profile": {
+        "bio": "Software engineer passionate about machine learning",
+        "location": "San Francisco, CA",
+        "interests": ["AI", "ML", "Rust", "TypeScript"]
+      }
+    },
+    {
+      "id": "user:2", 
+      "name": "Bob Smith",
+      "email": "bob@example.com",
+      "age": 25,
+      "type": "Person",
+      "profile": {
+        "bio": "Data scientist working on NLP applications",
+        "location": "New York, NY",
+        "interests": ["NLP", "Python", "Statistics", "Research"]
+      }
+    },
+    {
+      "id": "user:3",
+      "name": "Carol Davis",
+      "email": "carol@example.com", 
+      "age": 35,
+      "type": "Person",
+      "profile": {
+        "bio": "Product manager with a focus on developer tools",
+        "location": "Seattle, WA",
+        "interests": ["Product", "Strategy", "Developer Experience", "Leadership"]
+      }
+    }
+  ],
+  "companies": [
+    {
+      "id": "company:1",
+      "name": "TechCorp Inc",
+      "type": "Company",
+      "industry": "Technology",
+      "employees": 500,
+      "location": "San Francisco, CA",
+      "description": "Leading provider of AI-powered solutions"
+    },
+    {
+      "id": "company:2",
+      "name": "DataFlow Systems",
+      "type": "Company", 
+      "industry": "Data Analytics",
+      "employees": 150,
+      "location": "New York, NY",
+      "description": "Specialized in real-time data processing and analytics"
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc:1",
+      "title": "Introduction to Machine Learning",
+      "text": "Machine learning is a subset of artificial intelligence that focuses on algorithms that can learn from data without being explicitly programmed.",
+      "content": "This comprehensive guide covers the fundamentals of machine learning, including supervised learning, unsupervised learning, and reinforcement learning techniques.",
+      "type": "Document",
+      "tags": ["machine learning", "AI", "tutorial", "beginner"],
+      "author": "user:1",
+      "created": "2024-01-15T10:00:00Z"
+    },
+    {
+      "id": "doc:2", 
+      "title": "Advanced Neural Networks",
+      "text": "Deep learning neural networks have revolutionized the field of artificial intelligence with their ability to process complex patterns in data.",
+      "content": "This advanced tutorial explores deep learning architectures including CNNs, RNNs, and Transformers, with practical implementation examples.",
+      "type": "Document",
+      "tags": ["deep learning", "neural networks", "advanced", "tutorial"],
+      "author": "user:2",
+      "created": "2024-01-20T14:30:00Z"
+    },
+    {
+      "id": "doc:3",
+      "title": "Product Strategy for Developer Tools",
+      "text": "Building successful developer tools requires understanding the unique needs and workflows of software developers.",
+      "content": "This guide covers product strategy, user research, and go-to-market approaches specifically tailored for developer-focused products.",
+      "type": "Document", 
+      "tags": ["product strategy", "developer tools", "business", "strategy"],
+      "author": "user:3",
+      "created": "2024-01-25T09:15:00Z"
+    }
+  ],
+  "projects": [
+    {
+      "id": "project:1",
+      "name": "PluresDB Database",
+      "type": "Project",
+      "description": "P2P graph database with SQLite compatibility",
+      "status": "active",
+      "technologies": ["Rust", "TypeScript", "Deno", "WebAssembly"],
+      "team": ["user:1", "user:2"],
+      "created": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "project:2",
+      "name": "AI Research Platform", 
+      "type": "Project",
+      "description": "Platform for collaborative AI research and experimentation",
+      "status": "planning",
+      "technologies": ["Python", "TensorFlow", "PyTorch", "Docker"],
+      "team": ["user:2", "user:3"],
+      "created": "2024-02-01T00:00:00Z"
+    }
+  ],
+  "vector_queries": [
+    "machine learning algorithms",
+    "artificial intelligence research", 
+    "neural network architectures",
+    "deep learning applications",
+    "data science techniques",
+    "product management strategy",
+    "developer experience design",
+    "software engineering best practices"
+  ]
+}

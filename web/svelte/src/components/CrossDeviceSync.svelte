@@ -63,14 +63,14 @@
   })
 
   function loadSyncStatus() {
-    const stored = localStorage.getItem('rusty-gun-sync-status')
+    const stored = localStorage.getItem('pluresdb-sync-status')
     if (stored) {
       syncStatus = { ...syncStatus, ...JSON.parse(stored) }
     }
   }
 
   function loadConnectedDevices() {
-    const stored = localStorage.getItem('rusty-gun-connected-devices')
+    const stored = localStorage.getItem('pluresdb-connected-devices')
     if (stored) {
       connectedDevices = JSON.parse(stored)
     } else {
@@ -80,7 +80,7 @@
   }
 
   function loadSyncQueues() {
-    const stored = localStorage.getItem('rusty-gun-sync-queues')
+    const stored = localStorage.getItem('pluresdb-sync-queues')
     if (stored) {
       const queues = JSON.parse(stored)
       outgoingQueue = queues.outgoing || []
@@ -90,21 +90,21 @@
   }
 
   function loadSyncSettings() {
-    const stored = localStorage.getItem('rusty-gun-sync-settings')
+    const stored = localStorage.getItem('pluresdb-sync-settings')
     if (stored) {
       syncSettings = { ...syncSettings, ...JSON.parse(stored) }
     }
   }
 
   function loadSyncHistory() {
-    const stored = localStorage.getItem('rusty-gun-sync-history')
+    const stored = localStorage.getItem('pluresdb-sync-history')
     if (stored) {
       syncHistory = JSON.parse(stored)
     }
   }
 
   function loadPerformanceMetrics() {
-    const stored = localStorage.getItem('rusty-gun-performance-metrics')
+    const stored = localStorage.getItem('pluresdb-performance-metrics')
     if (stored) {
       performanceMetrics = { ...performanceMetrics, ...JSON.parse(stored) }
     }
@@ -181,15 +181,15 @@
   }
 
   function saveSyncStatus() {
-    localStorage.setItem('rusty-gun-sync-status', JSON.stringify(syncStatus))
+    localStorage.setItem('pluresdb-sync-status', JSON.stringify(syncStatus))
   }
 
   function saveConnectedDevices() {
-    localStorage.setItem('rusty-gun-connected-devices', JSON.stringify(connectedDevices))
+    localStorage.setItem('pluresdb-connected-devices', JSON.stringify(connectedDevices))
   }
 
   function saveSyncQueues() {
-    localStorage.setItem('rusty-gun-sync-queues', JSON.stringify({
+    localStorage.setItem('pluresdb-sync-queues', JSON.stringify({
       outgoing: outgoingQueue,
       incoming: incomingQueue,
       conflicts: conflictQueue
@@ -197,15 +197,15 @@
   }
 
   function saveSyncSettings() {
-    localStorage.setItem('rusty-gun-sync-settings', JSON.stringify(syncSettings))
+    localStorage.setItem('pluresdb-sync-settings', JSON.stringify(syncSettings))
   }
 
   function saveSyncHistory() {
-    localStorage.setItem('rusty-gun-sync-history', JSON.stringify(syncHistory))
+    localStorage.setItem('pluresdb-sync-history', JSON.stringify(syncHistory))
   }
 
   function savePerformanceMetrics() {
-    localStorage.setItem('rusty-gun-performance-metrics', JSON.stringify(performanceMetrics))
+    localStorage.setItem('pluresdb-performance-metrics', JSON.stringify(performanceMetrics))
   }
 
   function startSyncMonitoring() {

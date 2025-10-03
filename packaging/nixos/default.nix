@@ -1,12 +1,12 @@
 { lib, stdenv, fetchFromGitHub, deno, makeWrapper, nodejs, npm }:
 
 stdenv.mkDerivation rec {
-  pname = "rusty-gun";
+  pname = "pluresdb";
   version = "1.0.0";
 
   src = fetchFromGitHub {
-    owner = "rusty-gun";
-    repo = "rusty-gun";
+    owner = "pluresdb";
+    repo = "pluresdb";
     rev = "v${version}";
     sha256 = "PLACEHOLDER_SHA256";
   };
@@ -21,39 +21,39 @@ stdenv.mkDerivation rec {
     cd ../..
 
     # Compile the Deno application
-    deno compile -A --output rusty-gun src/main.ts
+    deno compile -A --output pluresdb src/main.ts
   '';
 
   installPhase = ''
     # Install the binary
     mkdir -p $out/bin
-    cp rusty-gun $out/bin/
+    cp pluresdb $out/bin/
 
     # Install the web UI
-    mkdir -p $out/share/rusty-gun/web
-    cp -r web/dist $out/share/rusty-gun/web/
+    mkdir -p $out/share/pluresdb/web
+    cp -r web/dist $out/share/pluresdb/web/
 
     # Install configuration files
-    mkdir -p $out/share/rusty-gun/config
-    cp deno.json $out/share/rusty-gun/config/
-    cp src/config.ts $out/share/rusty-gun/config/
+    mkdir -p $out/share/pluresdb/config
+    cp deno.json $out/share/pluresdb/config/
+    cp src/config.ts $out/share/pluresdb/config/
 
     # Create a wrapper script that sets the web UI path
-    makeWrapper $out/bin/rusty-gun $out/bin/rusty-gun-server \
-      --set RUSTY_GUN_WEB_PATH "$out/share/rusty-gun/web/dist" \
-      --set RUSTY_GUN_CONFIG_PATH "$out/share/rusty-gun/config"
+    makeWrapper $out/bin/pluresdb $out/bin/pluresdb-server \
+      --set PLURESDB_WEB_PATH "$out/share/pluresdb/web/dist" \
+      --set PLURESDB_CONFIG_PATH "$out/share/pluresdb/config"
 
     # Install man pages
     mkdir -p $out/share/man/man1
-    cat > $out/share/man/man1/rusty-gun.1 << EOF
-.TH RUSTY-GUN 1 "2024" "Rusty Gun ${version}" "User Commands"
+    cat > $out/share/man/man1/pluresdb.1 << EOF
+.TH PLURESDB 1 "2024" "PluresDB ${version}" "User Commands"
 .SH NAME
-rusty-gun \- P2P Graph Database with SQLite Compatibility
+pluresdb \- P2P Graph Database with SQLite Compatibility
 .SH SYNOPSIS
-.B rusty-gun
+.B pluresdb
 [\fIOPTIONS\fR] \fICOMMAND\fR
 .SH DESCRIPTION
-Rusty Gun is a local-first, peer-to-peer graph database with SQLite compatibility.
+PluresDB is a local-first, peer-to-peer graph database with SQLite compatibility.
 It provides offline-first data storage, encrypted data sharing, cross-device sync,
 and a comprehensive web UI for data exploration and management.
 .SH OPTIONS
@@ -72,7 +72,7 @@ Show help message
 .SH COMMANDS
 .TP
 \fBserve\fR
-Start the Rusty Gun server
+Start the PluresDB server
 .TP
 \fBput\fR \fIKEY\fR \fIVALUE\fR
 Store a key-value pair
@@ -100,36 +100,36 @@ Manage configuration
 .SH EXAMPLES
 .TP
 Start server:
-.B rusty-gun serve --port 8080
+.B pluresdb serve --port 8080
 .TP
 Store data:
-.B rusty-gun put "user:123" '{"name": "John", "email": "john@example.com"}'
+.B pluresdb put "user:123" '{"name": "John", "email": "john@example.com"}'
 .TP
 Retrieve data:
-.B rusty-gun get "user:123"
+.B pluresdb get "user:123"
 .TP
 Vector search:
-.B rusty-gun vsearch "machine learning"
+.B pluresdb vsearch "machine learning"
 .SH FILES
 .TP
-\fB~/.rusty-gun/\fR
+\fB~/.pluresdb/\fR
 Configuration directory
 .TP
-\fB~/.rusty-gun/data.sqlite\fR
+\fB~/.pluresdb/data.sqlite\fR
 Database file
 .SH AUTHOR
-Rusty Gun Team
+PluresDB Team
 .SH SEE ALSO
-https://github.com/rusty-gun/rusty-gun
+https://github.com/pluresdb/pluresdb
 EOF
   '';
 
   meta = with lib; {
     description = "P2P Graph Database with SQLite Compatibility";
-    homepage = "https://github.com/rusty-gun/rusty-gun";
+    homepage = "https://github.com/pluresdb/pluresdb";
     license = licenses.mit;
     maintainers = [ ];
     platforms = platforms.all;
-    mainProgram = "rusty-gun";
+    mainProgram = "pluresdb";
   };
 }
