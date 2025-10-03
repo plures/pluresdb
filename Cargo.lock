@@ -3230,19 +3230,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "rusty-gun-api"
+name = "pluresdb-api"
 version = "1.0.0"
 
 [[package]]
-name = "rusty-gun-benchmarks"
+name = "pluresdb-benchmarks"
 version = "1.0.0"
 
 [[package]]
-name = "rusty-gun-cli"
+name = "pluresdb-cli"
 version = "1.0.0"
 
 [[package]]
-name = "rusty-gun-core"
+name = "pluresdb-core"
 version = "1.0.0"
 dependencies = [
  "aes-gcm 0.10.3",
@@ -3266,7 +3266,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rusty-gun-network"
+name = "pluresdb-network"
 version = "1.0.0"
 dependencies = [
  "anyhow",
@@ -3281,8 +3281,8 @@ dependencies = [
  "proptest",
  "quinn",
  "rmp-serde",
- "rusty-gun-core",
- "rusty-gun-storage",
+ "pluresdb-core",
+ "pluresdb-storage",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -3295,7 +3295,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rusty-gun-storage"
+name = "pluresdb-storage"
 version = "1.0.0"
 dependencies = [
  "anyhow",
@@ -3309,7 +3309,7 @@ dependencies = [
  "proptest",
  "rmp-serde",
  "rocksdb",
- "rusty-gun-core",
+ "pluresdb-core",
  "serde",
  "serde_json",
  "sled",
@@ -3321,11 +3321,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "rusty-gun-vscode"
+name = "pluresdb-vscode"
 version = "1.0.0"
 
 [[package]]
-name = "rusty-gun-web"
+name = "pluresdb-web"
 version = "1.0.0"
 
 [[package]]

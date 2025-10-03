@@ -66,7 +66,7 @@ jobs:
 
       - name: Build binary
         run: |
-          deno compile -A --output rusty-gun src/main.ts
+          deno compile -A --output pluresdb src/main.ts
 
       - name: Create package
         shell: bash
@@ -76,10 +76,10 @@ jobs:
           
           # Copy binary
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            cp rusty-gun.exe package/
+            cp pluresdb.exe package/
           else
-            cp rusty-gun package/
-            chmod +x package/rusty-gun
+            cp pluresdb package/
+            chmod +x package/pluresdb
           fi
           
           # Copy web UI
@@ -117,7 +117,7 @@ jobs:
           echo.
           echo Press Ctrl+C to stop the server
           echo.
-          rusty-gun.exe serve --port 34567
+          pluresdb.exe serve --port 34567
           EOF
           else
             cat > package/install.sh << 'EOF'
@@ -142,7 +142,7 @@ jobs:
           echo ""
           echo "Press Ctrl+C to stop the server"
           echo ""
-          ./rusty-gun serve --port 34567
+          ./pluresdb serve --port 34567
           EOF
             chmod +x package/install.sh
           fi
@@ -150,17 +150,17 @@ jobs:
           # Create archive
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
             cd package
-            powershell Compress-Archive -Path * -DestinationPath ../rusty-gun-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.ext }}
+            powershell Compress-Archive -Path * -DestinationPath ../pluresdb-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.ext }}
             cd ..
           else
-            tar -czf rusty-gun-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.ext }} -C package .
+            tar -czf pluresdb-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.ext }} -C package .
           fi
 
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
-          name: rusty-gun-${{ matrix.platform }}-${{ matrix.arch }}
-          path: rusty-gun-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.ext }}
+          name: pluresdb-${{ matrix.platform }}-${{ matrix.arch }}
+          path: pluresdb-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.ext }}
 
   create-release:
     needs: build-packages
@@ -180,8 +180,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            packages/*/rusty-gun-*.zip
-            packages/*/rusty-gun-*.tar.gz
+            packages/*/pluresdb-*.zip
+            packages/*/pluresdb-*.tar.gz
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -201,16 +201,16 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           
           # Update winget manifest
-          sed -i "s/PackageVersion: .*/PackageVersion: $VERSION/" packaging/winget/rusty-gun.yaml
-          sed -i "s|InstallerUrl: .*|InstallerUrl: https://github.com/rusty-gun/rusty-gun/releases/download/v$VERSION/rusty-gun-windows-x64.zip|" packaging/winget/rusty-gun.yaml
+          sed -i "s/PackageVersion: .*/PackageVersion: $VERSION/" packaging/winget/pluresdb.yaml
+          sed -i "s|InstallerUrl: .*|InstallerUrl: https://github.com/pluresdb/pluresdb/releases/download/v$VERSION/pluresdb-windows-x64.zip|" packaging/winget/pluresdb.yaml
           
           # Calculate SHA256 (placeholder for now)
-          sed -i "s/InstallerSha256: .*/InstallerSha256: PLACEHOLDER_SHA256/" packaging/winget/rusty-gun.yaml
+          sed -i "s/InstallerSha256: .*/InstallerSha256: PLACEHOLDER_SHA256/" packaging/winget/pluresdb.yaml
 
       - name: Commit changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add packaging/winget/rusty-gun.yaml
+          git add packaging/winget/pluresdb.yaml
           git commit -m "Update winget manifest for v${GITHUB_REF#refs/tags/v}" || exit 0
           git push
