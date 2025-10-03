@@ -57,7 +57,7 @@ item has concrete, testable criteria.
 
 ## Packaging (Initial)
 
-- [x] `deno task compile` produces a working `rusty-gun` binary
+- [x] `deno task compile` produces a working `pluresdb` binary
 - [x] Binary can `serve` and accept WebSocket connections
 - [x] Basic CRUD via compiled binary verified (scripted)
 

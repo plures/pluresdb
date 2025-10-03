@@ -2,7 +2,7 @@
 
 /**
  * Health check script for Docker containers
- * Verifies that Rusty Gun is running and responding correctly
+ * Verifies that PluresDB is running and responding correctly
  */
 
 const API_PORT = Deno.env.get("RUSTY_GUN_PORT") || "34567";
@@ -26,7 +26,7 @@ async function checkApiHealth(): Promise<boolean> {
       method: "GET",
       headers: {
         "Accept": "application/json",
-        "User-Agent": "rusty-gun-healthcheck/1.0.0"
+        "User-Agent": "pluresdb-healthcheck/1.0.0"
       },
       signal: AbortSignal.timeout(5000) // 5 second timeout
     });
@@ -50,7 +50,7 @@ async function checkWebHealth(): Promise<boolean> {
       method: "GET",
       headers: {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "User-Agent": "rusty-gun-healthcheck/1.0.0"
+        "User-Agent": "pluresdb-healthcheck/1.0.0"
       },
       signal: AbortSignal.timeout(5000) // 5 second timeout
     });
@@ -95,7 +95,7 @@ async function checkDatabaseHealth(): Promise<boolean> {
 async function main(): Promise<void> {
   const startTime = Date.now();
   
-  console.log("Starting Rusty Gun health check...");
+  console.log("Starting PluresDB health check...");
   console.log(`API: http://${HOST}:${API_PORT}/api/health`);
   console.log(`Web: http://${HOST}:${WEB_PORT}/`);
   

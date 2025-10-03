@@ -2,15 +2,15 @@
  * Test script for the npm package
  */
 
-const { RustyGunNode, SQLiteCompatibleAPI } = require('./dist/node-index.js');
+const { PluresNode, SQLiteCompatibleAPI } = require('./dist/node-index.js');
 
 async function testPackage() {
   console.log('🧪 Testing Rusty Gun npm package...\n');
 
   try {
-    // Test 1: Create RustyGunNode instance
-    console.log('1. Creating RustyGunNode instance...');
-    const rustyGun = new RustyGunNode({
+    // Test 1: Create PluresNode instance
+    console.log('1. Creating PluresNode instance...');
+    const rustyGun = new PluresNode({
       config: {
         port: 34567,
         host: 'localhost',
@@ -18,7 +18,7 @@ async function testPackage() {
       },
       autoStart: false // Don't auto-start for testing
     });
-    console.log('✅ RustyGunNode created successfully');
+    console.log('✅ PluresNode created successfully');
 
     // Test 2: Create SQLiteCompatibleAPI instance
     console.log('2. Creating SQLiteCompatibleAPI instance...');
@@ -49,7 +49,7 @@ async function testPackage() {
     console.log('\n🎉 All tests passed! The npm package is working correctly.');
     console.log('\n📦 Package is ready for VSCode extension integration!');
     console.log('\n📚 Usage in VSCode extension:');
-    console.log('   import { SQLiteCompatibleAPI } from "rusty-gun";');
+    console.log('   import { SQLiteCompatibleAPI } from "pluresdb";');
     console.log('   const db = new SQLiteCompatibleAPI();');
     console.log('   await db.start();');
 

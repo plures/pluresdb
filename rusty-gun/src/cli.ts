@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * CLI wrapper for Rusty Gun in Node.js environment
- * This allows VSCode extensions to use rusty-gun as a regular npm package
+ * CLI wrapper for PluresDB in Node.js environment
+ * This allows VSCode extensions to use pluresdb as a regular npm package
  */
 
-import { RustyGunNode } from './node-wrapper';
+import { PluresNode } from './node-wrapper';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -15,12 +15,12 @@ const command = args[0];
 
 if (!command) {
   console.log(`
-Rusty Gun - P2P Graph Database with SQLite Compatibility
+PluresDB - P2P Graph Database with SQLite Compatibility
 
-Usage: rusty-gun <command> [options]
+Usage: pluresdb <command> [options]
 
 Commands:
-  serve                    Start the Rusty Gun server
+  serve                    Start the PluresDB server
   put <key> <value>        Store a key-value pair
   get <key>                Retrieve a value by key
   delete <key>             Delete a key-value pair
@@ -33,11 +33,11 @@ Commands:
   --version                Show version
 
 Examples:
-  rusty-gun serve --port 8080
-  rusty-gun put "user:123" '{"name": "John"}'
-  rusty-gun get "user:123"
-  rusty-gun query "SELECT * FROM users"
-  rusty-gun vsearch "machine learning"
+  pluresdb serve --port 8080
+  pluresdb put "user:123" '{"name": "John"}'
+  pluresdb get "user:123"
+  pluresdb query "SELECT * FROM users"
+  pluresdb vsearch "machine learning"
 `);
   process.exit(0);
 }
@@ -50,12 +50,12 @@ if (command === '--version') {
 
 if (command === '--help') {
   console.log(`
-Rusty Gun - P2P Graph Database with SQLite Compatibility
+PluresDB - P2P Graph Database with SQLite Compatibility
 
-Usage: rusty-gun <command> [options]
+Usage: pluresdb <command> [options]
 
 Commands:
-  serve                    Start the Rusty Gun server
+  serve                    Start the PluresDB server
   put <key> <value>        Store a key-value pair
   get <key>                Retrieve a value by key
   delete <key>             Delete a key-value pair
@@ -68,11 +68,11 @@ Commands:
   --version                Show version
 
 Examples:
-  rusty-gun serve --port 8080
-  rusty-gun put "user:123" '{"name": "John"}'
-  rusty-gun get "user:123"
-  rusty-gun query "SELECT * FROM users"
-  rusty-gun vsearch "machine learning"
+  pluresdb serve --port 8080
+  pluresdb put "user:123" '{"name": "John"}'
+  pluresdb get "user:123"
+  pluresdb query "SELECT * FROM users"
+  pluresdb vsearch "machine learning"
 `);
   process.exit(0);
 }
@@ -103,14 +103,14 @@ async function main() {
       const config = {
         port: options.port ? parseInt(options.port) : 34567,
         host: options.host || 'localhost',
-        dataDir: options['data-dir'] || path.join(require('os').homedir(), '.rusty-gun'),
+        dataDir: options['data-dir'] || path.join(require('os').homedir(), '.pluresdb'),
         webPort: options['web-port'] ? parseInt(options['web-port']) : 34568,
         logLevel: options['log-level'] || 'info'
       };
 
-      const rustyGun = new RustyGunNode({ config, autoStart: true });
+      const rustyGun = new PluresNode({ config, autoStart: true });
       
-      console.log(`🚀 Rusty Gun server starting...`);
+      console.log(`🚀 PluresDB server starting...`);
       console.log(`📊 API: http://${config.host}:${config.port}`);
       console.log(`🌐 Web UI: http://${config.host}:${config.webPort}`);
       console.log(`📁 Data: ${config.dataDir}`);
@@ -118,7 +118,7 @@ async function main() {
 
       // Handle graceful shutdown
       process.on('SIGINT', async () => {
-        console.log('\n🛑 Shutting down Rusty Gun...');
+        console.log('\n🛑 Shutting down PluresDB...');
         await rustyGun.stop();
         process.exit(0);
       });
@@ -127,7 +127,7 @@ async function main() {
       await new Promise(() => {});
     } else {
       // For other commands, we need to start the server first
-      const rustyGun = new RustyGunNode({ autoStart: true });
+      const rustyGun = new PluresNode({ autoStart: true });
       
       try {
         switch (command) {
@@ -211,7 +211,7 @@ async function main() {
 
           default:
             console.error(`Unknown command: ${command}`);
-            console.log('Run "rusty-gun --help" for usage information');
+            console.log('Run "pluresdb --help" for usage information');
             process.exit(1);
         }
       } finally {

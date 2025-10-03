@@ -42,7 +42,7 @@ if (import.meta.main) {
       for (const p of peers) db.connect(p);
 
       const api = startApiServer({ port: port + (cfg.apiPortOffset ?? 1), db });
-      console.log(`Rusty Gun node serving on ws://localhost:${port}`);
+      console.log(`PluresDB node serving on ws://localhost:${port}`);
       console.log(`HTTP API/UI on ${api.url}`);
       if (peers.length) console.log("Connected to peers:", peers.join(", "));
 

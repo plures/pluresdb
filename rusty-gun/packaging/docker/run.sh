@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Rusty Gun Docker Runner Script
-# Makes it easy to run Rusty Gun with Docker
+# PluresDB Docker Runner Script
+# Makes it easy to run PluresDB with Docker
 
 set -e
 
@@ -13,12 +13,12 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default values
-IMAGE="rusty-gun/rusty-gun:latest"
+IMAGE="pluresdb/pluresdb:latest"
 API_PORT="34567"
 WEB_PORT="34568"
-DATA_VOLUME="rusty-gun-data"
-CONFIG_VOLUME="rusty-gun-config"
-CONTAINER_NAME="rusty-gun"
+DATA_VOLUME="pluresdb-data"
+CONFIG_VOLUME="pluresdb-config"
+CONTAINER_NAME="pluresdb"
 
 # Function to print colored output
 print_status() {
@@ -39,14 +39,14 @@ print_error() {
 
 # Function to show usage
 show_usage() {
-    echo "Rusty Gun Docker Runner"
+    echo "PluresDB Docker Runner"
     echo ""
     echo "Usage: $0 [COMMAND] [OPTIONS]"
     echo ""
     echo "Commands:"
-    echo "  start     Start Rusty Gun (default)"
-    echo "  stop      Stop Rusty Gun"
-    echo "  restart   Restart Rusty Gun"
+    echo "  start     Start PluresDB (default)"
+    echo "  stop      Stop PluresDB"
+    echo "  restart   Restart PluresDB"
     echo "  logs      Show logs"
     echo "  status    Show status"
     echo "  clean     Remove containers and volumes"
@@ -55,7 +55,7 @@ show_usage() {
     echo "Options:"
     echo "  --api-port PORT     API port (default: 34567)"
     echo "  --web-port PORT     Web UI port (default: 34568)"
-    echo "  --image IMAGE       Docker image (default: rusty-gun/rusty-gun:latest)"
+    echo "  --image IMAGE       Docker image (default: pluresdb/pluresdb:latest)"
     echo "  --no-pull           Don't pull latest image"
     echo "  --detach            Run in background (default)"
     echo "  --foreground        Run in foreground"
@@ -83,9 +83,9 @@ pull_image() {
     fi
 }
 
-# Function to start Rusty Gun
-start_rusty_gun() {
-    print_status "Starting Rusty Gun..."
+# Function to start PluresDB
+start_pluresdb() {
+    print_status "Starting PluresDB..."
     
     # Check if container already exists
     if docker ps -a --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
@@ -127,7 +127,7 @@ start_rusty_gun() {
             --restart unless-stopped \
             "$IMAGE"
         
-        print_success "Rusty Gun started successfully!"
+        print_success "PluresDB started successfully!"
         print_status "API: http://localhost:$API_PORT"
         print_status "Web UI: http://localhost:$WEB_PORT"
         print_status "Container name: $CONTAINER_NAME"
@@ -136,23 +136,23 @@ start_rusty_gun() {
     fi
 }
 
-# Function to stop Rusty Gun
-stop_rusty_gun() {
-    print_status "Stopping Rusty Gun..."
+# Function to stop PluresDB
+stop_pluresdb() {
+    print_status "Stopping PluresDB..."
     if docker ps --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
         docker stop "$CONTAINER_NAME"
-        print_success "Rusty Gun stopped successfully!"
+        print_success "PluresDB stopped successfully!"
     else
-        print_warning "Rusty Gun is not running."
+        print_warning "PluresDB is not running."
     fi
 }
 
-# Function to restart Rusty Gun
-restart_rusty_gun() {
-    print_status "Restarting Rusty Gun..."
-    stop_rusty_gun
+# Function to restart PluresDB
+restart_pluresdb() {
+    print_status "Restarting PluresDB..."
+    stop_pluresdb
     sleep 2
-    start_rusty_gun
+    start_pluresdb
 }
 
 # Function to show logs
@@ -168,7 +168,7 @@ show_logs() {
 
 # Function to show status
 show_status() {
-    print_status "Rusty Gun Status:"
+    print_status "PluresDB Status:"
     echo ""
     
     if docker ps --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
@@ -189,7 +189,7 @@ show_status() {
 
 # Function to clean up
 clean_up() {
-    print_status "Cleaning up Rusty Gun containers and volumes..."
+    print_status "Cleaning up PluresDB containers and volumes..."
     
     # Stop and remove container
     if docker ps -a --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
@@ -266,14 +266,14 @@ check_docker
 case $COMMAND in
     start)
         pull_image
-        start_rusty_gun
+        start_pluresdb
         ;;
     stop)
-        stop_rusty_gun
+        stop_pluresdb
         ;;
     restart)
         pull_image
-        restart_rusty_gun
+        restart_pluresdb
         ;;
     logs)
         show_logs

@@ -1,5 +1,5 @@
 /**
- * Node.js Entry Point for Rusty Gun
+ * Node.js Entry Point for PluresDB
  * This provides a clean API for VSCode extensions and other Node.js applications
  */
 
@@ -8,22 +8,22 @@ import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { RustyGunConfig, RustyGunOptions } from './types/node-types';
+import { PluresDBConfig, PluresDBOptions } from './types/node-types';
 
-export class RustyGunNode extends EventEmitter {
+export class PluresNode extends EventEmitter {
   private process: ChildProcess | null = null;
-  private config: RustyGunConfig;
+  private config: PluresDBConfig;
   private denoPath: string;
   private isRunning = false;
   private apiUrl: string = '';
 
-  constructor(options: RustyGunOptions = {}) {
+  constructor(options: PluresDBOptions = {}) {
     super();
     
     this.config = {
       port: 34567,
       host: 'localhost',
-      dataDir: path.join(os.homedir(), '.rusty-gun'),
+      dataDir: path.join(os.homedir(), '.pluresdb'),
       webPort: 34568,
       logLevel: 'info',
       ...options.config
@@ -85,7 +85,7 @@ export class RustyGunNode extends EventEmitter {
         // Find the main.ts file
         const mainTsPath = path.join(__dirname, 'main.ts');
         if (!fs.existsSync(mainTsPath)) {
-          throw new Error('Rusty Gun main.ts not found. Please ensure the package is properly installed.');
+          throw new Error('PluresDB main.ts not found. Please ensure the package is properly installed.');
         }
 
         // Start the Deno process
@@ -296,10 +296,10 @@ export class RustyGunNode extends EventEmitter {
 
 // SQLite-compatible API for easy migration
 export class SQLiteCompatibleAPI {
-  private rustyGun: RustyGunNode;
+  private rustyGun: PluresNode;
 
-  constructor(options?: RustyGunOptions) {
-    this.rustyGun = new RustyGunNode(options);
+  constructor(options?: PluresDBOptions) {
+    this.rustyGun = new PluresNode(options);
   }
 
   async start() {
@@ -329,7 +329,7 @@ export class SQLiteCompatibleAPI {
     return this.rustyGun.query(sql);
   }
 
-  // Additional Rusty Gun specific methods
+  // Additional PluresDB specific methods
   async put(key: string, value: any) {
     return this.rustyGun.put(key, value);
   }
@@ -364,5 +364,5 @@ export class SQLiteCompatibleAPI {
 }
 
 // Export the main class and types
-export { RustyGunNode as default };
+export { PluresNode as default };
 export * from './types/node-types';

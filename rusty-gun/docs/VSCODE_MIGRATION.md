@@ -1,6 +1,6 @@
 # VSCode Extension Migration Guide
 
-This guide helps you migrate your VSCode extension from SQLite to Rusty Gun, gaining P2P capabilities while maintaining SQLite compatibility.
+This guide helps you migrate your VSCode extension from SQLite to PluresDB, gaining P2P capabilities while maintaining SQLite compatibility.
 
 ## 🎯 Why Migrate?
 
@@ -12,14 +12,14 @@ This guide helps you migrate your VSCode extension from SQLite to Rusty Gun, gai
 
 ## 📋 Migration Steps
 
-### 1. Install Rusty Gun
+### 1. Install PluresDB
 
 ```bash
-npm install rusty-gun
+npm install pluresdb
 # or
-yarn add rusty-gun
+yarn add pluresdb
 # or
-pnpm add rusty-gun
+pnpm add pluresdb
 ```
 
 ### 2. Update Package.json
@@ -27,7 +27,7 @@ pnpm add rusty-gun
 ```json
 {
   "dependencies": {
-    "rusty-gun": "^1.0.0"
+    "pluresdb": "^1.0.0"
   },
   "peerDependencies": {
     "deno": ">=1.40.0"
@@ -43,10 +43,10 @@ import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 ```
 
-**After (Rusty Gun):**
+**After (PluresDB):**
 ```typescript
-import sqlite3 from 'rusty-gun';
-import { open } from 'rusty-gun';
+import sqlite3 from 'pluresdb';
+import { open } from 'pluresdb';
 ```
 
 ### 4. That's It! 🎉
@@ -109,12 +109,12 @@ stmt.finalize();
 ### 6. Add P2P Features (Optional)
 
 ```typescript
-import { RustyGunNode } from 'rusty-gun';
+import { PluresDBNode } from 'pluresdb';
 
 // Initialize P2P capabilities (uses same data directory as SQLite)
-const p2p = new RustyGunNode({
+const p2p = new PluresDBNode({
   config: {
-    dataDir: path.join(context.globalStorageUri.fsPath, 'rusty-gun'),
+    dataDir: path.join(context.globalStorageUri.fsPath, 'pluresdb'),
     port: 34567,
     host: 'localhost'
   }
@@ -143,14 +143,14 @@ Here's a complete example of migrating a VSCode extension:
 
 ```typescript
 import * as vscode from 'vscode';
-import sqlite3 from 'rusty-gun';
-import { open } from 'rusty-gun';
-import { RustyGunNode } from 'rusty-gun';
+import sqlite3 from 'pluresdb';
+import { open } from 'pluresdb';
+import { PluresDBNode } from 'pluresdb';
 import * as path from 'path';
 
 export class MyExtension {
   private db: any; // SQLite-compatible database
-  private p2p: RustyGunNode;
+  private p2p: PluresDBNode;
   private context: vscode.ExtensionContext;
 
   constructor(context: vscode.ExtensionContext) {
@@ -160,9 +160,9 @@ export class MyExtension {
     this.db = null; // Will be initialized in activate()
 
     // Initialize P2P (optional)
-    this.p2p = new RustyGunNode({
+    this.p2p = new PluresDBNode({
       config: {
-        dataDir: path.join(context.globalStorageUri.fsPath, 'rusty-gun'),
+        dataDir: path.join(context.globalStorageUri.fsPath, 'pluresdb'),
         port: 34567,
         host: 'localhost'
       }
@@ -385,9 +385,9 @@ await db.exec('COMMIT');
 
 ## 🆘 Support
 
-- **Issues**: [GitHub Issues](https://github.com/rusty-gun/rusty-gun/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/rusty-gun/rusty-gun/discussions)
-- **Discord**: [Join our Discord](https://discord.gg/rusty-gun)
+- **Issues**: [GitHub Issues](https://github.com/plures/pluresdb/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/plures/pluresdb/discussions)
+- **Discord**: [Join our Discord](https://discord.gg/pluresdb)
 
 ---
 

@@ -112,7 +112,7 @@ class TestRunner {
 }
 
 async function main() {
-  console.log("🚀 Rusty Gun Test Suite Runner");
+  console.log("🚀 PluresDB Test Suite Runner");
   console.log("===============================");
   
   const testSuites: TestSuite[] = [

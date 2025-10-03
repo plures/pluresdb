@@ -1,22 +1,22 @@
 [workspace]
 resolver = "2"
 members = [
-    "rusty-gun-core",
-    "rusty-gun-storage", 
-    "rusty-gun-network",
-    "rusty-gun-api",
-    "rusty-gun-cli",
-    "rusty-gun-web",
-    "rusty-gun-vscode",
-    "rusty-gun-benchmarks"
+    "pluresdb-core",
+    "pluresdb-storage", 
+    "pluresdb-network",
+    "pluresdb-api",
+    "pluresdb-cli",
+    "pluresdb-web",
+    "pluresdb-vscode",
+    "pluresdb-benchmarks"
 ]
 
 [workspace.package]
 version = "1.0.0"
 edition = "2021"
-authors = ["Rusty Gun Team"]
-license = "MIT OR Commercial"
-repository = "https://github.com/rusty-gun/rusty-gun"
+authors = ["Plures Organization"]
+license = "AGPL-3.0"
+repository = "https://github.com/plures/pluresdb"
 description = "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications"
 
 [workspace.dependencies]

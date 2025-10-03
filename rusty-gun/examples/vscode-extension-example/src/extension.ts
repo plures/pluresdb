@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
-import { SQLiteCompatibleAPI } from 'rusty-gun';
+import { SQLiteCompatibleAPI } from 'pluresdb';
 import * as path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Rusty Gun extension is now active!');
+    console.log('PluresDB extension is now active!');
 
-    // Initialize Rusty Gun database
+    // Initialize PluresDB database
     const db = new SQLiteCompatibleAPI({
         config: {
-            dataDir: path.join(context.globalStorageUri.fsPath, 'rusty-gun'),
+            dataDir: path.join(context.globalStorageUri.fsPath, 'pluresdb'),
             port: 34567,
             host: 'localhost'
         }
@@ -16,21 +16,21 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Start the database
     db.start().then(() => {
-        console.log('Rusty Gun database started');
+        console.log('PluresDB database started');
         
         // Set up database schema
         setupDatabase(db);
     }).catch(error => {
-        console.error('Failed to start Rusty Gun:', error);
-        vscode.window.showErrorMessage('Failed to start Rusty Gun database');
+        console.error('Failed to start PluresDB:', error);
+        vscode.window.showErrorMessage('Failed to start PluresDB database');
     });
 
     // Register commands
-    const helloWorldCommand = vscode.commands.registerCommand('rusty-gun-example.helloWorld', () => {
-        vscode.window.showInformationMessage('Hello World from Rusty Gun!');
+    const helloWorldCommand = vscode.commands.registerCommand('pluresdb-example.helloWorld', () => {
+        vscode.window.showInformationMessage('Hello World from PluresDB!');
     });
 
-    const storeDataCommand = vscode.commands.registerCommand('rusty-gun-example.storeData', async () => {
+    const storeDataCommand = vscode.commands.registerCommand('pluresdb-example.storeData', async () => {
         const key = await vscode.window.showInputBox({
             prompt: 'Enter key to store',
             placeHolder: 'user:123'
@@ -54,7 +54,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    const retrieveDataCommand = vscode.commands.registerCommand('rusty-gun-example.retrieveData', async () => {
+    const retrieveDataCommand = vscode.commands.registerCommand('pluresdb-example.retrieveData', async () => {
         const key = await vscode.window.showInputBox({
             prompt: 'Enter key to retrieve',
             placeHolder: 'user:123'
@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    const searchDataCommand = vscode.commands.registerCommand('rusty-gun-example.searchData', async () => {
+    const searchDataCommand = vscode.commands.registerCommand('pluresdb-example.searchData', async () => {
         const query = await vscode.window.showInputBox({
             prompt: 'Enter search query',
             placeHolder: 'machine learning'
@@ -142,6 +142,6 @@ async function setupDatabase(db: SQLiteCompatibleAPI) {
 }
 
 export function deactivate() {
-    console.log('Rusty Gun extension deactivated');
+    console.log('PluresDB extension deactivated');
 }
 

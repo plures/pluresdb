@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Rusty Gun Installation Script
-# This script installs Rusty Gun on various platforms
+# PluresDB Installation Script
+# This script installs PluresDB on various platforms
 
 set -e
 
 VERSION="1.0.0"
 INSTALL_DIR="$HOME/.local/bin"
-CONFIG_DIR="$HOME/.config/rusty-gun"
-DATA_DIR="$HOME/.local/share/rusty-gun"
+CONFIG_DIR="$HOME/.config/pluresdb"
+DATA_DIR="$HOME/.local/share/pluresdb"
 
 # Colors for output
 RED='\033[0;31m'
@@ -81,9 +81,9 @@ command_exists() {
 install_binary() {
     local platform="$1"
     local arch="$2"
-    local url="https://github.com/rusty-gun/rusty-gun/releases/download/v$VERSION/rusty-gun-$platform-$arch.tar.gz"
+    local url="https://github.com/pluresdb/pluresdb/releases/download/v$VERSION/pluresdb-$platform-$arch.tar.gz"
     
-    print_info "Downloading Rusty Gun v$VERSION for $platform-$arch..."
+    print_info "Downloading PluresDB v$VERSION for $platform-$arch..."
     
     # Create temporary directory
     local temp_dir=$(mktemp -d)
@@ -105,8 +105,8 @@ install_binary() {
     mkdir -p "$DATA_DIR"
     
     # Install binary
-    cp rusty-gun "$INSTALL_DIR/"
-    chmod +x "$INSTALL_DIR/rusty-gun"
+    cp pluresdb "$INSTALL_DIR/"
+    chmod +x "$INSTALL_DIR/pluresdb"
     
     # Install web UI
     cp -r web "$DATA_DIR/"
@@ -119,7 +119,7 @@ install_binary() {
     cd /
     rm -rf "$temp_dir"
     
-    print_success "Rusty Gun installed successfully!"
+    print_success "PluresDB installed successfully!"
 }
 
 # Install using package manager
@@ -146,15 +146,15 @@ install_with_package_manager() {
         macos)
             if command_exists brew; then
                 print_info "Installing via Homebrew..."
-                brew tap rusty-gun/rusty-gun
-                brew install rusty-gun
+                brew tap pluresdb/pluresdb
+                brew install pluresdb
                 return 0
             fi
             ;;
         windows)
             if command_exists winget; then
                 print_info "Installing via winget..."
-                winget install rusty-gun.rusty-gun
+                winget install pluresdb.pluresdb
                 return 0
             fi
             ;;
@@ -167,7 +167,7 @@ install_with_package_manager() {
 install_with_deno() {
     if command_exists deno; then
         print_info "Installing via Deno..."
-        deno install -A -n rusty-gun "https://deno.land/x/rusty_gun@v$VERSION/src/main.ts"
+        deno install -A -n pluresdb "https://deno.land/x/pluresdb@v$VERSION/src/main.ts"
         return 0
     fi
     return 1
@@ -201,7 +201,7 @@ add_to_path() {
 
 # Main installation function
 main() {
-    print_info "Installing Rusty Gun v$VERSION..."
+    print_info "Installing PluresDB v$VERSION..."
     
     # Detect system
     detect_os
@@ -229,14 +229,14 @@ main() {
     add_to_path
     
     print_success "Installation complete!"
-    print_info "Run 'rusty-gun serve' to start the server"
+    print_info "Run 'pluresdb serve' to start the server"
     print_info "Web UI will be available at: http://localhost:34568"
     print_info "API will be available at: http://localhost:34567"
 }
 
 # Show help
 show_help() {
-    echo "Rusty Gun Installation Script"
+    echo "PluresDB Installation Script"
     echo ""
     echo "Usage: $0 [OPTIONS]"
     echo ""

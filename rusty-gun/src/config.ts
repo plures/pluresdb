@@ -23,7 +23,7 @@ export async function saveConfig(cfg: AppConfig): Promise<void> {
 }
 
 export function getConfigPath(): string {
-  const appName = "RustyGun";
+  const appName = "PluresDB";
   try {
     const os = Deno.build.os;
     if (os === "windows") {

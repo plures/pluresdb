@@ -1,10 +1,10 @@
 # Testing Guide
 
-This document provides comprehensive information about testing the Rusty Gun project.
+This document provides comprehensive information about testing the PluresDB project.
 
 ## Overview
 
-Rusty Gun uses a multi-layered testing approach:
+PluresDB uses a multi-layered testing approach:
 
 - **Unit Tests**: Test individual components in isolation
 - **Integration Tests**: Test component interactions and APIs

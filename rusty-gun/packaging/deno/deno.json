@@ -1,14 +1,14 @@
 {
-  "name": "rusty-gun",
+  "name": "pluresdb",
   "version": "1.0.0",
   "description": "P2P Graph Database with SQLite Compatibility",
-  "homepage": "https://github.com/rusty-gun/rusty-gun",
+  "homepage": "https://github.com/pluresdb/pluresdb",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rusty-gun/rusty-gun.git"
+    "url": "https://github.com/pluresdb/pluresdb.git"
   },
   "bugs": {
-    "url": "https://github.com/rusty-gun/rusty-gun/issues"
+    "url": "https://github.com/pluresdb/pluresdb/issues"
   },
   "license": "MIT",
   "keywords": [
@@ -38,17 +38,17 @@
     "./config": "./src/config.ts"
   },
   "bin": {
-    "rusty-gun": "./src/main.ts"
+    "pluresdb": "./src/main.ts"
   },
   "scripts": {
     "start": "deno run -A src/main.ts serve",
     "dev": "deno run -A --watch src/main.ts serve --port 34567",
-    "build": "deno compile -A --output rusty-gun src/main.ts",
+    "build": "deno compile -A --output pluresdb src/main.ts",
     "test": "deno test -A",
     "fmt": "deno fmt",
     "lint": "deno lint",
     "check": "deno check src/main.ts",
-    "install": "deno install -A -n rusty-gun https://deno.land/x/rusty_gun@v1.0.0/src/main.ts"
+    "install": "deno install -A -n pluresdb https://deno.land/x/pluresdb@v1.0.0/src/main.ts"
   },
   "files": [
     "src/",

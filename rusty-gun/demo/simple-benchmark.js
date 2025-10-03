@@ -62,7 +62,7 @@ function makeRequest(options, data = null) {
 }
 
 // Test functions
-async function testRustyGunEndpoints() {
+async function testPluresDBEndpoints() {
     const endpoints = [
         { path: '/api/config', method: 'GET', name: 'Config' },
         { path: '/api/data', method: 'GET', name: 'Data List' },
@@ -116,7 +116,7 @@ async function testRustyGunEndpoints() {
     return results;
 }
 
-async function testRustyGunMemoryUsage() {
+async function testPluresDBMemoryUsage() {
     try {
         // Try to get memory info from the server
         const response = await makeRequest({
@@ -143,7 +143,7 @@ async function testRustyGunMemoryUsage() {
     }
 }
 
-async function testRustyGunConcurrency() {
+async function testPluresDBConcurrency() {
     const concurrentUsers = 20; // Reduced for realistic test
     const promises = [];
     const startTime = performance.now();
@@ -244,9 +244,9 @@ async function runBenchmark() {
     // Test Rusty Gun
     log('\n🦀 Testing Rusty Gun...', 'yellow');
     
-    const rustyGunEndpoints = await testRustyGunEndpoints();
-    const rustyGunMemory = await testRustyGunMemoryUsage();
-    const rustyGunConcurrency = await testRustyGunConcurrency();
+    const rustyGunEndpoints = await testPluresDBEndpoints();
+    const rustyGunMemory = await testPluresDBMemoryUsage();
+    const rustyGunConcurrency = await testPluresDBConcurrency();
     
     // Simulate Gun.js
     log('\n🔫 Simulating Gun.js performance...', 'yellow');

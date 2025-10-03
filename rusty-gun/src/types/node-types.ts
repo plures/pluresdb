@@ -1,8 +1,8 @@
 /**
- * Node.js-specific types for Rusty Gun
+ * Node.js-specific types for PluresDB
  */
 
-export interface RustyGunConfig {
+export interface PluresDBConfig {
   port?: number;
   host?: string;
   dataDir?: string;
@@ -10,8 +10,8 @@ export interface RustyGunConfig {
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
 }
 
-export interface RustyGunOptions {
-  config?: RustyGunConfig;
+export interface PluresDBOptions {
+  config?: PluresDBConfig;
   autoStart?: boolean;
   denoPath?: string;
 }

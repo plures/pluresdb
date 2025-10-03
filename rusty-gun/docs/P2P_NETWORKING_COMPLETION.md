@@ -120,8 +120,8 @@ engine.broadcast_message(message).await?;
 let discovery_config = DiscoveryConfig {
     enable_mdns: true,
     enable_dht: true,
-    service_name: "rusty-gun".to_string(),
-    service_type: "_rusty-gun._tcp".to_string(),
+    service_name: "pluresdb".to_string(),
+    service_type: "_pluresdb._tcp".to_string(),
     discovery_interval: Duration::from_secs(60),
 };
 
@@ -336,7 +336,7 @@ To continue development, you'll need:
 
 ## 🎉 **Achievement Summary**
 
-**We've successfully created a production-ready P2P networking layer for Rusty Gun!**
+**We've successfully created a production-ready P2P networking layer for PluresDB!**
 
 The networking layer provides:
 - **Multiple Protocol Support** (QUIC, WebRTC, LibP2P)

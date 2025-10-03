@@ -12,7 +12,7 @@ Phase 1, 2, 3, 4, 5, 6, Billing System, Foundation, and P2P Ecosystem complete! 
 - Advanced features and performance optimizations.
 - Community support and documentation.
 
-This roadmap focuses on evolving Rusty Gun from functional to delightful, inspired by modern DB UIs (Supabase Studio, Prisma Studio, Directus, Hasura Console, Neo4j Bloom, Weaviate Console, RedisInsight, MongoDB Compass).
+This roadmap focuses on evolving PluresDB from functional to delightful, inspired by modern DB UIs (Supabase Studio, Prisma Studio, Directus, Hasura Console, Neo4j Bloom, Weaviate Console, RedisInsight, MongoDB Compass).
 
 ## Phase 1 — UI Foundation & UX Polish ✅ COMPLETE
 - Component Architecture: Svelte components (Explorer, Detail, Graph, Search, Settings), centralized stores, SSE-backed cache. ✅

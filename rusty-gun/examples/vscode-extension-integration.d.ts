@@ -1,9 +1,9 @@
 /**
  * VSCode Extension Integration Example
- * This shows how to integrate Rusty Gun into a VSCode extension
+ * This shows how to integrate PluresDB into a VSCode extension
  */
 import * as vscode from 'vscode';
-export declare class RustyGunExtension {
+export declare class PluresExtension {
     private rustyGun;
     private sqliteAPI;
     private context;
@@ -19,6 +19,6 @@ export declare class RustyGunExtension {
     searchDocuments(query: string): Promise<any>;
     executeSQL(sql: string, params?: any[]): Promise<any>;
 }
-export declare function activate(context: vscode.ExtensionContext): RustyGunExtension;
-export declare function deactivate(extension: RustyGunExtension): void;
+export declare function activate(context: vscode.ExtensionContext): PluresExtension;
+export declare function deactivate(extension: PluresExtension): void;
 //# sourceMappingURL=vscode-extension-integration.d.ts.map

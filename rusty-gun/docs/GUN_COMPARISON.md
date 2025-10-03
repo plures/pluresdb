@@ -1,29 +1,29 @@
-# 🦀 Rusty Gun vs 🔫 Gun.js - Complete Comparison
+# 🦀 PluresDB vs 🔫 Gun.js - Complete Comparison
 
 ## 🎯 **Executive Summary**
 
-**Rusty Gun is a superior graph database that provides everything Gun.js offers, plus SQLite compatibility, better performance, and enterprise features.**
+**PluresDB is a superior graph database that provides everything Gun.js offers, plus SQLite compatibility, better performance, and enterprise features.**
 
 ## 📊 **Quick Comparison**
 
-| Feature | Rusty Gun | Gun.js | Winner |
+| Feature | PluresDB | Gun.js | Winner |
 |---------|-----------|--------|--------|
-| **Language** | Rust (Fast, Safe) | JavaScript (Slow, Unsafe) | 🦀 Rusty Gun |
-| **SQL Support** | ✅ Full SQLite compatibility | ❌ No SQL support | 🦀 Rusty Gun |
-| **Performance** | ✅ 10x faster | ⚠️ JavaScript speed | 🦀 Rusty Gun |
-| **Memory Usage** | ✅ 5x less memory | ⚠️ High memory usage | 🦀 Rusty Gun |
+| **Language** | Rust (Fast, Safe) | JavaScript (Slow, Unsafe) | 🦀 PluresDB |
+| **SQL Support** | ✅ Full SQLite compatibility | ❌ No SQL support | 🦀 PluresDB |
+| **Performance** | ✅ 10x faster | ⚠️ JavaScript speed | 🦀 PluresDB |
+| **Memory Usage** | ✅ 5x less memory | ⚠️ High memory usage | 🦀 PluresDB |
 | **P2P Sync** | ✅ Real-time sync | ✅ Real-time sync | 🤝 Tie |
-| **Offline-First** | ✅ Local storage + queuing | ✅ Local storage | 🦀 Rusty Gun |
-| **Vector Search** | ✅ AI-powered semantic search | ❌ Not available | 🦀 Rusty Gun |
-| **Enterprise Security** | ✅ RBAC, audit logs | ⚠️ Basic security | 🦀 Rusty Gun |
-| **Concurrency** | ✅ 1000+ users | ⚠️ Limited concurrency | 🦀 Rusty Gun |
-| **Ecosystem** | ✅ SQLite ecosystem | ⚠️ Limited ecosystem | 🦀 Rusty Gun |
+| **Offline-First** | ✅ Local storage + queuing | ✅ Local storage | 🦀 PluresDB |
+| **Vector Search** | ✅ AI-powered semantic search | ❌ Not available | 🦀 PluresDB |
+| **Enterprise Security** | ✅ RBAC, audit logs | ⚠️ Basic security | 🦀 PluresDB |
+| **Concurrency** | ✅ 1000+ users | ⚠️ Limited concurrency | 🦀 PluresDB |
+| **Ecosystem** | ✅ SQLite ecosystem | ⚠️ Limited ecosystem | 🦀 PluresDB |
 
-## 🚀 **Why Rusty Gun is Better**
+## 🚀 **Why PluresDB is Better**
 
 ### **1. Performance (10x Faster)**
 ```rust
-// Rusty Gun - Compiled to native code
+// PluresDB - Compiled to native code
 Query execution: 15ms
 Memory usage: 45MB
 Concurrent users: 1000+
@@ -36,7 +36,7 @@ Concurrent users: 100
 
 ### **2. SQLite Compatibility (95%)**
 ```sql
--- Rusty Gun supports full SQL
+-- PluresDB supports full SQL
 SELECT * FROM users WHERE age > 25;
 INSERT INTO posts (title, content) VALUES ('Hello', 'World');
 CREATE INDEX idx_users_email ON users(email);
@@ -47,7 +47,7 @@ gun.get('users').map().filter(user => user.age > 25);
 
 ### **3. Memory Safety**
 ```rust
-// Rusty Gun - Memory safe, no segfaults
+// PluresDB - Memory safe, no segfaults
 let data = Vec::new(); // Compile-time safety
 data.push(item); // Bounds checking
 
@@ -58,7 +58,7 @@ data[1000] = item; // Potential runtime error
 
 ### **4. Enterprise Features**
 ```rust
-// Rusty Gun - Enterprise ready
+// PluresDB - Enterprise ready
 - Role-based access control (RBAC)
 - Audit logging and compliance
 - Billing and usage tracking
@@ -77,7 +77,7 @@ data[1000] = item; // Potential runtime error
 ### **Core Database Features**
 
 #### **Data Storage**
-| Feature | Rusty Gun | Gun.js |
+| Feature | PluresDB | Gun.js |
 |---------|-----------|--------|
 | **Data Format** | SQLite + Graph | Graph only |
 | **ACID Transactions** | ✅ Full support | ⚠️ Basic support |
@@ -86,7 +86,7 @@ data[1000] = item; // Potential runtime error
 | **Constraints** | ✅ Foreign keys, unique | ❌ No constraints |
 
 #### **Query Language**
-| Feature | Rusty Gun | Gun.js |
+| Feature | PluresDB | Gun.js |
 |---------|-----------|--------|
 | **SQL Support** | ✅ Full SQLite SQL | ❌ No SQL |
 | **Graph Queries** | ✅ Advanced traversal | ✅ Basic traversal |
@@ -97,7 +97,7 @@ data[1000] = item; // Potential runtime error
 ### **P2P and Synchronization**
 
 #### **Network Features**
-| Feature | Rusty Gun | Gun.js |
+| Feature | PluresDB | Gun.js |
 |---------|-----------|--------|
 | **P2P Sync** | ✅ Real-time sync | ✅ Real-time sync |
 | **Conflict Resolution** | ✅ Automatic + manual | ⚠️ Basic only |
@@ -106,7 +106,7 @@ data[1000] = item; // Potential runtime error
 | **Bandwidth Management** | ✅ Intelligent throttling | ⚠️ Basic throttling |
 
 #### **Data Consistency**
-| Feature | Rusty Gun | Gun.js |
+| Feature | PluresDB | Gun.js |
 |---------|-----------|--------|
 | **CRDT Support** | ✅ Advanced CRDTs | ✅ Basic CRDTs |
 | **Eventual Consistency** | ✅ Configurable | ✅ Always eventual |
@@ -116,7 +116,7 @@ data[1000] = item; // Potential runtime error
 ### **Performance and Scalability**
 
 #### **Benchmarks**
-| Metric | Rusty Gun | Gun.js | Improvement |
+| Metric | PluresDB | Gun.js | Improvement |
 |--------|-----------|--------|-------------|
 | **Query Speed** | 15ms | 150ms | **10x faster** |
 | **Memory Usage** | 45MB | 200MB | **4.4x less** |
@@ -126,7 +126,7 @@ data[1000] = item; // Potential runtime error
 | **Data Throughput** | 10GB/s | 1GB/s | **10x more** |
 
 #### **Scalability**
-| Feature | Rusty Gun | Gun.js |
+| Feature | PluresDB | Gun.js |
 |---------|-----------|--------|
 | **Horizontal Scaling** | ✅ Auto-scaling | ⚠️ Manual scaling |
 | **Load Balancing** | ✅ Built-in | ❌ Not available |
@@ -136,7 +136,7 @@ data[1000] = item; // Potential runtime error
 ### **Security and Compliance**
 
 #### **Security Features**
-| Feature | Rusty Gun | Gun.js |
+| Feature | PluresDB | Gun.js |
 |---------|-----------|--------|
 | **Authentication** | ✅ JWT + OAuth | ⚠️ Basic auth |
 | **Authorization** | ✅ RBAC + ABAC | ❌ No RBAC |
@@ -145,7 +145,7 @@ data[1000] = item; // Potential runtime error
 | **Compliance** | ✅ GDPR, SOX, HIPAA | ❌ Not available |
 
 #### **Data Protection**
-| Feature | Rusty Gun | Gun.js |
+| Feature | PluresDB | Gun.js |
 |---------|-----------|--------|
 | **Data Encryption** | ✅ At rest + in transit | ⚠️ In transit only |
 | **Key Management** | ✅ Enterprise KMS | ❌ Not available |
@@ -155,7 +155,7 @@ data[1000] = item; // Potential runtime error
 ### **Developer Experience**
 
 #### **API and SDKs**
-| Feature | Rusty Gun | Gun.js |
+| Feature | PluresDB | Gun.js |
 |---------|-----------|--------|
 | **REST API** | ✅ Full REST API | ❌ Not available |
 | **GraphQL** | ✅ GraphQL support | ❌ Not available |
@@ -164,7 +164,7 @@ data[1000] = item; // Potential runtime error
 | **Documentation** | ✅ Comprehensive | ⚠️ Basic docs |
 
 #### **Development Tools**
-| Feature | Rusty Gun | Gun.js |
+| Feature | PluresDB | Gun.js |
 |---------|-----------|--------|
 | **Query Builder** | ✅ Visual query builder | ❌ Not available |
 | **Admin UI** | ✅ 21-tab interface | ⚠️ Basic UI |
@@ -174,7 +174,7 @@ data[1000] = item; // Potential runtime error
 
 ## 🎯 **Use Case Recommendations**
 
-### **Choose Rusty Gun When:**
+### **Choose PluresDB When:**
 
 #### **✅ Enterprise Applications**
 - Need SQLite compatibility for existing apps
@@ -214,15 +214,15 @@ data[1000] = item; // Potential runtime error
 - Building simple graph applications
 - Don't need enterprise features
 
-## 🔄 **Migration Guide: Gun.js → Rusty Gun**
+## 🔄 **Migration Guide: Gun.js → PluresDB**
 
 ### **Step 1: Installation**
 ```bash
 # Remove Gun.js
 npm uninstall gun
 
-# Install Rusty Gun
-npm install rusty-gun
+# Install PluresDB
+npm install pluresdb
 ```
 
 ### **Step 2: Update Imports**
@@ -230,8 +230,8 @@ npm install rusty-gun
 // Before (Gun.js)
 import Gun from 'gun';
 
-// After (Rusty Gun)
-import { RustyGun } from 'rusty-gun';
+// After (PluresDB)
+import { PluresDB } from 'pluresdb';
 ```
 
 ### **Step 3: Initialize Database**
@@ -239,8 +239,8 @@ import { RustyGun } from 'rusty-gun';
 // Before (Gun.js)
 const gun = Gun();
 
-// After (Rusty Gun)
-const gun = new RustyGun({
+// After (PluresDB)
+const gun = new PluresDB({
   port: 34567,
   sqlite: true,
   p2p: true,
@@ -256,7 +256,7 @@ gun.get('users').get('123').put({
   age: 30
 });
 
-// After (Rusty Gun) - SQL + Graph
+// After (PluresDB) - SQL + Graph
 // Option 1: Keep Gun.js API (backward compatible)
 gun.get('users').get('123').put({
   name: 'John',
@@ -272,7 +272,7 @@ gun.query(`
 
 ### **Step 5: Add New Features**
 ```javascript
-// New capabilities in Rusty Gun
+// New capabilities in PluresDB
 // Vector search
 gun.vector_search('AI database', {
   limit: 10,
@@ -295,7 +295,7 @@ gun.monitor.health();
 
 ### **Query Performance**
 ```javascript
-// Rusty Gun - 15ms
+// PluresDB - 15ms
 const start = Date.now();
 gun.query('SELECT * FROM users WHERE age > 25');
 console.log(`Query time: ${Date.now() - start}ms`); // 15ms
@@ -308,7 +308,7 @@ console.log(`Query time: ${Date.now() - start}ms`); // 150ms
 
 ### **Memory Usage**
 ```javascript
-// Rusty Gun - 45MB
+// PluresDB - 45MB
 console.log(process.memoryUsage().heapUsed / 1024 / 1024); // 45MB
 
 // Gun.js - 200MB
@@ -317,7 +317,7 @@ console.log(process.memoryUsage().heapUsed / 1024 / 1024); // 200MB
 
 ### **Concurrent Users**
 ```javascript
-// Rusty Gun - 1000+ users
+// PluresDB - 1000+ users
 gun.config.maxConnections = 1000;
 
 // Gun.js - 100 users
@@ -326,9 +326,9 @@ gun.config.maxConnections = 100;
 
 ## 🏆 **Conclusion**
 
-### **Rusty Gun is the Clear Winner**
+### **PluresDB is the Clear Winner**
 
-**Rusty Gun provides everything Gun.js offers, plus:**
+**PluresDB provides everything Gun.js offers, plus:**
 
 - ✅ **10x better performance** (Rust vs JavaScript)
 - ✅ **SQLite compatibility** (95% compatible)
@@ -347,9 +347,9 @@ gun.config.maxConnections = 100;
 - **Future-Proof**: Modern architecture and technologies
 
 ### **Recommendation**
-**Migrate from Gun.js to Rusty Gun for better performance, SQL compatibility, and enterprise features while maintaining your existing P2P capabilities.**
+**Migrate from Gun.js to PluresDB for better performance, SQL compatibility, and enterprise features while maintaining your existing P2P capabilities.**
 
-**Rusty Gun = Gun.js + SQLite + Performance + Enterprise + AI**
+**PluresDB = Gun.js + SQLite + Performance + Enterprise + AI**
 
 ---
 

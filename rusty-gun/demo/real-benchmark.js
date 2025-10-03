@@ -80,7 +80,7 @@ function makeRequest(options, data = null) {
 }
 
 // Test functions
-async function testRustyGunConnection() {
+async function testPluresDBConnection() {
     try {
         const start = performance.now();
         const response = await makeRequest({
@@ -104,7 +104,7 @@ async function testRustyGunConnection() {
     }
 }
 
-async function testRustyGunQueries() {
+async function testPluresDBQueries() {
     const queries = [
         'SELECT COUNT(*) FROM users',
         'SELECT * FROM users WHERE age > 25 LIMIT 10',
@@ -154,7 +154,7 @@ async function testRustyGunQueries() {
     return results;
 }
 
-async function testRustyGunMemoryUsage() {
+async function testPluresDBMemoryUsage() {
     try {
         const response = await makeRequest({
             hostname: 'localhost',
@@ -184,7 +184,7 @@ async function testRustyGunMemoryUsage() {
     };
 }
 
-async function testRustyGunConcurrency() {
+async function testPluresDBConcurrency() {
     const promises = [];
     const startTime = performance.now();
     
@@ -276,7 +276,7 @@ async function runBenchmark() {
     // Test Rusty Gun
     log('\n🦀 Testing Rusty Gun...', 'yellow');
     
-    const rustyGunConnection = await testRustyGunConnection();
+    const rustyGunConnection = await testPluresDBConnection();
     if (!rustyGunConnection.success) {
         log('❌ Rusty Gun connection failed:', 'red');
         log(`   Error: ${rustyGunConnection.error}`, 'red');
@@ -286,9 +286,9 @@ async function runBenchmark() {
     
     log(`✅ Rusty Gun connection: ${rustyGunConnection.responseTime.toFixed(2)}ms`, 'green');
     
-    const rustyGunQueries = await testRustyGunQueries();
-    const rustyGunMemory = await testRustyGunMemoryUsage();
-    const rustyGunConcurrency = await testRustyGunConcurrency();
+    const rustyGunQueries = await testPluresDBQueries();
+    const rustyGunMemory = await testPluresDBMemoryUsage();
+    const rustyGunConcurrency = await testPluresDBConcurrency();
     
     // Simulate Gun.js (since we can't run it in this environment)
     log('\n🔫 Simulating Gun.js performance...', 'yellow');

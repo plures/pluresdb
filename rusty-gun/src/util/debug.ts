@@ -10,7 +10,7 @@ export const DEBUG_ENABLED: boolean = (() => {
 export function debugLog(...args: unknown[]): void {
   if (!DEBUG_ENABLED) return;
   // deno-lint-ignore no-console
-  console.log("[rusty-gun]", ...args);
+  console.log("[pluresdb]", ...args);
 }
 
 

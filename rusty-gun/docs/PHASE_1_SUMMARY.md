@@ -2,7 +2,7 @@
 
 ## Quick Summary
 
-**ALL Phase 1 items are now complete!** The Rusty Gun web UI is now production-ready with comprehensive accessibility, real-time validation, and a professional user experience.
+**ALL Phase 1 items are now complete!** The PluresDB web UI is now production-ready with comprehensive accessibility, real-time validation, and a professional user experience.
 
 ---
 
@@ -192,7 +192,7 @@ git commit -m "feat: Complete Phase 1 UI with WCAG AA accessibility and inline s
 Closes Phase 1 of roadmap"
 
 # Option 2: Multiple commits (recommended)
-git add rusty-gun/web/svelte/src/
+git add pluresdb/web/svelte/src/
 git commit -m "feat(ui): Add WCAG AA accessibility and keyboard navigation
 
 - Comprehensive ARIA labels and roles
@@ -200,7 +200,7 @@ git commit -m "feat(ui): Add WCAG AA accessibility and keyboard navigation
 - Arrow key navigation through lists
 - Enhanced focus indicators"
 
-git add rusty-gun/web/svelte/src/components/JsonEditor.svelte rusty-gun/web/svelte/package.json
+git add pluresdb/web/svelte/src/components/JsonEditor.svelte pluresdb/web/svelte/package.json
 git commit -m "feat(editor): Add inline JSON Schema validation
 
 - Real-time validation with CodeMirror linter
@@ -208,7 +208,7 @@ git commit -m "feat(editor): Add inline JSON Schema validation
 - Schema validation warnings
 - Auto-revalidation on changes"
 
-git add rusty-gun/web/svelte/src/components/NodeDetail.svelte rusty-gun/web/svelte/src/components/NodeList.svelte
+git add pluresdb/web/svelte/src/components/NodeDetail.svelte pluresdb/web/svelte/src/components/NodeList.svelte
 git commit -m "feat(ui): Add editor enhancements and sort controls
 
 - Copy-as-cURL button
@@ -216,7 +216,7 @@ git commit -m "feat(ui): Add editor enhancements and sort controls
 - Sort by ID/Type with indicators
 - Tooltips on all actions"
 
-git add rusty-gun/*.md rusty-gun/docs/
+git add pluresdb/*.md pluresdb/docs/
 git commit -m "docs: Update documentation for Phase 1 completion"
 ```
 

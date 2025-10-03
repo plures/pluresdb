@@ -1,9 +1,9 @@
-// SQLite3 Compatible API for Rusty Gun
+// SQLite3 Compatible API for PluresDB
 // Provides drop-in replacement for sqlite3 package
 
-import { Database as RustyGunDatabase } from './sqlite-compat.ts';
+import { Database as PluresDBDatabase } from './sqlite-compat.ts';
 
-export class Database extends RustyGunDatabase {
+export class Database extends PluresDBDatabase {
   constructor(filename: string, callback?: (err: Error | null) => void) {
     super({ filename });
     
@@ -15,7 +15,7 @@ export class Database extends RustyGunDatabase {
   // SQLite3 specific methods
   serialize(callback?: (err: Error | null, sql: string) => void): void {
     if (callback) {
-      callback(null, '-- Serialization not supported in Rusty Gun');
+      callback(null, '-- Serialization not supported in PluresDB');
     }
   }
 
@@ -35,7 +35,7 @@ export class Database extends RustyGunDatabase {
 
   loadExtension(path: string, callback?: (err: Error | null) => void): void {
     if (callback) {
-      callback(new Error('Extensions not supported in Rusty Gun'), null);
+      callback(new Error('Extensions not supported in PluresDB'), null);
     }
   }
 }

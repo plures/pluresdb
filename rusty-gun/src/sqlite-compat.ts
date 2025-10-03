@@ -1,7 +1,7 @@
-// SQLite Compatible API for Rusty Gun
+// SQLite Compatible API for PluresDB
 // Provides drop-in replacement for sqlite3 and sqlite packages
 
-import { RustyGunNode } from './main.ts';
+import { PluresNode } from './main.ts';
 import { join } from 'https://deno.land/std@0.208.0/path/mod.ts';
 
 export interface SQLiteConfig {
@@ -19,7 +19,7 @@ export interface DatabaseOptions {
 }
 
 export class Database {
-  private rustyGun: RustyGunNode;
+  private rustyGun: PluresNode;
   private filename: string;
   private isOpen: boolean = false;
   private verbose: boolean = false;
@@ -28,9 +28,9 @@ export class Database {
     this.filename = options.filename;
     this.verbose = options.verbose || false;
     
-    // Initialize Rusty Gun with the SQLite file path
-    const dataDir = join(options.filename, '..', 'rusty-gun');
-    this.rustyGun = new RustyGunNode({
+    // Initialize PluresDB with the SQLite file path
+    const dataDir = join(options.filename, '..', 'pluresdb');
+    this.rustyGun = new PluresNode({
       config: {
         dataDir,
         port: 34567,
@@ -227,7 +227,7 @@ export class Database {
     const tableName = tableMatch[1];
     const columns = tableMatch[2].split(',').map(col => col.trim());
     
-    // Store table schema in Rusty Gun
+    // Store table schema in PluresDB
     await this.rustyGun.put(`schema:${tableName}`, {
       name: tableName,
       columns: columns,
@@ -293,7 +293,7 @@ export class Database {
     row.id = id;
     row.created_at = new Date().toISOString();
 
-    // Store in Rusty Gun
+    // Store in PluresDB
     await this.rustyGun.put(`table:${tableName}:${id}`, row);
 
     if (this.verbose) {
