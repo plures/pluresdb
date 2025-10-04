@@ -24,6 +24,9 @@
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
   "include": [
+  "src/better-sqlite3.ts",
+  "src/better-sqlite3-shared.ts",
+  "src/better-sqlite3-worker.ts",
     "src/node-index.ts",
     "src/node-wrapper.ts",
     "src/cli.ts",

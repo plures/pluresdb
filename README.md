@@ -212,6 +212,48 @@ await sqlite.delete(key); // Delete key
 await sqlite.vectorSearch(query, limit); // Semantic search
 ```
 
+### better-sqlite3-Compatible API
+
+Need the synchronous ergonomics of [`better-sqlite3`](https://github.com/WiseLibs/better-sqlite3)?
+The Node package now ships a compatibility layer that mirrors its familiar
+`Database`/`Statement` workflow while proxying calls to PluresDB.
+
+> **Note:** PluresDB operations run through HTTP and therefore return Promises.
+> You can still keep the same control flow by awaiting each call.
+
+```typescript
+import Database from "pluresdb/better-sqlite3";
+
+const db = await new Database("./data.db", { autoStart: true }).open();
+await db.exec("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)");
+
+const insert = db.prepare("INSERT INTO users (name) VALUES (?)");
+await insert.run("Ada Lovelace");
+
+const select = db.prepare("SELECT id, name FROM users ORDER BY id");
+const people = await select.all();
+```
+
+Statements support `run`, `get`, `all`, `iterate`, and common mode toggles like
+`.raw()`, `.pluck()`, and `.expand(true)` for dotted column names.
+
+```typescript
+const singleColumnValues = await select.pluck().all();
+const nestedRows = await select.expand().all();
+```
+
+Transaction helpers mirror `better-sqlite3` as well:
+
+```typescript
+const write = db.transaction(async (users) => {
+  for (const user of users) {
+    await insert.run(user.name);
+  }
+});
+
+await write([{ name: "Grace Hopper" }, { name: "Margaret Hamilton" }]);
+```
+
 ### P2P API
 
 ```typescript
