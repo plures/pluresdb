@@ -225,3 +225,4 @@ Deno.test("Core Database - Persistence Across Restarts", async () => {
   assertEquals(got.value, 123);
   assertEquals(got.text, "persistent data");
 });
+

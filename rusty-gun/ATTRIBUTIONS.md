@@ -193,3 +193,4 @@ This file is updated whenever new dependencies are added or existing ones are up
 ---
 
 **For questions about third-party licenses, contact: legal@rusty-gun.com**
+

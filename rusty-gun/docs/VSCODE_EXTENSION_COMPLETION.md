@@ -276,3 +276,4 @@ The VSCode Extension is complete and ready for:
 
 The extension provides a complete development environment for Rusty Gun, making it easy for developers to work with the graph database directly from VSCode!
 
+

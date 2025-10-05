@@ -92,3 +92,4 @@ await db.start();
 - [VSCode Extension API](https://code.visualstudio.com/api)
 - [Migration Guide](../../docs/VSCODE_MIGRATION.md)
 
+
