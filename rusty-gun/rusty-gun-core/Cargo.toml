@@ -1,0 +1,45 @@
+[package]
+name = "rusty-gun-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core CRDT and data structures for Rusty Gun"
+
+[dependencies]
+# Core dependencies
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true, features = ["sync", "time"] }
+futures = { workspace = true }
+
+# Data structures
+dashmap = { workspace = true }
+arc-swap = { workspace = true }
+parking_lot = { workspace = true }
+
+# Crypto
+ring = { workspace = true }
+ed25519-dalek = { workspace = true }
+aes-gcm = { workspace = true }
+
+# Serialization
+bincode = { workspace = true }
+rmp-serde = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Testing
+proptest = { workspace = true, optional = true }
+
+[features]
+default = []
+test = ["proptest"]

@@ -1,0 +1,67 @@
+{
+  "Rusty Gun SQL - Select": {
+    "prefix": "rg-select",
+    "body": [
+      "SELECT ${1:*} FROM nodes",
+      "WHERE ${2:condition}",
+      "ORDER BY created_at DESC",
+      "LIMIT ${3:100}"
+    ],
+    "description": "Rusty Gun SQL SELECT query"
+  },
+  "Rusty Gun SQL - Insert Node": {
+    "prefix": "rg-insert-node",
+    "body": [
+      "INSERT INTO nodes (id, data, metadata, tags) VALUES (",
+      "  '${1:nodeId}',",
+      "  '${2:{\"name\": \"Node Name\", \"type\": \"node\"}}',",
+      "  '${3:{\"created_by\": \"user\"}}',",
+      "  '${4:[\"tag1\", \"tag2\"]}'",
+      ")"
+    ],
+    "description": "Rusty Gun SQL INSERT node"
+  },
+  "Rusty Gun SQL - Insert Relationship": {
+    "prefix": "rg-insert-rel",
+    "body": [
+      "INSERT INTO relationships (from_node, to_node, relation_type, metadata) VALUES (",
+      "  '${1:fromNodeId}',",
+      "  '${2:toNodeId}',",
+      "  '${3:related_to}',",
+      "  '${4:{\"created_by\": \"user\"}}'",
+      ")"
+    ],
+    "description": "Rusty Gun SQL INSERT relationship"
+  },
+  "Rusty Gun SQL - Update Node": {
+    "prefix": "rg-update-node",
+    "body": [
+      "UPDATE nodes SET",
+      "  data = '${1:{\"name\": \"Updated Name\", \"type\": \"node\"}}',",
+      "  updated_at = CURRENT_TIMESTAMP",
+      "WHERE id = '${2:nodeId}'"
+    ],
+    "description": "Rusty Gun SQL UPDATE node"
+  },
+  "Rusty Gun SQL - Delete Node": {
+    "prefix": "rg-delete-node",
+    "body": [
+      "DELETE FROM nodes WHERE id = '${1:nodeId}'"
+    ],
+    "description": "Rusty Gun SQL DELETE node"
+  },
+  "Rusty Gun SQL - Join Query": {
+    "prefix": "rg-join",
+    "body": [
+      "SELECT n1.id as from_node, n2.id as to_node, r.relation_type",
+      "FROM relationships r",
+      "JOIN nodes n1 ON r.from_node = n1.id",
+      "JOIN nodes n2 ON r.to_node = n2.id",
+      "WHERE ${1:condition}",
+      "ORDER BY r.created_at DESC"
+    ],
+    "description": "Rusty Gun SQL JOIN query"
+  }
+}
+
+

@@ -1,0 +1,55 @@
+[package]
+name = "rusty-gun-network"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "P2P networking layer for Rusty Gun with WebRTC and QUIC support"
+
+[dependencies]
+# Core dependencies
+rusty-gun-core = { path = "../rusty-gun-core" }
+rusty-gun-storage = { path = "../rusty-gun-storage" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true, features = ["full"] }
+futures = { workspace = true }
+
+# Networking
+quinn = { workspace = true, optional = true }
+webrtc = { workspace = true, optional = true }
+libp2p = { workspace = true, optional = true }
+
+# HTTP/WebSocket
+axum = { workspace = true, features = ["ws", "macros"] }
+tower = { workspace = true }
+tower-http = { workspace = true, features = ["cors", "trace"] }
+
+# Serialization
+bincode = { workspace = true }
+rmp-serde = { workspace = true }
+
+# Utilities
+parking_lot = { workspace = true }
+dashmap = { workspace = true }
+arc-swap = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Testing
+proptest = { workspace = true, optional = true }
+
+[features]
+default = ["quic", "webrtc"]
+quic = ["dep:quinn"]
+webrtc = ["dep:webrtc"]
+libp2p-backend = ["dep:libp2p"]
+test = ["proptest"]

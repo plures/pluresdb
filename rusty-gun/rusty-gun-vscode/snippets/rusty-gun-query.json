@@ -1,0 +1,64 @@
+{
+  "Create Node": {
+    "prefix": "create-node",
+    "body": [
+      "CREATE NODE ${1:nodeId} {",
+      "  data: {",
+      "    name: \"${2:Node Name}\",",
+      "    type: \"${3:node}\"",
+      "  },",
+      "  metadata: {",
+      "    created_by: \"${4:user}\"",
+      "  },",
+      "  tags: [\"${5:tag1}\", \"${6:tag2}\"]",
+      "}"
+    ],
+    "description": "Create a new node"
+  },
+  "Create Relationship": {
+    "prefix": "create-rel",
+    "body": [
+      "CREATE RELATIONSHIP ${1:fromNode} -> ${2:toNode} {",
+      "  type: \"${3:related_to}\",",
+      "  metadata: {",
+      "    created_by: \"${4:user}\"",
+      "  }",
+      "}"
+    ],
+    "description": "Create a new relationship"
+  },
+  "Vector Search": {
+    "prefix": "vector-search",
+    "body": [
+      "VECTOR SEARCH \"${1:search query}\" {",
+      "  limit: ${2:5},",
+      "  threshold: ${3:0.3},",
+      "  model: \"${4:sentence-transformers}\"",
+      "}"
+    ],
+    "description": "Perform vector search"
+  },
+  "SQL Query": {
+    "prefix": "sql",
+    "body": [
+      "SELECT ${1:*} FROM ${2:table}",
+      "WHERE ${3:condition}",
+      "ORDER BY ${4:column}",
+      "LIMIT ${5:100}"
+    ],
+    "description": "SQL query template"
+  },
+  "Graph Traversal": {
+    "prefix": "traverse",
+    "body": [
+      "TRAVERSE ${1:startNode} -> ${2:endNode} {",
+      "  max_depth: ${3:3},",
+      "  relationship_types: [\"${4:related_to}\"],",
+      "  direction: \"${5:outgoing}\"",
+      "}"
+    ],
+    "description": "Graph traversal query"
+  }
+}
+
+

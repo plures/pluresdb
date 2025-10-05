@@ -1,0 +1,57 @@
+[package]
+name = "rusty-gun-storage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Storage engine with SQLite compatibility for Rusty Gun"
+
+[dependencies]
+# Core dependencies
+rusty-gun-core = { path = "../rusty-gun-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true, features = ["sync", "time", "fs"] }
+futures = { workspace = true }
+
+# Storage backends
+sqlx = { workspace = true, features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid", "json"] }
+sled = { workspace = true }
+rocksdb = { workspace = true }
+
+# Vector search
+hnsw_rs = { workspace = true, optional = true }
+
+# Serialization
+bincode = { workspace = true }
+rmp-serde = { workspace = true }
+
+# Utilities
+parking_lot = { workspace = true }
+dashmap = { workspace = true }
+arc-swap = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# HTTP client for embeddings
+reqwest = { version = "0.11", features = ["json"], optional = true }
+
+# Testing
+proptest = { workspace = true, optional = true }
+
+[features]
+default = ["sqlite"]
+sqlite = ["sqlx/sqlite"]
+rocksdb-backend = []
+sled-backend = []
+vector-search = ["hnsw_rs"]
+embeddings = ["reqwest"]
+test = ["proptest"]

@@ -1,0 +1,40 @@
+# Build outputs
+out/
+dist/
+*.js
+*.d.ts
+*.js.map
+*.d.ts.map
+
+# Dependencies
+node_modules/
+
+# Generated files
+*.generated.*
+*.min.*
+
+# Configuration files
+*.config.js
+*.config.ts
+
+# Test files (if any)
+**/*.test.ts
+**/*.spec.ts
+
+# Documentation
+*.md
+README.md
+
+# Package files
+package-lock.json
+*.vsix
+
+# Rust files
+*.rs
+Cargo.toml
+Cargo.lock
+
+# Other
+.vscode/
+.git/
+

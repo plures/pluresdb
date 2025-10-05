@@ -1,0 +1,35 @@
+[package]
+name = "rusty-gun-api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+[[bin]]
+name = "rusty-gun-api"
+path = "src/main.rs"
+
+[dependencies]
+# Core dependencies
+rusty-gun-core = { path = "../rusty-gun-core" }
+rusty-gun-storage = { path = "../rusty-gun-storage", features = ["embeddings"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# HTTP/WebSocket
+axum = { workspace = true, features = ["ws", "macros"] }
+tower = { workspace = true }
+tower-http = { workspace = true, features = ["cors", "trace"] }
+tokio = { workspace = true, features = ["full"] }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Additional dependencies
+anyhow = "1.0"
+uuid = { workspace = true, features = ["v4"] }
