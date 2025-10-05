@@ -1,14 +1,115 @@
 {
+  "name": "pluresdb",
+  "version": "1.0.1",
+  "description": "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications",
+  "main": "dist/node-index.js",
+  "types": "dist/node-index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/node-index.d.ts",
+      "require": "./dist/node-index.js",
+      "default": "./dist/node-index.js"
+    },
+    "./node": {
+      "types": "./dist/node-index.d.ts",
+      "require": "./dist/node-index.js",
+      "default": "./dist/node-index.js"
+    },
+    "./vscode": {
+      "types": "./dist/vscode/extension.d.ts",
+      "require": "./dist/vscode/extension.js",
+      "default": "./dist/vscode/extension.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "require": "./dist/cli.js",
+      "default": "./dist/cli.js"
+    },
+    "./types": {
+      "types": "./dist/types/node-types.d.ts",
+      "require": "./dist/types/node-types.js",
+      "default": "./dist/types/node-types.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "pluresdb": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "npm run build:lib && npm run build:web",
+    "build:lib": "tsc -p tsconfig.json",
+    "build:web": "cd web/svelte && npm install && npm run build",
+    "dev": "deno run -A --unstable-kv --watch src/main.ts serve --port 34567",
+    "start": "node dist/cli.js serve",
+    "test": "deno test -A --unstable-kv",
+    "verify": "npm run build:lib && npm test",
+    "prepare": "npm run build:lib",
+    "prepublishOnly": "npm run verify && npm run build:web",
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "keywords": [
+    "database",
+    "graph-database",
+    "p2p",
+    "sqlite",
+    "local-first",
+    "offline-first",
+    "crdt",
+    "vector-search",
+    "deno",
+    "typescript",
+    "vscode",
+    "extension",
+    "embedded",
+    "sync",
+    "encryption"
+  ],
+  "author": "Plures Organization",
+  "license": "AGPL-3.0",
+  "homepage": "https://github.com/plures/pluresdb#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/plures/pluresdb.git"
+  },
+  "bugs": {
+    "url": "https://github.com/plures/pluresdb/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "files": [
+    "dist/",
+    "web/svelte/dist/",
+    "src/",
+    "examples/",
+    "scripts/",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.1",
-    "ajv": "^8.17.1",
-    "chromadb": "^3.0.10",
-    "cytoscape": "^3.33.1",
-    "cytoscape-cola": "^2.5.1",
-    "cytoscape-cose-bilkent": "^4.1.0",
-    "cytoscape-dagre": "^2.5.0",
-    "gun": "^0.2020.1241",
-    "neo4j-driver": "^5.28.1",
-    "sqlite3": "^5.1.7"
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.23",
+    "@types/node": "^20.19.19",
+    "@types/vscode": "^1.104.0",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "prettier": "^3.6.2",
+    "prettier-plugin-svelte": "^3.4.0",
+    "typescript": "^5.9.3"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

@@ -1,0 +1,50 @@
+name: Build and Publish Packages
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-packages:
+    name: Build Packages
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl unzip
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install curl unzip -y
+
+      - name: Run build script (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          cd packaging/scripts
+          chmod +x build-packages.sh
+          ./build-packages.sh --version ${{ github.ref_name }}
+
+      - name: Run build script (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd packaging/scripts
+          powershell -ExecutionPolicy Bypass -File build-packages.ps1 -Version ${{ github.ref_name }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ runner.os }}
+          path: packaging/scripts/dist/*

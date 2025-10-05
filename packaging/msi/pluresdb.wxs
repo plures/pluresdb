@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" 
+           Name="PluresDB" 
+           Language="1033" 
+           Version="$(var.ProductVersion)" 
+           Manufacturer="PluresDB" 
+           UpgradeCode="{3C8F9E0C-ABD0-4AA6-9926-8D47DCEC4753}">
+    
+    <Package InstallerVersion="200" 
+             Compressed="yes" 
+             InstallScope="perMachine"
+             Description="P2P Graph Database with SQLite Compatibility"
+             Comments="PluresDB - Local-first, peer-to-peer graph database"
+             Manufacturer="PluresDB" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="ProductFeature" Title="PluresDB" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="WebUI" />
+      <ComponentRef Id="ConfigFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+      <ComponentRef Id="RegistryEntries" />
+    </Feature>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="PluresDB">
+          <Component Id="MainExecutable" Guid="{7F728F2F-09C1-4F1C-8C76-81C5931D5E7E}">
+            <File Id="PluresDBExe" 
+                  Name="pluresdb.exe" 
+                  Source="$(var.SourceDir)\pluresdb.exe" 
+                  KeyPath="yes" />
+          </Component>
+
+          <Directory Id="WebUIFolder" Name="web">
+            <Component Id="WebUI" Guid="{C3A59E18-AD19-436B-BB8E-5C4B93D34262}">
+              <File Id="WebUIFiles" 
+                    Name="index.html" 
+                    Source="$(var.SourceDir)\web\dist\index.html" 
+                    KeyPath="yes" />
+              <File Id="WebUICSS" 
+                    Source="$(var.SourceDir)\web\dist\assets\$(var.WebCssFile)" />
+              <File Id="WebUIJS" 
+                    Source="$(var.SourceDir)\web\dist\assets\$(var.WebJsFile)" />
+            </Component>
+          </Directory>
+
+          <Directory Id="ConfigFolder" Name="config">
+            <Component Id="ConfigFiles" Guid="{8BE17E03-9BB5-4FE0-A853-12FBD87F0D47}">
+              <File Id="ConfigFile" 
+                    Name="deno.json" 
+                    Source="$(var.SourceDir)\deno.json" 
+                    KeyPath="yes" />
+              <File Id="ConfigTS" 
+                    Name="config.ts" 
+                    Source="$(var.SourceDir)\src\config.ts" />
+            </Component>
+          </Directory>
+          <Component Id="RegistryEntries" Guid="{F1F88453-6064-4F2B-8B3E-9CE374A0C0CE}">
+            <RegistryKey Root="HKLM" Key="SOFTWARE\PluresDB">
+              <RegistryValue Name="InstallPath" 
+                              Type="string" 
+                              Value="[INSTALLFOLDER]" 
+                              KeyPath="yes" />
+              <RegistryValue Name="Version" 
+                              Type="string" 
+                              Value="$(var.ProductVersion)" />
+            </RegistryKey>
+            <RegistryKey Root="HKLM" Key="SOFTWARE\PluresDB\Capabilities">
+              <RegistryValue Name="ApplicationDescription" 
+                              Type="string" 
+                              Value="P2P Graph Database with SQLite Compatibility" />
+              <RegistryValue Name="ApplicationName" 
+                              Type="string" 
+                              Value="PluresDB" />
+            </RegistryKey>
+          </Component>
+        </Directory>
+      </Directory>
+
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ProgramMenuDir" Name="PluresDB">
+          <Component Id="StartMenuShortcut" Guid="{F70B85D6-77C3-4C2E-88A5-48621ED4B3E7}">
+            <Shortcut Id="StartMenuShortcut" 
+                      Directory="ProgramMenuDir" 
+                      Name="PluresDB" 
+                      WorkingDirectory="INSTALLFOLDER" 
+                      Advertise="yes" />
+            <RemoveFolder Id="ProgramMenuDir" On="uninstall" />
+            <RegistryValue Root="HKCU" 
+                          Key="Software\PluresDB" 
+                          Name="installed" 
+                          Type="integer" 
+                          Value="1" 
+                          KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+
+      <Directory Id="DesktopFolder">
+  <Component Id="DesktopShortcut" Guid="{4BD309FA-53A0-42FA-8275-42E60F2B6F9E}">
+          <Shortcut Id="DesktopShortcut" 
+                    Directory="DesktopFolder" 
+                    Name="PluresDB" 
+                    WorkingDirectory="INSTALLFOLDER" 
+                    Advertise="yes" />
+          <RemoveFolder Id="DesktopShortcut" On="uninstall" />
+        </Component>
+      </Directory>
+    </Directory>
+
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <UIRef Id="WixUI_Minimal" />
+
+    <CustomAction Id="LaunchPluresDB" 
+                  FileKey="PluresDBExe" 
+                  ExeCommand="serve" 
+                  Return="asyncNoWait" />
+
+    <InstallExecuteSequence>
+      <Custom Action="LaunchPluresDB" After="InstallFinalize">NOT Installed</Custom>
+    </InstallExecuteSequence>
+  </Product>
+</Wix>

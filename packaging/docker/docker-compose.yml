@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  pluresdb:
+    build:
+      context: ../..
+      dockerfile: packaging/docker/Dockerfile
+    image: pluresdb/pluresdb:latest
+    container_name: pluresdb
+    ports:
+      - "34567:34567" # API port
+      - "34568:34568" # Web UI port
+    volumes:
+      - pluresdb-data:/app/data
+      - pluresdb-config:/app/config
+    environment:
+      - PLURESDB_PORT=34567
+      - PLURESDB_WEB_PORT=34568
+      - PLURESDB_HOST=0.0.0.0
+      - PLURESDB_DATA_DIR=/app/data
+      - PLURESDB_CONFIG_DIR=/app/config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "deno", "run", "-A", "--allow-net", "src/healthcheck.ts"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - pluresdb-network
+
+  # Optional: Redis for caching (if needed)
+  redis:
+    image: redis:7-alpine
+    container_name: pluresdb-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - pluresdb-network
+    profiles:
+      - with-redis
+
+volumes:
+  pluresdb-data:
+    driver: local
+  pluresdb-config:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  pluresdb-network:
+    driver: bridge

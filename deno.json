@@ -1,0 +1,66 @@
+{
+  "name": "@plures/pluresdb",
+  "version": "1.0.1",
+  "exports": {
+    ".": "./mod.ts",
+    "./cli": "./src/main.ts",
+    "./main": "./src/main.ts"
+  },
+  "publish": {
+    "include": ["mod.ts", "src/**/*.ts", "docs/**/*.md", "README.md", "LICENSE"],
+    "exclude": [
+      "src/node-index.ts",
+      "src/node-wrapper.ts",
+      "src/cli.ts",
+      "dist/**/*",
+      "node_modules/**/*"
+    ]
+  },
+  "tasks": {
+    "dev": "deno run -A --unstable-kv --watch src/main.ts serve",
+    "test": "deno test -A --unstable-kv --parallel --coverage=coverage src/tests/",
+    "test:unit": "deno test -A --unstable-kv --parallel src/tests/unit/",
+    "test:integration": "deno test -A --unstable-kv --parallel src/tests/integration/",
+    "test:performance": "deno test -A --unstable-kv --parallel src/tests/performance/",
+    "test:security": "deno test -A --unstable-kv --parallel src/tests/security/",
+    "test:e2e": "deno test -A --unstable-kv --parallel src/tests/e2e/",
+    "test:coverage": "deno coverage coverage --html",
+    "test:watch": "deno test -A --unstable-kv --watch src/tests/",
+    "fmt": "deno fmt",
+    "lint": "deno lint",
+    "check": "deno check src/main.ts",
+    "compile": "deno compile -A --unstable-kv --target x86_64-unknown-linux-gnu --output pluresdb src/main.ts",
+    "benchmark": "deno run -A --unstable-kv src/benchmarks/run-benchmarks.ts",
+    "benchmark:memory": "deno run -A --unstable-kv src/benchmarks/memory-benchmarks.ts",
+    "benchmark:network": "deno run -A --unstable-kv src/benchmarks/network-benchmarks.ts",
+    "benchmark:vector": "deno run -A --unstable-kv src/benchmarks/vector-benchmarks.ts"
+  },
+  "test": {
+    "include": ["src/tests/**/*.test.ts"],
+    "exclude": ["src/tests/fixtures/**/*"]
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@^1.0.14",
+    "@std/testing": "jsr:@std/testing@^1.0.15"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window", "deno.ns", "deno.unstable"],
+    "strict": true
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 80,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false,
+    "proseWrap": "preserve"
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"],
+      "include": ["src/**/*.ts"],
+      "exclude": ["src/tests/fixtures/**/*", "dist/**/*"]
+    }
+  }
+}

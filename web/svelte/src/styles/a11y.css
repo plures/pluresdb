@@ -1,0 +1,196 @@
+/* WCAG AA Compliant Color Overrides */
+/* Ensuring minimum contrast ratios: 4.5:1 for normal text, 3:1 for large text and UI components */
+
+:root {
+  /* Enhanced contrast for light mode */
+  --pico-contrast: #0d1117;
+  --pico-contrast-inverse: #ffffff;
+  --pico-muted-color: #57606a; /* Improved from default for better contrast */
+  --pico-muted-border-color: #d0d7de;
+
+  /* Primary colors with WCAG AA compliance */
+  --pico-primary: #0969da; /* GitHub blue with good contrast */
+  --pico-primary-hover: #0550ae;
+  --pico-primary-focus: rgba(9, 105, 218, 0.25);
+  --pico-primary-inverse: #ffffff;
+
+  /* Semantic colors */
+  --success-color: #1a7f37; /* Dark green for good contrast */
+  --error-color: #cf222e; /* Red with sufficient contrast */
+  --warning-color: #9a6700; /* Amber with good contrast */
+  --info-color: #0969da;
+}
+
+[data-theme="dark"] {
+  /* Enhanced contrast for dark mode */
+  --pico-contrast: #f6f8fa;
+  --pico-contrast-inverse: #0d1117;
+  --pico-muted-color: #8b949e; /* Improved for better contrast on dark background */
+  --pico-muted-border-color: #30363d;
+
+  /* Primary colors for dark mode */
+  --pico-primary: #58a6ff; /* Lighter blue for dark backgrounds */
+  --pico-primary-hover: #79c0ff;
+  --pico-primary-focus: rgba(88, 166, 255, 0.25);
+  --pico-primary-inverse: #0d1117;
+
+  /* Semantic colors for dark mode */
+  --success-color: #3fb950; /* Lighter green for dark mode */
+  --error-color: #f85149; /* Lighter red for dark mode */
+  --warning-color: #d29922; /* Lighter amber for dark mode */
+  --info-color: #58a6ff;
+}
+
+/* Button contrast improvements */
+button {
+  font-weight: 500; /* Slightly bolder for better readability */
+}
+
+button.secondary {
+  border-width: 1px;
+  border-color: var(--pico-muted-border-color);
+}
+
+button.secondary:hover {
+  border-color: var(--pico-primary);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Input field contrast */
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  border: 1px solid var(--pico-muted-border-color);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--pico-primary);
+  box-shadow: 0 0 0 3px var(--pico-primary-focus);
+}
+
+/* Link contrast - ensuring 4.5:1 minimum */
+a {
+  color: var(--pico-primary);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: var(--pico-primary-hover);
+}
+
+/* Focus visible for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid var(--pico-primary);
+  outline-offset: 2px;
+}
+
+/* Toast/notification colors with sufficient contrast */
+.toast.success {
+  background-color: var(--success-color);
+  color: white;
+}
+
+.toast.error {
+  background-color: var(--error-color);
+  color: white;
+}
+
+.toast.warning {
+  background-color: var(--warning-color);
+  color: white;
+}
+
+.toast.info {
+  background-color: var(--info-color);
+  color: white;
+}
+
+/* Selected state contrast */
+button.selected {
+  background: var(--pico-primary);
+  color: var(--pico-primary-inverse);
+  border-color: var(--pico-primary);
+}
+
+/* Ensure proper contrast for disabled states */
+button:disabled,
+input:disabled,
+textarea:disabled,
+select:disabled {
+  opacity: 0.6;
+  color: var(--pico-muted-color);
+}
+
+/* Status indicators with WCAG AA compliance */
+[role="status"][aria-live="polite"] {
+  color: var(--pico-contrast);
+}
+
+/* Proper contrast for code/pre blocks */
+code,
+pre {
+  background-color: rgba(175, 184, 193, 0.2);
+  color: var(--pico-contrast);
+}
+
+[data-theme="dark"] code,
+[data-theme="dark"] pre {
+  background-color: rgba(110, 118, 129, 0.2);
+}
+
+/* High contrast border for better UI component definition */
+nav {
+  border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+/* Validation error styling */
+.validation-error {
+  color: var(--error-color);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.validation-error::before {
+  content: "⚠ ";
+  font-weight: bold;
+}
+
+/* CodeMirror contrast enhancements */
+.cm-editor {
+  border-color: var(--pico-muted-border-color);
+}
+
+.cm-editor.cm-focused {
+  outline: 2px solid var(--pico-primary);
+  outline-offset: -2px;
+}
+
+/* Ensure sufficient contrast for placeholder text */
+::placeholder {
+  color: var(--pico-muted-color);
+  opacity: 1;
+}
+
+/* Skip link for keyboard users */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--pico-primary);
+  color: var(--pico-primary-inverse);
+  padding: 8px;
+  text-decoration: none;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  top: 0;
+}

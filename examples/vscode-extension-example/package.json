@@ -1,0 +1,49 @@
+{
+  "name": "pluresdb-extension-example",
+  "displayName": "PluresDB Extension Example",
+  "description": "Example VSCode extension using PluresDB",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:pluresdb-example.helloWorld"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "pluresdb-example.helloWorld",
+        "title": "Hello World from PluresDB"
+      },
+      {
+        "command": "pluresdb-example.storeData",
+        "title": "Store Data in PluresDB"
+      },
+      {
+        "command": "pluresdb-example.retrieveData",
+        "title": "Retrieve Data from PluresDB"
+      },
+      {
+        "command": "pluresdb-example.searchData",
+        "title": "Search Data with Vector Search"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "pluresdb": "file:../.."
+  }
+}
