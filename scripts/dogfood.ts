@@ -1,7 +1,7 @@
 #!/usr/bin/env -S deno run -A --unstable-kv
 
-import { GunDB } from "../src/core/database.ts";
-import { startApiServer } from "../src/http/api-server.ts";
+import { GunDB } from "../legacy/core/database.ts";
+import { startApiServer } from "../legacy/http/api-server.ts";
 
 declare const Deno: any;
 
@@ -218,7 +218,7 @@ async function main() {
 
 async function runCli(args: string[]) {
   const command = new Deno.Command("deno", {
-    args: ["run", "-A", "--unstable-kv", "--no-lock", "src/main.ts", ...args],
+    args: ["run", "-A", "--unstable-kv", "--no-lock", "legacy/main.ts", ...args],
     stdout: "piped",
     stderr: "piped",
   });

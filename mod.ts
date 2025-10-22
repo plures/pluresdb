@@ -3,4 +3,4 @@
  *
  * @module
  */
-export * from "./src/index.ts";
+export * from "./legacy/index.ts";

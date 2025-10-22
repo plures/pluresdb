@@ -86,7 +86,7 @@
   "files": [
     "dist/",
     "web/svelte/dist/",
-    "src/",
+    "legacy/",
     "examples/",
     "scripts/",
     "README.md",

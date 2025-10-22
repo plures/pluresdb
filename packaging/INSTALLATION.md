@@ -240,7 +240,7 @@ services:
       - PLURESDB_HOST=0.0.0.0
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "deno", "run", "-A", "--allow-net", "src/healthcheck.ts"]
+      test: ["CMD", "deno", "run", "-A", "--allow-net", "legacy/healthcheck.ts"]
       interval: 30s
       timeout: 10s
       retries: 3
