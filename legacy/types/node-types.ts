@@ -23,6 +23,20 @@ export interface QueryResult {
   lastInsertRowId: number;
 }
 
+export interface BetterSQLite3Options extends PluresDBOptions {
+  filename?: string;
+  memory?: boolean;
+  readonly?: boolean;
+  fileMustExist?: boolean;
+  verbose?: (...args: unknown[]) => void;
+}
+
+export interface BetterSQLite3RunResult {
+  changes: number;
+  lastInsertRowid: number | null;
+  columns?: string[];
+}
+
 export interface VectorSearchResult {
   id: string;
   content: string;

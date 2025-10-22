@@ -9,10 +9,26 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import process from "node:process";
-import { PluresDBConfig, PluresDBOptions } from "./types/node-types";
+import { MessageChannel, Worker, receiveMessageOnPort } from "node:worker_threads";
+import {
+  BetterSQLite3Options,
+  BetterSQLite3RunResult,
+  PluresDBConfig,
+  PluresDBOptions,
+  QueryResult,
+} from "./types/node-types";
+import {
+  isPlainObject,
+  normalizeParameterInput,
+  normalizeQueryResult,
+  sanitizeDataDirName,
+  shapeRow,
+  splitSqlStatements,
+} from "./better-sqlite3-shared";
 
 const packageRoot =
   typeof __dirname !== "undefined" ? path.resolve(__dirname, "..") : process.cwd();
+
 
 export class PluresNode extends EventEmitter {
   private process: ChildProcess | null = null;
@@ -57,7 +73,7 @@ export class PluresNode extends EventEmitter {
         if (fs.existsSync(denoPath) || this.isCommandAvailable(denoPath)) {
           return denoPath;
         }
-      } catch (error) {
+      } catch {
         // Continue to next path
       }
     }
@@ -164,7 +180,7 @@ export class PluresNode extends EventEmitter {
         if (response.ok) {
           return;
         }
-      } catch (error) {
+      } catch {
         // Server not ready yet
       }
 
@@ -376,6 +392,256 @@ export class SQLiteCompatibleAPI {
 
   isRunning() {
     return this.plures.isServerRunning();
+  }
+}
+
+export class BetterSQLite3Statement {
+  private boundParams: unknown[] | undefined;
+  private rawMode = false;
+  private pluckMode = false;
+  private expandMode = false;
+  readonly reader: boolean;
+
+  constructor(private readonly database: BetterSQLite3Database, private readonly sql: string) {
+    this.reader = /^\s*select/i.test(sql);
+  }
+
+  get databaseInstance(): BetterSQLite3Database {
+    return this.database;
+  }
+
+  bind(...params: unknown[]): this {
+    this.boundParams = normalizeParameterInput(params);
+    return this;
+  }
+
+  raw(toggle = true): this {
+    this.rawMode = toggle;
+    if (toggle) {
+      this.pluckMode = false;
+    }
+    return this;
+  }
+
+  pluck(toggle = true): this {
+    this.pluckMode = toggle;
+    if (toggle) {
+      this.expandMode = false;
+      this.rawMode = false;
+    }
+    return this;
+  }
+
+  expand(toggle = true): this {
+    this.expandMode = toggle;
+    if (toggle) {
+      this.pluckMode = false;
+    }
+    return this;
+  }
+
+  safeIntegers(): this {
+    // No-op for compatibility with better-sqlite3 API
+    return this;
+  }
+
+  run(...params: unknown[]): BetterSQLite3RunResult {
+    const result = this.database.executeStatement(this.sql, this.resolveParams(params));
+    return {
+      changes: typeof result.changes === "number" ? result.changes : 0,
+      lastInsertRowid:
+        typeof result.lastInsertRowId === "number" ? result.lastInsertRowId : null,
+      columns: result.columns,
+    };
+  }
+
+  get(...params: unknown[]): unknown {
+    const rows = this.fetchRows(params);
+    return rows.length > 0 ? rows[0] : undefined;
+  }
+
+  all(...params: unknown[]): unknown[] {
+    return this.fetchRows(params);
+  }
+
+  iterate(...params: unknown[]): IterableIterator<unknown> {
+    const rows = this.fetchRows(params);
+    function* generator(): IterableIterator<unknown> {
+      for (const row of rows) {
+        yield row;
+      }
+    }
+    return generator();
+  }
+
+  columns(): string[] {
+    const result = this.database.executeStatement(this.sql, this.boundParams ?? []);
+    return result.columns ?? [];
+  }
+
+  private resolveParams(params: unknown[]): unknown[] {
+    const normalized = normalizeParameterInput(params);
+    if (normalized.length > 0) {
+      return normalized;
+    }
+    return this.boundParams ? [...this.boundParams] : [];
+  }
+
+  private fetchRows(params: unknown[]): unknown[] {
+    const result = this.database.executeStatement(this.sql, this.resolveParams(params));
+    return this.transformRows(result);
+  }
+
+  private transformRows(result: QueryResult): unknown[] {
+    return result.rows.map((row) =>
+      shapeRow(row, result.columns, {
+        raw: this.rawMode,
+        pluck: this.pluckMode,
+        expand: this.expandMode,
+      }),
+    );
+  }
+}
+
+export class BetterSQLite3Database {
+  private readonly options: BetterSQLite3Options;
+  private readonly plures: PluresNode;
+  private readonly filename: string;
+  private readonly verbose?: (...args: unknown[]) => void;
+  private openPromise: Promise<void> | null = null;
+  private opened = false;
+
+  constructor(filenameOrOptions?: string | BetterSQLite3Options, maybeOptions?: BetterSQLite3Options) {
+    const { filename, options } = this.resolveOptions(filenameOrOptions, maybeOptions);
+    this.filename = filename;
+    this.options = options;
+    this.verbose = options.verbose;
+
+    const config: PluresDBConfig = { ...options.config };
+    if (!config.dataDir) {
+      const baseDir = options.memory
+        ? path.join(os.tmpdir(), "pluresdb", "better-sqlite3-memory")
+        : path.join(os.homedir(), ".pluresdb", "better-sqlite3");
+      const safeName = sanitizeDataDirName(filename === ":memory:" ? "memory" : filename);
+      config.dataDir = path.join(baseDir, safeName);
+    }
+
+    this.plures = new PluresNode({
+      config,
+      denoPath: options.denoPath,
+      autoStart: false,
+    });
+
+    if (options.autoStart !== false) {
+      void this.open();
+    }
+  }
+
+  get name(): string {
+    return this.filename;
+  }
+
+  get isOpen(): boolean {
+    return this.opened;
+  }
+
+  async open(): Promise<this> {
+    await this.ensureOpen();
+    return this;
+  }
+
+  async close(): Promise<void> {
+    if (!this.opened && !this.openPromise) {
+      return;
+    }
+    await this.plures.stop();
+    this.opened = false;
+    this.openPromise = null;
+  }
+
+  prepare(sql: string): BetterSQLite3Statement {
+    if (!this.opened) {
+      throw new Error("Database is not open. Call await db.open() before preparing statements.");
+    }
+    return new BetterSQLite3Statement(this, sql);
+  }
+
+  async exec(sql: string): Promise<this> {
+    await this.ensureOpen();
+    for (const statement of splitSqlStatements(sql)) {
+      await this.executeStatement(statement, []);
+    }
+    return this;
+  }
+
+  transaction<TArgs extends unknown[], TResult>(
+    fn: (...args: TArgs) => Promise<TResult> | TResult,
+  ): (...args: TArgs) => Promise<TResult> {
+    return async (...args: TArgs): Promise<TResult> => {
+      await this.ensureOpen();
+      await this.executeStatement("BEGIN", []);
+      try {
+        const result = await fn(...args);
+        await this.executeStatement("COMMIT", []);
+        return result;
+      } catch (error) {
+        await this.executeStatement("ROLLBACK", []).catch(() => undefined);
+        throw error;
+      }
+    };
+  }
+
+  async pragma(statement: string): Promise<unknown[]> {
+    const sql = /^\s*pragma/i.test(statement) ? statement : `PRAGMA ${statement}`;
+    const result = await this.executeStatement(sql, []);
+    return result.rows;
+  }
+
+  defaultSafeIntegers(): this {
+    return this;
+  }
+
+  unsafeMode(): this {
+    return this;
+  }
+
+  async executeStatement(sql: string, params: unknown[]): Promise<QueryResult> {
+    await this.ensureOpen();
+    const normalizedParams = normalizeParameterInput(params);
+    const raw = await this.plures.query(sql, normalizedParams);
+    return normalizeQueryResult(raw);
+  }
+
+  private async ensureOpen(): Promise<void> {
+    if (this.opened) {
+      return;
+    }
+    if (!this.openPromise) {
+      this.openPromise = (async () => {
+        await this.plures.start();
+        this.opened = true;
+        if (this.verbose) {
+          this.verbose(`PluresDB ready for better-sqlite3 compatibility (${this.filename})`);
+        }
+      })();
+    }
+    await this.openPromise;
+  }
+
+  private resolveOptions(
+    filenameOrOptions?: string | BetterSQLite3Options,
+    maybeOptions?: BetterSQLite3Options,
+  ): { filename: string; options: BetterSQLite3Options } {
+    if (typeof filenameOrOptions === "string") {
+      return {
+        filename: filenameOrOptions,
+        options: { ...(maybeOptions ?? {}), filename: filenameOrOptions },
+      };
+    }
+
+    const options = filenameOrOptions ?? {};
+    const filename = options.filename ?? ":memory:";
+    return { filename, options: { ...options, filename } };
   }
 }
 

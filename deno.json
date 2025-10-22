@@ -3,41 +3,41 @@
   "version": "1.0.1",
   "exports": {
     ".": "./mod.ts",
-    "./cli": "./src/main.ts",
-    "./main": "./src/main.ts"
+    "./cli": "./legacy/main.ts",
+    "./main": "./legacy/main.ts"
   },
   "publish": {
-    "include": ["mod.ts", "src/**/*.ts", "docs/**/*.md", "README.md", "LICENSE"],
+    "include": ["mod.ts", "legacy/**/*.ts", "docs/**/*.md", "README.md", "LICENSE"],
     "exclude": [
-      "src/node-index.ts",
-      "src/node-wrapper.ts",
-      "src/cli.ts",
+      "legacy/node-index.ts",
+      "legacy/node-wrapper.ts",
+      "legacy/cli.ts",
       "dist/**/*",
       "node_modules/**/*"
     ]
   },
   "tasks": {
-    "dev": "deno run -A --unstable-kv --watch src/main.ts serve",
-    "test": "deno test -A --unstable-kv --parallel --coverage=coverage src/tests/",
-    "test:unit": "deno test -A --unstable-kv --parallel src/tests/unit/",
-    "test:integration": "deno test -A --unstable-kv --parallel src/tests/integration/",
-    "test:performance": "deno test -A --unstable-kv --parallel src/tests/performance/",
-    "test:security": "deno test -A --unstable-kv --parallel src/tests/security/",
-    "test:e2e": "deno test -A --unstable-kv --parallel src/tests/e2e/",
+    "dev": "deno run -A --unstable-kv --watch legacy/main.ts serve",
+    "test": "deno test -A --unstable-kv --parallel --coverage=coverage legacy/tests/",
+    "test:unit": "deno test -A --unstable-kv --parallel legacy/tests/unit/",
+    "test:integration": "deno test -A --unstable-kv --parallel legacy/tests/integration/",
+    "test:performance": "deno test -A --unstable-kv --parallel legacy/tests/performance/",
+    "test:security": "deno test -A --unstable-kv --parallel legacy/tests/security/",
+    "test:e2e": "deno test -A --unstable-kv --parallel legacy/tests/e2e/",
     "test:coverage": "deno coverage coverage --html",
-    "test:watch": "deno test -A --unstable-kv --watch src/tests/",
+    "test:watch": "deno test -A --unstable-kv --watch legacy/tests/",
     "fmt": "deno fmt",
     "lint": "deno lint",
-    "check": "deno check src/main.ts",
-    "compile": "deno compile -A --unstable-kv --target x86_64-unknown-linux-gnu --output pluresdb src/main.ts",
-    "benchmark": "deno run -A --unstable-kv src/benchmarks/run-benchmarks.ts",
-    "benchmark:memory": "deno run -A --unstable-kv src/benchmarks/memory-benchmarks.ts",
-    "benchmark:network": "deno run -A --unstable-kv src/benchmarks/network-benchmarks.ts",
-    "benchmark:vector": "deno run -A --unstable-kv src/benchmarks/vector-benchmarks.ts"
+    "check": "deno check legacy/main.ts",
+    "compile": "deno compile -A --unstable-kv --target x86_64-unknown-linux-gnu --output pluresdb legacy/main.ts",
+    "benchmark": "deno run -A --unstable-kv legacy/benchmarks/run-benchmarks.ts",
+    "benchmark:memory": "deno run -A --unstable-kv legacy/benchmarks/memory-benchmarks.ts",
+    "benchmark:network": "deno run -A --unstable-kv legacy/benchmarks/network-benchmarks.ts",
+    "benchmark:vector": "deno run -A --unstable-kv legacy/benchmarks/vector-benchmarks.ts"
   },
   "test": {
-    "include": ["src/tests/**/*.test.ts"],
-    "exclude": ["src/tests/fixtures/**/*"]
+    "include": ["legacy/tests/**/*.test.ts"],
+    "exclude": ["legacy/tests/fixtures/**/*"]
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@^1.0.14",
@@ -59,8 +59,8 @@
   "lint": {
     "rules": {
       "tags": ["recommended"],
-      "include": ["src/**/*.ts"],
-      "exclude": ["src/tests/fixtures/**/*", "dist/**/*"]
+      "include": ["legacy/**/*.ts"],
+      "exclude": ["legacy/tests/fixtures/**/*", "dist/**/*"]
     }
   }
 }

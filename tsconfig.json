@@ -4,7 +4,7 @@
     "module": "CommonJS",
     "lib": ["ES2022"],
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "./legacy",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -24,11 +24,14 @@
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
   "include": [
-    "src/node-index.ts",
-    "src/node-wrapper.ts",
-    "src/cli.ts",
-    "src/types/node-types.ts",
-    "src/vscode/extension.ts"
+  "legacy/better-sqlite3.ts",
+  "legacy/better-sqlite3-shared.ts",
+  "legacy/better-sqlite3-worker.ts",
+    "legacy/node-index.ts",
+    "legacy/node-wrapper.ts",
+    "legacy/cli.ts",
+    "legacy/types/node-types.ts",
+    "legacy/vscode/extension.ts"
   ],
   "exclude": ["node_modules", "dist", "web", "packaging", "demo", "docs"]
 }

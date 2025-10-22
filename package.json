@@ -15,6 +15,11 @@
       "require": "./dist/node-index.js",
       "default": "./dist/node-index.js"
     },
+    "./better-sqlite3": {
+      "types": "./dist/better-sqlite3.d.ts",
+      "require": "./dist/better-sqlite3.js",
+      "default": "./dist/better-sqlite3.js"
+    },
     "./vscode": {
       "types": "./dist/vscode/extension.d.ts",
       "require": "./dist/vscode/extension.js",
@@ -81,7 +86,7 @@
   "files": [
     "dist/",
     "web/svelte/dist/",
-    "src/",
+    "legacy/",
     "examples/",
     "scripts/",
     "README.md",
