@@ -1,0 +1,12 @@
+[package]
+name = "pluresdb-node"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Node.js bindings for PluresDB."
+keywords = ["database", "node", "bindings"]
+
+[dependencies]
+pluresdb-core = { path = "../pluresdb-core" }
