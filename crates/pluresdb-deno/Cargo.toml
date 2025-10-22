@@ -1,0 +1,12 @@
+[package]
+name = "pluresdb-deno"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Deno bindings for PluresDB."
+keywords = ["database", "deno", "bindings"]
+
+[dependencies]
+pluresdb-core = { path = "../pluresdb-core" }

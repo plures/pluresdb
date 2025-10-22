@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "crates/pluresdb-core",
+    "crates/pluresdb-node",
+    "crates/pluresdb-deno",
     "crates/pluresdb-storage",
     "crates/pluresdb-sync",
     "crates/pluresdb-cli",
