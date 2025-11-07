@@ -305,7 +305,7 @@ PluresDB has successfully completed **major implementation milestones** across a
 - [CLI Tool](docs/CLI_TOOL_COMPLETION.md)
 
 ### **Code**
-- [GitHub Repository](https://github.com/kayodebristol/rusty-gun)
+- [GitHub Repository](https://github.com/plures/pluresdb)
 - [Examples](examples/)
 - [Tests](src/tests/)
 - [Rust Crates](crates/)
