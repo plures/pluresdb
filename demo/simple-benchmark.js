@@ -39,7 +39,7 @@ function makeRequest(options, data = null) {
             headers: res.headers,
             responseTime: Date.now() - startTime,
           });
-        } catch (error) {
+        } catch {
           resolve({
             statusCode: res.statusCode,
             body: body,
@@ -91,7 +91,7 @@ async function testPluresDBEndpoints() {
         if (response.statusCode === 200) {
           successCount++;
         }
-      } catch (error) {
+      } catch {
         // Count as failure
       }
     }

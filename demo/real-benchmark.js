@@ -59,7 +59,7 @@ function makeRequest(options, data = null) {
             body: body ? JSON.parse(body) : null,
             headers: res.headers,
           });
-        } catch (error) {
+        } catch {
           resolve({
             statusCode: res.statusCode,
             body: body,
@@ -134,7 +134,7 @@ async function testPluresDBQueries() {
         if (response.statusCode === 200) {
           times.push(duration);
         }
-      } catch (error) {
+      } catch {
         // Ignore errors for now
       }
     }
@@ -174,7 +174,7 @@ async function testPluresDBMemoryUsage() {
         heapTotal: response.body.heapTotal || 0,
       };
     }
-  } catch (error) {
+  } catch {
     // Fallback to process memory if API not available
   }
 

@@ -115,7 +115,7 @@ async function main() {
       log("Deno not found, attempting to install...");
       try {
         await installDeno();
-      } catch (error) {
+      } catch {
         logError("Failed to install Deno automatically");
         logError("Please install Deno manually:");
         logError("  Windows: iwr https://deno.land/install.ps1 -useb | iex");
@@ -147,7 +147,7 @@ async function main() {
     log("  node node_modules/pluresdb/dist/cli.js serve");
   } catch (error) {
     logError(`Setup failed: ${error.message}`);
-    process.exit(1);
+    Deno.exit(1);
   }
 }
 

@@ -131,7 +131,7 @@ function makeRequest(options, data = null) {
             body: body ? JSON.parse(body) : null,
           };
           resolve(result);
-        } catch (error) {
+        } catch {
           resolve({
             statusCode: res.statusCode,
             headers: res.headers,
@@ -183,7 +183,7 @@ class SQLiteCompatibilityDemo {
       this.showSummary();
     } catch (error) {
       log(`\n❌ Demo failed: ${error.message}`, "red");
-      process.exit(1);
+      Deno.exit(1);
     }
   }
 
