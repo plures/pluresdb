@@ -1,7 +1,7 @@
 # PluresDB Progress Report 📊
 
 **Date:** October 12, 2025  
-**Project:** PluresDB (formerly rusty-gun)  
+**Project:** PluresDB  
 **Phase:** Rust Refactor & Feature Completion
 
 ---
@@ -295,7 +295,7 @@ Implement a comprehensive CLI tool in Rust with feature parity to TypeScript ver
 
 ## 📚 **Resources**
 
-- **GitHub**: [github.com/kayodebristol/rusty-gun](https://github.com/kayodebristol/rusty-gun)
+- **GitHub**: [github.com/plures/pluresdb](https://github.com/plures/pluresdb)
 - **Documentation**: See `docs/` directory
 - **Examples**: See `examples/` directory
 - **Tests**: See `src/tests/` directory
