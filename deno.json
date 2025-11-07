@@ -57,10 +57,18 @@
     "proseWrap": "preserve"
   },
   "lint": {
+    "include": ["legacy/**/*.ts"],
+    "exclude": [
+      "legacy/tests/fixtures/**/*",
+      "legacy/cli.ts",
+      "legacy/node-index.ts",
+      "legacy/node-wrapper.ts",
+      "legacy/vscode/**/*",
+      "examples/**/*",
+      "dist/**/*"
+    ],
     "rules": {
-      "tags": ["recommended"],
-      "include": ["legacy/**/*.ts"],
-      "exclude": ["legacy/tests/fixtures/**/*", "dist/**/*"]
+      "tags": ["recommended"]
     }
   }
 }
