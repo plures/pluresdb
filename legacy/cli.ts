@@ -10,7 +10,7 @@ import * as path from "path";
 import * as fs from "fs";
 
 // Parse command line arguments
-const args = Deno.args;
+const args = process.argv.slice(2);
 const command = args[0];
 
 if (!command) {
@@ -39,13 +39,13 @@ Examples:
   pluresdb query "SELECT * FROM users"
   pluresdb vsearch "machine learning"
 `);
-  Deno.exit(0);
+  process.exit(0);
 }
 
 if (command === "--version") {
   const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
   console.log(packageJson.version);
-  Deno.exit(0);
+  process.exit(0);
 }
 
 if (command === "--help") {
@@ -74,7 +74,7 @@ Examples:
   pluresdb query "SELECT * FROM users"
   pluresdb vsearch "machine learning"
 `);
-  Deno.exit(0);
+  process.exit(0);
 }
 
 // Parse options
@@ -117,10 +117,10 @@ async function main() {
       console.log(`\nPress Ctrl+C to stop the server`);
 
       // Handle graceful shutdown
-      Deno.addSignalListener("SIGINT", async () => {
+      process.on("SIGINT", async () => {
         console.log("\n🛑 Shutting down PluresDB...");
         await plures.stop();
-        Deno.exit(0);
+        process.exit(0);
       });
 
       // Keep the process alive
@@ -134,7 +134,7 @@ async function main() {
           case "put":
             if (args.length < 3) {
               console.error("Error: put command requires key and value");
-              Deno.exit(1);
+              process.exit(1);
             }
             const key = args[1];
             const value = JSON.parse(args[2]);
@@ -145,7 +145,7 @@ async function main() {
           case "get":
             if (args.length < 2) {
               console.error("Error: get command requires key");
-              Deno.exit(1);
+              process.exit(1);
             }
             const getKey = args[1];
             const result = await plures.get(getKey);
@@ -159,7 +159,7 @@ async function main() {
           case "delete":
             if (args.length < 2) {
               console.error("Error: delete command requires key");
-              Deno.exit(1);
+              process.exit(1);
             }
             const deleteKey = args[1];
             await plures.delete(deleteKey);
@@ -169,7 +169,7 @@ async function main() {
           case "query":
             if (args.length < 2) {
               console.error("Error: query command requires SQL");
-              Deno.exit(1);
+              process.exit(1);
             }
             const sql = args[1];
             const queryResult = await plures.query(sql);
@@ -179,7 +179,7 @@ async function main() {
           case "vsearch":
             if (args.length < 2) {
               console.error("Error: vsearch command requires query");
-              Deno.exit(1);
+              process.exit(1);
             }
             const searchQuery = args[1];
             const limit = options.limit ? parseInt(options.limit) : 10;
@@ -197,7 +197,7 @@ async function main() {
             if (args[1] === "set") {
               if (args.length < 4) {
                 console.error("Error: config set requires key and value");
-                Deno.exit(1);
+                process.exit(1);
               }
               const configKey = args[2];
               const configValue = args[3];
@@ -212,7 +212,7 @@ async function main() {
           default:
             console.error(`Unknown command: ${command}`);
             console.log('Run "pluresdb --help" for usage information');
-            Deno.exit(1);
+            process.exit(1);
         }
       } finally {
         await plures.stop();
@@ -220,12 +220,12 @@ async function main() {
     }
   } catch (error) {
     console.error("Error:", error instanceof Error ? error.message : String(error));
-    Deno.exit(1);
+    process.exit(1);
   }
 }
 
 // Run the main function
 main().catch((error) => {
   console.error("Fatal error:", error instanceof Error ? error.message : String(error));
-  Deno.exit(1);
+  process.exit(1);
 });
