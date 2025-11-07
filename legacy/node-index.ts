@@ -445,8 +445,8 @@ export class BetterSQLite3Statement {
     return this;
   }
 
-  run(...params: unknown[]): BetterSQLite3RunResult {
-    const result = this.database.executeStatement(this.sql, this.resolveParams(params));
+  async run(...params: unknown[]): Promise<BetterSQLite3RunResult> {
+    const result = await this.database.executeStatement(this.sql, this.resolveParams(params));
     return {
       changes: typeof result.changes === "number" ? result.changes : 0,
       lastInsertRowid:
@@ -455,27 +455,24 @@ export class BetterSQLite3Statement {
     };
   }
 
-  get(...params: unknown[]): unknown {
-    const rows = this.fetchRows(params);
+  async get(...params: unknown[]): Promise<unknown> {
+    const rows = await this.fetchRows(params);
     return rows.length > 0 ? rows[0] : undefined;
   }
 
-  all(...params: unknown[]): unknown[] {
-    return this.fetchRows(params);
+  async all(...params: unknown[]): Promise<unknown[]> {
+    return await this.fetchRows(params);
   }
 
-  iterate(...params: unknown[]): IterableIterator<unknown> {
-    const rows = this.fetchRows(params);
-    function* generator(): IterableIterator<unknown> {
-      for (const row of rows) {
-        yield row;
-      }
+  async *iterate(...params: unknown[]): AsyncIterableIterator<unknown> {
+    const rows = await this.fetchRows(params);
+    for (const row of rows) {
+      yield row;
     }
-    return generator();
   }
 
-  columns(): string[] {
-    const result = this.database.executeStatement(this.sql, this.boundParams ?? []);
+  async columns(): Promise<string[]> {
+    const result = await this.database.executeStatement(this.sql, this.boundParams ?? []);
     return result.columns ?? [];
   }
 
@@ -487,8 +484,8 @@ export class BetterSQLite3Statement {
     return this.boundParams ? [...this.boundParams] : [];
   }
 
-  private fetchRows(params: unknown[]): unknown[] {
-    const result = this.database.executeStatement(this.sql, this.resolveParams(params));
+  private async fetchRows(params: unknown[]): Promise<unknown[]> {
+    const result = await this.database.executeStatement(this.sql, this.resolveParams(params));
     return this.transformRows(result);
   }
 

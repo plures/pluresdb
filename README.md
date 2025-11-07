@@ -6,6 +6,8 @@
 
 **P2P Graph Database with SQLite Compatibility** - A local-first, offline-first database for modern applications.
 
+> 💡 **Perfect for Personal Use on Windows!** PluresDB is ideal for note-taking, knowledge management, personal wikis, task tracking, and more. [Get Started on Windows →](docs/WINDOWS_GETTING_STARTED.md)
+
 ## 🚀 Quick Start
 
 ### Install
@@ -136,12 +138,26 @@ api.close();
 
 ## 📦 Installation Methods
 
+### Windows (Personal Database Use)
+
+**Recommended for Windows users who want a personal database:**
+
+```powershell
+# Option 1: Using winget (coming soon)
+winget install plures.pluresdb
+
+# Option 2: Using PowerShell installer
+irm https://raw.githubusercontent.com/plures/pluresdb/main/install.ps1 | iex
+
+# Option 3: Download ZIP from releases
+# Extract and run start.bat
+```
+
+📖 **[Complete Windows Getting Started Guide →](docs/WINDOWS_GETTING_STARTED.md)**
+
 ### Package Managers
 
 ```bash
-# Windows
-winget install plures.pluresdb
-
 # macOS
 brew install plures/pluresdb/pluresdb
 
@@ -317,6 +333,24 @@ The command executes `tsc -p tsconfig.json` followed by `deno test -A --unstable
 - **Memory Efficient**: Minimal memory footprint
 
 ## 🌍 Use Cases
+
+### Personal Database & Knowledge Management 📝
+
+PluresDB is **perfect for personal use on Windows** as a local-first database:
+
+- **Digital Journal**: Daily logs, mood tracking, personal reflections
+- **Note-taking System**: Organize notes with tags, relationships, and smart search
+- **Personal Wiki**: Build your own knowledge base with linked concepts
+- **Task Manager**: Track personal and work tasks with custom fields
+- **Research Database**: Collect papers, articles, bookmarks with metadata
+- **Contact Manager**: Store contacts with rich relationships
+- **Recipe Collection**: Searchable recipes with ingredients and ratings
+- **Password Vault**: Encrypted storage for sensitive information
+- **Bookmark Manager**: Save and organize web links with AI-powered search
+
+👉 **[Windows Getting Started Guide](docs/WINDOWS_GETTING_STARTED.md)** for personal database setup
+
+### Application Development 🚀
 
 - **VSCode Extensions**: Replace SQLite with P2P capabilities
 - **Local-First Apps**: Offline-first applications

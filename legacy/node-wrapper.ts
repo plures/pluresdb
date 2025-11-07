@@ -66,7 +66,7 @@ export class PluresNode extends EventEmitter {
         if (fs.existsSync(denoPath) || this.isCommandAvailable(denoPath)) {
           return denoPath;
         }
-      } catch (error) {
+      } catch {
         // Continue to next path
       }
     }
@@ -169,7 +169,7 @@ export class PluresNode extends EventEmitter {
         if (response.ok) {
           return;
         }
-      } catch (error) {
+      } catch {
         // Server not ready yet
       }
 

@@ -4,7 +4,7 @@
 
 const { PluresNode, SQLiteCompatibleAPI } = require("./dist/node-index.js");
 
-async function testPackage() {
+function testPackage() {
   console.log("🧪 Testing PluresDB npm package...\n");
 
   try {
@@ -22,7 +22,7 @@ async function testPackage() {
 
     // Test 2: Create SQLiteCompatibleAPI instance
     console.log("2. Creating SQLiteCompatibleAPI instance...");
-    const sqlite = new SQLiteCompatibleAPI({
+    const _sqlite = new SQLiteCompatibleAPI({
       config: {
         port: 34567,
         host: "localhost",
@@ -54,7 +54,7 @@ async function testPackage() {
     console.log("   await db.start();");
   } catch (error) {
     console.error("❌ Test failed:", error.message);
-    process.exit(1);
+    Deno.exit(1);
   }
 }
 

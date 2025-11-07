@@ -100,7 +100,7 @@ Deno.test("Subscriptions - Multiple Subscribers", async () => {
   }
 });
 
-Deno.test("Subscriptions - Error Handling", async () => {
+Deno.test("Subscriptions - Error Handling", () => {
   const db = new GunDB();
 
   // Test subscription before ready
