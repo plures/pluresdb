@@ -35,7 +35,7 @@ export class Database extends PluresDBDatabase {
     // No-op for compatibility
   }
 
-  loadExtension(path: string, callback?: (err: Error | null) => void): void {
+  loadExtension(_path: string, callback?: (err: Error | null) => void): void {
     if (callback) {
       callback(new Error("Extensions not supported in PluresDB"), null);
     }
