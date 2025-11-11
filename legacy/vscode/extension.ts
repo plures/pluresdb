@@ -24,7 +24,10 @@ export type VSCodeWindow = {
 };
 
 export type VSCodeCommands = {
-  registerCommand(command: string, callback: (...args: unknown[]) => unknown): DisposableLike;
+  registerCommand(
+    command: string,
+    callback: (...args: unknown[]) => unknown,
+  ): DisposableLike;
 };
 
 export type VSCodeWorkspace = {
@@ -77,7 +80,11 @@ export class PluresVSCodeExtension {
   private readonly disposables: DisposableLike[] = [];
   private activated = false;
 
-  constructor(vscodeApi: VSCodeAPI, context: ExtensionContextLike, options: ExtensionOptions = {}) {
+  constructor(
+    vscodeApi: VSCodeAPI,
+    context: ExtensionContextLike,
+    options: ExtensionOptions = {},
+  ) {
     this.vscode = vscodeApi;
     this.context = context;
     this.commandPrefix = options.commandPrefix ?? "pluresdb";
@@ -88,10 +95,10 @@ export class PluresVSCodeExtension {
       ...options.config,
     };
 
-    this.plures =
-      options.pluresInstance ?? new PluresNode({ config: mergedConfig, autoStart: false });
-    this.sqlite =
-      options.sqliteInstance ?? new SQLiteCompatibleAPI({ config: mergedConfig, autoStart: false });
+    this.plures = options.pluresInstance ??
+      new PluresNode({ config: mergedConfig, autoStart: false });
+    this.sqlite = options.sqliteInstance ??
+      new SQLiteCompatibleAPI({ config: mergedConfig, autoStart: false });
 
     this.setupEventHandlers();
   }
@@ -109,7 +116,9 @@ export class PluresVSCodeExtension {
       this.activated = true;
       await this.safeInfo("PluresDB extension activated");
     } catch (error) {
-      await this.safeError(`Failed to activate PluresDB: ${this.errorMessage(error)}`);
+      await this.safeError(
+        `Failed to activate PluresDB: ${this.errorMessage(error)}`,
+      );
       throw error;
     }
   }
@@ -140,7 +149,12 @@ export class PluresVSCodeExtension {
     return this.sqlite.getValue(`settings:${key}`);
   }
 
-  async storeDocument(id: string, content: string, language: string, filePath: string) {
+  async storeDocument(
+    id: string,
+    content: string,
+    language: string,
+    filePath: string,
+  ) {
     return this.sqlite.put(`documents:${id}`, {
       content,
       language,
@@ -187,8 +201,9 @@ export class PluresVSCodeExtension {
 
   private registerCommands() {
     const register = (name: string, factory: CommandFactory) => {
-      const disposable = this.vscode.commands.registerCommand(`${this.commandPrefix}.${name}`, () =>
-        factory(),
+      const disposable = this.vscode.commands.registerCommand(
+        `${this.commandPrefix}.${name}`,
+        () => factory(),
       );
       this.context.subscriptions.push(disposable);
       this.disposables.push(disposable);
@@ -235,7 +250,9 @@ export class PluresVSCodeExtension {
         });
         await this.vscode.window.showTextDocument(doc);
       } catch (error) {
-        await this.safeError(`Vector search failed: ${this.errorMessage(error)}`);
+        await this.safeError(
+          `Vector search failed: ${this.errorMessage(error)}`,
+        );
       }
     });
 
@@ -259,7 +276,9 @@ export class PluresVSCodeExtension {
         await this.sqlite.put(key, value);
         await this.safeInfo(`Stored data for key: ${key}`);
       } catch (error) {
-        await this.safeError(`Failed to store data: ${this.errorMessage(error)}`);
+        await this.safeError(
+          `Failed to store data: ${this.errorMessage(error)}`,
+        );
       }
     });
 
@@ -283,7 +302,9 @@ export class PluresVSCodeExtension {
           await this.safeInfo("Key not found");
         }
       } catch (error) {
-        await this.safeError(`Failed to retrieve data: ${this.errorMessage(error)}`);
+        await this.safeError(
+          `Failed to retrieve data: ${this.errorMessage(error)}`,
+        );
       }
     });
   }
@@ -316,7 +337,9 @@ export class PluresVSCodeExtension {
       try {
         await this.sqlite.exec(sql);
       } catch (error) {
-        await this.safeError(`Failed to initialize database: ${this.errorMessage(error)}`);
+        await this.safeError(
+          `Failed to initialize database: ${this.errorMessage(error)}`,
+        );
       }
     }
   }

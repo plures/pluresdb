@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -436,8 +436,7 @@ gun.vector_search('AI database', {
 gun.traverse('user:123')
   .out('friends')
   .out('posts')
-  .collect();</pre
-              >
+  .collect();</pre>
             </div>
 
             <div class="code-block">
@@ -459,8 +458,7 @@ gun.sync('ws://peer:8080');
 gun.get('user:123')
   .get('friends')
   .get('posts')
-  .once(console.log);</pre
-              >
+  .once(console.log);</pre>
             </div>
           </div>
         </div>
@@ -636,8 +634,7 @@ gun.get('users').get('123').once(data => {
 gun.get('user:123')
   .get('friends')
   .map()
-  .once(console.log);</pre
-              >
+  .once(console.log);</pre>
             </div>
 
             <div class="code-block">
@@ -667,18 +664,25 @@ gun.query(`
 gun.get('user:123')
   .get('friends')
   .map()
-  .once(console.log);</pre
-              >
+  .once(console.log);</pre>
             </div>
           </div>
         </div>
 
         <!-- Demo Actions -->
         <div class="demo-actions">
-          <button class="btn btn-rusty" onclick="runPluresDBDemo()">Run PluresDB Demo</button>
-          <button class="btn btn-gun" onclick="runGunJsDemo()">Run Gun.js Demo</button>
-          <button class="btn" onclick="runPerformanceTest()">Run Performance Test</button>
-          <button class="btn" onclick="showMigrationGuide()">Show Migration Guide</button>
+          <button class="btn btn-rusty" onclick="runPluresDBDemo()">
+            Run PluresDB Demo
+          </button>
+          <button class="btn btn-gun" onclick="runGunJsDemo()">
+            Run Gun.js Demo
+          </button>
+          <button class="btn" onclick="runPerformanceTest()">
+            Run Performance Test
+          </button>
+          <button class="btn" onclick="showMigrationGuide()">
+            Show Migration Guide
+          </button>
         </div>
 
         <!-- Results -->

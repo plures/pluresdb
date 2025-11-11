@@ -3,7 +3,9 @@ import type { NodeRecord } from "../types/index.ts";
 // Minimal DB interface to avoid circular imports
 export interface DatabaseLike {
   put(id: string, data: Record<string, unknown>): Promise<void>;
-  get<T = Record<string, unknown>>(id: string): Promise<(T & { id: string }) | null>;
+  get<T = Record<string, unknown>>(
+    id: string,
+  ): Promise<(T & { id: string }) | null>;
 }
 
 export interface RuleContext {

@@ -27,6 +27,7 @@ PluresDB is **ready to be used as a personal database on Windows** with the foll
 ### 2. Windows Installation Options (Ready)
 
 #### Option A: Docker (Fully Working)
+
 ```powershell
 # Pull and run immediately
 docker run -p 34567:34567 -p 34568:34568 plures/pluresdb:latest
@@ -40,6 +41,7 @@ docker run -p 34567:34567 -p 34568:34568 `
 **Status**: ✅ Working now, no build required
 
 #### Option B: npm Package (Fully Working)
+
 ```powershell
 # Install via npm
 npm install -g pluresdb
@@ -54,6 +56,7 @@ node node_modules/pluresdb/dist/cli.js serve
 **Status**: ✅ Working now for developers
 
 #### Option C: Build from Source (Documented)
+
 ```powershell
 # Clone repository
 git clone https://github.com/plures/pluresdb.git
@@ -79,9 +82,11 @@ deno compile -A --unstable-kv `
 **Status**: ✅ Documented, requires Deno on Windows
 
 #### Option D: MSI Installer (Infrastructure Ready)
+
 **Status**: ⏳ Awaiting CI/CD setup for automated builds
 
 Pre-requisites in place:
+
 - ✅ WiX installer definition (`packaging/msi/pluresdb.wxs`)
 - ✅ Build script (`packaging/scripts/build-packages.ps1`)
 - ✅ Winget manifest (`packaging/winget/pluresdb.yaml`)
@@ -92,30 +97,35 @@ Pre-requisites in place:
 PluresDB excels at these personal database scenarios:
 
 ### 1. Knowledge Management 📚
+
 - Personal wiki with linked concepts
 - Research database with papers and citations
 - Bookmark manager with smart search
 - Document archive with full-text search
 
 ### 2. Note-Taking 📝
+
 - Daily journal with mood tracking
 - Meeting notes with relationships
 - Project documentation
 - Study notes with tags and categories
 
 ### 3. Task Management ✅
+
 - Personal todo lists
 - Project tracking with dependencies
 - Habit tracking
 - Goal management with progress
 
 ### 4. Data Collection 📊
+
 - Contact database with relationships
 - Recipe collection with ingredients search
 - Media library with metadata
 - Any structured personal data
 
 ### 5. Secure Storage 🔒
+
 - Password vault with encryption
 - Sensitive documents
 - Private notes with access control
@@ -152,20 +162,21 @@ PluresDB excels at these personal database scenarios:
 3. **Use programmatically**
    ```javascript
    import { PluresNode, SQLiteCompatibleAPI } from "pluresdb";
-   
+
    const db = new PluresNode({ autoStart: true });
    const sqlite = new SQLiteCompatibleAPI();
-   
+
    // Create notes
    await sqlite.run(
      "INSERT INTO nodes (id, data) VALUES (?, ?)",
-     ["note:1", JSON.stringify({ title: "My Note" })]
+     ["note:1", JSON.stringify({ title: "My Note" })],
    );
    ```
 
 ## Documentation Available
 
 ### For Windows Users
+
 1. **[Windows Getting Started Guide](docs/WINDOWS_GETTING_STARTED.md)**
    - Complete walkthrough for personal database use
    - Common use cases with examples
@@ -185,6 +196,7 @@ PluresDB excels at these personal database scenarios:
    - Tips and tricks
 
 ### General Documentation
+
 - **[Main README](README.md)** - Project overview
 - **[Installation Guide](packaging/INSTALLATION.md)** - All platforms
 - **[API Reference](docs/API.md)** - Programming interface
@@ -197,6 +209,7 @@ PluresDB excels at these personal database scenarios:
 **Current State**: Build scripts exist but need CI/CD integration
 
 **What's Needed**:
+
 - [ ] GitHub Actions workflow for Windows builds
 - [ ] Automated `deno compile` for Windows executables
 - [ ] Automated MSI creation with WiX
@@ -205,6 +218,7 @@ PluresDB excels at these personal database scenarios:
 **Estimated Effort**: 2-4 hours to set up CI/CD
 
 **Impact**: Once done, every release will automatically create:
+
 - ✅ Windows executable (pluresdb.exe)
 - ✅ MSI installer (pluresdb.msi)
 - ✅ ZIP package (pluresdb-windows-x64.zip)
@@ -214,6 +228,7 @@ PluresDB excels at these personal database scenarios:
 **Current State**: Winget manifest exists, not yet published
 
 **What's Needed**:
+
 - [ ] Submit to Microsoft winget-pkgs repository
 - [ ] Wait for Microsoft approval (1-2 weeks)
 - [ ] Test winget installation
@@ -225,6 +240,7 @@ PluresDB excels at these personal database scenarios:
 ### 3. End-to-End Testing (Medium Priority)
 
 **What's Needed**:
+
 - [ ] Test MSI installation on Windows 10
 - [ ] Test MSI installation on Windows 11
 - [ ] Test upgrade scenarios
@@ -243,12 +259,12 @@ PluresDB excels at these personal database scenarios:
    ```yaml
    # .github/workflows/build-windows.yml
    name: Build Windows Package
-   
+
    on:
      push:
        tags:
-         - 'v*'
-   
+         - "v*"
+
    jobs:
      build-windows:
        runs-on: windows-latest
@@ -289,25 +305,31 @@ PluresDB excels at these personal database scenarios:
 **Want to use PluresDB as a personal database today?**
 
 **Option 1: Use Docker** (Easiest)
+
 ```powershell
 docker run -p 34567:34567 -p 34568:34568 plures/pluresdb:latest
 ```
+
 Then open http://localhost:34568
 
 **Option 2: Use npm Package** (For developers)
+
 ```powershell
 npm install -g pluresdb
 npx pluresdb serve
 ```
+
 Then open http://localhost:34568
 
 **Option 3: Wait for MSI** (Coming soon)
+
 - Star the repository to get notified
 - MSI installer will be available in next release
 
 ## Comparison with Alternatives
 
 ### vs SQLite
+
 - ✅ SQLite-compatible API
 - ✅ Web UI (SQLite has none)
 - ✅ Vector search (SQLite requires extensions)
@@ -315,6 +337,7 @@ Then open http://localhost:34568
 - ✅ Real-time sync (SQLite is single-user)
 
 ### vs Firebase/Supabase
+
 - ✅ Local-first (no cloud required)
 - ✅ Privacy (data stays on your computer)
 - ✅ No cost (no monthly fees)
@@ -322,6 +345,7 @@ Then open http://localhost:34568
 - ❌ No hosted option (yet)
 
 ### vs Notion/Obsidian
+
 - ✅ Open source (AGPL-3.0)
 - ✅ Programmable (full API)
 - ✅ Own your data (no vendor lock-in)
@@ -331,6 +355,7 @@ Then open http://localhost:34568
 ## Technical Architecture
 
 ### Core Components
+
 - **Database Engine**: TypeScript/Deno with CRDT
 - **Storage**: Deno KV (built-in key-value store)
 - **API**: REST + WebSocket
@@ -338,12 +363,14 @@ Then open http://localhost:34568
 - **Search**: Full-text + Vector (HNSW)
 
 ### Windows Integration
+
 - **Executable**: Single .exe compiled with Deno
 - **Installation**: MSI via WiX Toolset
 - **Distribution**: Winget + Chocolatey + Scoop
 - **Service**: Can run as Windows Service
 
 ### Data Storage
+
 - **Location**: `%USERPROFILE%\.pluresdb`
 - **Format**: Deno KV (SQLite-based)
 - **Backup**: JSON/CSV export
@@ -383,6 +410,7 @@ Then open http://localhost:34568
 ⏳ **CI/CD setup needed** for automated builds
 
 The MVP is essentially complete from a functionality perspective. The remaining work is:
+
 1. Setting up automated builds (2-4 hours)
 2. Testing on Windows (4-8 hours)
 3. Publishing to package managers (1-2 hours + waiting)
@@ -392,6 +420,7 @@ The MVP is essentially complete from a functionality perspective. The remaining 
 ---
 
 **Questions or Issues?**
+
 - Open an issue: https://github.com/plures/pluresdb/issues
 - Start a discussion: https://github.com/plures/pluresdb/discussions
 - Check the docs: [Windows Getting Started](docs/WINDOWS_GETTING_STARTED.md)

@@ -37,7 +37,8 @@ function installDeno() {
 
     if (platform === "win32") {
       // Windows - use PowerShell
-      installCommand = `powershell -c "iwr https://deno.land/install.ps1 -useb | iex"`;
+      installCommand =
+        `powershell -c "iwr https://deno.land/install.ps1 -useb | iex"`;
     } else if (platform === "darwin") {
       // macOS - use Homebrew or curl
       installCommand = "curl -fsSL https://deno.land/install.sh | sh";

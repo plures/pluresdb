@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -106,9 +106,7 @@
         cursor: pointer;
         font-size: 16px;
         font-weight: 600;
-        transition:
-          transform 0.2s ease,
-          box-shadow 0.2s ease;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
       }
 
       .btn:hover {
@@ -310,12 +308,12 @@
         <div class="demo-data">
           <h3>📚 Demo Data</h3>
           <p>
-            This demo includes sample documents about machine learning, artificial intelligence, and
-            data science.
+            This demo includes sample documents about machine learning,
+            artificial intelligence, and data science.
           </p>
           <p>
-            Try searching for terms like "neural networks", "deep learning", "data analysis", or
-            "machine learning algorithms".
+            Try searching for terms like "neural networks", "deep learning",
+            "data analysis", or "machine learning algorithms".
           </p>
         </div>
 
@@ -324,7 +322,9 @@
           <div class="tab active" onclick="showTab('search')">Search</div>
           <div class="tab" onclick="showTab('add')">Add Content</div>
           <div class="tab" onclick="showTab('stats')">Statistics</div>
-          <div class="tab" onclick="showTab('embedding')">Generate Embedding</div>
+          <div class="tab" onclick="showTab('embedding')">
+            Generate Embedding
+          </div>
         </div>
 
         <!-- Search Tab -->
@@ -342,15 +342,30 @@
             </div>
             <div class="form-group">
               <label for="searchLimit">Results Limit</label>
-              <input type="number" id="searchLimit" value="5" min="1" max="20" />
+              <input
+                type="number"
+                id="searchLimit"
+                value="5"
+                min="1"
+                max="20"
+              />
             </div>
             <div class="form-group">
               <label for="searchThreshold">Similarity Threshold</label>
-              <input type="range" id="searchThreshold" min="0" max="1" step="0.1" value="0.3" />
+              <input
+                type="range"
+                id="searchThreshold"
+                min="0"
+                max="1"
+                step="0.1"
+                value="0.3"
+              />
               <span id="thresholdValue">0.3</span>
             </div>
             <button class="btn" onclick="performSearch()">Search</button>
-            <button class="btn btn-secondary" onclick="loadSampleData()">Load Sample Data</button>
+            <button class="btn btn-secondary" onclick="loadSampleData()">
+              Load Sample Data
+            </button>
           </div>
 
           <div id="searchResults" class="results" style="display: none">
@@ -382,7 +397,9 @@
               ></textarea>
             </div>
             <button class="btn" onclick="addContent()">Add Content</button>
-            <button class="btn btn-success" onclick="addSampleContent()">Add Sample Content</button>
+            <button class="btn btn-success" onclick="addSampleContent()">
+              Add Sample Content
+            </button>
           </div>
 
           <div id="addResult" style="display: none"></div>
@@ -392,7 +409,9 @@
         <div id="stats" class="tab-content">
           <div class="section">
             <h2>📊 Statistics</h2>
-            <button class="btn" onclick="loadStats()">Refresh Statistics</button>
+            <button class="btn" onclick="loadStats()">
+              Refresh Statistics
+            </button>
           </div>
 
           <div id="statsResults" class="results" style="display: none">
@@ -412,7 +431,9 @@
                 placeholder="Enter text to generate embedding for..."
               ></textarea>
             </div>
-            <button class="btn" onclick="generateEmbedding()">Generate Embedding</button>
+            <button class="btn" onclick="generateEmbedding()">
+              Generate Embedding
+            </button>
           </div>
 
           <div id="embeddingResults" class="results" style="display: none">
@@ -446,16 +467,21 @@
       }
 
       // Update threshold value display
-      document.getElementById("searchThreshold").addEventListener("input", function () {
-        document.getElementById("thresholdValue").textContent = this.value;
-      });
+      document.getElementById("searchThreshold").addEventListener(
+        "input",
+        function () {
+          document.getElementById("thresholdValue").textContent =
+            this.value;
+        },
+      );
 
       // Load sample data
       async function loadSampleData() {
         const sampleData = [
           {
             id: "doc1",
-            text: "Machine learning is a subset of artificial intelligence that focuses on algorithms that can learn from data without being explicitly programmed.",
+            text:
+              "Machine learning is a subset of artificial intelligence that focuses on algorithms that can learn from data without being explicitly programmed.",
             metadata: {
               type: "document",
               category: "AI",
@@ -464,12 +490,18 @@
           },
           {
             id: "doc2",
-            text: "Deep learning uses neural networks with multiple layers to model and understand complex patterns in data.",
-            metadata: { type: "document", category: "AI", title: "Deep Learning Fundamentals" },
+            text:
+              "Deep learning uses neural networks with multiple layers to model and understand complex patterns in data.",
+            metadata: {
+              type: "document",
+              category: "AI",
+              title: "Deep Learning Fundamentals",
+            },
           },
           {
             id: "doc3",
-            text: "Data science combines statistics, programming, and domain expertise to extract insights from data.",
+            text:
+              "Data science combines statistics, programming, and domain expertise to extract insights from data.",
             metadata: {
               type: "document",
               category: "Data Science",
@@ -478,12 +510,18 @@
           },
           {
             id: "doc4",
-            text: "Natural language processing enables computers to understand, interpret, and generate human language.",
-            metadata: { type: "document", category: "NLP", title: "Natural Language Processing" },
+            text:
+              "Natural language processing enables computers to understand, interpret, and generate human language.",
+            metadata: {
+              type: "document",
+              category: "NLP",
+              title: "Natural Language Processing",
+            },
           },
           {
             id: "doc5",
-            text: "Computer vision allows machines to interpret and understand visual information from the world.",
+            text:
+              "Computer vision allows machines to interpret and understand visual information from the world.",
             metadata: {
               type: "document",
               category: "Computer Vision",
@@ -509,15 +547,22 @@
             showMessage(`Error: ${result.error}`, "error");
           }
         } catch (error) {
-          showMessage(`Error loading sample data: ${error.message}`, "error");
+          showMessage(
+            `Error loading sample data: ${error.message}`,
+            "error",
+          );
         }
       }
 
       // Perform semantic search
       async function performSearch() {
         const query = document.getElementById("searchQuery").value;
-        const limit = parseInt(document.getElementById("searchLimit").value);
-        const threshold = parseFloat(document.getElementById("searchThreshold").value);
+        const limit = parseInt(
+          document.getElementById("searchLimit").value,
+        );
+        const threshold = parseFloat(
+          document.getElementById("searchThreshold").value,
+        );
 
         if (!query.trim()) {
           showMessage("Please enter a search query", "error");
@@ -552,7 +597,9 @@
       // Display search results
       function displaySearchResults(data) {
         const resultsDiv = document.getElementById("searchResults");
-        const resultsList = document.getElementById("searchResultsList");
+        const resultsList = document.getElementById(
+          "searchResultsList",
+        );
 
         resultsDiv.style.display = "block";
 
@@ -562,15 +609,22 @@
           return;
         }
 
-        let html = `<p><strong>Found ${data.results.length} results for "${data.query}"</strong></p>`;
+        let html =
+          `<p><strong>Found ${data.results.length} results for "${data.query}"</strong></p>`;
 
         data.results.forEach((result) => {
           html += `
                     <div class="result-item">
-                        <span class="result-score">${(result.score * 100).toFixed(1)}% similar</span>
+                        <span class="result-score">${
+            (result.score * 100).toFixed(1)
+          }% similar</span>
                         <div class="result-id">ID: ${result.id}</div>
-                        <div class="result-text">${result.metadata.title || "No title"}</div>
-                        <div class="result-metadata">${JSON.stringify(result.metadata, null, 2)}</div>
+                        <div class="result-text">${
+            result.metadata.title || "No title"
+          }</div>
+                        <div class="result-metadata">${
+            JSON.stringify(result.metadata, null, 2)
+          }</div>
                     </div>
                 `;
         });
@@ -582,7 +636,8 @@
       async function addContent() {
         const id = document.getElementById("contentId").value;
         const text = document.getElementById("contentText").value;
-        const metadataText = document.getElementById("contentMetadata").value;
+        const metadataText =
+          document.getElementById("contentMetadata").value;
 
         if (!id.trim() || !text.trim()) {
           showMessage("Please enter both ID and text content", "error");
@@ -623,13 +678,17 @@
             showMessage(`Error: ${result.error}`, "error");
           }
         } catch (error) {
-          showMessage(`Error adding content: ${error.message}`, "error");
+          showMessage(
+            `Error adding content: ${error.message}`,
+            "error",
+          );
         }
       }
 
       // Add sample content
       function addSampleContent() {
-        document.getElementById("contentId").value = "sample_" + Date.now();
+        document.getElementById("contentId").value = "sample_" +
+          Date.now();
         document.getElementById("contentText").value =
           "This is a sample document about artificial intelligence and machine learning technologies.";
         document.getElementById("contentMetadata").value =
@@ -645,7 +704,10 @@
           if (result.success) {
             displayStats(result.data);
           } else {
-            showMessage(`Error loading stats: ${result.error}`, "error");
+            showMessage(
+              `Error loading stats: ${result.error}`,
+              "error",
+            );
           }
         } catch (error) {
           showMessage(`Error loading stats: ${error.message}`, "error");
@@ -670,7 +732,9 @@
                         <div class="stat-label">Dimensions</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">${(data.stats.index_size / 1024).toFixed(1)} KB</div>
+                        <div class="stat-value">${
+          (data.stats.index_size / 1024).toFixed(1)
+        } KB</div>
                         <div class="stat-label">Index Size</div>
                     </div>
                     <div class="stat-card">
@@ -683,7 +747,9 @@
                     <p><strong>Model:</strong> ${data.model_info.model_name}</p>
                     <p><strong>Dimensions:</strong> ${data.model_info.dimensions}</p>
                     <p><strong>Max Text Length:</strong> ${data.model_info.max_text_length}</p>
-                    <p><strong>Cache Enabled:</strong> ${data.model_info.cache_enabled ? "Yes" : "No"}</p>
+                    <p><strong>Cache Enabled:</strong> ${
+          data.model_info.cache_enabled ? "Yes" : "No"
+        }</p>
                 </div>
             `;
 
@@ -718,7 +784,10 @@
             showMessage(`Error: ${result.error}`, "error");
           }
         } catch (error) {
-          showMessage(`Error generating embedding: ${error.message}`, "error");
+          showMessage(
+            `Error generating embedding: ${error.message}`,
+            "error",
+          );
         }
       }
 
@@ -733,13 +802,17 @@
                 <p><strong>Text:</strong> ${data.text}</p>
                 <p><strong>Model:</strong> ${data.model}</p>
                 <p><strong>Dimensions:</strong> ${data.dimensions}</p>
-                <p><strong>Vector (first 10 values):</strong> [${data.vector
-                  .slice(0, 10)
-                  .map((v) => v.toFixed(4))
-                  .join(", ")}...]</p>
+                <p><strong>Vector (first 10 values):</strong> [${
+          data.vector
+            .slice(0, 10)
+            .map((v) => v.toFixed(4))
+            .join(", ")
+        }...]</p>
                 <details>
                     <summary>Full Vector</summary>
-                    <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto;">${JSON.stringify(data.vector, null, 2)}</pre>
+                    <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto;">${
+          JSON.stringify(data.vector, null, 2)
+        }</pre>
                 </details>
             `;
 

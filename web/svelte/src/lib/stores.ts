@@ -1,11 +1,12 @@
-import { writable, derived } from "svelte/store";
+import { derived, writable } from "svelte/store";
 
 export type NodeItem = { id: string; data: Record<string, unknown> };
 
 export const nodes = writable<Record<string, NodeItem>>({});
 export const selectedId = writable<string | null>(null);
-export const selected = derived([nodes, selectedId], ([$nodes, $id]) =>
-  $id ? ($nodes[$id] ?? null) : null,
+export const selected = derived(
+  [nodes, selectedId],
+  ([$nodes, $id]) => $id ? ($nodes[$id] ?? null) : null,
 );
 
 export const settings = writable<{

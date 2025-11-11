@@ -100,7 +100,9 @@ async function main() {
     assert(putRes.ok, `API put failed (${putRes.status})`);
     record("API put", true);
 
-    const getRes = await fetch(`${apiUrl}/api/get?id=${encodeURIComponent(nodeId)}`);
+    const getRes = await fetch(
+      `${apiUrl}/api/get?id=${encodeURIComponent(nodeId)}`,
+    );
     assert(getRes.ok, "API get failed");
     const getJson = await getRes.json();
     assert(getJson.text === initialPayload.text, "Unexpected API get payload");
@@ -120,7 +122,10 @@ async function main() {
     );
     assert(searchRes.ok, "API search failed");
     const searchJson = await searchRes.json();
-    assert(Array.isArray(searchJson) && searchJson.length > 0, "Vector search returned no results");
+    assert(
+      Array.isArray(searchJson) && searchJson.length > 0,
+      "Vector search returned no results",
+    );
     record("API vector search", true);
 
     const updatePayload = {
@@ -135,17 +140,27 @@ async function main() {
     assert(putUpdate.ok, "API put update failed");
     record("API update", true);
 
-    const historyRes = await fetch(`${apiUrl}/api/history?id=${encodeURIComponent(nodeId)}`);
+    const historyRes = await fetch(
+      `${apiUrl}/api/history?id=${encodeURIComponent(nodeId)}`,
+    );
     assert(historyRes.ok, "API history failed");
     const historyJson = await historyRes.json();
-    assert(Array.isArray(historyJson) && historyJson.length >= 2, "API history missing versions");
+    assert(
+      Array.isArray(historyJson) && historyJson.length >= 2,
+      "API history missing versions",
+    );
     record("API history", true, `${historyJson.length} versions`);
 
-    const restoreTimestamp =
-      historyJson.at(-1)?.timestamp ?? historyJson[historyJson.length - 1]?.timestamp;
-    assert(typeof restoreTimestamp === "number", "Failed to locate restore timestamp");
+    const restoreTimestamp = historyJson.at(-1)?.timestamp ??
+      historyJson[historyJson.length - 1]?.timestamp;
+    assert(
+      typeof restoreTimestamp === "number",
+      "Failed to locate restore timestamp",
+    );
     const restoreRes = await fetch(
-      `${apiUrl}/api/restore?id=${encodeURIComponent(nodeId)}&timestamp=${restoreTimestamp}`,
+      `${apiUrl}/api/restore?id=${
+        encodeURIComponent(nodeId)
+      }&timestamp=${restoreTimestamp}`,
     );
     assert(restoreRes.ok, "API restore failed");
     record("API restore", true);
@@ -153,7 +168,10 @@ async function main() {
     const restored = await (
       await fetch(`${apiUrl}/api/get?id=${encodeURIComponent(nodeId)}`)
     ).json();
-    assert(restored.text === initialPayload.text, "Restore did not revert payload");
+    assert(
+      restored.text === initialPayload.text,
+      "Restore did not revert payload",
+    );
     record("API post-restore verification", true);
 
     const instancesRes = await fetch(
@@ -162,7 +180,8 @@ async function main() {
     assert(instancesRes.ok, "API instances failed");
     const instancesJson = await instancesRes.json();
     assert(
-      Array.isArray(instancesJson) && instancesJson.some((n: any) => n.id === nodeId),
+      Array.isArray(instancesJson) &&
+        instancesJson.some((n: any) => n.id === nodeId),
       "Instances endpoint missing node",
     );
     record("API type instances", true);
@@ -192,10 +211,19 @@ async function main() {
     const cliList = await runCli(["list", "--kv", kvPath]);
     assert(cliList.code === 0, `CLI list failed: ${cliList.stderr}`);
     const cliListJson = JSON.parse(cliList.stdout.trim() || "[]");
-    assert(Array.isArray(cliListJson) && cliListJson.length >= 2, "CLI list missing entries");
+    assert(
+      Array.isArray(cliListJson) && cliListJson.length >= 2,
+      "CLI list missing entries",
+    );
     record("CLI list", true);
 
-    const cliSearch = await runCli(["vsearch", "dogfooding", "5", "--kv", kvPath]);
+    const cliSearch = await runCli([
+      "vsearch",
+      "dogfooding",
+      "5",
+      "--kv",
+      kvPath,
+    ]);
     assert(cliSearch.code === 0, `CLI vsearch failed: ${cliSearch.stderr}`);
     const cliSearchJson = JSON.parse(cliSearch.stdout.trim() || "[]");
     assert(
@@ -206,7 +234,11 @@ async function main() {
 
     console.log("\n🎉 Dogfooding run succeeded!");
   } catch (error) {
-    record("Dogfooding run", false, error instanceof Error ? error.message : String(error));
+    record(
+      "Dogfooding run",
+      false,
+      error instanceof Error ? error.message : String(error),
+    );
     await finalize();
     console.log("\n❌ Dogfooding run failed");
     console.log(error);
@@ -218,7 +250,14 @@ async function main() {
 
 async function runCli(args: string[]) {
   const command = new Deno.Command("deno", {
-    args: ["run", "-A", "--unstable-kv", "--no-lock", "legacy/main.ts", ...args],
+    args: [
+      "run",
+      "-A",
+      "--unstable-kv",
+      "--no-lock",
+      "legacy/main.ts",
+      ...args,
+    ],
     stdout: "piped",
     stderr: "piped",
   });

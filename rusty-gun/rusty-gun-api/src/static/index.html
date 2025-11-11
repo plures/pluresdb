@@ -1,486 +1,525 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rusty Gun API Server</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
 
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px;
+        text-align: center;
+      }
+
+      .header h1 {
+        font-size: 3em;
+        margin-bottom: 10px;
+        font-weight: 300;
+      }
+
+      .header p {
+        font-size: 1.3em;
+        opacity: 0.9;
+        margin-bottom: 20px;
+      }
+
+      .version {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 8px 16px;
+        border-radius: 20px;
+        display: inline-block;
+        font-size: 0.9em;
+      }
+
+      .content {
+        padding: 40px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 30px;
+        margin-bottom: 40px;
+      }
+
+      .card {
+        background: #f8f9fa;
+        padding: 30px;
+        border-radius: 15px;
+        border-left: 5px solid #667eea;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+      }
+
+      .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      }
+
+      .card h3 {
+        color: #333;
+        margin-bottom: 15px;
+        font-size: 1.4em;
+      }
+
+      .card p {
+        color: #666;
+        margin-bottom: 20px;
+        line-height: 1.6;
+      }
+
+      .btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-block;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+      }
+
+      .btn-success {
+        background: #28a745;
+      }
+
+      .btn-info {
+        background: #17a2b8;
+      }
+
+      .status {
+        background: #e3f2fd;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+        border-left: 4px solid #2196f3;
+      }
+
+      .status h3 {
+        color: #1976d2;
+        margin-bottom: 10px;
+      }
+
+      .status-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        padding: 5px 0;
+      }
+
+      .status-value {
+        font-weight: 600;
+        color: #333;
+      }
+
+      .api-section {
+        background: #f8f9fa;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+      }
+
+      .api-section h2 {
+        color: #333;
+        margin-bottom: 20px;
+        font-size: 1.8em;
+      }
+
+      .endpoint {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border-left: 4px solid #667eea;
+      }
+
+      .endpoint-method {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-right: 10px;
+      }
+
+      .method-get {
+        background: #28a745;
+        color: white;
+      }
+      .method-post {
+        background: #007bff;
+        color: white;
+      }
+      .method-put {
+        background: #ffc107;
+        color: black;
+      }
+      .method-delete {
+        background: #dc3545;
+        color: white;
+      }
+
+      .endpoint-path {
+        font-family: "Courier New", monospace;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .endpoint-description {
+        color: #666;
+        margin-top: 5px;
+        font-size: 14px;
+      }
+
+      .demo-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px;
+        border-radius: 15px;
+        text-align: center;
+      }
+
+      .demo-section h2 {
+        margin-bottom: 20px;
+        font-size: 2em;
+      }
+
+      .demo-section p {
+        margin-bottom: 30px;
+        font-size: 1.2em;
+        opacity: 0.9;
+      }
+
+      .demo-buttons {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .demo-btn {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        padding: 15px 30px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+      }
+
+      .demo-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        border-color: rgba(255, 255, 255, 0.5);
+        transform: translateY(-2px);
+      }
+
+      .footer {
+        text-align: center;
+        padding: 30px;
+        color: #666;
+        border-top: 1px solid #e1e5e9;
+      }
+
+      @media (max-width: 768px) {
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
+          margin: 10px;
+          border-radius: 15px;
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px;
-            text-align: center;
+          padding: 30px 20px;
         }
 
         .header h1 {
-            font-size: 3em;
-            margin-bottom: 10px;
-            font-weight: 300;
-        }
-
-        .header p {
-            font-size: 1.3em;
-            opacity: 0.9;
-            margin-bottom: 20px;
-        }
-
-        .version {
-            background: rgba(255,255,255,0.2);
-            padding: 8px 16px;
-            border-radius: 20px;
-            display: inline-block;
-            font-size: 0.9em;
+          font-size: 2.5em;
         }
 
         .content {
-            padding: 40px;
+          padding: 30px 20px;
         }
 
         .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
-            margin-bottom: 40px;
-        }
-
-        .card {
-            background: #f8f9fa;
-            padding: 30px;
-            border-radius: 15px;
-            border-left: 5px solid #667eea;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-
-        .card h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.4em;
-        }
-
-        .card p {
-            color: #666;
-            margin-bottom: 20px;
-            line-height: 1.6;
-        }
-
-        .btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 600;
-            text-decoration: none;
-            display: inline-block;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-        }
-
-        .btn-success {
-            background: #28a745;
-        }
-
-        .btn-info {
-            background: #17a2b8;
-        }
-
-        .status {
-            background: #e3f2fd;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 30px;
-            border-left: 4px solid #2196f3;
-        }
-
-        .status h3 {
-            color: #1976d2;
-            margin-bottom: 10px;
-        }
-
-        .status-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            padding: 5px 0;
-        }
-
-        .status-value {
-            font-weight: 600;
-            color: #333;
-        }
-
-        .api-section {
-            background: #f8f9fa;
-            padding: 30px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-        }
-
-        .api-section h2 {
-            color: #333;
-            margin-bottom: 20px;
-            font-size: 1.8em;
-        }
-
-        .endpoint {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            border-left: 4px solid #667eea;
-        }
-
-        .endpoint-method {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-right: 10px;
-        }
-
-        .method-get { background: #28a745; color: white; }
-        .method-post { background: #007bff; color: white; }
-        .method-put { background: #ffc107; color: black; }
-        .method-delete { background: #dc3545; color: white; }
-
-        .endpoint-path {
-            font-family: 'Courier New', monospace;
-            font-weight: 600;
-            color: #333;
-        }
-
-        .endpoint-description {
-            color: #666;
-            margin-top: 5px;
-            font-size: 14px;
-        }
-
-        .demo-section {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px;
-            border-radius: 15px;
-            text-align: center;
-        }
-
-        .demo-section h2 {
-            margin-bottom: 20px;
-            font-size: 2em;
-        }
-
-        .demo-section p {
-            margin-bottom: 30px;
-            font-size: 1.2em;
-            opacity: 0.9;
+          grid-template-columns: 1fr;
+          gap: 20px;
         }
 
         .demo-buttons {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            flex-wrap: wrap;
+          flex-direction: column;
+          align-items: center;
         }
-
-        .demo-btn {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: 2px solid rgba(255,255,255,0.3);
-            padding: 15px 30px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-
-        .demo-btn:hover {
-            background: rgba(255,255,255,0.3);
-            border-color: rgba(255,255,255,0.5);
-            transform: translateY(-2px);
-        }
-
-        .footer {
-            text-align: center;
-            padding: 30px;
-            color: #666;
-            border-top: 1px solid #e1e5e9;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                margin: 10px;
-                border-radius: 15px;
-            }
-            
-            .header {
-                padding: 30px 20px;
-            }
-            
-            .header h1 {
-                font-size: 2.5em;
-            }
-            
-            .content {
-                padding: 30px 20px;
-            }
-            
-            .grid {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-            
-            .demo-buttons {
-                flex-direction: column;
-                align-items: center;
-            }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <div class="header">
-            <h1>🚀 Rusty Gun API Server</h1>
-            <p>High-performance graph database with vector search capabilities</p>
-            <div class="version">Version 0.1.0</div>
+      <div class="header">
+        <h1>🚀 Rusty Gun API Server</h1>
+        <p>High-performance graph database with vector search capabilities</p>
+        <div class="version">Version 0.1.0</div>
+      </div>
+
+      <div class="content">
+        <!-- Status Section -->
+        <div class="status">
+          <h3>📊 Server Status</h3>
+          <div class="status-item">
+            <span>Status:</span>
+            <span class="status-value" id="serverStatus">Checking...</span>
+          </div>
+          <div class="status-item">
+            <span>Uptime:</span>
+            <span class="status-value" id="serverUptime">-</span>
+          </div>
+          <div class="status-item">
+            <span>Storage:</span>
+            <span class="status-value" id="storageStatus">-</span>
+          </div>
+          <div class="status-item">
+            <span>Vector Search:</span>
+            <span class="status-value" id="vectorStatus">-</span>
+          </div>
+          <div class="status-item">
+            <span>Network:</span>
+            <span class="status-value" id="networkStatus">-</span>
+          </div>
         </div>
 
-        <div class="content">
-            <!-- Status Section -->
-            <div class="status">
-                <h3>📊 Server Status</h3>
-                <div class="status-item">
-                    <span>Status:</span>
-                    <span class="status-value" id="serverStatus">Checking...</span>
-                </div>
-                <div class="status-item">
-                    <span>Uptime:</span>
-                    <span class="status-value" id="serverUptime">-</span>
-                </div>
-                <div class="status-item">
-                    <span>Storage:</span>
-                    <span class="status-value" id="storageStatus">-</span>
-                </div>
-                <div class="status-item">
-                    <span>Vector Search:</span>
-                    <span class="status-value" id="vectorStatus">-</span>
-                </div>
-                <div class="status-item">
-                    <span>Network:</span>
-                    <span class="status-value" id="networkStatus">-</span>
-                </div>
-            </div>
+        <!-- Features Grid -->
+        <div class="grid">
+          <div class="card">
+            <h3>🔍 Vector Search</h3>
+            <p>
+              Semantic search powered by HNSW algorithm and multiple embedding
+              models including OpenAI and Sentence Transformers.
+            </p>
+            <a href="/demo" class="btn">Try Vector Search</a>
+          </div>
 
-            <!-- Features Grid -->
-            <div class="grid">
-                <div class="card">
-                    <h3>🔍 Vector Search</h3>
-                    <p>Semantic search powered by HNSW algorithm and multiple embedding models including OpenAI and Sentence Transformers.</p>
-                    <a href="/demo" class="btn">Try Vector Search</a>
-                </div>
+          <div class="card">
+            <h3>📊 Graph Database</h3>
+            <p>
+              High-performance graph operations with CRDT-based conflict
+              resolution and real-time synchronization.
+            </p>
+            <a href="/api/graph/stats" class="btn btn-secondary"
+            >View Graph Stats</a>
+          </div>
 
-                <div class="card">
-                    <h3>📊 Graph Database</h3>
-                    <p>High-performance graph operations with CRDT-based conflict resolution and real-time synchronization.</p>
-                    <a href="/api/graph/stats" class="btn btn-secondary">View Graph Stats</a>
-                </div>
+          <div class="card">
+            <h3>🌐 P2P Networking</h3>
+            <p>
+              Distributed networking with WebRTC, QUIC, and LibP2P support for
+              local-first applications.
+            </p>
+            <a href="/api/status" class="btn btn-info">Network Status</a>
+          </div>
 
-                <div class="card">
-                    <h3>🌐 P2P Networking</h3>
-                    <p>Distributed networking with WebRTC, QUIC, and LibP2P support for local-first applications.</p>
-                    <a href="/api/status" class="btn btn-info">Network Status</a>
-                </div>
-
-                <div class="card">
-                    <h3>⚡ SQL Compatibility</h3>
-                    <p>Full SQLite compatibility with advanced features and performance optimizations.</p>
-                    <a href="/api/sql/query" class="btn btn-success">SQL Interface</a>
-                </div>
-            </div>
-
-            <!-- API Endpoints -->
-            <div class="api-section">
-                <h2>🔌 API Endpoints</h2>
-                
-                <div class="endpoint">
-                    <span class="endpoint-method method-get">GET</span>
-                    <span class="endpoint-path">/health</span>
-                    <div class="endpoint-description">Health check endpoint</div>
-                </div>
-
-                <div class="endpoint">
-                    <span class="endpoint-method method-get">GET</span>
-                    <span class="endpoint-path">/status</span>
-                    <div class="endpoint-description">Server status and statistics</div>
-                </div>
-
-                <div class="endpoint">
-                    <span class="endpoint-method method-get">GET</span>
-                    <span class="endpoint-path">/metrics</span>
-                    <div class="endpoint-description">Prometheus metrics</div>
-                </div>
-
-                <div class="endpoint">
-                    <span class="endpoint-method method-get">GET</span>
-                    <span class="endpoint-path">/nodes</span>
-                    <div class="endpoint-description">List all nodes</div>
-                </div>
-
-                <div class="endpoint">
-                    <span class="endpoint-method method-post">POST</span>
-                    <span class="endpoint-path">/nodes</span>
-                    <div class="endpoint-description">Create a new node</div>
-                </div>
-
-                <div class="endpoint">
-                    <span class="endpoint-method method-get">GET</span>
-                    <span class="endpoint-path">/nodes/{id}</span>
-                    <div class="endpoint-description">Get a specific node</div>
-                </div>
-
-                <div class="endpoint">
-                    <span class="endpoint-method method-put">PUT</span>
-                    <span class="endpoint-path">/nodes/{id}</span>
-                    <div class="endpoint-description">Update a node</div>
-                </div>
-
-                <div class="endpoint">
-                    <span class="endpoint-method method-delete">DELETE</span>
-                    <span class="endpoint-path">/nodes/{id}</span>
-                    <div class="endpoint-description">Delete a node</div>
-                </div>
-
-                <div class="endpoint">
-                    <span class="endpoint-method method-post">POST</span>
-                    <span class="endpoint-path">/nodes/search</span>
-                    <div class="endpoint-description">Search nodes</div>
-                </div>
-
-                <div class="endpoint">
-                    <span class="endpoint-method method-post">POST</span>
-                    <span class="endpoint-path">/api/vector/search/text</span>
-                    <div class="endpoint-description">Semantic text search</div>
-                </div>
-
-                <div class="endpoint">
-                    <span class="endpoint-method method-post">POST</span>
-                    <span class="endpoint-path">/api/vector/embedding</span>
-                    <div class="endpoint-description">Generate text embedding</div>
-                </div>
-
-                <div class="endpoint">
-                    <span class="endpoint-method method-get">GET</span>
-                    <span class="endpoint-path">/ws</span>
-                    <div class="endpoint-description">WebSocket connection</div>
-                </div>
-            </div>
-
-            <!-- Demo Section -->
-            <div class="demo-section">
-                <h2>🎮 Interactive Demos</h2>
-                <p>Try out the powerful features of Rusty Gun with our interactive demonstrations</p>
-                <div class="demo-buttons">
-                    <a href="/demo" class="demo-btn">Vector Search Demo</a>
-                    <a href="/api/vector" class="demo-btn">Vector API</a>
-                    <a href="/api/graph/stats" class="demo-btn">Graph Statistics</a>
-                    <a href="/api/status" class="demo-btn">Server Status</a>
-                </div>
-            </div>
+          <div class="card">
+            <h3>⚡ SQL Compatibility</h3>
+            <p>
+              Full SQLite compatibility with advanced features and performance
+              optimizations.
+            </p>
+            <a href="/api/sql/query" class="btn btn-success">SQL Interface</a>
+          </div>
         </div>
 
-        <div class="footer">
-            <p>&copy; 2024 Rusty Gun. Built with Rust for high performance and reliability.</p>
+        <!-- API Endpoints -->
+        <div class="api-section">
+          <h2>🔌 API Endpoints</h2>
+
+          <div class="endpoint">
+            <span class="endpoint-method method-get">GET</span>
+            <span class="endpoint-path">/health</span>
+            <div class="endpoint-description">Health check endpoint</div>
+          </div>
+
+          <div class="endpoint">
+            <span class="endpoint-method method-get">GET</span>
+            <span class="endpoint-path">/status</span>
+            <div class="endpoint-description">Server status and statistics</div>
+          </div>
+
+          <div class="endpoint">
+            <span class="endpoint-method method-get">GET</span>
+            <span class="endpoint-path">/metrics</span>
+            <div class="endpoint-description">Prometheus metrics</div>
+          </div>
+
+          <div class="endpoint">
+            <span class="endpoint-method method-get">GET</span>
+            <span class="endpoint-path">/nodes</span>
+            <div class="endpoint-description">List all nodes</div>
+          </div>
+
+          <div class="endpoint">
+            <span class="endpoint-method method-post">POST</span>
+            <span class="endpoint-path">/nodes</span>
+            <div class="endpoint-description">Create a new node</div>
+          </div>
+
+          <div class="endpoint">
+            <span class="endpoint-method method-get">GET</span>
+            <span class="endpoint-path">/nodes/{id}</span>
+            <div class="endpoint-description">Get a specific node</div>
+          </div>
+
+          <div class="endpoint">
+            <span class="endpoint-method method-put">PUT</span>
+            <span class="endpoint-path">/nodes/{id}</span>
+            <div class="endpoint-description">Update a node</div>
+          </div>
+
+          <div class="endpoint">
+            <span class="endpoint-method method-delete">DELETE</span>
+            <span class="endpoint-path">/nodes/{id}</span>
+            <div class="endpoint-description">Delete a node</div>
+          </div>
+
+          <div class="endpoint">
+            <span class="endpoint-method method-post">POST</span>
+            <span class="endpoint-path">/nodes/search</span>
+            <div class="endpoint-description">Search nodes</div>
+          </div>
+
+          <div class="endpoint">
+            <span class="endpoint-method method-post">POST</span>
+            <span class="endpoint-path">/api/vector/search/text</span>
+            <div class="endpoint-description">Semantic text search</div>
+          </div>
+
+          <div class="endpoint">
+            <span class="endpoint-method method-post">POST</span>
+            <span class="endpoint-path">/api/vector/embedding</span>
+            <div class="endpoint-description">Generate text embedding</div>
+          </div>
+
+          <div class="endpoint">
+            <span class="endpoint-method method-get">GET</span>
+            <span class="endpoint-path">/ws</span>
+            <div class="endpoint-description">WebSocket connection</div>
+          </div>
         </div>
+
+        <!-- Demo Section -->
+        <div class="demo-section">
+          <h2>🎮 Interactive Demos</h2>
+          <p>
+            Try out the powerful features of Rusty Gun with our interactive
+            demonstrations
+          </p>
+          <div class="demo-buttons">
+            <a href="/demo" class="demo-btn">Vector Search Demo</a>
+            <a href="/api/vector" class="demo-btn">Vector API</a>
+            <a href="/api/graph/stats" class="demo-btn">Graph Statistics</a>
+            <a href="/api/status" class="demo-btn">Server Status</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <p>
+          &copy; 2024 Rusty Gun. Built with Rust for high performance and
+          reliability.
+        </p>
+      </div>
     </div>
 
     <script>
-        // Load server status
-        async function loadServerStatus() {
-            try {
-                const response = await fetch('/health');
-                const data = await response.json();
-                
-                if (data.success) {
-                    document.getElementById('serverStatus').textContent = 'Healthy';
-                    document.getElementById('serverStatus').style.color = '#28a745';
-                    
-                    // Update service statuses
-                    if (data.data && data.data.services) {
-                        document.getElementById('storageStatus').textContent = data.data.services.storage || 'Unknown';
-                        document.getElementById('vectorStatus').textContent = data.data.services.vector_search || 'Unknown';
-                        document.getElementById('networkStatus').textContent = data.data.services.network || 'Unknown';
-                    }
-                } else {
-                    document.getElementById('serverStatus').textContent = 'Unhealthy';
-                    document.getElementById('serverStatus').style.color = '#dc3545';
-                }
-            } catch (error) {
-                document.getElementById('serverStatus').textContent = 'Offline';
-                document.getElementById('serverStatus').style.color = '#dc3545';
-            }
-        }
+      // Load server status
+      async function loadServerStatus() {
+        try {
+          const response = await fetch("/health");
+          const data = await response.json();
 
-        // Load detailed status
-        async function loadDetailedStatus() {
-            try {
-                const response = await fetch('/status');
-                const data = await response.json();
-                
-                if (data.success && data.data) {
-                    // Update uptime (would need to calculate from start time)
-                    document.getElementById('serverUptime').textContent = 'Running';
-                }
-            } catch (error) {
-                console.error('Failed to load detailed status:', error);
-            }
-        }
+          if (data.success) {
+            document.getElementById("serverStatus").textContent =
+              "Healthy";
+            document.getElementById("serverStatus").style.color =
+              "#28a745";
 
-        // Load status on page load
-        window.addEventListener('load', function() {
-            loadServerStatus();
-            loadDetailedStatus();
-            
-            // Refresh status every 30 seconds
-            setInterval(loadServerStatus, 30000);
-        });
+            // Update service statuses
+            if (data.data && data.data.services) {
+              document.getElementById("storageStatus").textContent =
+                data.data.services.storage || "Unknown";
+              document.getElementById("vectorStatus").textContent =
+                data.data.services.vector_search || "Unknown";
+              document.getElementById("networkStatus").textContent =
+                data.data.services.network || "Unknown";
+            }
+          } else {
+            document.getElementById("serverStatus").textContent =
+              "Unhealthy";
+            document.getElementById("serverStatus").style.color =
+              "#dc3545";
+          }
+        } catch (error) {
+          document.getElementById("serverStatus").textContent =
+            "Offline";
+          document.getElementById("serverStatus").style.color =
+            "#dc3545";
+        }
+      }
+
+      // Load detailed status
+      async function loadDetailedStatus() {
+        try {
+          const response = await fetch("/status");
+          const data = await response.json();
+
+          if (data.success && data.data) {
+            // Update uptime (would need to calculate from start time)
+            document.getElementById("serverUptime").textContent =
+              "Running";
+          }
+        } catch (error) {
+          console.error("Failed to load detailed status:", error);
+        }
+      }
+
+      // Load status on page load
+      window.addEventListener("load", function () {
+        loadServerStatus();
+        loadDetailedStatus();
+
+        // Refresh status every 30 seconds
+        setInterval(loadServerStatus, 30000);
+      });
     </script>
-</body>
+  </body>
 </html>
-
-

@@ -6,8 +6,8 @@
 import * as vscode from "vscode";
 import {
   createPluresExtension,
-  PluresVSCodeExtension,
   ExtensionContextLike,
+  PluresVSCodeExtension,
   VSCodeAPI,
 } from "../src/vscode/extension.ts";
 

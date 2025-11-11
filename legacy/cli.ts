@@ -8,6 +8,7 @@
 import { PluresNode } from "./node-wrapper";
 import * as path from "path";
 import * as fs from "fs";
+import process from "node:process";
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -43,7 +44,9 @@ Examples:
 }
 
 if (command === "--version") {
-  const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
+  const packageJson = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"),
+  );
   console.log(packageJson.version);
   process.exit(0);
 }
@@ -103,7 +106,8 @@ async function main() {
       const config = {
         port: options.port ? parseInt(options.port) : 34567,
         host: options.host || "localhost",
-        dataDir: options["data-dir"] || path.join(require("os").homedir(), ".pluresdb"),
+        dataDir: options["data-dir"] ||
+          path.join(require("os").homedir(), ".pluresdb"),
         webPort: options["web-port"] ? parseInt(options["web-port"]) : 34568,
         logLevel: options["log-level"] || "info",
       };
@@ -219,13 +223,19 @@ async function main() {
       }
     }
   } catch (error) {
-    console.error("Error:", error instanceof Error ? error.message : String(error));
+    console.error(
+      "Error:",
+      error instanceof Error ? error.message : String(error),
+    );
     process.exit(1);
   }
 }
 
 // Run the main function
 main().catch((error) => {
-  console.error("Fatal error:", error instanceof Error ? error.message : String(error));
+  console.error(
+    "Fatal error:",
+    error instanceof Error ? error.message : String(error),
+  );
   process.exit(1);
 });

@@ -5,12 +5,15 @@ This document summarizes the restructuring completed to prepare PluresDB for Rus
 ## Changes Made
 
 ### 1. Legacy Directory Creation
+
 - Created a new `legacy/` directory at the top level
 - Moved all contents from `src/` to `legacy/`
 - Removed the old `src/` directory
 
 ### 2. Rust Crates Structure
+
 The `crates/` directory now contains all required Rust crates:
+
 - `pluresdb-core` - Core database logic (existing)
 - `pluresdb-node` - Node.js bindings (NEW)
 - `pluresdb-deno` - Deno bindings (NEW)
@@ -19,15 +22,20 @@ The `crates/` directory now contains all required Rust crates:
 - `pluresdb-sync` - Sync functionality (existing)
 
 ### 3. New Crate Files
+
 Created placeholder files for new crates:
+
 - `crates/pluresdb-node/Cargo.toml` and `crates/pluresdb-node/src/lib.rs`
 - `crates/pluresdb-deno/Cargo.toml` and `crates/pluresdb-deno/src/lib.rs`
 
 ### 4. Workspace Configuration
+
 Updated `Cargo.toml` to include the new crates in the workspace members list.
 
 ### 5. Configuration Updates
+
 Updated all configuration files to reference `legacy/` instead of `src/`:
+
 - `package.json` - Updated files list
 - `deno.json` - Updated exports, tasks, test paths, and lint configuration
 - `tsconfig.json` - Updated rootDir and include paths
@@ -39,12 +47,15 @@ Updated all configuration files to reference `legacy/` instead of `src/`:
 ## Verification
 
 ### Rust Workspace Build
+
 ```bash
 cargo build --workspace
 ```
+
 ✅ All crates build successfully
 
 ### Directory Structure
+
 ```
 pluresdb/
 ├── crates/           # Rust workspace
@@ -68,7 +79,6 @@ pluresdb/
 │   └── vscode/
 ├── Cargo.toml        # Rust workspace configuration
 └── ...
-
 ```
 
 ## Next Steps

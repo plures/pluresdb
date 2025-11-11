@@ -10,7 +10,11 @@ export type Toast = {
 let nextId = 1;
 export const toasts = writable<Toast[]>([]);
 
-export function push(text: string, kind: Toast["kind"] = "info", timeout = 2000) {
+export function push(
+  text: string,
+  kind: Toast["kind"] = "info",
+  timeout = 2000,
+) {
   const id = nextId++;
   const t: Toast = { id, text, kind, timeout };
   toasts.update((list) => [...list, t]);

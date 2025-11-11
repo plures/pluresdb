@@ -51,7 +51,10 @@ function deepMergeWithDeletes(
   return { data: out, state: outState };
 }
 
-export function mergeNodes(local: NodeRecord | null, incoming: NodeRecord): NodeRecord {
+export function mergeNodes(
+  local: NodeRecord | null,
+  incoming: NodeRecord,
+): NodeRecord {
   if (!local) return incoming;
   if (local.id !== incoming.id) {
     throw new Error("mergeNodes called with mismatched ids");

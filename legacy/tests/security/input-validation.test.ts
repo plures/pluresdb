@@ -1,5 +1,9 @@
 // @ts-nocheck
-import { assertEquals, assertExists, assertRejects } from "jsr:@std/assert@1.0.14";
+import {
+  assertEquals,
+  assertExists,
+  assertRejects,
+} from "jsr:@std/assert@1.0.14";
 import { GunDB } from "../../core/database.ts";
 
 Deno.test("Security - SQL Injection Prevention", async () => {
@@ -280,4 +284,3 @@ Deno.test("Security - Memory Exhaustion Prevention", async () => {
     await db.close();
   }
 });
-

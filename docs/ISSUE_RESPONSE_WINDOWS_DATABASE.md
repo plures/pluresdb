@@ -11,6 +11,7 @@ Thank you for your interest in using PluresDB as your personal Windows database!
 You can start using PluresDB on Windows **immediately** with two options:
 
 #### Option 1: Docker (Recommended - Easiest)
+
 ```powershell
 # Pull and run PluresDB
 docker run -p 34567:34567 -p 34568:34568 plures/pluresdb:latest
@@ -22,6 +23,7 @@ start http://localhost:34568
 That's it! No installation, no configuration needed.
 
 #### Option 2: npm Package (For Developers)
+
 ```powershell
 # Install globally
 npm install -g pluresdb
@@ -50,7 +52,9 @@ PluresDB is ideal for **saving notes and important facts**:
 I've created comprehensive documentation to help you get started:
 
 ### 1. [Windows Getting Started Guide](docs/WINDOWS_GETTING_STARTED.md)
+
 Complete walkthrough for personal database use including:
+
 - Quick start (3 steps)
 - Common use cases with examples
 - Configuration and customization
@@ -58,14 +62,18 @@ Complete walkthrough for personal database use including:
 - Troubleshooting
 
 ### 2. [Windows Personal Database Status](docs/WINDOWS_PERSONAL_DATABASE_STATUS.md)
+
 Executive summary covering:
+
 - What's working now
 - What's coming soon
 - Comparison with alternatives (SQLite, Notion, Obsidian)
 - Technical architecture
 
 ### 3. [Windows Installer MVP Status](docs/WINDOWS_INSTALLER_MVP.md)
+
 Technical details about:
+
 - Build process
 - Installer infrastructure
 - Known issues and workarounds
@@ -75,6 +83,7 @@ Technical details about:
 The MVP is **functionally complete** for personal database use:
 
 ### ✅ Core Features (100%)
+
 - SQLite-compatible API
 - Web UI with 24 management tabs
 - Full-text and semantic search
@@ -85,11 +94,13 @@ The MVP is **functionally complete** for personal database use:
 - REST API
 
 ### ✅ Windows Support (Available Now)
+
 - Docker: Working today ✅
 - npm package: Working today ✅
 - Documentation: Complete ✅
 
 ### 🔧 Coming Soon (Not Blocking)
+
 - MSI installer: Infrastructure ready, needs CI/CD setup
 - Winget package: Manifest ready, needs submission
 - Portable ZIP: Can be built on demand
@@ -99,6 +110,7 @@ The MVP is **functionally complete** for personal database use:
 Here's where we stand on completing the Windows installer:
 
 ### Already Complete (This PR)
+
 1. ✅ **Fixed TypeScript compilation errors**
 2. ✅ **Created comprehensive documentation** (4 new guides)
 3. ✅ **Updated main README** with Windows focus
@@ -106,6 +118,7 @@ Here's where we stand on completing the Windows installer:
 5. ✅ **Verified existing infrastructure** (GitHub Actions, build scripts, WiX definition, Winget manifest)
 
 ### Remaining Work (Optional)
+
 These are nice-to-have but not blocking:
 
 1. **CI/CD Setup** (2-4 hours)
@@ -125,6 +138,7 @@ These are nice-to-have but not blocking:
 ## Recommendation
 
 **Start using PluresDB today with Docker or npm!** The experience is identical whether you use:
+
 - Docker (easiest, no installation)
 - npm (if you're a developer)
 - Future MSI installer (when CI/CD is set up)
@@ -136,15 +150,19 @@ All the hard work is done. The only remaining tasks are operational (CI/CD setup
 Here's a 5-minute walkthrough:
 
 ### 1. Start PluresDB
+
 ```powershell
 docker run -p 34567:34567 -p 34568:34568 plures/pluresdb:latest
 ```
 
 ### 2. Open Web UI
+
 Navigate to http://localhost:34568
 
 ### 3. Create Your First Note
+
 Click "New Node" and add:
+
 ```json
 {
   "type": "note",
@@ -155,9 +173,11 @@ Click "New Node" and add:
 ```
 
 ### 4. Search
+
 Go to the "Search" tab and type "getting started"
 
 ### 5. Explore
+
 - Try the "Graph" view to see relationships
 - Use "Vector Search" for AI-powered semantic search
 - Export your data anytime
@@ -165,6 +185,7 @@ Go to the "Search" tab and type "getting started"
 ## Use Case Examples
 
 ### Daily Journal
+
 ```json
 {
   "type": "journal",
@@ -176,6 +197,7 @@ Go to the "Search" tab and type "getting started"
 ```
 
 ### Important Facts
+
 ```json
 {
   "type": "fact",
@@ -188,6 +210,7 @@ Go to the "Search" tab and type "getting started"
 ```
 
 ### Task Tracking
+
 ```json
 {
   "type": "task",
@@ -219,6 +242,7 @@ If you have any questions or issues:
 PluresDB is **ready for your personal Windows database needs right now**! 🚀
 
 The MVP is complete with:
+
 - ✅ Full functionality for personal database use
 - ✅ Multiple installation options (Docker, npm)
 - ✅ Comprehensive documentation
@@ -230,6 +254,6 @@ Thank you for your interest in PluresDB! I hope this solution meets your needs. 
 
 ---
 
-**Last Updated**: November 6, 2025  
-**Status**: MVP Complete - Ready for Personal Use  
+**Last Updated**: November 6, 2025\
+**Status**: MVP Complete - Ready for Personal Use\
 **Installation**: Docker (immediate) | npm (immediate) | MSI (coming soon)

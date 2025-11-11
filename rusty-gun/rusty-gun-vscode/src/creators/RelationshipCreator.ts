@@ -1,117 +1,127 @@
-import * as vscode from 'vscode';
-import { RustyGunClient, Relationship } from '../client/RustyGunClient';
+import * as vscode from "vscode";
+import { Relationship, RustyGunClient } from "../client/RustyGunClient";
 
 export class RelationshipCreator {
-    constructor(private client: RustyGunClient) {}
+  constructor(private client: RustyGunClient) {}
 
-    async createRelationship(context?: any): Promise<void> {
-        if (!this.client.isConnected()) {
-            vscode.window.showErrorMessage('Not connected to Rusty Gun server');
-            return;
-        }
-
-        const fromNodeId = await vscode.window.showInputBox({
-            prompt: 'Enter source node ID',
-            placeHolder: 'Source node ID'
-        });
-
-        if (fromNodeId === undefined) return;
-
-        const toNodeId = await vscode.window.showInputBox({
-            prompt: 'Enter target node ID',
-            placeHolder: 'Target node ID'
-        });
-
-        if (toNodeId === undefined) return;
-
-        const relationType = await vscode.window.showInputBox({
-            prompt: 'Enter relationship type',
-            placeHolder: 'e.g., related_to, works_with, contains'
-        });
-
-        if (relationType === undefined) return;
-
-        const relationshipData: Partial<Relationship> = {
-            from: fromNodeId,
-            to: toNodeId,
-            relation_type: relationType,
-            metadata: {
-                created_via: 'vscode-extension',
-                created_at: new Date().toISOString()
-            }
-        };
-
-        try {
-            const createdRelationship = await this.client.createRelationship(relationshipData);
-            vscode.window.showInformationMessage(`Relationship created successfully: ${createdRelationship.id}`);
-            vscode.commands.executeCommand('rusty-gun.refreshExplorer');
-        } catch (error) {
-            vscode.window.showErrorMessage(`Failed to create relationship: ${error}`);
-        }
+  async createRelationship(context?: any): Promise<void> {
+    if (!this.client.isConnected()) {
+      vscode.window.showErrorMessage("Not connected to Rusty Gun server");
+      return;
     }
 
-    async editRelationship(relationship: Relationship): Promise<void> {
-        if (!this.client.isConnected()) {
-            vscode.window.showErrorMessage('Not connected to Rusty Gun server');
-            return;
-        }
+    const fromNodeId = await vscode.window.showInputBox({
+      prompt: "Enter source node ID",
+      placeHolder: "Source node ID",
+    });
 
-        const newType = await vscode.window.showInputBox({
-            prompt: 'Enter new relationship type',
-            value: relationship.relation_type
-        });
+    if (fromNodeId === undefined) return;
 
-        if (newType === undefined) return;
+    const toNodeId = await vscode.window.showInputBox({
+      prompt: "Enter target node ID",
+      placeHolder: "Target node ID",
+    });
 
-        try {
-            await this.client.updateRelationship(relationship.id, { relation_type: newType });
-            vscode.window.showInformationMessage(`Relationship updated successfully: ${relationship.id}`);
-            vscode.commands.executeCommand('rusty-gun.refreshExplorer');
-        } catch (error) {
-            vscode.window.showErrorMessage(`Failed to update relationship: ${error}`);
-        }
+    if (toNodeId === undefined) return;
+
+    const relationType = await vscode.window.showInputBox({
+      prompt: "Enter relationship type",
+      placeHolder: "e.g., related_to, works_with, contains",
+    });
+
+    if (relationType === undefined) return;
+
+    const relationshipData: Partial<Relationship> = {
+      from: fromNodeId,
+      to: toNodeId,
+      relation_type: relationType,
+      metadata: {
+        created_via: "vscode-extension",
+        created_at: new Date().toISOString(),
+      },
+    };
+
+    try {
+      const createdRelationship = await this.client.createRelationship(
+        relationshipData,
+      );
+      vscode.window.showInformationMessage(
+        `Relationship created successfully: ${createdRelationship.id}`,
+      );
+      vscode.commands.executeCommand("rusty-gun.refreshExplorer");
+    } catch (error) {
+      vscode.window.showErrorMessage(`Failed to create relationship: ${error}`);
+    }
+  }
+
+  async editRelationship(relationship: Relationship): Promise<void> {
+    if (!this.client.isConnected()) {
+      vscode.window.showErrorMessage("Not connected to Rusty Gun server");
+      return;
     }
 
-    async deleteRelationship(relationship: Relationship): Promise<void> {
-        if (!this.client.isConnected()) {
-            vscode.window.showErrorMessage('Not connected to Rusty Gun server');
-            return;
-        }
+    const newType = await vscode.window.showInputBox({
+      prompt: "Enter new relationship type",
+      value: relationship.relation_type,
+    });
 
-        const confirm = await vscode.window.showWarningMessage(
-            `Are you sure you want to delete relationship "${relationship.from} → ${relationship.to}"?`,
-            { modal: true },
-            'Delete'
-        );
+    if (newType === undefined) return;
 
-        if (confirm !== 'Delete') return;
+    try {
+      await this.client.updateRelationship(relationship.id, {
+        relation_type: newType,
+      });
+      vscode.window.showInformationMessage(
+        `Relationship updated successfully: ${relationship.id}`,
+      );
+      vscode.commands.executeCommand("rusty-gun.refreshExplorer");
+    } catch (error) {
+      vscode.window.showErrorMessage(`Failed to update relationship: ${error}`);
+    }
+  }
 
-        try {
-            await this.client.deleteRelationship(relationship.id);
-            vscode.window.showInformationMessage(`Relationship deleted successfully: ${relationship.id}`);
-            vscode.commands.executeCommand('rusty-gun.refreshExplorer');
-        } catch (error) {
-            vscode.window.showErrorMessage(`Failed to delete relationship: ${error}`);
-        }
+  async deleteRelationship(relationship: Relationship): Promise<void> {
+    if (!this.client.isConnected()) {
+      vscode.window.showErrorMessage("Not connected to Rusty Gun server");
+      return;
     }
 
-    async viewRelationship(relationship: Relationship): Promise<void> {
-        const panel = vscode.window.createWebviewPanel(
-            'rusty-gun-relationship-details',
-            `Relationship: ${relationship.from} → ${relationship.to}`,
-            vscode.ViewColumn.Beside,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true
-            }
-        );
+    const confirm = await vscode.window.showWarningMessage(
+      `Are you sure you want to delete relationship "${relationship.from} → ${relationship.to}"?`,
+      { modal: true },
+      "Delete",
+    );
 
-        const html = this.generateRelationshipDetailsHtml(relationship);
-        panel.webview.html = html;
+    if (confirm !== "Delete") return;
+
+    try {
+      await this.client.deleteRelationship(relationship.id);
+      vscode.window.showInformationMessage(
+        `Relationship deleted successfully: ${relationship.id}`,
+      );
+      vscode.commands.executeCommand("rusty-gun.refreshExplorer");
+    } catch (error) {
+      vscode.window.showErrorMessage(`Failed to delete relationship: ${error}`);
     }
+  }
 
-    private generateRelationshipDetailsHtml(relationship: Relationship): string {
-        return `
+  async viewRelationship(relationship: Relationship): Promise<void> {
+    const panel = vscode.window.createWebviewPanel(
+      "rusty-gun-relationship-details",
+      `Relationship: ${relationship.from} → ${relationship.to}`,
+      vscode.ViewColumn.Beside,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+      },
+    );
+
+    const html = this.generateRelationshipDetailsHtml(relationship);
+    panel.webview.html = html;
+  }
+
+  private generateRelationshipDetailsHtml(relationship: Relationship): string {
+    return `
             <!DOCTYPE html>
             <html>
             <head>
@@ -195,19 +205,21 @@ export class RelationshipCreator {
                         </div>
                         <div class="metadata-item">
                             <div class="metadata-label">Created</div>
-                            <div class="metadata-value">${new Date(relationship.created_at).toLocaleString()}</div>
+                            <div class="metadata-value">${
+      new Date(relationship.created_at).toLocaleString()
+    }</div>
                         </div>
                     </div>
                 </div>
 
                 <div class="section">
                     <h3>Metadata</h3>
-                    <div class="json">${JSON.stringify(relationship.metadata, null, 2)}</div>
+                    <div class="json">${
+      JSON.stringify(relationship.metadata, null, 2)
+    }</div>
                 </div>
             </body>
             </html>
         `;
-    }
+  }
 }
-
-

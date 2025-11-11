@@ -215,41 +215,62 @@ export class MyExtension {
 
   private registerCommands() {
     // Command to store setting
-    const storeSetting = vscode.commands.registerCommand("myExtension.storeSetting", async () => {
-      const key = await vscode.window.showInputBox({ prompt: "Setting key" });
-      const value = await vscode.window.showInputBox({ prompt: "Setting value" });
+    const storeSetting = vscode.commands.registerCommand(
+      "myExtension.storeSetting",
+      async () => {
+        const key = await vscode.window.showInputBox({ prompt: "Setting key" });
+        const value = await vscode.window.showInputBox({
+          prompt: "Setting value",
+        });
 
-      if (key && value) {
-        await this.db.run("INSERT OR REPLACE INTO settings VALUES (?, ?)", [key, value]);
-        vscode.window.showInformationMessage(`Setting stored: ${key}`);
-      }
-    });
+        if (key && value) {
+          await this.db.run("INSERT OR REPLACE INTO settings VALUES (?, ?)", [
+            key,
+            value,
+          ]);
+          vscode.window.showInformationMessage(`Setting stored: ${key}`);
+        }
+      },
+    );
 
     // Command to get setting
-    const getSetting = vscode.commands.registerCommand("myExtension.getSetting", async () => {
-      const key = await vscode.window.showInputBox({ prompt: "Setting key" });
+    const getSetting = vscode.commands.registerCommand(
+      "myExtension.getSetting",
+      async () => {
+        const key = await vscode.window.showInputBox({ prompt: "Setting key" });
 
-      if (key) {
-        const setting = await this.db.get("SELECT * FROM settings WHERE key = ?", [key]);
-        if (setting) {
-          vscode.window.showInformationMessage(`Setting ${key}: ${setting.value}`);
-        } else {
-          vscode.window.showInformationMessage("Setting not found");
+        if (key) {
+          const setting = await this.db.get(
+            "SELECT * FROM settings WHERE key = ?",
+            [key],
+          );
+          if (setting) {
+            vscode.window.showInformationMessage(
+              `Setting ${key}: ${setting.value}`,
+            );
+          } else {
+            vscode.window.showInformationMessage("Setting not found");
+          }
         }
-      }
-    });
+      },
+    );
 
     // Command to search documents
     const searchDocuments = vscode.commands.registerCommand(
       "myExtension.searchDocuments",
       async () => {
-        const query = await vscode.window.showInputBox({ prompt: "Search query" });
+        const query = await vscode.window.showInputBox({
+          prompt: "Search query",
+        });
 
         if (query) {
           // Use SQL LIKE for text search (same as SQLite)
-          const results = await this.db.all("SELECT * FROM documents WHERE content LIKE ?", [
-            `%${query}%`,
-          ]);
+          const results = await this.db.all(
+            "SELECT * FROM documents WHERE content LIKE ?",
+            [
+              `%${query}%`,
+            ],
+          );
 
           // Display results
           const doc = await vscode.workspace.openTextDocument({
@@ -262,30 +283,48 @@ export class MyExtension {
     );
 
     // Command to share data
-    const shareData = vscode.commands.registerCommand("myExtension.shareData", async () => {
-      const key = await vscode.window.showInputBox({ prompt: "Data key to share" });
+    const shareData = vscode.commands.registerCommand(
+      "myExtension.shareData",
+      async () => {
+        const key = await vscode.window.showInputBox({
+          prompt: "Data key to share",
+        });
 
-      if (key) {
-        // Search for peers
-        const peers = await this.p2p.searchPeers("developer");
+        if (key) {
+          // Search for peers
+          const peers = await this.p2p.searchPeers("developer");
 
-        if (peers.length > 0) {
-          const peer = await vscode.window.showQuickPick(
-            peers.map((p) => ({ label: p.name, description: p.email, peer: p })),
-            { placeHolder: "Select peer to share with" },
-          );
+          if (peers.length > 0) {
+            const peer = await vscode.window.showQuickPick(
+              peers.map((p) => ({
+                label: p.name,
+                description: p.email,
+                peer: p,
+              })),
+              { placeHolder: "Select peer to share with" },
+            );
 
-          if (peer) {
-            await this.p2p.shareNode(key, peer.peer.id, { accessLevel: "read-only" });
-            vscode.window.showInformationMessage(`Shared ${key} with ${peer.label}`);
+            if (peer) {
+              await this.p2p.shareNode(key, peer.peer.id, {
+                accessLevel: "read-only",
+              });
+              vscode.window.showInformationMessage(
+                `Shared ${key} with ${peer.label}`,
+              );
+            }
+          } else {
+            vscode.window.showInformationMessage("No peers found");
           }
-        } else {
-          vscode.window.showInformationMessage("No peers found");
         }
-      }
-    });
+      },
+    );
 
-    this.context.subscriptions.push(storeSetting, getSetting, searchDocuments, shareData);
+    this.context.subscriptions.push(
+      storeSetting,
+      getSetting,
+      searchDocuments,
+      shareData,
+    );
   }
 }
 

@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -292,15 +292,22 @@
           <div class="section-content">
             <h3>Execute SQL Queries</h3>
             <p>Try any SQLite-compatible query below:</p>
-            <textarea class="sql-editor" id="sqlQuery" placeholder="Enter your SQL query here...">
-SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
+            <textarea
+              class="sql-editor"
+              id="sqlQuery"
+              placeholder="Enter your SQL query here..."
             >
+SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea>
             <div class="demo-actions">
-              <button class="btn" onclick="executeQuery()">Execute Query</button>
+              <button class="btn" onclick="executeQuery()">
+                Execute Query
+              </button>
               <button class="btn btn-warning" onclick="loadSampleQueries()">
                 Load Sample Queries
               </button>
-              <button class="btn btn-danger" onclick="clearQuery()">Clear</button>
+              <button class="btn btn-danger" onclick="clearQuery()">
+                Clear
+              </button>
             </div>
             <div id="queryResult"></div>
           </div>
@@ -316,9 +323,15 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
             <h3>ACID Transactions</h3>
             <p>Demonstrating ACID compliance with transaction management:</p>
             <div class="demo-actions">
-              <button class="btn" onclick="startTransaction()">Start Transaction</button>
-              <button class="btn btn-success" onclick="commitTransaction()">Commit</button>
-              <button class="btn btn-danger" onclick="rollbackTransaction()">Rollback</button>
+              <button class="btn" onclick="startTransaction()">
+                Start Transaction
+              </button>
+              <button class="btn btn-success" onclick="commitTransaction()">
+                Commit
+              </button>
+              <button class="btn btn-danger" onclick="rollbackTransaction()">
+                Rollback
+              </button>
             </div>
             <div id="transactionStatus"></div>
           </div>
@@ -353,8 +366,12 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
             <h3>Query Performance</h3>
             <p>Benchmarking query execution times and optimization:</p>
             <div class="demo-actions">
-              <button class="btn" onclick="benchmarkQueries()">Run Benchmark</button>
-              <button class="btn" onclick="analyzeQuery()">Analyze Query</button>
+              <button class="btn" onclick="benchmarkQueries()">
+                Run Benchmark
+              </button>
+              <button class="btn" onclick="analyzeQuery()">
+                Analyze Query
+              </button>
               <button class="btn" onclick="showIndexes()">Show Indexes</button>
             </div>
             <div id="performanceResult"></div>
@@ -373,25 +390,36 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
               <div class="feature-card">
                 <h3>✅ SQL Support</h3>
                 <p>
-                  Full SQL query language support with SELECT, INSERT, UPDATE, DELETE, CREATE, DROP,
-                  ALTER statements
+                  Full SQL query language support with SELECT, INSERT, UPDATE,
+                  DELETE, CREATE, DROP, ALTER statements
                 </p>
               </div>
               <div class="feature-card">
                 <h3>✅ ACID Transactions</h3>
-                <p>Atomicity, Consistency, Isolation, Durability with multiple isolation levels</p>
+                <p>
+                  Atomicity, Consistency, Isolation, Durability with multiple
+                  isolation levels
+                </p>
               </div>
               <div class="feature-card">
                 <h3>✅ Schema Management</h3>
-                <p>Tables, indexes, views, triggers, foreign keys, and constraints</p>
+                <p>
+                  Tables, indexes, views, triggers, foreign keys, and
+                  constraints
+                </p>
               </div>
               <div class="feature-card">
                 <h3>✅ Data Types</h3>
-                <p>INTEGER, TEXT, REAL, BLOB, NULL with automatic type conversion</p>
+                <p>
+                  INTEGER, TEXT, REAL, BLOB, NULL with automatic type conversion
+                </p>
               </div>
               <div class="feature-card">
                 <h3>✅ Indexes</h3>
-                <p>B-tree indexes, unique indexes, composite indexes, and partial indexes</p>
+                <p>
+                  B-tree indexes, unique indexes, composite indexes, and partial
+                  indexes
+                </p>
               </div>
               <div class="feature-card">
                 <h3>✅ Views</h3>
@@ -399,43 +427,68 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
               </div>
               <div class="feature-card">
                 <h3>✅ Triggers</h3>
-                <p>BEFORE/AFTER triggers, INSTEAD OF triggers, and trigger conditions</p>
+                <p>
+                  BEFORE/AFTER triggers, INSTEAD OF triggers, and trigger
+                  conditions
+                </p>
               </div>
               <div class="feature-card">
                 <h3>✅ Foreign Keys</h3>
-                <p>Referential integrity with CASCADE, SET NULL, RESTRICT actions</p>
+                <p>
+                  Referential integrity with CASCADE, SET NULL, RESTRICT actions
+                </p>
               </div>
               <div class="feature-card">
                 <h3>✅ Full-Text Search</h3>
-                <p>FTS5 compatible full-text search with ranking and highlighting</p>
+                <p>
+                  FTS5 compatible full-text search with ranking and highlighting
+                </p>
               </div>
               <div class="feature-card">
                 <h3>✅ JSON Support</h3>
-                <p>JSON functions, JSON path expressions, and JSON validation</p>
+                <p>
+                  JSON functions, JSON path expressions, and JSON validation
+                </p>
               </div>
               <div class="feature-card">
                 <h3>✅ Window Functions</h3>
-                <p>ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, and aggregate functions</p>
+                <p>
+                  ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, and aggregate
+                  functions
+                </p>
               </div>
               <div class="feature-card">
                 <h3>✅ Common Table Expressions</h3>
-                <p>WITH clauses, recursive CTEs, and complex query optimization</p>
+                <p>
+                  WITH clauses, recursive CTEs, and complex query optimization
+                </p>
               </div>
               <div class="feature-card">
                 <h3>🚀 P2P Sync</h3>
-                <p>Real-time synchronization across multiple nodes with conflict resolution</p>
+                <p>
+                  Real-time synchronization across multiple nodes with conflict
+                  resolution
+                </p>
               </div>
               <div class="feature-card">
                 <h3>🚀 Offline-First</h3>
-                <p>Local storage with operation queuing and background synchronization</p>
+                <p>
+                  Local storage with operation queuing and background
+                  synchronization
+                </p>
               </div>
               <div class="feature-card">
                 <h3>🚀 Vector Search</h3>
-                <p>Semantic search with vector embeddings and similarity matching</p>
+                <p>
+                  Semantic search with vector embeddings and similarity matching
+                </p>
               </div>
               <div class="feature-card">
                 <h3>🚀 Graph Queries</h3>
-                <p>Graph traversal, relationship queries, and complex graph operations</p>
+                <p>
+                  Graph traversal, relationship queries, and complex graph
+                  operations
+                </p>
               </div>
             </div>
           </div>
@@ -668,35 +721,43 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
         const resultDiv = document.getElementById("queryResult");
 
         try {
-          if (result.columns && result.rows && Array.isArray(result.rows)) {
+          if (
+            result.columns && result.rows && Array.isArray(result.rows)
+          ) {
             // Table result
             let html = `
                         <div class="success-message">
                             ✅ Query executed successfully in ${executionTime}ms
-                            ${result.rowCount ? ` (${result.rowCount} rows)` : ""}
+                            ${
+              result.rowCount ? ` (${result.rowCount} rows)` : ""
+            }
                         </div>
                         <table class="result-table">
                             <thead>
                                 <tr>
-                                    ${result.columns.map((col) => `<th>${col}</th>`).join("")}
+                                    ${
+              result.columns.map((col) => `<th>${col}</th>`).join("")
+            }
                                 </tr>
                             </thead>
                             <tbody>
-                                ${result.rows
-                                  .map(
-                                    (row) => `
+                                ${
+              result.rows
+                .map(
+                  (row) => `
                                     <tr>
                                         ${
-                                          Array.isArray(row)
-                                            ? row.map((cell) => `<td>${cell}</td>`).join("")
-                                            : Object.values(row)
-                                                .map((cell) => `<td>${cell}</td>`)
-                                                .join("")
-                                        }
+                    Array.isArray(row)
+                      ? row.map((cell) => `<td>${cell}</td>`).join("")
+                      : Object.values(row)
+                        .map((cell) => `<td>${cell}</td>`)
+                        .join("")
+                  }
                                     </tr>
                                 `,
-                                  )
-                                  .join("")}
+                )
+                .join("")
+            }
                             </tbody>
                         </table>
                     `;
@@ -705,13 +766,22 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
             // Simple result
             let html = `
                         <div class="success-message">
-                            ✅ ${result.message || "Query executed successfully"} in ${executionTime}ms
-                            ${result.changes ? ` (${result.changes} rows affected)` : ""}
-                            ${result.lastInsertRowId ? ` (Last insert ID: ${result.lastInsertRowId})` : ""}
+                            ✅ ${
+              result.message || "Query executed successfully"
+            } in ${executionTime}ms
+                            ${
+              result.changes ? ` (${result.changes} rows affected)` : ""
+            }
+                            ${
+              result.lastInsertRowId
+                ? ` (Last insert ID: ${result.lastInsertRowId})`
+                : ""
+            }
                         </div>
                     `;
             if (result.schema) {
-              html += `<pre style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin-top: 10px;">${result.schema}</pre>`;
+              html +=
+                `<pre style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin-top: 10px;">${result.schema}</pre>`;
             }
             resultDiv.innerHTML = html;
           }
@@ -741,7 +811,9 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
       }
 
       function loadSampleQueries() {
-        const randomQuery = sampleQueries[Math.floor(Math.random() * sampleQueries.length)];
+        const randomQuery = sampleQueries[
+          Math.floor(Math.random() * sampleQueries.length)
+        ];
         document.getElementById("sqlQuery").value = randomQuery;
       }
 
@@ -781,7 +853,8 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
         currentTransaction.pendingOperations.push({
           type: type,
           timestamp: new Date(),
-          description: `${type} operation #${currentTransaction.operations}`,
+          description:
+            `${type} operation #${currentTransaction.operations}`,
         });
 
         updateTransactionStatus();
@@ -791,7 +864,9 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
         if (!currentTransaction) return;
 
         const operationsList = currentTransaction.pendingOperations
-          .map((op) => `<li>${op.description} at ${op.timestamp.toLocaleTimeString()}</li>`)
+          .map((op) =>
+            `<li>${op.description} at ${op.timestamp.toLocaleTimeString()}</li>`
+          )
           .join("");
 
         document.getElementById("transactionStatus").innerHTML = `
@@ -817,7 +892,8 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
           return;
         }
 
-        const duration = Date.now() - currentTransaction.startTime.getTime();
+        const duration = Date.now() -
+          currentTransaction.startTime.getTime();
         const operationsList = currentTransaction.pendingOperations
           .map((op) => `<li>✅ ${op.description}</li>`)
           .join("");
@@ -841,7 +917,8 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
           return;
         }
 
-        const duration = Date.now() - currentTransaction.startTime.getTime();
+        const duration = Date.now() -
+          currentTransaction.startTime.getTime();
         const operationsList = currentTransaction.pendingOperations
           .map((op) => `<li>❌ ${op.description} (rolled back)</li>`)
           .join("");
@@ -877,13 +954,15 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
       }
 
       function createView() {
-        const query = `CREATE VIEW demo_view AS SELECT id, name, value FROM demo_table WHERE value > 0;`;
+        const query =
+          `CREATE VIEW demo_view AS SELECT id, name, value FROM demo_table WHERE value > 0;`;
         document.getElementById("sqlQuery").value = query;
         executeQuery();
       }
 
       function showSchema() {
-        const query = `SELECT name, type, sql FROM sqlite_master WHERE type IN ('table', 'index', 'view');`;
+        const query =
+          `SELECT name, type, sql FROM sqlite_master WHERE type IN ('table', 'index', 'view');`;
         document.getElementById("sqlQuery").value = query;
         executeQuery();
       }
@@ -924,7 +1003,9 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
 
         let html = `
                 <div class="success-message">
-                    🚀 Benchmark completed! Total time: ${totalTime}ms, Average: ${avgTime.toFixed(2)}ms
+                    🚀 Benchmark completed! Total time: ${totalTime}ms, Average: ${
+          avgTime.toFixed(2)
+        }ms
                 </div>
                 <table class="result-table">
                     <thead>
@@ -935,21 +1016,35 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
                         </tr>
                     </thead>
                     <tbody>
-                        ${results
-                          .map(
-                            (result) => `
+                        ${
+          results
+            .map(
+              (result) => `
                             <tr>
                                 <td style="font-family: monospace; font-size: 12px;">${result.query}</td>
                                 <td>${result.time.toFixed(2)}ms</td>
                                 <td>
-                                    <span style="color: ${result.time < 100 ? "#27ae60" : result.time < 200 ? "#f39c12" : "#e74c3c"}">
-                                        ${result.time < 100 ? "⚡ Fast" : result.time < 200 ? "🟡 Good" : "🐌 Slow"}
+                                    <span style="color: ${
+                result.time < 100
+                  ? "#27ae60"
+                  : result.time < 200
+                  ? "#f39c12"
+                  : "#e74c3c"
+              }">
+                                        ${
+                result.time < 100
+                  ? "⚡ Fast"
+                  : result.time < 200
+                  ? "🟡 Good"
+                  : "🐌 Slow"
+              }
                                     </span>
                                 </td>
                             </tr>
                         `,
-                          )
-                          .join("")}
+            )
+            .join("")
+        }
                     </tbody>
                 </table>
             `;
@@ -967,8 +1062,12 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
         const analysis = {
           query: query,
           estimatedCost: Math.floor(Math.random() * 1000),
-          indexUsage: Math.random() > 0.5 ? "Using index" : "Full table scan",
-          joinOrder: query.toUpperCase().includes("JOIN") ? "Optimized" : "N/A",
+          indexUsage: Math.random() > 0.5
+            ? "Using index"
+            : "Full table scan",
+          joinOrder: query.toUpperCase().includes("JOIN")
+            ? "Optimized"
+            : "N/A",
           suggestions: [
             "Consider adding an index on the WHERE clause column",
             "Use LIMIT to reduce result set size",
@@ -987,14 +1086,19 @@ SELECT * FROM users WHERE age > 25 ORDER BY name LIMIT 10;</textarea
                     <p><strong>Join Order:</strong> ${analysis.joinOrder}</p>
                     <h4>Optimization Suggestions:</h4>
                     <ul>
-                        ${analysis.suggestions.map((suggestion) => `<li>${suggestion}</li>`).join("")}
+                        ${
+          analysis.suggestions.map((suggestion) =>
+            `<li>${suggestion}</li>`
+          ).join("")
+        }
                     </ul>
                 </div>
             `;
       }
 
       function showIndexes() {
-        const query = `SELECT name, tbl_name, sql FROM sqlite_master WHERE type = 'index';`;
+        const query =
+          `SELECT name, tbl_name, sql FROM sqlite_master WHERE type = 'index';`;
         document.getElementById("sqlQuery").value = query;
         executeQuery();
       }
