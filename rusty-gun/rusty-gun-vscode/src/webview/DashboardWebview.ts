@@ -1,92 +1,92 @@
-import * as vscode from 'vscode';
-import { RustyGunClient } from '../client/RustyGunClient';
+import * as vscode from "vscode";
+import { RustyGunClient } from "../client/RustyGunClient";
 
 export class DashboardWebview implements vscode.WebviewViewProvider {
-    public static readonly viewType = 'rusty-gun.dashboard';
+  public static readonly viewType = "rusty-gun.dashboard";
 
-    constructor(
-        private readonly extensionUri: vscode.Uri,
-        private readonly client: RustyGunClient
-    ) {}
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly client: RustyGunClient,
+  ) {}
 
-    public resolveWebviewView(
-        webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
-        _token: vscode.CancellationToken,
-    ) {
-        webviewView.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [this.extensionUri]
-        };
+  public resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken,
+  ) {
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this.extensionUri],
+    };
 
-        webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
+    webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
 
-        // Handle messages from the webview
-        webviewView.webview.onDidReceiveMessage(
-            message => {
-                switch (message.command) {
-                    case 'refresh':
-                        this.refreshData(webviewView);
-                        break;
-                    case 'connect':
-                        this.client.connect();
-                        break;
-                    case 'disconnect':
-                        this.client.disconnect();
-                        break;
-                }
-            },
-            undefined,
-            []
-        );
-
-        // Refresh data when webview becomes visible
-        webviewView.onDidChangeVisibility(() => {
-            if (webviewView.visible) {
-                this.refreshData(webviewView);
-            }
-        });
-    }
-
-    public show(): void {
-        vscode.commands.executeCommand('rusty-gun.dashboard.focus');
-    }
-
-    private async refreshData(webviewView: vscode.WebviewView): Promise<void> {
-        if (!this.client.isConnected()) {
-            webviewView.webview.postMessage({
-                type: 'disconnected',
-                data: null
-            });
-            return;
+    // Handle messages from the webview
+    webviewView.webview.onDidReceiveMessage(
+      (message) => {
+        switch (message.command) {
+          case "refresh":
+            this.refreshData(webviewView);
+            break;
+          case "connect":
+            this.client.connect();
+            break;
+          case "disconnect":
+            this.client.disconnect();
+            break;
         }
+      },
+      undefined,
+      [],
+    );
 
-        try {
-            const [graphStats, vectorStats, serverStatus] = await Promise.all([
-                this.client.getGraphStats(),
-                this.client.getVectorStats(),
-                this.client.getServerStatus()
-            ]);
+    // Refresh data when webview becomes visible
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible) {
+        this.refreshData(webviewView);
+      }
+    });
+  }
 
-            webviewView.webview.postMessage({
-                type: 'data',
-                data: {
-                    graphStats,
-                    vectorStats,
-                    serverStatus
-                }
-            });
-        } catch (error) {
-            console.error('Failed to refresh dashboard data:', error);
-            webviewView.webview.postMessage({
-                type: 'error',
-                data: { message: 'Failed to load dashboard data' }
-            });
-        }
+  public show(): void {
+    vscode.commands.executeCommand("rusty-gun.dashboard.focus");
+  }
+
+  private async refreshData(webviewView: vscode.WebviewView): Promise<void> {
+    if (!this.client.isConnected()) {
+      webviewView.webview.postMessage({
+        type: "disconnected",
+        data: null,
+      });
+      return;
     }
 
-    private getHtmlForWebview(webview: vscode.Webview): string {
-        return `<!DOCTYPE html>
+    try {
+      const [graphStats, vectorStats, serverStatus] = await Promise.all([
+        this.client.getGraphStats(),
+        this.client.getVectorStats(),
+        this.client.getServerStatus(),
+      ]);
+
+      webviewView.webview.postMessage({
+        type: "data",
+        data: {
+          graphStats,
+          vectorStats,
+          serverStatus,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to refresh dashboard data:", error);
+      webviewView.webview.postMessage({
+        type: "error",
+        data: { message: "Failed to load dashboard data" },
+      });
+    }
+  }
+
+  private getHtmlForWebview(webview: vscode.Webview): string {
+    return `<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
@@ -292,7 +292,5 @@ export class DashboardWebview implements vscode.WebviewViewProvider {
             </script>
         </body>
         </html>`;
-    }
+  }
 }
-
-

@@ -17,7 +17,9 @@ function corsHeaders(extra?: Record<string, string>): Headers {
   return headers;
 }
 
-export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHandle {
+export function startApiServer(
+  opts: { port: number; db: GunDB },
+): ApiServerHandle {
   const { port, db } = opts;
 
   const handler = async (req: Request): Promise<Response> => {
@@ -40,7 +42,9 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
             const cb = (e: { id: string; node: unknown | null }) => send(e);
             db.onAny(cb as any);
             (async () => {
-              for await (const n of db.list()) send({ id: n.id, node: { id: n.id, data: n.data } });
+              for await (const n of db.list()) {
+                send({ id: n.id, node: { id: n.id, data: n.data } });
+              }
             })();
             return () => db.offAny(cb as any);
           },
@@ -80,7 +84,9 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
               return json(cfg);
             }
             if (req.method === "POST") {
-              const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+              const body = (await req.json().catch(() => null)) as
+                | Record<string, unknown>
+                | null;
               if (!body) return json({ error: "missing body" }, 400);
               const current = await loadConfig();
               const next = { ...current, ...body } as Record<string, unknown>;
@@ -100,7 +106,9 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
             const body = (await req.json().catch(() => null)) as
               | { id?: string; data?: Record<string, unknown> }
               | null;
-            if (!body?.id || !body?.data) return json({ error: "missing body {id,data}" }, 400);
+            if (!body?.id || !body?.data) {
+              return json({ error: "missing body {id,data}" }, 400);
+            }
             await db.put(body.id, body.data);
             return json({ ok: true });
           }
@@ -128,7 +136,8 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
             return json(nodes.map((n) => ({ id: n.id, data: n.data })));
           }
           case "/api/list": {
-            const out: Array<{ id: string; data: Record<string, unknown> }> = [];
+            const out: Array<{ id: string; data: Record<string, unknown> }> =
+              [];
             for await (const n of db.list()) {
               out.push({ id: n.id, data: n.data as Record<string, unknown> });
             }
@@ -157,7 +166,9 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
           case "/api/restore": {
             const id = url.searchParams.get("id");
             const timestamp = url.searchParams.get("timestamp");
-            if (!id || !timestamp) return json({ error: "missing id or timestamp" }, 400);
+            if (!id || !timestamp) {
+              return json({ error: "missing id or timestamp" }, 400);
+            }
             await db.restoreNodeVersion(id, parseInt(timestamp));
             return json({ success: true });
           }
@@ -168,27 +179,34 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
 
       if (req.method === "GET") {
         const mapPath = path === "/" ? "/index.html" : path;
-        const fileUrl = new URL(mapPath.startsWith("/") ? `.${mapPath}` : mapPath, STATIC_ROOT);
+        const fileUrl = new URL(
+          mapPath.startsWith("/") ? `.${mapPath}` : mapPath,
+          STATIC_ROOT,
+        );
         try {
           const data = await Deno.readFile(fileUrl);
           const contentType = mapPath.endsWith(".html")
             ? "text/html; charset=utf-8"
             : mapPath.endsWith(".js")
-              ? "application/javascript"
-              : mapPath.endsWith(".css")
-                ? "text/css"
-                : mapPath.endsWith(".json")
-                  ? "application/json"
-                  : mapPath.endsWith(".svg")
-                    ? "image/svg+xml"
-                    : mapPath.endsWith(".png")
-                      ? "image/png"
-                      : "application/octet-stream";
-          return new Response(data, { headers: corsHeaders({ "content-type": contentType }) });
+            ? "application/javascript"
+            : mapPath.endsWith(".css")
+            ? "text/css"
+            : mapPath.endsWith(".json")
+            ? "application/json"
+            : mapPath.endsWith(".svg")
+            ? "image/svg+xml"
+            : mapPath.endsWith(".png")
+            ? "image/png"
+            : "application/octet-stream";
+          return new Response(data, {
+            headers: corsHeaders({ "content-type": contentType }),
+          });
         } catch {
           if (path === "/" || path === "/index.html") {
             return new Response(INDEX_HTML, {
-              headers: corsHeaders({ "content-type": "text/html; charset=utf-8" }),
+              headers: corsHeaders({
+                "content-type": "text/html; charset=utf-8",
+              }),
             });
           }
         }
@@ -196,8 +214,9 @@ export function startApiServer(opts: { port: number; db: GunDB }): ApiServerHand
 
       return new Response("Not Found", { status: 404, headers: corsHeaders() });
     } catch (e) {
-      const msg =
-        e && typeof e === "object" && "message" in e ? String((e as any).message) : String(e);
+      const msg = e && typeof e === "object" && "message" in e
+        ? String((e as any).message)
+        : String(e);
       return json({ error: msg }, 500);
     }
   };

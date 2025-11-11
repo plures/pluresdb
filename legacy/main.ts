@@ -1,5 +1,5 @@
 import { GunDB } from "./core/database.ts";
-import { debugLog } from "./util/debug.ts";
+import { debugLog as _debugLog } from "./util/debug.ts";
 import { startApiServer } from "./http/api-server.ts";
 import { loadConfig, saveConfig } from "./config.ts";
 
@@ -118,7 +118,9 @@ if (import.meta.main) {
       const db = new GunDB();
       await db.ready(kvPath);
       const results = await db.vectorSearch(query, k);
-      console.log(JSON.stringify(results.map((n) => ({ id: n.id, data: n.data }))));
+      console.log(
+        JSON.stringify(results.map((n) => ({ id: n.id, data: n.data }))),
+      );
       await db.close();
       break;
     }
@@ -150,7 +152,9 @@ if (import.meta.main) {
       const db = new GunDB();
       await db.ready(kvPath);
       const rows = await db.instancesOf(typeName);
-      console.log(JSON.stringify(rows.map((n) => ({ id: n.id, data: n.data }))));
+      console.log(
+        JSON.stringify(rows.map((n) => ({ id: n.id, data: n.data }))),
+      );
       await db.close();
       break;
     }
@@ -162,7 +166,10 @@ if (import.meta.main) {
       const db = new GunDB();
       await db.ready(kvPath);
       const nodes = await db.getAll();
-      const out = nodes.map((node) => ({ id: node.id, data: node.data as Record<string, unknown> }));
+      const out = nodes.map((node) => ({
+        id: node.id,
+        data: node.data as Record<string, unknown>,
+      }));
       console.log(JSON.stringify(out));
       await db.close();
       break;

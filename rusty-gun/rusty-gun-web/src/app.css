@@ -1,166 +1,175 @@
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap");
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-	width: 8px;
-	height: 8px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-	background: #f1f5f9;
-	border-radius: 4px;
+  background: #f1f5f9;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-	background: #cbd5e1;
-	border-radius: 4px;
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-	background: #94a3b8;
+  background: #94a3b8;
 }
 
 /* Monaco Editor overrides */
 .monaco-editor {
-	border-radius: 0.5rem;
+  border-radius: 0.5rem;
 }
 
 /* Cytoscape overrides */
 #cy {
-	width: 100%;
-	height: 100%;
-	border-radius: 0.5rem;
-	background: #f8fafc;
+  width: 100%;
+  height: 100%;
+  border-radius: 0.5rem;
+  background: #f8fafc;
 }
 
 /* Chart.js overrides */
 .chart-container {
-	position: relative;
-	height: 300px;
-	width: 100%;
+  position: relative;
+  height: 300px;
+  width: 100%;
 }
 
 /* Custom animations */
 @keyframes shimmer {
-	0% {
-		background-position: -200px 0;
-	}
-	100% {
-		background-position: calc(200px + 100%) 0;
-	}
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
 }
 
 .shimmer {
-	background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-	background-size: 200px 100%;
-	animation: shimmer 1.5s infinite;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
 }
 
 /* Loading states */
 .loading {
-	@apply animate-pulse;
+  @apply animate-pulse;
 }
 
 /* Focus styles */
 .focus-ring {
-	@apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+  @apply focus:outline-none focus:ring-2 focus:ring-primary-500
+    focus:ring-offset-2;
 }
 
 /* Button variants */
 .btn {
-	@apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 focus-ring disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium
+    rounded-lg transition-colors duration-200 focus-ring disabled:opacity-50
+    disabled:cursor-not-allowed;
 }
 
 .btn-primary {
-	@apply btn bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800;
+  @apply btn bg-primary-600 text-white hover:bg-primary-700
+    active:bg-primary-800;
 }
 
 .btn-secondary {
-	@apply btn bg-gray-200 text-gray-900 hover:bg-gray-300 active:bg-gray-400;
+  @apply btn bg-gray-200 text-gray-900 hover:bg-gray-300 active:bg-gray-400;
 }
 
 .btn-danger {
-	@apply btn bg-red-600 text-white hover:bg-red-700 active:bg-red-800;
+  @apply btn bg-red-600 text-white hover:bg-red-700 active:bg-red-800;
 }
 
 .btn-success {
-	@apply btn bg-green-600 text-white hover:bg-green-700 active:bg-green-800;
+  @apply btn bg-green-600 text-white hover:bg-green-700 active:bg-green-800;
 }
 
 /* Card styles */
 .card {
-	@apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+  @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
 }
 
 .card-header {
-	@apply border-b border-gray-200 pb-4 mb-4;
+  @apply border-b border-gray-200 pb-4 mb-4;
 }
 
 /* Form styles */
 .form-group {
-	@apply space-y-2;
+  @apply space-y-2;
 }
 
 .form-label {
-	@apply block text-sm font-medium text-gray-700;
+  @apply block text-sm font-medium text-gray-700;
 }
 
 .form-input {
-	@apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus-ring sm:text-sm;
+  @apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm
+    focus-ring sm:text-sm;
 }
 
 .form-textarea {
-	@apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus-ring sm:text-sm resize-vertical;
+  @apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm
+    focus-ring sm:text-sm resize-vertical;
 }
 
 .form-select {
-	@apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus-ring sm:text-sm;
+  @apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm
+    focus-ring sm:text-sm;
 }
 
 /* Status indicators */
 .status-online {
-	@apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800;
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+    bg-green-100 text-green-800;
 }
 
 .status-offline {
-	@apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800;
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+    bg-red-100 text-red-800;
 }
 
 .status-warning {
-	@apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800;
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+    bg-yellow-100 text-yellow-800;
 }
 
 /* Toast notifications */
 .toast {
-	@apply fixed top-4 right-4 z-50 max-w-sm w-full bg-white shadow-lg rounded-lg border border-gray-200 p-4 transform transition-all duration-300;
+  @apply fixed top-4 right-4 z-50 max-w-sm w-full bg-white shadow-lg rounded-lg
+    border border-gray-200 p-4 transform transition-all duration-300;
 }
 
 .toast-success {
-	@apply toast border-green-200 bg-green-50;
+  @apply toast border-green-200 bg-green-50;
 }
 
 .toast-error {
-	@apply toast border-red-200 bg-red-50;
+  @apply toast border-red-200 bg-red-50;
 }
 
 .toast-warning {
-	@apply toast border-yellow-200 bg-yellow-50;
+  @apply toast border-yellow-200 bg-yellow-50;
 }
 
 .toast-info {
-	@apply toast border-blue-200 bg-blue-50;
+  @apply toast border-blue-200 bg-blue-50;
 }
 
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
-	.dark-mode {
-		@apply bg-gray-900 text-white;
-	}
+  .dark-mode {
+    @apply bg-gray-900 text-white;
+  }
 }
-
-

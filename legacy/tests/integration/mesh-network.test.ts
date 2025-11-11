@@ -84,7 +84,10 @@ meshTest("Mesh Network - Basic Connection and Sync", async () => {
     });
 
     dbB.connect(serverUrl);
-    await withTimeout(receivedData as Promise<unknown>, "Timed out waiting for initial mesh sync");
+    await withTimeout(
+      receivedData as Promise<unknown>,
+      "Timed out waiting for initial mesh sync",
+    );
 
     // Verify data was received
     const syncedData = await dbB.get("mesh:test");
@@ -280,7 +283,10 @@ meshTest("Mesh Network - Connection Error Handling", async () => {
   const db = new GunDB();
 
   try {
-    const kvPath = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
+    const kvPath = await Deno.makeTempFile({
+      prefix: "kv_",
+      suffix: ".sqlite",
+    });
     await db.ready(kvPath);
 
     // Try to connect to non-existent server
@@ -295,4 +301,3 @@ meshTest("Mesh Network - Connection Error Handling", async () => {
     await db.close();
   }
 });
-

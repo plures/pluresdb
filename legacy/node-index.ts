@@ -4,12 +4,16 @@
  */
 
 import { EventEmitter } from "node:events";
-import { spawn, ChildProcess } from "node:child_process";
+import { ChildProcess, spawn } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import process from "node:process";
-import { MessageChannel, Worker, receiveMessageOnPort } from "node:worker_threads";
+import {
+  MessageChannel,
+  receiveMessageOnPort,
+  Worker,
+} from "node:worker_threads";
 import {
   BetterSQLite3Options,
   BetterSQLite3RunResult,
@@ -26,9 +30,9 @@ import {
   splitSqlStatements,
 } from "./better-sqlite3-shared";
 
-const packageRoot =
-  typeof __dirname !== "undefined" ? path.resolve(__dirname, "..") : process.cwd();
-
+const packageRoot = typeof __dirname !== "undefined"
+  ? path.resolve(__dirname, "..")
+  : process.cwd();
 
 export class PluresNode extends EventEmitter {
   private process: ChildProcess | null = null;
@@ -78,12 +82,16 @@ export class PluresNode extends EventEmitter {
       }
     }
 
-    throw new Error("Deno not found. Please install Deno from https://deno.land/");
+    throw new Error(
+      "Deno not found. Please install Deno from https://deno.land/",
+    );
   }
 
   private isCommandAvailable(command: string): boolean {
     try {
-      require("child_process").execSync(`"${command}" --version`, { stdio: "ignore" });
+      require("child_process").execSync(`"${command}" --version`, {
+        stdio: "ignore",
+      });
       return true;
     } catch {
       return false;
@@ -254,7 +262,9 @@ export class PluresNode extends EventEmitter {
   }
 
   async get(key: string): Promise<any> {
-    const response = await fetch(`${this.apiUrl}/api/data/${encodeURIComponent(key)}`);
+    const response = await fetch(
+      `${this.apiUrl}/api/data/${encodeURIComponent(key)}`,
+    );
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -267,9 +277,12 @@ export class PluresNode extends EventEmitter {
   }
 
   async delete(key: string): Promise<void> {
-    const response = await fetch(`${this.apiUrl}/api/data/${encodeURIComponent(key)}`, {
-      method: "DELETE",
-    });
+    const response = await fetch(
+      `${this.apiUrl}/api/data/${encodeURIComponent(key)}`,
+      {
+        method: "DELETE",
+      },
+    );
 
     if (!response.ok) {
       throw new Error(`Delete failed: ${response.statusText}`);
@@ -402,7 +415,10 @@ export class BetterSQLite3Statement {
   private expandMode = false;
   readonly reader: boolean;
 
-  constructor(private readonly database: BetterSQLite3Database, private readonly sql: string) {
+  constructor(
+    private readonly database: BetterSQLite3Database,
+    private readonly sql: string,
+  ) {
     this.reader = /^\s*select/i.test(sql);
   }
 
@@ -446,11 +462,15 @@ export class BetterSQLite3Statement {
   }
 
   async run(...params: unknown[]): Promise<BetterSQLite3RunResult> {
-    const result = await this.database.executeStatement(this.sql, this.resolveParams(params));
+    const result = await this.database.executeStatement(
+      this.sql,
+      this.resolveParams(params),
+    );
     return {
       changes: typeof result.changes === "number" ? result.changes : 0,
-      lastInsertRowid:
-        typeof result.lastInsertRowId === "number" ? result.lastInsertRowId : null,
+      lastInsertRowid: typeof result.lastInsertRowId === "number"
+        ? result.lastInsertRowId
+        : null,
       columns: result.columns,
     };
   }
@@ -472,7 +492,10 @@ export class BetterSQLite3Statement {
   }
 
   async columns(): Promise<string[]> {
-    const result = await this.database.executeStatement(this.sql, this.boundParams ?? []);
+    const result = await this.database.executeStatement(
+      this.sql,
+      this.boundParams ?? [],
+    );
     return result.columns ?? [];
   }
 
@@ -485,7 +508,10 @@ export class BetterSQLite3Statement {
   }
 
   private async fetchRows(params: unknown[]): Promise<unknown[]> {
-    const result = await this.database.executeStatement(this.sql, this.resolveParams(params));
+    const result = await this.database.executeStatement(
+      this.sql,
+      this.resolveParams(params),
+    );
     return this.transformRows(result);
   }
 
@@ -495,7 +521,7 @@ export class BetterSQLite3Statement {
         raw: this.rawMode,
         pluck: this.pluckMode,
         expand: this.expandMode,
-      }),
+      })
     );
   }
 }
@@ -508,8 +534,14 @@ export class BetterSQLite3Database {
   private openPromise: Promise<void> | null = null;
   private opened = false;
 
-  constructor(filenameOrOptions?: string | BetterSQLite3Options, maybeOptions?: BetterSQLite3Options) {
-    const { filename, options } = this.resolveOptions(filenameOrOptions, maybeOptions);
+  constructor(
+    filenameOrOptions?: string | BetterSQLite3Options,
+    maybeOptions?: BetterSQLite3Options,
+  ) {
+    const { filename, options } = this.resolveOptions(
+      filenameOrOptions,
+      maybeOptions,
+    );
     this.filename = filename;
     this.options = options;
     this.verbose = options.verbose;
@@ -519,7 +551,9 @@ export class BetterSQLite3Database {
       const baseDir = options.memory
         ? path.join(os.tmpdir(), "pluresdb", "better-sqlite3-memory")
         : path.join(os.homedir(), ".pluresdb", "better-sqlite3");
-      const safeName = sanitizeDataDirName(filename === ":memory:" ? "memory" : filename);
+      const safeName = sanitizeDataDirName(
+        filename === ":memory:" ? "memory" : filename,
+      );
       config.dataDir = path.join(baseDir, safeName);
     }
 
@@ -558,7 +592,9 @@ export class BetterSQLite3Database {
 
   prepare(sql: string): BetterSQLite3Statement {
     if (!this.opened) {
-      throw new Error("Database is not open. Call await db.open() before preparing statements.");
+      throw new Error(
+        "Database is not open. Call await db.open() before preparing statements.",
+      );
     }
     return new BetterSQLite3Statement(this, sql);
   }
@@ -589,7 +625,9 @@ export class BetterSQLite3Database {
   }
 
   async pragma(statement: string): Promise<unknown[]> {
-    const sql = /^\s*pragma/i.test(statement) ? statement : `PRAGMA ${statement}`;
+    const sql = /^\s*pragma/i.test(statement)
+      ? statement
+      : `PRAGMA ${statement}`;
     const result = await this.executeStatement(sql, []);
     return result.rows;
   }
@@ -618,7 +656,9 @@ export class BetterSQLite3Database {
         await this.plures.start();
         this.opened = true;
         if (this.verbose) {
-          this.verbose(`PluresDB ready for better-sqlite3 compatibility (${this.filename})`);
+          this.verbose(
+            `PluresDB ready for better-sqlite3 compatibility (${this.filename})`,
+          );
         }
       })();
     }
@@ -645,4 +685,7 @@ export class BetterSQLite3Database {
 // Export the main class and types
 export { PluresNode as default };
 export * from "./types/node-types";
-export { PluresVSCodeExtension, createPluresExtension } from "./vscode/extension";
+export {
+  createPluresExtension,
+  PluresVSCodeExtension,
+} from "./vscode/extension";

@@ -17,7 +17,7 @@ export default [
       "packaging/**",
       "demo/**",
       "coverage/**",
-  "scripts/**",
+      "scripts/**",
       "scripts/run-tests.ts",
       "legacy/tests/**",
       "legacy/core/**",

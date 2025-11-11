@@ -96,7 +96,10 @@ export class Database {
     }
   }
 
-  async run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
+  async run(
+    sql: string,
+    params: any[] = [],
+  ): Promise<{ lastID: number; changes: number }> {
     if (!this.isOpen) {
       throw new Error("Database is not open");
     }
@@ -137,7 +140,11 @@ export class Database {
     }
   }
 
-  async each(sql: string, params: any[] = [], callback: (row: any) => void): Promise<number> {
+  async each(
+    sql: string,
+    params: any[] = [],
+    callback: (row: any) => void,
+  ): Promise<number> {
     if (!this.isOpen) {
       throw new Error("Database is not open");
     }
@@ -190,7 +197,9 @@ export class Database {
     return statements.map((statement) => ({ sql: statement }));
   }
 
-  private async executeStatement(statement: { sql: string; params?: any[] }): Promise<any> {
+  private async executeStatement(
+    statement: { sql: string; params?: any[] },
+  ): Promise<any> {
     const sql = statement.sql.toLowerCase().trim();
 
     if (sql.startsWith("create table")) {
@@ -203,7 +212,10 @@ export class Database {
       return await this.update(statement.sql, statement.params || []);
     } else if (sql.startsWith("delete")) {
       return await this.delete(statement.sql, statement.params || []);
-    } else if (sql.startsWith("begin") || sql.startsWith("commit") || sql.startsWith("rollback")) {
+    } else if (
+      sql.startsWith("begin") || sql.startsWith("commit") ||
+      sql.startsWith("rollback")
+    ) {
       // Transaction commands - handled by transaction method
       return { changes: 0 };
     } else {
@@ -223,7 +235,9 @@ export class Database {
 
   private async createTable(sql: string): Promise<void> {
     // Extract table name and columns from CREATE TABLE statement
-    const tableMatch = sql.match(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(\w+)\s*\(([^)]+)\)/i);
+    const tableMatch = sql.match(
+      /CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(\w+)\s*\(([^)]+)\)/i,
+    );
     if (!tableMatch) {
       throw new Error(`Invalid CREATE TABLE statement: ${sql}`);
     }
@@ -265,7 +279,10 @@ export class Database {
     }
   }
 
-  private async insert(sql: string, params: any[]): Promise<{ lastID: number; changes: number }> {
+  private async insert(
+    sql: string,
+    params: any[],
+  ): Promise<{ lastID: number; changes: number }> {
     const insertMatch = sql.match(
       /INSERT\s+(?:INTO\s+)?(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i,
     );
@@ -295,7 +312,9 @@ export class Database {
     });
 
     // Generate unique ID
-    const id = `${tableName}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+    const id = `${tableName}:${Date.now()}:${
+      Math.random().toString(36).substr(2, 9)
+    }`;
     row.id = id;
     row.created_at = new Date().toISOString();
 
@@ -309,8 +328,13 @@ export class Database {
     return { lastID: 0, changes: 1 };
   }
 
-  private async update(sql: string, params: any[]): Promise<{ changes: number }> {
-    const updateMatch = sql.match(/UPDATE\s+(\w+)\s+SET\s+([^WHERE]+)(?:\s+WHERE\s+(.+))?/i);
+  private async update(
+    sql: string,
+    params: any[],
+  ): Promise<{ changes: number }> {
+    const updateMatch = sql.match(
+      /UPDATE\s+(\w+)\s+SET\s+([^WHERE]+)(?:\s+WHERE\s+(.+))?/i,
+    );
     if (!updateMatch) {
       throw new Error(`Invalid UPDATE statement: ${sql}`);
     }
@@ -342,13 +366,21 @@ export class Database {
       if (whereClause) {
         // Simple WHERE clause evaluation (basic implementation)
         if (this.evaluateWhereClause(row, whereClause, params)) {
-          const updatedRow = { ...row, ...updates, updated_at: new Date().toISOString() };
+          const updatedRow = {
+            ...row,
+            ...updates,
+            updated_at: new Date().toISOString(),
+          };
           await this.plures.put(getRowId(row), updatedRow);
           changes++;
         }
       } else {
         // Update all rows
-        const updatedRow = { ...row, ...updates, updated_at: new Date().toISOString() };
+        const updatedRow = {
+          ...row,
+          ...updates,
+          updated_at: new Date().toISOString(),
+        };
         await this.plures.put(getRowId(row), updatedRow);
         changes++;
       }
@@ -361,7 +393,10 @@ export class Database {
     return { changes };
   }
 
-  private async delete(sql: string, params: any[]): Promise<{ changes: number }> {
+  private async delete(
+    sql: string,
+    params: any[],
+  ): Promise<{ changes: number }> {
     const deleteMatch = sql.match(/DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?/i);
     if (!deleteMatch) {
       throw new Error(`Invalid DELETE statement: ${sql}`);
@@ -415,7 +450,9 @@ export class Database {
 
     // Apply WHERE clause
     if (whereClause) {
-      results = results.filter((row) => this.evaluateWhereClause(row, whereClause, params));
+      results = results.filter((row) =>
+        this.evaluateWhereClause(row, whereClause, params)
+      );
     }
 
     // Apply ORDER BY
@@ -449,7 +486,11 @@ export class Database {
     return results;
   }
 
-  private evaluateWhereClause(row: RowRecord, whereClause: string, params: any[]): boolean {
+  private evaluateWhereClause(
+    row: RowRecord,
+    whereClause: string,
+    params: any[],
+  ): boolean {
     // Simple WHERE clause evaluation
     // This is a basic implementation - in production, you'd want a proper SQL parser
 
@@ -504,7 +545,10 @@ function compareValues(a: unknown, b: unknown, desc = false): number {
     if (typeof value === "string") {
       return value;
     }
-    if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    if (
+      typeof value === "number" || typeof value === "boolean" ||
+      typeof value === "bigint"
+    ) {
       return value.toString();
     }
     try {
@@ -545,7 +589,10 @@ export class PreparedStatement {
     return await this.db.all(this.sql, params);
   }
 
-  async each(params: any[] = [], callback: (row: any) => void): Promise<number> {
+  async each(
+    params: any[] = [],
+    callback: (row: any) => void,
+  ): Promise<number> {
     return await this.db.each(this.sql, params, callback);
   }
 

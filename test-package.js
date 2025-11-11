@@ -43,7 +43,10 @@ function testPackage() {
     console.log("4. Testing event emitter...");
     plures.on("started", () => console.log("   Event: started"));
     plures.on("stopped", () => console.log("   Event: stopped"));
-    plures.on("error", (error) => console.log("   Event: error", error.message));
+    plures.on(
+      "error",
+      (error) => console.log("   Event: error", error.message),
+    );
     console.log("✅ Event emitter working");
 
     console.log("\n🎉 All tests passed! The npm package is working correctly.");

@@ -1,5 +1,9 @@
 // @ts-nocheck
-import { assertEquals, assertExists, assertRejects } from "jsr:@std/assert@1.0.14";
+import {
+  assertEquals,
+  assertExists,
+  assertRejects,
+} from "jsr:@std/assert@1.0.14";
 import { GunDB } from "../../core/database.ts";
 import { mergeNodes } from "../../core/crdt.ts";
 import type { NodeRecord } from "../../types/index.ts";
@@ -104,7 +108,9 @@ Deno.test("Core Database - Vector Search", async () => {
     await db.ready(kvPath);
 
     // Add documents with text content
-    await db.put("doc:1", { text: "Machine learning and artificial intelligence" });
+    await db.put("doc:1", {
+      text: "Machine learning and artificial intelligence",
+    });
     await db.put("doc:2", { text: "Cooking recipes and food preparation" });
     await db.put("doc:3", { text: "Deep learning neural networks" });
 
@@ -184,7 +190,11 @@ Deno.test("Core Database - Error Handling", async () => {
   const db = new GunDB();
 
   // Test operations before ready
-  await assertRejects(() => db.put("test", { value: 1 }), Error, "Database not ready");
+  await assertRejects(
+    () => db.put("test", { value: 1 }),
+    Error,
+    "Database not ready",
+  );
 
   await assertRejects(() => db.get("test"), Error, "Database not ready");
 
@@ -214,4 +224,3 @@ Deno.test("Core Database - Persistence Across Restarts", async () => {
   assertEquals(got.value, 123);
   assertEquals(got.text, "persistent data");
 });
-

@@ -238,10 +238,10 @@ END;
 
 This demo **proves** that PluresDB is:
 
-✅ **A complete SQLite replacement** with 95% compatibility  
-✅ **A modern P2P database** with real-time sync  
-✅ **An offline-first platform** for distributed apps  
-✅ **An enterprise-grade solution** with security and billing  
+✅ **A complete SQLite replacement** with 95% compatibility\
+✅ **A modern P2P database** with real-time sync\
+✅ **An offline-first platform** for distributed apps\
+✅ **An enterprise-grade solution** with security and billing\
 ✅ **A future-proof foundation** for modern applications
 
 **PluresDB = SQLite + P2P + Offline + Modern + Enterprise**

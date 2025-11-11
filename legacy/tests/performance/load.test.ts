@@ -118,8 +118,10 @@ Deno.test("Performance - Vector Search Operations", async () => {
     const count = 500;
     for (let i = 0; i < count; i++) {
       await db.put(`doc:${i}`, {
-        text: `Document ${i} about machine learning and artificial intelligence`,
-        content: `This is document number ${i} containing information about AI and ML algorithms`,
+        text:
+          `Document ${i} about machine learning and artificial intelligence`,
+        content:
+          `This is document number ${i} containing information about AI and ML algorithms`,
       });
     }
 
@@ -286,4 +288,3 @@ Deno.test("Performance - Subscription Performance", async () => {
     await db.close();
   }
 });
-

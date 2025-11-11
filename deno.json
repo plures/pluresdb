@@ -7,7 +7,13 @@
     "./main": "./legacy/main.ts"
   },
   "publish": {
-    "include": ["mod.ts", "legacy/**/*.ts", "docs/**/*.md", "README.md", "LICENSE"],
+    "include": [
+      "mod.ts",
+      "legacy/**/*.ts",
+      "docs/**/*.md",
+      "README.md",
+      "LICENSE"
+    ],
     "exclude": [
       "legacy/node-index.ts",
       "legacy/node-wrapper.ts",
@@ -57,10 +63,31 @@
     "proseWrap": "preserve"
   },
   "lint": {
+    "include": ["legacy/**/*.ts", "mod.ts", "scripts/**/*.ts"],
+    "exclude": [
+      "legacy/tests/**/*",
+      "legacy/node-index.ts",
+      "legacy/node-wrapper.ts",
+      "legacy/cli.ts",
+      "dist/**/*",
+      "node_modules/**/*",
+      "examples/**/*",
+      "demo/**/*",
+      "rusty-gun/**/*",
+      "web/**/*",
+      "packaging/**/*",
+      "installer/**/*",
+      "crates/**/*",
+      "tests/**/*",
+      "scripts/postinstall.js"
+    ],
     "rules": {
       "tags": ["recommended"],
-      "include": ["legacy/**/*.ts"],
-      "exclude": ["legacy/tests/fixtures/**/*", "dist/**/*"]
+      "exclude": [
+        "no-explicit-any",
+        "require-await",
+        "ban-ts-comment"
+      ]
     }
   }
 }

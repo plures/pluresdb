@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { assertEquals, assertExists } from "jsr:@std/assert@1.0.14";
 import { GunDB } from "../../core/database.ts";
-import { startApiServer, type ApiServerHandle } from "../../http/api-server.ts";
+import { type ApiServerHandle, startApiServer } from "../../http/api-server.ts";
 
 function randomPort(): number {
   return 18000 + Math.floor(Math.random() * 10000);
@@ -88,8 +88,8 @@ Deno.test("API Server - Vector Search Endpoint", async () => {
       }),
     });
 
-  assertEquals(searchResponse.status, 200);
-  const results = await searchResponse.json();
+    assertEquals(searchResponse.status, 200);
+    const results = await searchResponse.json();
     assertExists(results);
     assertEquals(Array.isArray(results), true);
   } finally {
@@ -119,7 +119,10 @@ Deno.test("API Server - WebSocket Connection", async () => {
     const ws = new WebSocket(wsUrl);
 
     const connectionPromise = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("Connection timeout")), 5000);
+      const timer = setTimeout(
+        () => reject(new Error("Connection timeout")),
+        5000,
+      );
       ws.onopen = () => {
         clearTimeout(timer);
         resolve(true);
@@ -221,13 +224,12 @@ Deno.test("API Server - CORS Headers", async () => {
       },
     });
 
-  assertEquals(optionsResponse.status, 200);
-  assertExists(optionsResponse.headers.get("Access-Control-Allow-Origin"));
-  assertExists(optionsResponse.headers.get("Access-Control-Allow-Methods"));
-  await optionsResponse.body?.cancel();
+    assertEquals(optionsResponse.status, 200);
+    assertExists(optionsResponse.headers.get("Access-Control-Allow-Origin"));
+    assertExists(optionsResponse.headers.get("Access-Control-Allow-Methods"));
+    await optionsResponse.body?.cancel();
   } finally {
     api?.close();
     await db.close();
   }
 });
-

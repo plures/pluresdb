@@ -141,6 +141,7 @@ irm https://raw.githubusercontent.com/plures/pluresdb/main/install.ps1 | iex
 ```
 
 The script will:
+
 - Try to install via winget (if available)
 - Try to install via Chocolatey (if available)
 - Try to install via Scoop (if available)
@@ -224,7 +225,8 @@ start http://localhost:34568
 
 **Problem**: `deno compile` may fail with SSL certificate errors in some environments.
 
-**Workaround**: 
+**Workaround**:
+
 - Build on actual Windows machine instead of Linux
 - Or use `--cert` flag with proper certificates
 - Or use pre-built binaries once available
@@ -234,6 +236,7 @@ start http://localhost:34568
 **Problem**: Ports 34567 or 34568 are already in use.
 
 **Workaround**:
+
 ```powershell
 # Use different ports
 pluresdb serve --port 8080 --web-port 8081
@@ -244,6 +247,7 @@ pluresdb serve --port 8080 --web-port 8081
 **Problem**: Windows Firewall blocks connections.
 
 **Workaround**:
+
 ```powershell
 # Add firewall rule (run as Administrator)
 netsh advfirewall firewall add rule name="PluresDB" `
@@ -255,6 +259,7 @@ netsh advfirewall firewall add rule name="PluresDB" `
 **Problem**: Database doesn't save between restarts.
 
 **Workaround**:
+
 ```powershell
 # Specify data directory explicitly
 pluresdb serve --data-dir %USERPROFILE%\.pluresdb\data
@@ -314,6 +319,6 @@ PluresDB is licensed under AGPL-3.0. See LICENSE file for details.
 
 ---
 
-**Version**: 1.0.1  
-**Status**: MVP - Core functionality complete, installer testing in progress  
+**Version**: 1.0.1\
+**Status**: MVP - Core functionality complete, installer testing in progress\
 **Last Updated**: November 6, 2025

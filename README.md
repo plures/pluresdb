@@ -81,7 +81,10 @@ await sqlite.exec(`
 `);
 
 // Insert data
-await sqlite.run("INSERT INTO users (name, email) VALUES (?, ?)", ["John", "john@example.com"]);
+await sqlite.run("INSERT INTO users (name, email) VALUES (?, ?)", [
+  "John",
+  "john@example.com",
+]);
 
 // Query data
 const users = await sqlite.all("SELECT * FROM users");
@@ -241,7 +244,9 @@ The Node package now ships a compatibility layer that mirrors its familiar
 import Database from "pluresdb/better-sqlite3";
 
 const db = await new Database("./data.db", { autoStart: true }).open();
-await db.exec("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)");
+await db.exec(
+  "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)",
+);
 
 const insert = db.prepare("INSERT INTO users (name) VALUES (?)");
 await insert.run("Ada Lovelace");

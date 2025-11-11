@@ -56,7 +56,9 @@ export class KvStorage {
 
   async *listNodeHistory(id: string): AsyncIterable<NodeRecord> {
     const kv = this.ensureKv();
-    for await (const entry of kv.list<NodeRecord>({ prefix: ["history", id] })) {
+    for await (
+      const entry of kv.list<NodeRecord>({ prefix: ["history", id] })
+    ) {
       if (entry.value) yield entry.value;
     }
   }

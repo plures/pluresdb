@@ -58,7 +58,10 @@ function createHarness(storageDir: string): TestHarness {
         return inputQueue.shift();
       },
       async showTextDocument(doc: unknown) {
-        if (typeof doc === "object" && doc && "content" in doc && "language" in doc) {
+        if (
+          typeof doc === "object" && doc && "content" in doc &&
+          "language" in doc
+        ) {
           const record = doc as RecordedDocument;
           docs.push({ content: record.content, language: record.language });
         }
@@ -72,7 +75,9 @@ function createHarness(storageDir: string): TestHarness {
     },
     env: {
       async openExternal(target) {
-        shownTargets.push(typeof target === "string" ? target : target.toString());
+        shownTargets.push(
+          typeof target === "string" ? target : target.toString(),
+        );
       },
     },
     Uri: {
@@ -107,7 +112,11 @@ async function getFreePort(): Promise<number> {
   return port;
 }
 
-async function waitFor(predicate: () => Promise<boolean>, timeout = 10_000, interval = 200) {
+async function waitFor(
+  predicate: () => Promise<boolean>,
+  timeout = 10_000,
+  interval = 200,
+) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     if (await predicate()) return;
@@ -126,7 +135,8 @@ async function removeDirWithRetry(target: string) {
       await Deno.remove(target, { recursive: true });
       return;
     } catch (error) {
-      const retryable = error instanceof Error && /used by another process/i.test(error.message);
+      const retryable = error instanceof Error &&
+        /used by another process/i.test(error.message);
       if (!retryable || i === delays.length - 1) {
         throw error;
       }
@@ -198,17 +208,28 @@ Deno.test("VSCode integration dogfood workflow", async () => {
     if (!schemaDoc) {
       throw new Error("Expected schema document to open");
     }
-    const schemaRows = JSON.parse(schemaDoc.content) as Array<Record<string, unknown>>;
+    const schemaRows = JSON.parse(schemaDoc.content) as Array<
+      Record<string, unknown>
+    >;
     const columnNames = schemaRows.map((row) => String(row.name));
-    assert(columnNames.includes("key"), "Settings table should expose key column");
+    assert(
+      columnNames.includes("key"),
+      "Settings table should expose key column",
+    );
 
-    harness.queueInputs("user:alpha", '{"name":"Ada","vector":[0.2,0.1,0.3,0.4],"role":"builder"}');
+    harness.queueInputs(
+      "user:alpha",
+      '{"name":"Ada","vector":[0.2,0.1,0.3,0.4],"role":"builder"}',
+    );
     const storeCommand = harness.commands.get("pluresdb.storeData");
     if (!storeCommand) {
       throw new Error("storeData command should be registered");
     }
     await storeCommand();
-    assertMatch(harness.messages.at(-1)?.text ?? "", /Stored data for key: user:alpha/);
+    assertMatch(
+      harness.messages.at(-1)?.text ?? "",
+      /Stored data for key: user:alpha/,
+    );
 
     harness.queueInputs("user:alpha");
     const retrieveCommand = harness.commands.get("pluresdb.retrieveData");
@@ -233,8 +254,13 @@ Deno.test("VSCode integration dogfood workflow", async () => {
     if (!vectorDoc) {
       throw new Error("Expected vector search document to open");
     }
-    const vectorResults = JSON.parse(vectorDoc.content) as Array<Record<string, unknown>>;
-    assert(vectorResults.length > 0, "Vector search should return at least one result");
+    const vectorResults = JSON.parse(vectorDoc.content) as Array<
+      Record<string, unknown>
+    >;
+    assert(
+      vectorResults.length > 0,
+      "Vector search should return at least one result",
+    );
 
     const settingsRows = await extension.executeSQL(
       "SELECT name FROM pragma_table_info('documents')",
@@ -246,7 +272,9 @@ Deno.test("VSCode integration dogfood workflow", async () => {
       await removeDirWithRetry(storageDir);
     } catch (error) {
       console.warn(
-        `⚠️  Failed to remove temp dir: ${error instanceof Error ? error.message : String(error)}`,
+        `⚠️  Failed to remove temp dir: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
   }
