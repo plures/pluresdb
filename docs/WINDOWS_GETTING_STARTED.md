@@ -60,6 +60,7 @@ pluresdb serve --port 34567 --data-dir C:\MyData\pluresdb
 ```
 
 You'll see:
+
 ```
 PluresDB server starting...
 ✓ API server listening on http://localhost:34567
@@ -70,11 +71,13 @@ PluresDB server starting...
 ### 2. Access the Web UI
 
 Open your web browser and navigate to:
+
 ```
 http://localhost:34568
 ```
 
 The web UI provides:
+
 - **Data Explorer**: Browse and edit your data visually
 - **Graph View**: See relationships between your notes
 - **Search**: Full-text and semantic search across all data
@@ -84,6 +87,7 @@ The web UI provides:
 ### 3. Create Your First Note
 
 Using the Web UI:
+
 1. Click "New Node" in the explorer
 2. Add content:
    ```json
@@ -98,6 +102,7 @@ Using the Web UI:
 3. Click "Save"
 
 Using the CLI:
+
 ```powershell
 # Create a new note
 pluresdb put note:1 '{
@@ -302,12 +307,12 @@ const sqlite = new SQLiteCompatibleAPI();
 // Create a note
 await sqlite.run(
   "INSERT INTO nodes (id, data) VALUES (?, ?)",
-  ["note:1", JSON.stringify({ title: "My Note" })]
+  ["note:1", JSON.stringify({ title: "My Note" })],
 );
 
 // Query notes
 const notes = await sqlite.all(
-  "SELECT * FROM nodes WHERE json_extract(data, '$.type') = 'note'"
+  "SELECT * FROM nodes WHERE json_extract(data, '$.type') = 'note'",
 );
 ```
 
@@ -397,6 +402,7 @@ The MSI installer creates a desktop shortcut automatically. For manual setup:
 ### Browser Integration
 
 Add to browser favorites:
+
 - **Web UI**: http://localhost:34568
 - **API Docs**: http://localhost:34567/docs
 

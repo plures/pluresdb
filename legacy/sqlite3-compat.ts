@@ -27,7 +27,7 @@ export class Database extends PluresDBDatabase {
     }
   }
 
-  configure(option: string, value: any): void {
+  configure(_option: string, _value: any): void {
     // No-op for compatibility
   }
 

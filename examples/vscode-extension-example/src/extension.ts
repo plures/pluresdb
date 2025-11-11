@@ -28,9 +28,12 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
   // Register commands
-  const helloWorldCommand = vscode.commands.registerCommand("pluresdb-example.helloWorld", () => {
-    vscode.window.showInformationMessage("Hello World from PluresDB!");
-  });
+  const helloWorldCommand = vscode.commands.registerCommand(
+    "pluresdb-example.helloWorld",
+    () => {
+      vscode.window.showInformationMessage("Hello World from PluresDB!");
+    },
+  );
 
   const storeDataCommand = vscode.commands.registerCommand(
     "pluresdb-example.storeData",
@@ -53,7 +56,9 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage(`Stored data for key: ${key}`);
           } catch (error) {
             vscode.window.showErrorMessage(
-              `Failed to store data: ${error instanceof Error ? error.message : String(error)}`,
+              `Failed to store data: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
             );
           }
         }
@@ -83,7 +88,9 @@ export function activate(context: vscode.ExtensionContext) {
           }
         } catch (error) {
           vscode.window.showErrorMessage(
-            `Failed to retrieve data: ${error instanceof Error ? error.message : String(error)}`,
+            `Failed to retrieve data: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
           );
         }
       }
@@ -108,7 +115,9 @@ export function activate(context: vscode.ExtensionContext) {
           await vscode.window.showTextDocument(doc);
         } catch (error) {
           vscode.window.showErrorMessage(
-            `Search failed: ${error instanceof Error ? error.message : String(error)}`,
+            `Search failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
           );
         }
       }

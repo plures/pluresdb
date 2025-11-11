@@ -32,7 +32,9 @@ async function checkApiHealth(): Promise<boolean> {
     });
 
     if (!response.ok) {
-      console.error(`API health check failed: ${response.status} ${response.statusText}`);
+      console.error(
+        `API health check failed: ${response.status} ${response.statusText}`,
+      );
       return false;
     }
 
@@ -49,19 +51,23 @@ async function checkWebHealth(): Promise<boolean> {
     const response = await fetch(`http://${HOST}:${WEB_PORT}/`, {
       method: "GET",
       headers: {
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "User-Agent": "pluresdb-healthcheck/1.0.0",
       },
       signal: AbortSignal.timeout(5000), // 5 second timeout
     });
 
     if (!response.ok) {
-      console.error(`Web health check failed: ${response.status} ${response.statusText}`);
+      console.error(
+        `Web health check failed: ${response.status} ${response.statusText}`,
+      );
       return false;
     }
 
     const contentType = response.headers.get("content-type");
-    return contentType?.includes("text/html") || contentType?.includes("application/json");
+    return contentType?.includes("text/html") ||
+      contentType?.includes("application/json");
   } catch (error) {
     console.error(`Web health check error: ${error.message}`);
     return false;
@@ -109,7 +115,7 @@ async function main(): Promise<void> {
   const uptime = Date.now() - startTime;
   const allHealthy = apiHealthy && webHealthy && dbHealthy;
 
-  const healthStatus: HealthStatus = {
+  const _healthStatus: HealthStatus = {
     status: allHealthy ? "healthy" : "unhealthy",
     checks: {
       api: apiHealthy,

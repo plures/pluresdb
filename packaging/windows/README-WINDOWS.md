@@ -24,6 +24,7 @@ Double-click `start.bat` or open PowerShell and run:
 ```
 
 You'll see:
+
 ```
 ✓ PluresDB server started
 ✓ Web UI: http://localhost:34568
@@ -33,6 +34,7 @@ You'll see:
 ### Step 2: Open the Web Interface
 
 Open your web browser and go to:
+
 ```
 http://localhost:34568
 ```
@@ -40,7 +42,8 @@ http://localhost:34568
 ### Step 3: Create Your First Note
 
 In the Web UI:
-1. Click "New Node" 
+
+1. Click "New Node"
 2. Type your note content
 3. Click "Save"
 
@@ -49,24 +52,31 @@ That's it! You're ready to use PluresDB.
 ## 📚 What Can I Do With It?
 
 ### Personal Knowledge Base
+
 Store all your notes, documents, and organize your knowledge with powerful search and relationships.
 
 ### Task & Project Management
+
 Track your tasks, projects, and to-dos with custom fields and relationships.
 
 ### Research Database
+
 Collect articles, papers, and research with automatic metadata and smart search.
 
 ### Digital Journal
+
 Maintain a daily journal with tags, mood tracking, and full-text search.
 
 ### Bookmark Manager
+
 Save and organize web links with tags, categories, and AI-powered recommendations.
 
 ### Contact Database
+
 Store contact information with relationships and custom fields.
 
 ### Recipe Collection
+
 Store recipes with searchable ingredients and custom ratings.
 
 ## 💡 Common Use Cases
@@ -111,18 +121,22 @@ Store recipes with searchable ingredients and custom ratings.
 ## 🔍 Searching Your Data
 
 ### Web UI Search
+
 1. Go to the "Search" tab
 2. Type your query
 3. Filter by type, date, tags
 4. Click any result to view/edit
 
 ### Semantic Search
+
 Find notes by meaning, not just keywords:
+
 1. Go to "Vector Search" tab
 2. Type what you're looking for
 3. PluresDB finds semantically similar content
 
 ### CLI Search
+
 ```powershell
 # Search from command line
 .\pluresdb.exe search "my query"
@@ -169,6 +183,7 @@ sc.exe start PluresDB
 ### Automatic Backups
 
 Configure in `config.json`:
+
 ```json
 {
   "autoBackup": true,
@@ -228,6 +243,7 @@ Create a shortcut to `pluresdb.exe serve` for easy access.
 **Problem**: Port already in use
 
 **Solution**:
+
 ```powershell
 # Use different port
 .\pluresdb.exe serve --port 8080
@@ -238,6 +254,7 @@ Create a shortcut to `pluresdb.exe serve` for easy access.
 **Problem**: Browser can't connect
 
 **Solution**:
+
 1. Check server is running
 2. Try `http://127.0.0.1:34568` instead of `localhost`
 3. Check Windows Firewall settings
@@ -247,6 +264,7 @@ Create a shortcut to `pluresdb.exe serve` for easy access.
 **Problem**: Changes disappear after restart
 
 **Solution**:
+
 ```powershell
 # Specify data directory
 .\pluresdb.exe serve --data-dir "%USERPROFILE%\.pluresdb\data"
@@ -255,6 +273,7 @@ Create a shortcut to `pluresdb.exe serve` for easy access.
 ### Slow Performance
 
 **Solution**:
+
 ```powershell
 # Optimize database
 .\pluresdb.exe vacuum
@@ -266,11 +285,13 @@ Create a shortcut to `pluresdb.exe serve` for easy access.
 ## 📖 Learn More
 
 ### Documentation
+
 - Full documentation: `docs/` folder
 - API reference: `docs/API.md`
 - Examples: `examples/` folder
 
 ### Online Resources
+
 - Website: https://github.com/plures/pluresdb
 - Documentation: https://github.com/plures/pluresdb/wiki
 - Issues & Support: https://github.com/plures/pluresdb/issues
@@ -321,18 +342,23 @@ Create a shortcut to `pluresdb.exe serve` for easy access.
 ## 📝 Tips & Tricks
 
 ### Tip 1: Use Tags Liberally
+
 Tags make it easy to find related items later.
 
 ### Tip 2: Leverage Vector Search
+
 Use semantic search to find notes even when you don't remember exact keywords.
 
 ### Tip 3: Regular Backups
+
 Set up automatic backups to protect your data.
 
 ### Tip 4: Customize Your Types
+
 Create custom types that match your workflow.
 
 ### Tip 5: Use the Graph View
+
 Visualize relationships between your notes.
 
 ## 🌟 Pro Tips
@@ -362,8 +388,8 @@ PluresDB is now ready for you to use. Start by creating some notes and exploring
 
 ---
 
-**Version**: 1.0.1  
-**License**: AGPL-3.0  
+**Version**: 1.0.1\
+**License**: AGPL-3.0\
 **Support**: https://github.com/plures/pluresdb/issues
 
 Thank you for using PluresDB! 🚀

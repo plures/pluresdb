@@ -24,7 +24,11 @@ Deno.test("put and get returns stored data", async () => {
 });
 
 Deno.test(
-  { name: "subscription receives updates", sanitizeOps: false, sanitizeResources: false },
+  {
+    name: "subscription receives updates",
+    sanitizeOps: false,
+    sanitizeResources: false,
+  },
   async () => {
     const db = new GunDB();
     try {
@@ -36,13 +40,15 @@ Deno.test(
       const updated = new Promise((resolve) =>
         db.on(
           "user:bob",
-          (n) => n && (n.data as Record<string, unknown>).age === 42 && resolve(true),
-        ),
+          (n) =>
+            n && (n.data as Record<string, unknown>).age === 42 &&
+            resolve(true),
+        )
       );
       await db.put("user:bob", { name: "Bob", age: 41 });
       await db.put("user:bob", { name: "Bob", age: 42 });
       const timeout = new Promise((_, rej) =>
-        setTimeout(() => rej(new Error("timeout: subscription")), 2000),
+        setTimeout(() => rej(new Error("timeout: subscription")), 2000)
       );
       await Promise.race([updated, timeout]);
     } finally {
@@ -72,7 +78,11 @@ Deno.test("vector search returns relevant notes", async () => {
 });
 
 Deno.test(
-  { name: "delete emits subscription with null", sanitizeOps: false, sanitizeResources: false },
+  {
+    name: "delete emits subscription with null",
+    sanitizeOps: false,
+    sanitizeResources: false,
+  },
   async () => {
     const db = new GunDB();
     try {
@@ -83,11 +93,11 @@ Deno.test(
       await db.ready(kvPath);
       await db.put("user:carol", { name: "Carol" });
       const deleted = new Promise((resolve) =>
-        db.on("user:carol", (n) => n === null && resolve(true)),
+        db.on("user:carol", (n) => n === null && resolve(true))
       );
       await db.delete("user:carol");
       const timeout = new Promise((_, rej) =>
-        setTimeout(() => rej(new Error("timeout: delete")), 2000),
+        setTimeout(() => rej(new Error("timeout: delete")), 2000)
       );
       await Promise.race([deleted, timeout]);
     } finally {
@@ -121,7 +131,7 @@ Deno.test(
       await dbA.put("mesh:one", { text: "hello from A" });
 
       const receivedSnapshot = new Promise((resolve) =>
-        dbB.on("mesh:one", (n) => n && resolve(true)),
+        dbB.on("mesh:one", (n) => n && resolve(true))
       );
       dbB.connect(serverUrl);
       await receivedSnapshot;
@@ -129,8 +139,10 @@ Deno.test(
       const receivedOnA = new Promise((resolve) =>
         dbA.on(
           "mesh:fromB",
-          (n) => n && (n.data as Record<string, unknown>).who === "B" && resolve(true),
-        ),
+          (n) =>
+            n && (n.data as Record<string, unknown>).who === "B" &&
+            resolve(true),
+        )
       );
       await dbB.put("mesh:fromB", { who: "B", text: "hi A" });
       await receivedOnA;
@@ -204,7 +216,12 @@ Deno.test("CRDT merge: equal timestamps deterministic merge", () => {
   const merged = mergeNodes(local, incoming);
   assertEquals(merged.id, "n1");
   assertEquals(merged.timestamp, t);
-  assertEquals(merged.data, { a: 1, shared: 2, b: 2, nested: { x: 1, y: 2, z: 3 } });
+  assertEquals(merged.data, {
+    a: 1,
+    shared: 2,
+    b: 2,
+    nested: { x: 1, y: 2, z: 3 },
+  });
   assertEquals(merged.type, "TypeA");
   assertEquals(merged.vector, [0.1, 0.2]);
   assertEquals(merged.vectorClock.peerA, 2);
@@ -237,7 +254,11 @@ Deno.test("CRDT merge: LWW on differing timestamps", () => {
 });
 
 Deno.test(
-  { name: "off stops receiving events", sanitizeOps: false, sanitizeResources: false },
+  {
+    name: "off stops receiving events",
+    sanitizeOps: false,
+    sanitizeResources: false,
+  },
   async () => {
     const db = new GunDB();
     try {
@@ -265,7 +286,10 @@ Deno.test(
 Deno.test("type system helpers: setType + instancesOf", async () => {
   const db = new GunDB();
   try {
-    const kvPath = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
+    const kvPath = await Deno.makeTempFile({
+      prefix: "kv_",
+      suffix: ".sqlite",
+    });
     await db.ready(kvPath);
     await db.put("t:1", { name: "Alice" });
     await db.setType("t:1", "Person");

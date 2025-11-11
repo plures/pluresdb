@@ -95,7 +95,9 @@ class TestRunner {
     console.log("\nDetailed Results:");
     this.results.forEach((result) => {
       const status = result.passed ? "✅" : "❌";
-      console.log(`  ${status} ${result.suite} (${result.duration.toFixed(2)}ms)`);
+      console.log(
+        `  ${status} ${result.suite} (${result.duration.toFixed(2)}ms)`,
+      );
     });
 
     if (passed < total) {
@@ -118,7 +120,8 @@ async function main() {
     {
       name: "Unit Tests",
       command: "test -A --unstable-kv --parallel src/tests/unit/",
-      description: "Core functionality tests (CRUD, subscriptions, vector search)",
+      description:
+        "Core functionality tests (CRUD, subscriptions, vector search)",
       timeout: 30000,
     },
     {
@@ -173,4 +176,3 @@ async function main() {
 if (import.meta.main) {
   await main();
 }
-

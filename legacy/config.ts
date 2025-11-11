@@ -27,7 +27,8 @@ export function getConfigPath(): string {
   try {
     const os = Deno.build.os;
     if (os === "windows") {
-      const appData = Deno.env.get("APPDATA") || Deno.env.get("LOCALAPPDATA") || ".";
+      const appData = Deno.env.get("APPDATA") || Deno.env.get("LOCALAPPDATA") ||
+        ".";
       return `${appData}\\${appName}\\config.json`;
     }
     const home = Deno.env.get("HOME") || ".";

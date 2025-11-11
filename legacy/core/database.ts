@@ -1,9 +1,13 @@
 import { KvStorage } from "../storage/kv-storage.ts";
 import type { MeshMessage, NodeRecord } from "../types/index.ts";
 import { mergeNodes } from "./crdt.ts";
-import { connectToPeer, type MeshServer, startMeshServer } from "../network/websocket-server.ts";
+import {
+  connectToPeer,
+  type MeshServer,
+  startMeshServer,
+} from "../network/websocket-server.ts";
 import { debugLog } from "../util/debug.ts";
-import { RuleEngine, type Rule, type RuleContext } from "../logic/rules.ts";
+import { type Rule, type RuleContext, RuleEngine } from "../logic/rules.ts";
 import { BruteForceVectorIndex } from "../vector/index.ts";
 
 const FUNCTION_PLACEHOLDER = "[sanitized function]";
@@ -32,13 +36,21 @@ function sanitizeValue(value: unknown, seen: WeakSet<object>): unknown {
   return clean;
 }
 
-function sanitizeRecord(data: Record<string, unknown>): Record<string, unknown> {
-  const result = sanitizeValue(data, new WeakSet()) as Record<string, unknown> | string;
-  if (typeof result === "string" || result === undefined) return Object.create(null);
+function sanitizeRecord(
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  const result = sanitizeValue(data, new WeakSet()) as
+    | Record<string, unknown>
+    | string;
+  if (typeof result === "string" || result === undefined) {
+    return Object.create(null);
+  }
   return result;
 }
 
-function sanitizeForOutput(data: Record<string, unknown>): Record<string, unknown> {
+function sanitizeForOutput(
+  data: Record<string, unknown>,
+): Record<string, unknown> {
   const clean = sanitizeRecord(data);
   if (typeof clean["toString"] !== "string") {
     clean["toString"] = Object.prototype.toString.call(clean);
@@ -56,9 +68,13 @@ export interface DatabaseOptions {
 
 export class GunDB {
   private readonly storage: KvStorage;
-  private readonly listeners: Map<string, Set<(node: NodeRecord | null) => void>> = new Map();
-  private readonly anyListeners: Set<(event: { id: string; node: NodeRecord | null }) => void> =
-    new Set();
+  private readonly listeners: Map<
+    string,
+    Set<(node: NodeRecord | null) => void>
+  > = new Map();
+  private readonly anyListeners: Set<
+    (event: { id: string; node: NodeRecord | null }) => void
+  > = new Set();
   private readonly peerId: string;
   private meshServer: MeshServer | null = null;
   private readonly peerSockets: Set<WebSocket> = new Set();
@@ -129,8 +145,9 @@ export class GunDB {
       id,
       data: record,
       vector,
-      type:
-        typeof record.type === "string" ? (record.type as string) : (existing?.type ?? undefined),
+      type: typeof record.type === "string"
+        ? (record.type as string)
+        : (existing?.type ?? undefined),
       timestamp: now,
       state: newState,
       vectorClock: newClock,
@@ -140,19 +157,24 @@ export class GunDB {
     await this.storage.setNode(merged);
     debugLog("put() merged", { id, timestamp: merged.timestamp });
     this.emit(id, merged);
-    if (merged.vector && merged.vector.length > 0) this.vectorIndex.upsert(id, merged.vector);
-    else this.vectorIndex.remove(id);
+    if (merged.vector && merged.vector.length > 0) {
+      this.vectorIndex.upsert(id, merged.vector);
+    } else this.vectorIndex.remove(id);
     if (!suppressRules) {
       await this.evaluateRules(merged);
     }
     this.broadcast({ type: "put", originId: this.peerId, node: merged });
   }
 
-  async get<T = Record<string, unknown>>(id: string): Promise<(T & { id: string }) | null> {
+  async get<T = Record<string, unknown>>(
+    id: string,
+  ): Promise<(T & { id: string }) | null> {
     this.ensureReady();
     const node = await this.storage.getNode(id);
     if (!node) return null;
-    const sanitized = sanitizeForOutput((node.data ?? {}) as Record<string, unknown>);
+    const sanitized = sanitizeForOutput(
+      (node.data ?? {}) as Record<string, unknown>,
+    );
     return { id: node.id, ...(sanitized as T) };
   }
 
@@ -217,7 +239,10 @@ export class GunDB {
       if (Number.isFinite(score)) scored.push({ score, node });
     }
     scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, limit).map((s) => ({ ...s.node, similarity: s.score }));
+    return scored.slice(0, limit).map((s) => ({
+      ...s.node,
+      similarity: s.score,
+    }));
   }
 
   // Type system convenience
@@ -239,7 +264,11 @@ export class GunDB {
     this.ensureReady();
     const history = await this.getNodeHistory(id);
     const version = history.find((v) => v.timestamp === timestamp);
-    if (!version) throw new Error(`Version not found for node ${id} at timestamp ${timestamp}`);
+    if (!version) {
+      throw new Error(
+        `Version not found for node ${id} at timestamp ${timestamp}`,
+      );
+    }
 
     // Restore by putting the historical version
     await this.put(id, version.data);
@@ -254,12 +283,16 @@ export class GunDB {
   }
 
   // Any-change subscription (internal use for API streaming)
-  onAny(callback: (event: { id: string; node: NodeRecord | null }) => void): () => void {
+  onAny(
+    callback: (event: { id: string; node: NodeRecord | null }) => void,
+  ): () => void {
     this.ensureReady();
     this.anyListeners.add(callback);
     return () => this.offAny(callback);
   }
-  offAny(callback: (event: { id: string; node: NodeRecord | null }) => void): void {
+  offAny(
+    callback: (event: { id: string; node: NodeRecord | null }) => void,
+  ): void {
     this.anyListeners.delete(callback);
   }
 
@@ -302,7 +335,9 @@ export class GunDB {
       onOpen: (s) => {
         // Request a snapshot
         try {
-          s.send(JSON.stringify({ type: "sync_request", originId: this.peerId }));
+          s.send(
+            JSON.stringify({ type: "sync_request", originId: this.peerId }),
+          );
         } catch {
           /* ignore */
         }
@@ -386,9 +421,9 @@ export class GunDB {
         const merged = mergeNodes(existing, node);
         await this.storage.setNode(merged);
         this.emit(node.id, merged);
-        if (merged.vector && merged.vector.length > 0)
+        if (merged.vector && merged.vector.length > 0) {
           this.vectorIndex.upsert(node.id, merged.vector);
-        else this.vectorIndex.remove(node.id);
+        } else this.vectorIndex.remove(node.id);
         await this.evaluateRules(merged);
         try {
           ctx.broadcast(msg, ctx.source);

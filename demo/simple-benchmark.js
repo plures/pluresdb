@@ -258,25 +258,41 @@ async function runBenchmark() {
 
   // Endpoint performance
   log("\n⚡ Endpoint Performance:", "blue");
-  for (let i = 0; i < Math.min(pluresEndpoints.length, gunJsResults.endpoints.length); i++) {
+  for (
+    let i = 0;
+    i < Math.min(pluresEndpoints.length, gunJsResults.endpoints.length);
+    i++
+  ) {
     const rusty = pluresEndpoints[i];
     const gun = gunJsResults.endpoints[i];
 
     log(`   ${rusty.name}:`, "white");
     log(
-      `     PluresDB: ${rusty.avgTime.toFixed(2)}ms (${rusty.successRate.toFixed(1)}% success)`,
+      `     PluresDB: ${rusty.avgTime.toFixed(2)}ms (${
+        rusty.successRate.toFixed(1)
+      }% success)`,
       "green",
     );
     log(
-      `     Gun.js:    ${gun.avgTime.toFixed(2)}ms (${gun.successRate.toFixed(1)}% success)`,
+      `     Gun.js:    ${gun.avgTime.toFixed(2)}ms (${
+        gun.successRate.toFixed(1)
+      }% success)`,
       "yellow",
     );
 
     const improvement = ((gun.avgTime - rusty.avgTime) / gun.avgTime) * 100;
     if (improvement > 0) {
-      log(`     Winner:    🦀 PluresDB (${improvement.toFixed(1)}% faster)`, "green");
+      log(
+        `     Winner:    🦀 PluresDB (${improvement.toFixed(1)}% faster)`,
+        "green",
+      );
     } else {
-      log(`     Winner:    🔫 Gun.js (${Math.abs(improvement).toFixed(1)}% faster)`, "yellow");
+      log(
+        `     Winner:    🔫 Gun.js (${
+          Math.abs(improvement).toFixed(1)
+        }% faster)`,
+        "yellow",
+      );
     }
   }
 
@@ -288,21 +304,34 @@ async function runBenchmark() {
   log(`   Gun.js:    ${gunMemoryMB}MB (${gunJsResults.memory.note})`, "yellow");
 
   const memImprovement =
-    ((gunJsResults.memory.heapUsed - pluresMemory.heapUsed) / gunJsResults.memory.heapUsed) * 100;
+    ((gunJsResults.memory.heapUsed - pluresMemory.heapUsed) /
+      gunJsResults.memory.heapUsed) * 100;
   if (memImprovement > 0) {
-    log(`   Winner:    🦀 PluresDB (${memImprovement.toFixed(1)}% less memory)`, "green");
+    log(
+      `   Winner:    🦀 PluresDB (${memImprovement.toFixed(1)}% less memory)`,
+      "green",
+    );
   } else {
-    log(`   Winner:    🔫 Gun.js (${Math.abs(memImprovement).toFixed(1)}% less memory)`, "yellow");
+    log(
+      `   Winner:    🔫 Gun.js (${
+        Math.abs(memImprovement).toFixed(1)
+      }% less memory)`,
+      "yellow",
+    );
   }
 
   // Concurrency
   log("\n👥 Concurrency:", "blue");
   log(
-    `   PluresDB: ${pluresConcurrency.successfulUsers}/${pluresConcurrency.totalUsers} users (${pluresConcurrency.successRate.toFixed(1)}% success)`,
+    `   PluresDB: ${pluresConcurrency.successfulUsers}/${pluresConcurrency.totalUsers} users (${
+      pluresConcurrency.successRate.toFixed(1)
+    }% success)`,
     "green",
   );
   log(
-    `   Gun.js:    ${gunJsResults.concurrency.successfulUsers}/${gunJsResults.concurrency.totalUsers} users (${gunJsResults.concurrency.successRate.toFixed(1)}% success)`,
+    `   Gun.js:    ${gunJsResults.concurrency.successfulUsers}/${gunJsResults.concurrency.totalUsers} users (${
+      gunJsResults.concurrency.successRate.toFixed(1)
+    }% success)`,
     "yellow",
   );
 
@@ -321,7 +350,11 @@ async function runBenchmark() {
   let totalTests = 0;
 
   // Endpoint performance wins
-  for (let i = 0; i < Math.min(pluresEndpoints.length, gunJsResults.endpoints.length); i++) {
+  for (
+    let i = 0;
+    i < Math.min(pluresEndpoints.length, gunJsResults.endpoints.length);
+    i++
+  ) {
     totalTests++;
     if (pluresEndpoints[i].avgTime < gunJsResults.endpoints[i].avgTime) {
       rustyWins++;
@@ -343,25 +376,39 @@ async function runBenchmark() {
   log(`PluresDB wins: ${rustyWins}/${totalTests} categories`, "green");
 
   // Overall performance improvement
-  const avgRustyTime =
-    pluresEndpoints.reduce((sum, r) => sum + r.avgTime, 0) / pluresEndpoints.length;
+  const avgRustyTime = pluresEndpoints.reduce((sum, r) => sum + r.avgTime, 0) /
+    pluresEndpoints.length;
   const avgGunTime =
-    gunJsResults.endpoints.reduce((sum, r) => sum + r.avgTime, 0) / gunJsResults.endpoints.length;
+    gunJsResults.endpoints.reduce((sum, r) => sum + r.avgTime, 0) /
+    gunJsResults.endpoints.length;
   const overallImprovement = ((avgGunTime - avgRustyTime) / avgGunTime) * 100;
 
   if (overallImprovement > 0) {
-    log(`Overall performance: ${overallImprovement.toFixed(1)}% faster than Gun.js`, "green");
+    log(
+      `Overall performance: ${
+        overallImprovement.toFixed(1)
+      }% faster than Gun.js`,
+      "green",
+    );
   } else {
     log(
-      `Overall performance: ${Math.abs(overallImprovement).toFixed(1)}% slower than Gun.js`,
+      `Overall performance: ${
+        Math.abs(overallImprovement).toFixed(1)
+      }% slower than Gun.js`,
       "yellow",
     );
   }
 
-  log(`Memory efficiency: ${memImprovement.toFixed(1)}% less memory than Gun.js`, "green");
+  log(
+    `Memory efficiency: ${memImprovement.toFixed(1)}% less memory than Gun.js`,
+    "green",
+  );
 
   log("\n✅ Real benchmark completed!", "green");
-  log("These are actual measured metrics from the running PluresDB server.", "cyan");
+  log(
+    "These are actual measured metrics from the running PluresDB server.",
+    "cyan",
+  );
 }
 
 // Run the benchmark

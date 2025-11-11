@@ -3,7 +3,7 @@
  * This module provides a Node.js-compatible API for VSCode extensions
  */
 
-import { spawn, ChildProcess } from "node:child_process";
+import { ChildProcess, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import * as path from "node:path";
 import * as fs from "node:fs";
@@ -71,12 +71,16 @@ export class PluresNode extends EventEmitter {
       }
     }
 
-    throw new Error("Deno not found. Please install Deno from https://deno.land/");
+    throw new Error(
+      "Deno not found. Please install Deno from https://deno.land/",
+    );
   }
 
   private isCommandAvailable(command: string): boolean {
     try {
-      require("child_process").execSync(`"${command}" --version`, { stdio: "ignore" });
+      require("child_process").execSync(`"${command}" --version`, {
+        stdio: "ignore",
+      });
       return true;
     } catch {
       return false;
@@ -243,7 +247,9 @@ export class PluresNode extends EventEmitter {
   }
 
   async get(key: string): Promise<any> {
-    const response = await fetch(`${this.apiUrl}/api/data/${encodeURIComponent(key)}`);
+    const response = await fetch(
+      `${this.apiUrl}/api/data/${encodeURIComponent(key)}`,
+    );
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -256,9 +262,12 @@ export class PluresNode extends EventEmitter {
   }
 
   async delete(key: string): Promise<void> {
-    const response = await fetch(`${this.apiUrl}/api/data/${encodeURIComponent(key)}`, {
-      method: "DELETE",
-    });
+    const response = await fetch(
+      `${this.apiUrl}/api/data/${encodeURIComponent(key)}`,
+      {
+        method: "DELETE",
+      },
+    );
 
     if (!response.ok) {
       throw new Error(`Delete failed: ${response.statusText}`);

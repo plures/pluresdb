@@ -1,6 +1,8 @@
 import { QueryResult } from "./types/node-types";
 
-export function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(
+  value: unknown,
+): value is Record<string, unknown> {
   if (value === null || typeof value !== "object") {
     return false;
   }
@@ -25,7 +27,9 @@ export function normalizeParameterInput(args: unknown[]): unknown[] {
   return args;
 }
 
-function expandDotNotation(row: Record<string, unknown>): Record<string, unknown> {
+function expandDotNotation(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {
     const parts = key.split(".");
@@ -79,7 +83,9 @@ export function shapeRow(
     }
     if (isPlainObject(row)) {
       const keys = Object.keys(row as Record<string, unknown>);
-      return keys.length > 0 ? (row as Record<string, unknown>)[keys[0]] : undefined;
+      return keys.length > 0
+        ? (row as Record<string, unknown>)[keys[0]]
+        : undefined;
     }
     if (columns && columns.length > 0 && isPlainObject(normalized)) {
       return (normalized as Record<string, unknown>)[columns[0]];
@@ -95,17 +101,20 @@ export function shapeRow(
 }
 
 export function normalizeQueryResult(raw: unknown): QueryResult {
-  if (raw && typeof raw === "object" && "rows" in (raw as Record<string, unknown>)) {
+  if (
+    raw && typeof raw === "object" && "rows" in (raw as Record<string, unknown>)
+  ) {
     const result = raw as Partial<QueryResult> & Record<string, unknown>;
     const columnsValue = Array.isArray(result.columns) ? result.columns : [];
     const rowsValue = Array.isArray(result.rows) ? result.rows : [];
-    const changesValue = typeof result.changes === "number" ? result.changes : 0;
-    const lastInsertRowIdValue =
-      typeof result.lastInsertRowId === "number"
-        ? result.lastInsertRowId
-        : typeof (result as Record<string, unknown>).lastInsertRowid === "number"
-          ? Number((result as Record<string, unknown>).lastInsertRowid)
-          : 0;
+    const changesValue = typeof result.changes === "number"
+      ? result.changes
+      : 0;
+    const lastInsertRowIdValue = typeof result.lastInsertRowId === "number"
+      ? result.lastInsertRowId
+      : typeof (result as Record<string, unknown>).lastInsertRowid === "number"
+      ? Number((result as Record<string, unknown>).lastInsertRowid)
+      : 0;
 
     return {
       rows: rowsValue,

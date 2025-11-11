@@ -33,7 +33,12 @@
       "profile": {
         "bio": "Product manager with a focus on developer tools",
         "location": "Seattle, WA",
-        "interests": ["Product", "Strategy", "Developer Experience", "Leadership"]
+        "interests": [
+          "Product",
+          "Strategy",
+          "Developer Experience",
+          "Leadership"
+        ]
       }
     }
   ],
@@ -122,4 +127,3 @@
     "software engineering best practices"
   ]
 }
-

@@ -7,7 +7,13 @@
     "./main": "./legacy/main.ts"
   },
   "publish": {
-    "include": ["mod.ts", "legacy/**/*.ts", "docs/**/*.md", "README.md", "LICENSE"],
+    "include": [
+      "mod.ts",
+      "legacy/**/*.ts",
+      "docs/**/*.md",
+      "README.md",
+      "LICENSE"
+    ],
     "exclude": [
       "legacy/node-index.ts",
       "legacy/node-wrapper.ts",

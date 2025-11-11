@@ -46,7 +46,11 @@ class BenchmarkRunner {
     };
 
     this.results.push(result);
-    console.log(`  ✓ ${operationsPerSecond.toFixed(2)} ops/sec (${averageTime.toFixed(2)}ms avg)`);
+    console.log(
+      `  ✓ ${operationsPerSecond.toFixed(2)} ops/sec (${
+        averageTime.toFixed(2)
+      }ms avg)`,
+    );
 
     return result;
   }
@@ -63,7 +67,9 @@ class BenchmarkRunner {
       console.log(`  Average Time: ${result.averageTime.toFixed(2)}ms`);
       console.log(`  Operations/sec: ${result.operationsPerSecond.toFixed(2)}`);
       if (result.memoryUsage) {
-        console.log(`  Memory Usage: ${(result.memoryUsage / 1024 / 1024).toFixed(2)}MB`);
+        console.log(
+          `  Memory Usage: ${(result.memoryUsage / 1024 / 1024).toFixed(2)}MB`,
+        );
       }
       console.log();
     });
@@ -117,8 +123,10 @@ async function runCoreBenchmarks() {
     // First populate with documents
     for (let i = 0; i < 100; i++) {
       await db.put(`doc:${i}`, {
-        text: `Document ${i} about machine learning and artificial intelligence`,
-        content: `This is document number ${i} containing information about AI and ML algorithms`,
+        text:
+          `Document ${i} about machine learning and artificial intelligence`,
+        content:
+          `This is document number ${i} containing information about AI and ML algorithms`,
       });
     }
 
@@ -244,8 +252,14 @@ async function runMemoryBenchmarks() {
     const finalMemory = (performance as any).memory?.usedJSHeapSize || 0;
     const memoryIncrease = finalMemory - initialMemory;
 
-    console.log(`Memory Usage: ${(memoryIncrease / 1024 / 1024).toFixed(2)}MB for 1000 records`);
-    console.log(`Memory per record: ${(memoryIncrease / 1000).toFixed(2)} bytes`);
+    console.log(
+      `Memory Usage: ${
+        (memoryIncrease / 1024 / 1024).toFixed(2)
+      }MB for 1000 records`,
+    );
+    console.log(
+      `Memory per record: ${(memoryIncrease / 1000).toFixed(2)} bytes`,
+    );
 
     // Benchmark 2: Subscription Memory Usage
     const subscriptionMemory = (performance as any).memory?.usedJSHeapSize || 0;
@@ -257,13 +271,21 @@ async function runMemoryBenchmarks() {
       subscriptions.push(unsubscribe);
     });
 
-    const afterSubscriptionMemory = (performance as any).memory?.usedJSHeapSize || 0;
-    const subscriptionMemoryIncrease = afterSubscriptionMemory - subscriptionMemory;
+    const afterSubscriptionMemory =
+      (performance as any).memory?.usedJSHeapSize || 0;
+    const subscriptionMemoryIncrease = afterSubscriptionMemory -
+      subscriptionMemory;
 
     console.log(
-      `Subscription Memory: ${(subscriptionMemoryIncrease / 1024).toFixed(2)}KB for 1000 subscriptions`,
+      `Subscription Memory: ${
+        (subscriptionMemoryIncrease / 1024).toFixed(2)
+      }KB for 1000 subscriptions`,
     );
-    console.log(`Memory per subscription: ${(subscriptionMemoryIncrease / 1000).toFixed(2)} bytes`);
+    console.log(
+      `Memory per subscription: ${
+        (subscriptionMemoryIncrease / 1000).toFixed(2)
+      } bytes`,
+    );
 
     // Clean up subscriptions
     subscriptions.forEach((unsubscribe) => unsubscribe());
@@ -291,4 +313,3 @@ async function main() {
 if (import.meta.main) {
   await main();
 }
-

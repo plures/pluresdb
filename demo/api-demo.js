@@ -142,7 +142,10 @@ function makeRequest(options, data = null) {
     });
 
     req.on("error", reject);
-    req.setTimeout(DEMO_CONFIG.timeout, () => reject(new Error("Request timeout")));
+    req.setTimeout(
+      DEMO_CONFIG.timeout,
+      () => reject(new Error("Request timeout")),
+    );
 
     if (data) {
       req.write(JSON.stringify(data));
@@ -223,7 +226,10 @@ class SQLiteCompatibilityDemo {
         { type: "user", data: DEMO_DATA.users[0] },
       );
 
-      logTest("CREATE Operation", response.statusCode === 200 || response.statusCode === 201);
+      logTest(
+        "CREATE Operation",
+        response.statusCode === 200 || response.statusCode === 201,
+      );
     } catch (error) {
       logTest("CREATE Operation", false, error.message);
     }
@@ -282,13 +288,18 @@ class SQLiteCompatibilityDemo {
       { name: "Simple SELECT", sql: "SELECT * FROM users WHERE age > 25" },
       {
         name: "JOIN Query",
-        sql: "SELECT u.name, p.title FROM users u JOIN posts p ON u.id = p.user_id",
+        sql:
+          "SELECT u.name, p.title FROM users u JOIN posts p ON u.id = p.user_id",
       },
       { name: "Aggregate Query", sql: "SELECT COUNT(*), AVG(age) FROM users" },
-      { name: "Subquery", sql: "SELECT * FROM users WHERE id IN (SELECT user_id FROM posts)" },
+      {
+        name: "Subquery",
+        sql: "SELECT * FROM users WHERE id IN (SELECT user_id FROM posts)",
+      },
       {
         name: "CASE Statement",
-        sql: 'SELECT name, CASE WHEN age < 30 THEN "Young" ELSE "Adult" END as category FROM users',
+        sql:
+          'SELECT name, CASE WHEN age < 30 THEN "Young" ELSE "Adult" END as category FROM users',
       },
     ];
 
@@ -348,8 +359,14 @@ class SQLiteCompatibilityDemo {
     logSection("5. Schema Management");
 
     const schemaOperations = [
-      { name: "Create Table", operation: "CREATE TABLE demo (id INTEGER PRIMARY KEY, name TEXT)" },
-      { name: "Alter Table", operation: "ALTER TABLE demo ADD COLUMN age INTEGER" },
+      {
+        name: "Create Table",
+        operation: "CREATE TABLE demo (id INTEGER PRIMARY KEY, name TEXT)",
+      },
+      {
+        name: "Alter Table",
+        operation: "ALTER TABLE demo ADD COLUMN age INTEGER",
+      },
       { name: "Drop Table", operation: "DROP TABLE demo" },
     ];
 
@@ -438,7 +455,8 @@ class SQLiteCompatibilityDemo {
           name: "update_timestamp",
           table: "users",
           event: "UPDATE",
-          sql: "UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id",
+          sql:
+            "UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id",
         },
       );
 
@@ -497,9 +515,16 @@ class SQLiteCompatibilityDemo {
           { query },
         );
 
-        logTest(`JSON Query: ${query.substring(0, 30)}...`, response.statusCode === 200);
+        logTest(
+          `JSON Query: ${query.substring(0, 30)}...`,
+          response.statusCode === 200,
+        );
       } catch (error) {
-        logTest(`JSON Query: ${query.substring(0, 30)}...`, false, error.message);
+        logTest(
+          `JSON Query: ${query.substring(0, 30)}...`,
+          false,
+          error.message,
+        );
       }
     }
   }
@@ -526,9 +551,16 @@ class SQLiteCompatibilityDemo {
           { query },
         );
 
-        logTest(`Window Function: ${query.substring(0, 30)}...`, response.statusCode === 200);
+        logTest(
+          `Window Function: ${query.substring(0, 30)}...`,
+          response.statusCode === 200,
+        );
       } catch (error) {
-        logTest(`Window Function: ${query.substring(0, 30)}...`, false, error.message);
+        logTest(
+          `Window Function: ${query.substring(0, 30)}...`,
+          false,
+          error.message,
+        );
       }
     }
   }
@@ -614,7 +646,11 @@ class SQLiteCompatibilityDemo {
       );
 
       const duration = Date.now() - startTime;
-      logTest("Performance Benchmark", response.statusCode === 200, `Duration: ${duration}ms`);
+      logTest(
+        "Performance Benchmark",
+        response.statusCode === 200,
+        `Duration: ${duration}ms`,
+      );
     } catch (error) {
       logTest("Performance Benchmark", false, error.message);
     }
@@ -691,10 +727,16 @@ class SQLiteCompatibilityDemo {
     log(`Total Tests: ${totalTests}`, "bright");
     log(`Passed: ${passedTests}`, "green");
     log(`Failed: ${failedTests}`, failedTests > 0 ? "red" : "green");
-    log(`Success Rate: ${successRate}%`, successRate >= 90 ? "green" : "yellow");
+    log(
+      `Success Rate: ${successRate}%`,
+      successRate >= 90 ? "green" : "yellow",
+    );
 
     if (successRate >= 95) {
-      log("\n🎉 EXCELLENT! PluresDB demonstrates 95%+ SQLite compatibility!", "green");
+      log(
+        "\n🎉 EXCELLENT! PluresDB demonstrates 95%+ SQLite compatibility!",
+        "green",
+      );
     } else if (successRate >= 90) {
       log("\n✅ GOOD! PluresDB shows strong SQLite compatibility!", "yellow");
     } else {
@@ -709,7 +751,10 @@ class SQLiteCompatibilityDemo {
     log("   • Enterprise Security & Billing", "cyan");
 
     log("\n🏆 CONCLUSION: PluresDB is a complete SQLite replacement", "bright");
-    log("   with additional modern features for distributed applications!", "bright");
+    log(
+      "   with additional modern features for distributed applications!",
+      "bright",
+    );
   }
 }
 
