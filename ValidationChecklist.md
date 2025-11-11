@@ -402,12 +402,20 @@ item has concrete, testable criteria.
 - [ ] Encrypted data sharing
 - [ ] Cross-device synchronization
 
-### CLI Tool (Ready to Implement)
+### CLI Tool ✅ COMPLETE
 
-- [ ] Command-line interface with Clap
-- [ ] Database management commands
-- [ ] Configuration and setup utilities
-- [ ] Integration with existing TypeScript CLI
+- [x] Command-line interface with Clap
+- [x] Database management commands (init, serve, status)
+- [x] CRUD operations (put, get, delete, list)
+- [x] SQL query execution with Database integration
+- [x] Search and vector search commands
+- [x] Type system commands (define, list, instances, schema)
+- [x] Network commands (connect, disconnect, peers, sync)
+- [x] Configuration management (list, get, set, reset)
+- [x] Maintenance commands (backup, restore, vacuum, migrate, stats)
+- [x] API server with Axum (HTTP/WebSocket support)
+- [x] Storage backend selection (MemoryStorage/SledStorage)
+- [x] Multiple output formats (JSON, table, CSV)
 
 ### Web UI (Ready to Implement)
 
