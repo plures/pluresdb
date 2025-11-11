@@ -97,9 +97,9 @@ jobs:
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
             cat > package/install.bat << 'EOF'
           @echo off
-          echo Installing Rusty Gun...
+          echo Installing PluresDB...
           echo.
-          echo Rusty Gun is a P2P Graph Database with SQLite Compatibility
+          echo PluresDB is a P2P Graph Database with SQLite Compatibility
           echo.
           echo Features:
           echo - Local-first data storage
@@ -110,7 +110,7 @@ jobs:
           echo - Cross-device sync
           echo - Comprehensive web UI
           echo.
-          echo Starting Rusty Gun server...
+          echo Starting PluresDB server...
           echo.
           echo Web UI will be available at: http://localhost:34568
           echo API will be available at: http://localhost:34567
@@ -122,9 +122,9 @@ jobs:
           else
             cat > package/install.sh << 'EOF'
           #!/bin/bash
-          echo "Installing Rusty Gun..."
+          echo "Installing PluresDB..."
           echo ""
-          echo "Rusty Gun is a P2P Graph Database with SQLite Compatibility"
+          echo "PluresDB is a P2P Graph Database with SQLite Compatibility"
           echo ""
           echo "Features:"
           echo "- Local-first data storage"
@@ -135,7 +135,7 @@ jobs:
           echo "- Cross-device sync"
           echo "- Comprehensive web UI"
           echo ""
-          echo "Starting Rusty Gun server..."
+          echo "Starting PluresDB server..."
           echo ""
           echo "Web UI will be available at: http://localhost:34568"
           echo "API will be available at: http://localhost:34567"
