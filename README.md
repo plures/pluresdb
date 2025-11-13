@@ -1,7 +1,7 @@
 # PluresDB
 
 [![npm version](https://badge.fury.io/js/pluresdb.svg)](https://badge.fury.io/js/pluresdb)
-[![Deno version](https://img.shields.io/badge/deno-v1.40.0-blue)](https://deno.land)
+[![Deno version](https://img.shields.io/badge/deno-v2.x-blue)](https://deno.land)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
 **P2P Graph Database with SQLite Compatibility** - A local-first, offline-first database for modern applications.

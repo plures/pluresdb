@@ -30,7 +30,7 @@ pnpm add pluresdb
     "pluresdb": "^1.0.0"
   },
   "peerDependencies": {
-    "deno": ">=1.40.0"
+    "deno": ">=2.0.0"
   }
 }
 ```
