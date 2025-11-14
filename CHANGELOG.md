@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.2.3] - 2025-11-14
+
+### Other
+
+- Fix GitHub Actions workflow: Replace invalid secret checks with step outputs
+
+
 ## [1.2.2] - 2025-11-14
 
 ### Fixed
