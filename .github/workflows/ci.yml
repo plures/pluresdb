@@ -168,7 +168,7 @@ jobs:
           # Push commit and tags with retry logic
           for i in {1..3}; do
             echo "Attempt $i: Pushing commit and tags..."
-            if git push --follow-tags origin main; then
+            if git push origin main && git push origin --tags; then
               echo "✅ Push successful on attempt $i"
               break
             else
