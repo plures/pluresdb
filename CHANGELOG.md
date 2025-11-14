@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.2.5] - 2025-11-14
+
+### Developer Experience
+
+- update Cargo.lock to version 1.2.4
+
+
 ## [1.2.4] - 2025-11-14
 
 ### Other

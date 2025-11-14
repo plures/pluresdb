@@ -12,7 +12,7 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "AGPL-3.0"
-version = "1.2.4"
+version = "1.2.5"
 authors = ["Plures Organization"]
 description = "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications"
 repository = "https://github.com/plures/pluresdb"
