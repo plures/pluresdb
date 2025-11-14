@@ -15,17 +15,17 @@
     "@codemirror/state": "^6.4.0",
     "@codemirror/theme-one-dark": "^6.1.2",
     "@codemirror/view": "^6.28.1",
-    "@sveltejs/vite-plugin-svelte": "^3.1.1",
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
     "ajv": "^8.12.0",
-    "svelte": "^4.2.18",
-    "vite": "^5.3.3"
+    "svelte": "^5.17.3",
+    "vite": "^7.2.2"
   },
   "dependencies": {
     "@monaco-editor/loader": "^1.5.0",
-    "cytoscape": "^3.28.1",
+    "cytoscape": "^3.29.3",
     "cytoscape-cola": "^2.5.1",
     "cytoscape-cose-bilkent": "^4.1.0",
     "cytoscape-dagre": "^2.5.0",
-    "monaco-editor": "^0.53.0"
+    "monaco-editor": "^0.49.0"
   }
 }
