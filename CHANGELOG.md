@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.2.2] - 2025-11-14
+
+### Fixed
+
+- correct release workflow paths and improve reliability
+
+
 ## [1.2.1] - 2025-11-14
 
 ### Fixed
