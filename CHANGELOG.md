@@ -4,6 +4,73 @@
 
 - _No changes yet_
 
+## [1.1.0] - 2025-11-14
+
+### Added
+
+- Complete P2P Ecosystem & Comprehensive Packaging System
+- Complete Phase 1 UI with WCAG AA accessibility and inline schema validation
+
+### Developer Experience
+
+- capture alt imp
+- capture alt imp
+- attribute
+- checkpoint
+- release 1.0.1
+- apply merge-driven renames/branding (rusty-gun → pluresdb) and update packaging scripts
+- remove tracked build artifacts (target/) and update .gitignore
+- checkpoint
+- reorg
+- checkpoint
+- plan
+- checkpoint
+
+### Other
+
+- Automate version bumping, tagging, and multi-platform releases (#13)
+- Upgrade to Deno 2.x and latest package versions (#11)
+- Complete the rust implementation (#9)
+- Remove legacy rusty-gun directory and rebrand to PluresDB (#6)
+- Fix CI failures: deno formatting, lint configuration, and test workflow (#8)
+- Merge pull request #4 from plures/copilot/develop-personal-database
+- Revert legacy/cli.ts to use Node.js APIs instead of Deno APIs
+- Fix Deno lint errors: replace process with Deno, fix unused error vars, remove unnecessary async
+- Fix CI failures: add npm lint/fmt scripts and upgrade Deno to v2.x
+- Add issue response document summarizing Windows personal database readiness
+- Add comprehensive Windows personal database status document
+- Add Windows-specific documentation and launcher files
+- Fix TypeScript compilation errors and add Windows documentation
+- Initial plan
+- Merge branch 'feature/better-sqllite3-support' of https://github.com/plures/pluresdb
+- Merge pull request #1 from plures/copilot/restructure-pluresdb-project
+- Add restructuring summary document
+- Update config files to reference legacy directory instead of src
+- Restructure project: move src to legacy, create pluresdb-node and pluresdb-deno crates
+- Initial plan
+- Merge branch 'main' of https://github.com/kayodebristol/rusty-gun
+- Resolve merge conflicts: accept current branch (ours) for all files
+- Merge pull request #5 from kayodebristol/revert-3-copilot/fix-cf2f0af2-221d-47ce-8064-4d58ed05c1d6
+- Revert "[WIP] Rename nested 'rusty-gun' folder to 'pluresdb' and update references"
+- Merge pull request #4 from kayodebristol/copilot/fix-db1e13fe-eea5-47d2-8ddf-18e1b5f69493
+- Create five GitHub Actions workflows as specified
+- Initial plan
+- Merge pull request #3 from kayodebristol/copilot/fix-cf2f0af2-221d-47ce-8064-4d58ed05c1d6
+- Initial plan
+- Merge pull request #2 from kayodebristol/copilot/fix-edf5eacd-b439-43e7-af90-57eac7d6efb7
+- Complete PluresDB rebrand: update packaging files, env vars, and Svelte components
+- Update all branding references from rusty-gun to PluresDB throughout the codebase
+- Remove .githooks, azure directories and update core branding to PluresDB
+- Initial plan
+- Phase 2 Complete: Data Modeling & Insight
+- checkpoint
+- new roadmap
+- new reactive ui
+- Checkpoint Continue Deno version
+- Initial
+- first commit
+
+
 ## [1.0.1] - 2025-10-03 — Core Security Hardening
 
 ### Changed
