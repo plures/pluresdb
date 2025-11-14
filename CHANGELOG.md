@@ -4,6 +4,13 @@
 
 - _No changes yet_
 
+## [1.2.1] - 2025-11-14
+
+### Fixed
+
+- correct entry point paths and improve release workflow reliability
+
+
 ## [1.2.0] - 2025-11-14
 
 ### Added
