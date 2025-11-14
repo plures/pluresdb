@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.2.4] - 2025-11-14
+
+### Other
+
+- Add secrets configuration documentation
+
+
 ## [1.2.3] - 2025-11-14
 
 ### Other
