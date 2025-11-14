@@ -60,3 +60,4 @@ pluresdb/web/dist/
 target/
 
 
+deno.lock

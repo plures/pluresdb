@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
-- _No changes yet_
+### Fixed
+
+- Fix release workflow entry point paths (legacy/main.ts)
+- Fix Dockerfile to use correct entry point
+- Fix Windows binary compilation in release workflow
+- Add error checking for binary compilation failures
+- Fix compilation error in pluresdb-cli (Result type in closure)
 
 ## [1.2.1] - 2025-11-14
 
