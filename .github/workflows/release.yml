@@ -1,0 +1,332 @@
+name: Release
+
+permissions:
+  contents: write
+  id-token: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.2)'
+        required: true
+        type: string
+
+jobs:
+  verify-release:
+    runs-on: ubuntu-latest
+    outputs:
+      is_on_main: ${{ steps.verify.outputs.is_on_main }}
+      tag_name: ${{ steps.verify.outputs.tag_name }}
+      version: ${{ steps.verify.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Verify tag commit is on main
+        id: verify
+        env:
+          TAG_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          
+          # Extract version from tag (remove 'v' prefix)
+          VERSION=${TAG_NAME#v}
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          
+          # Fetch origin/main and check whether the tagged commit is contained in main
+          git fetch origin main --depth=50
+          TAG_COMMIT=$(git rev-parse $TAG_NAME)
+          if git merge-base --is-ancestor $TAG_COMMIT origin/main; then
+            echo "is_on_main=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Tag $TAG_NAME commit is on main branch"
+          else
+            echo "is_on_main=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️  Tag $TAG_NAME commit is NOT on main branch"
+          fi
+
+  publish-npm:
+    name: Publish to npm
+    needs: verify-release
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.verify-release.outputs.is_on_main == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-release.outputs.tag_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v2.x
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Authenticate with npm
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Publish to npm
+        if: ${{ secrets.NPM_TOKEN != '' }}
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Skip npm publish (no token)
+        if: ${{ secrets.NPM_TOKEN == '' }}
+        run: echo "⚠️  Skipping npm publish - NPM_TOKEN not configured"
+
+  build-packages:
+    name: Build Packages
+    needs: verify-release
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.verify-release.outputs.is_on_main == 'true' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            arch: x64
+            ext: zip
+          - os: macos-latest
+            platform: macos
+            arch: x64
+            ext: tar.gz
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            ext: tar.gz
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-release.outputs.tag_name }}
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v2.x
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd web/svelte
+          npm install
+
+      - name: Build web UI
+        run: |
+          cd web/svelte
+          npm run build
+
+      - name: Run tests
+        run: deno test -A --unstable-kv
+        continue-on-error: true
+
+      - name: Build binary
+        run: |
+          deno compile -A --output pluresdb src/main.ts
+
+      - name: Create package
+        shell: bash
+        run: |
+          mkdir -p package
+
+          # Copy binary
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            cp pluresdb.exe package/
+          else
+            cp pluresdb package/
+            chmod +x package/pluresdb
+          fi
+
+          # Copy web UI if it exists
+          if [ -d "web/dist" ]; then
+            cp -r web/dist package/web
+          fi
+
+          # Copy documentation
+          cp README.md package/
+          cp LICENSE package/
+          cp CHANGELOG.md package/
+
+          # Create installer script
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            cat > package/install.bat << 'EOF'
+          @echo off
+          echo Installing PluresDB...
+          echo.
+          echo PluresDB is a P2P Graph Database with SQLite Compatibility
+          echo.
+          echo Starting PluresDB server...
+          echo Web UI: http://localhost:34568
+          echo API: http://localhost:34567
+          echo.
+          pluresdb.exe serve --port 34567
+          EOF
+          else
+            cat > package/install.sh << 'EOF'
+          #!/bin/bash
+          echo "Installing PluresDB..."
+          echo ""
+          echo "PluresDB is a P2P Graph Database with SQLite Compatibility"
+          echo ""
+          echo "Starting PluresDB server..."
+          echo "Web UI: http://localhost:34568"
+          echo "API: http://localhost:34567"
+          echo ""
+          ./pluresdb serve --port 34567
+          EOF
+            chmod +x package/install.sh
+          fi
+
+          # Create archive
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            cd package
+            7z a -tzip ../pluresdb-${{ matrix.platform }}-${{ matrix.arch }}.zip *
+            cd ..
+          else
+            tar -czf pluresdb-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz -C package .
+          fi
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: pluresdb-${{ matrix.platform }}-${{ matrix.arch }}
+          path: pluresdb-${{ matrix.platform }}-${{ matrix.arch }}.*
+
+  create-github-release:
+    name: Create GitHub Release
+    needs: [verify-release, build-packages, publish-npm]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.verify-release.outputs.is_on_main == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-release.outputs.tag_name }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) -exec cp {} release-assets/ \;
+          ls -lh release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.verify-release.outputs.tag_name }}
+          name: Release ${{ needs.verify-release.outputs.tag_name }}
+          body: |
+            Release ${{ needs.verify-release.outputs.tag_name }}
+
+            See [CHANGELOG.md](https://github.com/plures/pluresdb/blob/main/CHANGELOG.md) for details.
+
+            ## Installation
+
+            ### npm
+            ```bash
+            npm install pluresdb@${{ needs.verify-release.outputs.version }}
+            ```
+
+            ### Binary Downloads
+            Download the appropriate binary for your platform below.
+
+          files: release-assets/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+  publish-docker:
+    name: Publish Docker Image
+    needs: [verify-release, create-github-release]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.verify-release.outputs.is_on_main == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-release.outputs.tag_name }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            pluresdb/pluresdb:latest
+            pluresdb/pluresdb:${{ needs.verify-release.outputs.tag_name }}
+
+      - name: Skip Docker publish (no credentials)
+        if: ${{ secrets.DOCKERHUB_USERNAME == '' || secrets.DOCKERHUB_TOKEN == '' }}
+        run: echo "⚠️  Skipping Docker publish - Docker Hub credentials not configured"
+
+  publish-deno:
+    name: Publish to Deno Land
+    needs: [verify-release, create-github-release]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.verify-release.outputs.is_on_main == 'true' }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-release.outputs.tag_name }}
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v2.x
+
+      - name: Publish to deno.land/x
+        run: |
+          # Note: Publishing to deno.land/x is typically done via webhook
+          # This is a placeholder for any custom Deno publishing logic
+          echo "ℹ️  Deno publishing is handled automatically via GitHub webhook"
+          echo "ℹ️  Make sure the repository is linked at https://deno.land/x"
+        continue-on-error: true
