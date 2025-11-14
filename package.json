@@ -53,7 +53,9 @@
     "verify": "npm run build:lib && npm test",
     "prepare": "npm run build:lib",
     "prepublishOnly": "npm run verify && npm run build:web",
-    "postinstall": "node scripts/postinstall.js"
+    "postinstall": "node scripts/postinstall.js",
+    "release-check": "node scripts/release-check.js",
+    "update-changelog": "node scripts/update-changelog.js"
   },
   "keywords": [
     "database",
