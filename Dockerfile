@@ -13,5 +13,5 @@ COPY --from=webbuild /app/web/dist ./web/dist
 # Default ports: 34567 (API) and 34568 (Web UI)
 EXPOSE 34567 34568
 
-CMD ["run", "-A", "--unstable-kv", "src/main.ts", "serve", "--port", "34567", "--web-port", "34568"]
+CMD ["run", "-A", "--unstable-kv", "legacy/main.ts", "serve", "--port", "34567", "--web-port", "34568"]
 

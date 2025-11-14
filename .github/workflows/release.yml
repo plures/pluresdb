@@ -142,8 +142,13 @@ jobs:
         continue-on-error: true
 
       - name: Build binary
+        shell: bash
         run: |
-          deno compile -A --output pluresdb src/main.ts
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            deno compile -A --unstable-kv --output pluresdb.exe legacy/main.ts
+          else
+            deno compile -A --unstable-kv --output pluresdb legacy/main.ts
+          fi
 
       - name: Create package
         shell: bash
@@ -152,14 +157,26 @@ jobs:
 
           # Copy binary
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            cp pluresdb.exe package/
+            if [ -f pluresdb.exe ]; then
+              cp pluresdb.exe package/
+            else
+              echo "Error: pluresdb.exe not found after compilation"
+              exit 1
+            fi
           else
-            cp pluresdb package/
-            chmod +x package/pluresdb
+            if [ -f pluresdb ]; then
+              cp pluresdb package/
+              chmod +x package/pluresdb
+            else
+              echo "Error: pluresdb binary not found after compilation"
+              exit 1
+            fi
           fi
 
           # Copy web UI if it exists
-          if [ -d "web/dist" ]; then
+          if [ -d "web/svelte/dist" ]; then
+            cp -r web/svelte/dist package/web
+          elif [ -d "web/dist" ]; then
             cp -r web/dist package/web
           fi
 

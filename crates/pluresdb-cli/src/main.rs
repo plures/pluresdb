@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -9,12 +9,12 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::Json,
-    routing::{get, post},
+    routing::get,
     Router,
 };
 use clap::{Parser, Subcommand};
 use pluresdb_core::{
-    CrdtOperation, CrdtStore, Database, DatabaseOptions, NodeRecord, QueryResult, SqlValue,
+    CrdtOperation, CrdtStore, Database, DatabaseOptions, SqlValue,
 };
 use pluresdb_storage::{MemoryStorage, SledStorage, StorageEngine, StoredNode};
 use pluresdb_sync::SyncBroadcaster;
@@ -566,22 +566,24 @@ async fn handle_query(
         let json_params: Vec<Value> = serde_json::from_str(&p)?;
         json_params
             .into_iter()
-            .map(|v| match v {
-                Value::Null => SqlValue::Null,
-                Value::Number(n) => {
-                    if n.is_i64() {
-                        SqlValue::Integer(n.as_i64().unwrap())
-                    } else {
-                        SqlValue::Real(n.as_f64().unwrap())
+            .map(|v| -> Result<SqlValue, serde_json::Error> {
+                Ok(match v {
+                    Value::Null => SqlValue::Null,
+                    Value::Number(n) => {
+                        if n.is_i64() {
+                            SqlValue::Integer(n.as_i64().unwrap())
+                        } else {
+                            SqlValue::Real(n.as_f64().unwrap())
+                        }
                     }
-                }
-                Value::String(s) => SqlValue::Text(s),
-                Value::Bool(b) => SqlValue::Integer(if b { 1 } else { 0 }),
-                Value::Array(_) | Value::Object(_) => {
-                    SqlValue::Text(serde_json::to_string(&v)?)
-                }
+                    Value::String(s) => SqlValue::Text(s),
+                    Value::Bool(b) => SqlValue::Integer(if b { 1 } else { 0 }),
+                    Value::Array(_) | Value::Object(_) => {
+                        SqlValue::Text(serde_json::to_string(&v)?)
+                    }
+                })
             })
-            .collect()
+            .collect::<Result<Vec<_>, _>>()?
     } else {
         vec![]
     };
@@ -694,7 +696,7 @@ async fn handle_vsearch(
     storage: Arc<dyn StorageEngine>,
     query: String,
     limit: usize,
-    threshold: f64,
+    _threshold: f64,
 ) -> Result<()> {
     warn!("Vector search is not yet fully implemented. Showing text-based similarity.");
     handle_search(storage, query, limit).await
