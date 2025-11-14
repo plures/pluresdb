@@ -922,7 +922,7 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
 name = "pluresdb-cli"
-version = "1.2.0"
+version = "1.2.4"
 dependencies = [
  "anyhow",
  "axum",
@@ -941,7 +941,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-core"
-version = "1.2.0"
+version = "1.2.4"
 dependencies = [
  "anyhow",
  "chrono",
@@ -958,21 +958,21 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-deno"
-version = "1.2.0"
+version = "1.2.4"
 dependencies = [
  "pluresdb-core",
 ]
 
 [[package]]
 name = "pluresdb-node"
-version = "1.2.0"
+version = "1.2.4"
 dependencies = [
  "pluresdb-core",
 ]
 
 [[package]]
 name = "pluresdb-storage"
-version = "1.2.0"
+version = "1.2.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -986,7 +986,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sync"
-version = "1.2.0"
+version = "1.2.4"
 dependencies = [
  "anyhow",
  "serde",
