@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.2.7] - 2025-11-15
+
+### Developer Experience
+
+- bump js-yaml (#16)
+
+
 ## [1.2.6] - 2025-11-15
 
 ### Other
