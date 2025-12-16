@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.2.8] - 2025-12-16
+
+### Developer Experience
+
+- bump body-parser (#17)
+
+
 ## [1.2.7] - 2025-11-15
 
 ### Developer Experience
