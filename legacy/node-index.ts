@@ -17,9 +17,12 @@ import {
 import {
   BetterSQLite3Options,
   BetterSQLite3RunResult,
+  Device,
+  Peer,
   PluresDBConfig,
   PluresDBOptions,
   QueryResult,
+  SharedNode,
 } from "./types/node-types";
 import {
   isPlainObject,
@@ -356,7 +359,7 @@ export class PluresNode extends EventEmitter {
     return response.json() as Promise<{ id: string; publicKey: string }>;
   }
 
-  async searchPeers(query: string): Promise<any[]> {
+  async searchPeers(query: string): Promise<Peer[]> {
     const response = await fetch(
       `${this.apiUrl}/api/peers/search?q=${encodeURIComponent(query)}`,
     );
@@ -365,7 +368,7 @@ export class PluresNode extends EventEmitter {
       throw new Error(`Search peers failed: ${response.statusText}`);
     }
 
-    return response.json() as Promise<any[]>;
+    return response.json() as Promise<Peer[]>;
   }
 
   async shareNode(
