@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.2.10] - 2025-12-16
+
+### Other
+
+- Implement missing P2P API methods from README (#21)
+
+
 ## [1.2.9] - 2025-12-16
 
 ### Other
