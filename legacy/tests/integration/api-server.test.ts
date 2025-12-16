@@ -233,3 +233,102 @@ Deno.test("API Server - CORS Headers", async () => {
     await db.close();
   }
 });
+
+Deno.test("API Server - P2P API Endpoints", async () => {
+  const db = new GunDB();
+  let api: ApiServerHandle | null = null;
+  try {
+    const kvPath = await Deno.makeTempFile({
+      prefix: "kv_",
+      suffix: ".sqlite",
+    });
+    await db.ready(kvPath);
+
+    const port = randomPort();
+    const apiPort = port + 1;
+    db.serve({ port });
+    api = startApiServer({ port: apiPort, db });
+
+    const baseUrl = `http://localhost:${apiPort}`;
+
+    // Test createIdentity endpoint
+    const identityResponse = await fetch(`${baseUrl}/api/identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "John Doe", email: "john@example.com" }),
+    });
+    assertEquals(identityResponse.status, 200);
+    const identity = await identityResponse.json();
+    assertExists(identity.id);
+    assertExists(identity.publicKey);
+    assertEquals(identity.name, "John Doe");
+    assertEquals(identity.email, "john@example.com");
+
+    // Test searchPeers endpoint
+    const peersResponse = await fetch(`${baseUrl}/api/peers/search?q=developer`);
+    assertEquals(peersResponse.status, 200);
+    const peers = await peersResponse.json();
+    assertEquals(Array.isArray(peers), true);
+
+    // Test shareNode endpoint
+    const shareResponse = await fetch(`${baseUrl}/api/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nodeId: "node:123",
+        targetPeerId: "peer:456",
+        accessLevel: "read-only",
+      }),
+    });
+    assertEquals(shareResponse.status, 200);
+    const shareData = await shareResponse.json();
+    assertExists(shareData.sharedNodeId);
+    assertEquals(shareData.nodeId, "node:123");
+    assertEquals(shareData.targetPeerId, "peer:456");
+    assertEquals(shareData.accessLevel, "read-only");
+
+    // Test acceptSharedNode endpoint
+    const acceptResponse = await fetch(`${baseUrl}/api/share/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sharedNodeId: "shared:789" }),
+    });
+    assertEquals(acceptResponse.status, 200);
+    const acceptData = await acceptResponse.json();
+    assertEquals(acceptData.success, true);
+    assertEquals(acceptData.sharedNodeId, "shared:789");
+
+    // Test addDevice endpoint
+    const deviceResponse = await fetch(`${baseUrl}/api/devices`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "My Laptop", type: "laptop" }),
+    });
+    assertEquals(deviceResponse.status, 200);
+    const device = await deviceResponse.json();
+    assertExists(device.id);
+    assertEquals(device.name, "My Laptop");
+    assertEquals(device.type, "laptop");
+    assertEquals(device.status, "online");
+
+    // Test syncWithDevice endpoint
+    const syncResponse = await fetch(`${baseUrl}/api/devices/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: "device:123" }),
+    });
+    assertEquals(syncResponse.status, 200);
+    const syncData = await syncResponse.json();
+    assertEquals(syncData.success, true);
+    assertEquals(syncData.deviceId, "device:123");
+
+    // Test GET devices list
+    const devicesListResponse = await fetch(`${baseUrl}/api/devices`);
+    assertEquals(devicesListResponse.status, 200);
+    const devicesList = await devicesListResponse.json();
+    assertEquals(Array.isArray(devicesList), true);
+  } finally {
+    api?.close();
+    await db.close();
+  }
+});

@@ -172,6 +172,91 @@ export function startApiServer(
             await db.restoreNodeVersion(id, parseInt(timestamp));
             return json({ success: true });
           }
+          case "/api/identity": {
+            if (req.method !== "POST") return json({ error: "method" }, 405);
+            const body = (await req.json().catch(() => null)) as
+              | { name?: string; email?: string }
+              | null;
+            if (!body?.name || !body?.email) {
+              return json({ error: "missing name or email" }, 400);
+            }
+            // Generate a simple identity (stub implementation)
+            const id = `peer_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+            const publicKey = `pk_${Math.random().toString(36).substring(2)}`;
+            return json({ id, publicKey, name: body.name, email: body.email });
+          }
+          case "/api/peers/search": {
+            const q = url.searchParams.get("q") ?? "";
+            // Stub implementation - return empty array for now
+            // In a real implementation, this would search for peers in the network
+            return json([]);
+          }
+          case "/api/share": {
+            if (req.method !== "POST") return json({ error: "method" }, 405);
+            const body = (await req.json().catch(() => null)) as
+              | {
+                  nodeId?: string;
+                  targetPeerId?: string;
+                  accessLevel?: string;
+                }
+              | null;
+            if (!body?.nodeId || !body?.targetPeerId) {
+              return json(
+                { error: "missing nodeId or targetPeerId" },
+                400,
+              );
+            }
+            // Stub implementation - generate a shared node ID
+            const sharedNodeId = `shared_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+            return json({
+              sharedNodeId,
+              nodeId: body.nodeId,
+              targetPeerId: body.targetPeerId,
+              accessLevel: body.accessLevel || "read-only",
+            });
+          }
+          case "/api/share/accept": {
+            if (req.method !== "POST") return json({ error: "method" }, 405);
+            const body = (await req.json().catch(() => null)) as
+              | { sharedNodeId?: string }
+              | null;
+            if (!body?.sharedNodeId) {
+              return json({ error: "missing sharedNodeId" }, 400);
+            }
+            // Stub implementation - accept shared node
+            return json({ success: true, sharedNodeId: body.sharedNodeId });
+          }
+          case "/api/devices": {
+            if (req.method === "POST") {
+              const body = (await req.json().catch(() => null)) as
+                | { name?: string; type?: string }
+                | null;
+              if (!body?.name || !body?.type) {
+                return json({ error: "missing name or type" }, 400);
+              }
+              // Stub implementation - generate device ID
+              const id = `device_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+              return json({
+                id,
+                name: body.name,
+                type: body.type,
+                status: "online",
+              });
+            }
+            // GET devices list
+            return json([]);
+          }
+          case "/api/devices/sync": {
+            if (req.method !== "POST") return json({ error: "method" }, 405);
+            const body = (await req.json().catch(() => null)) as
+              | { deviceId?: string }
+              | null;
+            if (!body?.deviceId) {
+              return json({ error: "missing deviceId" }, 400);
+            }
+            // Stub implementation - sync with device
+            return json({ success: true, deviceId: body.deviceId });
+          }
           default:
             return json({ error: "not found" }, 404);
         }
