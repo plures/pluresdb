@@ -12,7 +12,7 @@
 
 ### Release channels (current)
 
-- **Winget:** Published as [`pluresdb.pluresdb`](packaging/winget/pluresdb.yaml) for Windows installs
+- **Winget:** Published as `pluresdb.pluresdb` ([manifest](https://github.com/plures/pluresdb/blob/main/packaging/winget/pluresdb.yaml)) for Windows installs
 - **npm:** [`pluresdb@1.2.8`](https://www.npmjs.com/package/pluresdb) (Node + better-sqlite3 compatibility)
 - **JSR:** [`@plures/pluresdb@1.0.1`](https://jsr.io/@plures/pluresdb) (Deno module)
 
@@ -149,7 +149,7 @@ api.close();
 
 ### Windows (Personal Database Use)
 
-**Recommended for Windows users who want a personal database (see release channels above for the winget package ID):**
+**Recommended for Windows users who want a personal database (`pluresdb.pluresdb`):**
 
 ```powershell
 # Option 1: Using winget
