@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.2.9] - 2025-12-16
+
+### Other
+
+- Align README with current release channels and monorepo structure (#19)
+
+
 ## [1.2.8] - 2025-12-16
 
 ### Developer Experience
