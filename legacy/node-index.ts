@@ -337,6 +337,103 @@ export class PluresNode extends EventEmitter {
       throw new Error(`Set config failed: ${response.statusText}`);
     }
   }
+
+  // P2P API methods
+  async createIdentity(options: {
+    name: string;
+    email: string;
+  }): Promise<{ id: string; publicKey: string }> {
+    const response = await fetch(`${this.apiUrl}/api/identity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(options),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Create identity failed: ${response.statusText}`);
+    }
+
+    return response.json() as Promise<{ id: string; publicKey: string }>;
+  }
+
+  async searchPeers(query: string): Promise<any[]> {
+    const response = await fetch(
+      `${this.apiUrl}/api/peers/search?q=${encodeURIComponent(query)}`,
+    );
+
+    if (!response.ok) {
+      throw new Error(`Search peers failed: ${response.statusText}`);
+    }
+
+    return response.json() as Promise<any[]>;
+  }
+
+  async shareNode(
+    nodeId: string,
+    targetPeerId: string,
+    options?: { accessLevel?: "read-only" | "read-write" | "admin" },
+  ): Promise<{ sharedNodeId: string }> {
+    const response = await fetch(`${this.apiUrl}/api/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nodeId,
+        targetPeerId,
+        accessLevel: options?.accessLevel || "read-only",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Share node failed: ${response.statusText}`);
+    }
+
+    return response.json() as Promise<{ sharedNodeId: string }>;
+  }
+
+  async acceptSharedNode(sharedNodeId: string): Promise<{ success: boolean }> {
+    const response = await fetch(`${this.apiUrl}/api/share/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sharedNodeId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Accept shared node failed: ${response.statusText}`);
+    }
+
+    return response.json() as Promise<{ success: boolean }>;
+  }
+
+  async addDevice(device: {
+    name: string;
+    type: "laptop" | "phone" | "server" | "desktop";
+  }): Promise<{ id: string }> {
+    const response = await fetch(`${this.apiUrl}/api/devices`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(device),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Add device failed: ${response.statusText}`);
+    }
+
+    return response.json() as Promise<{ id: string }>;
+  }
+
+  async syncWithDevice(deviceId: string): Promise<{ success: boolean }> {
+    const response = await fetch(`${this.apiUrl}/api/devices/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Sync with device failed: ${response.statusText}`);
+    }
+
+    return response.json() as Promise<{ success: boolean }>;
+  }
 }
 
 // SQLite-compatible API for easy migration
@@ -405,6 +502,38 @@ export class SQLiteCompatibleAPI {
 
   isRunning() {
     return this.plures.isServerRunning();
+  }
+
+  // P2P API methods
+  async createIdentity(options: { name: string; email: string }) {
+    return this.plures.createIdentity(options);
+  }
+
+  async searchPeers(query: string) {
+    return this.plures.searchPeers(query);
+  }
+
+  async shareNode(
+    nodeId: string,
+    targetPeerId: string,
+    options?: { accessLevel?: "read-only" | "read-write" | "admin" },
+  ) {
+    return this.plures.shareNode(nodeId, targetPeerId, options);
+  }
+
+  async acceptSharedNode(sharedNodeId: string) {
+    return this.plures.acceptSharedNode(sharedNodeId);
+  }
+
+  async addDevice(device: {
+    name: string;
+    type: "laptop" | "phone" | "server" | "desktop";
+  }) {
+    return this.plures.addDevice(device);
+  }
+
+  async syncWithDevice(deviceId: string) {
+    return this.plures.syncWithDevice(deviceId);
   }
 }
 
