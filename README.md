@@ -12,9 +12,9 @@
 
 ### Release channels (current)
 
-- **Winget:** Published as `pluresdb.pluresdb` for Windows installs
-- **npm:** `pluresdb@1.2.8` (Node + better-sqlite3 compatibility)
-- **JSR:** `@plures/pluresdb@1.0.1` (Deno module)
+- **Winget:** Published as [`pluresdb.pluresdb`](packaging/winget/pluresdb.yaml) for Windows installs
+- **npm:** [`pluresdb@1.2.8`](https://www.npmjs.com/package/pluresdb) (Node + better-sqlite3 compatibility)
+- **JSR:** [`@plures/pluresdb@1.0.1`](https://jsr.io/@plures/pluresdb) (Deno module)
 
 ### Install
 
@@ -149,7 +149,7 @@ api.close();
 
 ### Windows (Personal Database Use)
 
-**Recommended for Windows users who want a personal database:**
+**Recommended for Windows users who want a personal database (see release channels above for the winget package ID):**
 
 ```powershell
 # Option 1: Using winget
@@ -298,6 +298,8 @@ await db.syncWithDevice(deviceId);
 ```
 
 ## 🗂️ Monorepo layout & Rust implementation
+
+PluresDB ships as a Rust-first monorepo with language bindings for Deno and Node; the top-level layout is:
 
 - **Rust workspace:** `crates/` hosts the production Rust core (`pluresdb-core`, `pluresdb-storage`, `pluresdb-sync`) plus bindings and tools (`pluresdb-cli`, `pluresdb-node`, `pluresdb-deno`).
 - **JavaScript/TypeScript:** `legacy/` retains the original Deno/Node code paths for compatibility and references the same APIs exported via `package.json`/`mod.ts`.
