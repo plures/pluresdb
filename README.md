@@ -10,6 +10,12 @@
 
 ## 🚀 Quick Start
 
+### Release channels (current)
+
+- **Winget:** Published as `pluresdb.pluresdb` for Windows installs
+- **npm:** `pluresdb@1.2.8` (Node + better-sqlite3 compatibility)
+- **JSR:** `@plures/pluresdb@1.0.1` (Deno module)
+
 ### Install
 
 ```bash
@@ -146,8 +152,8 @@ api.close();
 **Recommended for Windows users who want a personal database:**
 
 ```powershell
-# Option 1: Using winget (coming soon)
-winget install plures.pluresdb
+# Option 1: Using winget
+winget install pluresdb.pluresdb
 
 # Option 2: Using PowerShell installer
 irm https://raw.githubusercontent.com/plures/pluresdb/main/install.ps1 | iex
@@ -290,6 +296,12 @@ await db.acceptSharedNode(sharedNodeId);
 await db.addDevice({ name: "My Phone", type: "phone" });
 await db.syncWithDevice(deviceId);
 ```
+
+## 🗂️ Monorepo layout & Rust implementation
+
+- **Rust workspace:** `crates/` hosts the production Rust core (`pluresdb-core`, `pluresdb-storage`, `pluresdb-sync`) plus bindings and tools (`pluresdb-cli`, `pluresdb-node`, `pluresdb-deno`).
+- **JavaScript/TypeScript:** `legacy/` retains the original Deno/Node code paths for compatibility and references the same APIs exported via `package.json`/`mod.ts`.
+- **Packaging:** `packaging/` and `packaging/winget/` contain the MSI/winget artifacts that back the published Windows package.
 
 ## 🚀 Migration from SQLite
 
