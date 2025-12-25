@@ -439,3 +439,65 @@ item has concrete, testable criteria.
   - [x] Minimal rule engine scaffold and basic classification rule
 - [ ] Auth/Encryption (SEA-like)
 - [x] Windows Winget/MSI and Nix packaging
+
+## TypeScript → Rust Migration Strategy
+
+### Phase 1: Rust Bindings Implementation (Critical Path)
+
+#### Node.js Bindings (N-API)
+- [ ] Set up `napi-rs` in `pluresdb-node` crate
+- [ ] Implement basic CRUD bindings (put, get, delete)
+- [ ] Implement vector search bindings
+- [ ] Implement subscription bindings (on/off)
+- [ ] Add comprehensive error handling
+- [ ] Create TypeScript definitions (.d.ts files)
+- [ ] Build and test Node.js addon (.node file)
+- [ ] Multi-platform builds (Linux, macOS, Windows)
+
+#### Deno Bindings (FFI)
+- [ ] Set up `deno_bindgen` in `pluresdb-deno` crate
+- [ ] Implement basic CRUD bindings (put, get, delete)
+- [ ] Implement vector search bindings
+- [ ] Implement subscription bindings
+- [ ] Generate TypeScript bindings automatically
+- [ ] Create Deno module wrapper (mod.ts)
+- [ ] Build and test Deno FFI library (.so/.dylib/.dll)
+- [ ] Multi-platform builds
+
+### Phase 2: Compatibility Layer
+
+- [ ] Update `legacy/node-index.ts` to use Rust bindings
+- [ ] Update `mod.ts` to use Rust bindings
+- [ ] Maintain exact same API as TypeScript implementation
+- [ ] Add feature flags for gradual migration
+- [ ] Create migration guide for consumers
+- [ ] Update all examples to use Rust bindings
+
+### Phase 3: Consumer Migration
+
+- [ ] Update CLI tool to use Rust bindings
+- [ ] Update API server to use Rust bindings
+- [ ] Update web UI to use Rust bindings
+- [ ] Remove TypeScript dependencies where possible
+- [ ] Performance benchmarking (Rust vs TypeScript)
+- [ ] All tests passing with Rust bindings
+
+### Phase 4: TypeScript Removal
+
+- [ ] Mark TypeScript code as deprecated
+- [ ] Add deprecation warnings
+- [ ] Archive TypeScript code to `archive/legacy-typescript-v1.2.10/`
+- [ ] Update package.json exports to point to Rust bindings
+- [ ] Update deno.json exports to point to Rust bindings
+- [ ] Final documentation updates
+- [ ] Announce migration completion
+
+### Migration Success Criteria
+
+- [ ] Node.js package works with Rust bindings (no TypeScript code)
+- [ ] Deno package works with Rust bindings (no TypeScript code)
+- [ ] 100% API compatibility maintained
+- [ ] Performance: 5-10x improvement over TypeScript
+- [ ] Test coverage: 90%+ for bindings
+- [ ] Zero breaking changes for consumers
+- [ ] Migration guide published and tested
