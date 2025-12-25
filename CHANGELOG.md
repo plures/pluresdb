@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.3.0] - 2025-12-25
+
+### Added
+
+- implement Node.js N-API bindings for Rust core
+
+
 ## [1.2.10] - 2025-12-16
 
 ### Other
