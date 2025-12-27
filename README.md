@@ -13,8 +13,10 @@
 ### Release channels (current)
 
 - **Winget:** Published as `pluresdb.pluresdb` ([manifest](https://github.com/plures/pluresdb/blob/main/packaging/winget/pluresdb.yaml)) for Windows installs
-- **npm:** [`pluresdb@1.2.8`](https://www.npmjs.com/package/pluresdb) (Node + better-sqlite3 compatibility)
-- **JSR:** [`@plures/pluresdb@1.0.1`](https://jsr.io/@plures/pluresdb) (Deno module)
+- **npm:** [`pluresdb`](https://www.npmjs.com/package/pluresdb) (Node + better-sqlite3 compatibility)
+- **JSR:** [`@plures/pluresdb`](https://jsr.io/@plures/pluresdb) (Deno module)
+
+For version-specific information and release notes, see the [CHANGELOG](CHANGELOG.md).
 
 ### Install
 
