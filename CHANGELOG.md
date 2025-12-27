@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.3.1] - 2025-12-27
+
+### Other
+
+- Bump version from 1.0.1 to 1.3.0
+
+
 ## [1.3.0] - 2025-12-25
 
 ### Added
