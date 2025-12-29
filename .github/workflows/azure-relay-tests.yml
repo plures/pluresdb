@@ -147,13 +147,15 @@ jobs:
             --query "[].ipAddress.ip" \
             --output tsv)
           
-          # Set base IP (first 3 octets of first IP)
-          FIRST_IP=$(echo "$NODES" | head -1)
-          BASE_IP=$(echo "$FIRST_IP" | cut -d. -f1-3)
-          echo "AZURE_NODE_BASE_IP=${BASE_IP}" >> $GITHUB_ENV
+          # Convert to comma-separated list
+          NODE_IPS=$(echo "$NODES" | tr '\n' ',' | sed 's/,$//')
+          echo "AZURE_NODE_IPS=${NODE_IPS}" >> $GITHUB_ENV
           
-          echo "Node IPs:"
-          echo "$NODES"
+          echo "Node IPs: ${NODE_IPS}"
+          
+          # Also set count for backwards compatibility
+          NODE_COUNT=$(echo "$NODES" | wc -l)
+          echo "AZURE_NODE_COUNT=${NODE_COUNT}" >> $GITHUB_ENV
       
       - name: Run relay integration tests
         run: |

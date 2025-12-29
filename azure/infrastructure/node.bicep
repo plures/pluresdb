@@ -15,9 +15,6 @@ param nodeIndex int
 @description('Total number of nodes in the deployment')
 param totalNodes int
 
-@description('The subnet ID for network attachment')
-param subnetId string
-
 // Container Instance for PluresDB node
 resource containerGroup 'Microsoft.ContainerInstance/containerGroups@2023-05-01' = {
   name: nodeName

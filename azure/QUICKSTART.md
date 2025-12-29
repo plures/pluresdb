@@ -114,13 +114,12 @@ cd ../..
 export AZURE_NODE_COUNT=3
 export SKIP_AZURE_TESTS=false
 
-# Get base IP from your deployment
+# Get actual IPs from your deployment
 NODE_IPS=$(az container list \
   --resource-group pluresdb-test-rg \
   --query "[].ipAddress.ip" \
-  --output tsv)
-FIRST_IP=$(echo "$NODE_IPS" | head -1)
-export AZURE_NODE_BASE_IP=$(echo "$FIRST_IP" | cut -d. -f1-3)
+  --output tsv | tr '\n' ',' | sed 's/,$//')
+export AZURE_NODE_IPS=$NODE_IPS
 
 # Run the tests
 npm run test:azure:relay

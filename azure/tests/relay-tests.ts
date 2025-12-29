@@ -23,9 +23,22 @@ interface TestContext {
  * Get node information from Azure deployment
  */
 async function getDeployedNodes(environment: string): Promise<NodeInfo[]> {
-  // In a real scenario, this would query Azure API or use deployment outputs
-  // For now, we'll use environment variables or a config file
+  // Node IPs should be provided via environment variables
+  // Format: comma-separated list of IP addresses
+  const nodeIpsEnv = Deno.env.get("AZURE_NODE_IPS");
   
+  if (nodeIpsEnv) {
+    // Parse comma-separated IPs
+    const ips = nodeIpsEnv.split(",").map(ip => ip.trim());
+    return ips.map((ip, i) => ({
+      name: `pluresdb-${environment}-node-${i}`,
+      ipAddress: ip,
+      port: 34567,
+      apiPort: 34568,
+    }));
+  }
+  
+  // Fallback: Use base IP pattern for backwards compatibility
   const nodeCount = parseInt(Deno.env.get("AZURE_NODE_COUNT") || "3");
   const baseIP = Deno.env.get("AZURE_NODE_BASE_IP") || "20.0.0";
   

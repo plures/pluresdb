@@ -131,7 +131,6 @@ module nodes './node.bicep' = [for i in range(0, nodeCount): {
     environment: environment
     nodeIndex: i
     totalNodes: nodeCount
-    subnetId: vnet.properties.subnets[0].id
   }
 }]
 
@@ -139,3 +138,4 @@ module nodes './node.bicep' = [for i in range(0, nodeCount): {
 output vnetId string = vnet.id
 output storageAccountName string = storageAccount.name
 output nodeNames array = [for i in range(0, nodeCount): '${resourcePrefix}-node-${i}']
+output nodeIPs array = [for i in range(0, nodeCount): nodes[i].outputs.ipAddress]
