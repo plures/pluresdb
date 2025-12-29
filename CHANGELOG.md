@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.3.3] - 2025-12-29
+
+### Other
+
+- Add Azure infrastructure automation and P2P relay testing (#25)
+
+
 ## [1.3.2] - 2025-12-27
 
 ### Other
