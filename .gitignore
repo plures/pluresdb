@@ -59,5 +59,11 @@ pluresdb/web/dist/
 # Rust/Cargo build artifacts
 target/
 
+# Azure temporary files
+azure/**/*.parameters.json
+azure/**/*.env
+azure/tmp/
+azure/infrastructure/*.json
+!azure/infrastructure/parameters.example.json
 
 deno.lock

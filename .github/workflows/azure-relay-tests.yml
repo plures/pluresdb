@@ -1,0 +1,275 @@
+name: Azure Relay Tests
+
+on:
+  # Run on manual trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test (test, dev, prod)'
+        required: true
+        default: 'test'
+        type: choice
+        options:
+          - test
+          - dev
+          - prod
+      node_count:
+        description: 'Number of nodes to deploy'
+        required: false
+        default: '3'
+      skip_deployment:
+        description: 'Skip infrastructure deployment (use existing)'
+        required: false
+        default: false
+        type: boolean
+  
+  # Run on schedule (weekly for test environment)
+  schedule:
+    - cron: '0 2 * * 0' # Every Sunday at 2 AM UTC
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  AZURE_LOCATION: eastus
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy Azure Infrastructure
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.skip_deployment }}
+    outputs:
+      resource_group: ${{ steps.deploy.outputs.resource_group }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Set environment variables
+        run: |
+          ENV="${{ inputs.environment || 'test' }}"
+          NODE_COUNT="${{ inputs.node_count || '3' }}"
+          echo "ENVIRONMENT=${ENV}" >> $GITHUB_ENV
+          echo "NODE_COUNT=${NODE_COUNT}" >> $GITHUB_ENV
+          echo "RESOURCE_GROUP=pluresdb-${ENV}-rg" >> $GITHUB_ENV
+      
+      - name: Generate SSH key
+        run: |
+          ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
+          echo "SSH_PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)" >> $GITHUB_ENV
+      
+      - name: Deploy infrastructure
+        id: deploy
+        run: |
+          cd azure/scripts
+          chmod +x deploy.sh
+          ./deploy.sh \
+            --environment "${{ env.ENVIRONMENT }}" \
+            --location "${{ env.AZURE_LOCATION }}" \
+            --node-count "${{ env.NODE_COUNT }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --ssh-key "${{ env.SSH_PUBLIC_KEY }}"
+          
+          echo "resource_group=${{ env.RESOURCE_GROUP }}" >> $GITHUB_OUTPUT
+      
+      - name: Wait for containers to start
+        run: |
+          echo "Waiting 60 seconds for containers to fully start..."
+          sleep 60
+      
+      - name: Get node IP addresses
+        id: get_ips
+        run: |
+          NODES=$(az container list \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --query "[].{name:name, ip:ipAddress.ip}" \
+            --output json)
+          
+          echo "Deployed nodes:"
+          echo "$NODES" | jq .
+          
+          # Export first node IP for quick access
+          FIRST_IP=$(echo "$NODES" | jq -r '.[0].ip')
+          echo "FIRST_NODE_IP=${FIRST_IP}" >> $GITHUB_ENV
+      
+      - name: Verify nodes are running
+        run: |
+          for i in {1..10}; do
+            if curl -f "http://${{ env.FIRST_NODE_IP }}:34568/health" 2>/dev/null; then
+              echo "✓ Node is healthy"
+              exit 0
+            fi
+            echo "Attempt $i: Node not ready yet, waiting..."
+            sleep 10
+          done
+          echo "❌ Node failed to become healthy"
+          exit 1
+
+  run-relay-tests:
+    name: Run Relay Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure]
+    if: always() && (needs.deploy-infrastructure.result == 'success' || inputs.skip_deployment)
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v2.x
+      
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Set environment variables
+        run: |
+          ENV="${{ inputs.environment || 'test' }}"
+          NODE_COUNT="${{ inputs.node_count || '3' }}"
+          echo "ENVIRONMENT=${ENV}" >> $GITHUB_ENV
+          echo "AZURE_NODE_COUNT=${NODE_COUNT}" >> $GITHUB_ENV
+          echo "RESOURCE_GROUP=pluresdb-${ENV}-rg" >> $GITHUB_ENV
+      
+      - name: Get node IP addresses
+        run: |
+          NODES=$(az container list \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --query "[].ipAddress.ip" \
+            --output tsv)
+          
+          # Convert to comma-separated list
+          NODE_IPS=$(echo "$NODES" | tr '\n' ',' | sed 's/,$//')
+          echo "AZURE_NODE_IPS=${NODE_IPS}" >> $GITHUB_ENV
+          
+          echo "Node IPs: ${NODE_IPS}"
+          
+          # Also set count for backwards compatibility
+          NODE_COUNT=$(echo "$NODES" | wc -l)
+          echo "AZURE_NODE_COUNT=${NODE_COUNT}" >> $GITHUB_ENV
+      
+      - name: Run relay integration tests
+        run: |
+          deno test \
+            --allow-net \
+            --allow-env \
+            azure/tests/relay-tests.ts
+      
+      - name: Run performance benchmarks
+        if: success() || failure()
+        run: |
+          echo "Running performance benchmarks..."
+          # Future: Add dedicated performance test suite
+          deno test \
+            --allow-net \
+            --allow-env \
+            azure/tests/relay-tests.ts \
+            --filter "Throughput\|Latency"
+      
+      - name: Generate test report
+        if: always()
+        run: |
+          echo "# Azure Relay Test Report" > test-report.md
+          echo "" >> test-report.md
+          echo "**Environment**: ${{ env.ENVIRONMENT }}" >> test-report.md
+          echo "**Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> test-report.md
+          echo "**Node Count**: ${{ env.AZURE_NODE_COUNT }}" >> test-report.md
+          echo "" >> test-report.md
+          echo "## Test Results" >> test-report.md
+          echo "See workflow logs for detailed results." >> test-report.md
+      
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: azure-test-report
+          path: test-report.md
+
+  cleanup-infrastructure:
+    name: Cleanup Azure Infrastructure
+    runs-on: ubuntu-latest
+    needs: [run-relay-tests]
+    if: always() && !inputs.skip_deployment && inputs.environment == 'test'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Set environment variables
+        run: |
+          ENV="${{ inputs.environment || 'test' }}"
+          echo "ENVIRONMENT=${ENV}" >> $GITHUB_ENV
+          echo "RESOURCE_GROUP=pluresdb-${ENV}-rg" >> $GITHUB_ENV
+      
+      - name: Destroy infrastructure
+        run: |
+          cd azure/scripts
+          chmod +x destroy.sh
+          ./destroy.sh \
+            --environment "${{ env.ENVIRONMENT }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --confirm
+      
+      - name: Verify cleanup
+        run: |
+          # Wait a bit for deletion to propagate
+          sleep 10
+          
+          if az group exists --name "${{ env.RESOURCE_GROUP }}" --output tsv | grep -q "false"; then
+            echo "✓ Resource group successfully deleted"
+          else
+            echo "⚠ Resource group still exists (deletion may be in progress)"
+          fi
+
+  report-results:
+    name: Report Test Results
+    runs-on: ubuntu-latest
+    needs: [run-relay-tests]
+    if: failure()
+    
+    steps:
+      - name: Create issue on failure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Azure Relay Tests Failed - ${{ inputs.environment || 'test' }}`,
+              body: `The Azure relay tests failed for the **${{ inputs.environment || 'test' }}** environment.
+              
+              **Details:**
+              - Workflow: ${context.workflow}
+              - Run ID: ${context.runId}
+              - Environment: ${{ inputs.environment || 'test' }}
+              - Node Count: ${{ inputs.node_count || '3' }}
+              
+              Please review the workflow logs:
+              ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+              
+              **Next Steps:**
+              1. Review test failures in the workflow logs
+              2. Check Azure container logs for errors
+              3. Verify network connectivity between nodes
+              4. Review recent code changes that may have affected P2P relay
+              
+              **Related Documentation:**
+              - [Test Plan](azure/docs/TEST_PLAN.md)
+              - [Architecture](azure/docs/ARCHITECTURE.md)
+              `,
+              labels: ['bug', 'azure', 'relay', 'tests', 'ci']
+            })

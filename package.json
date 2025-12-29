@@ -47,6 +47,8 @@
     "dev": "deno run -A --unstable-kv --watch src/main.ts serve --port 34567",
     "start": "node dist/cli.js serve",
     "test": "deno test -A --unstable-kv",
+    "test:azure:relay": "deno test --allow-net --allow-env azure/tests/relay-tests.ts",
+    "test:azure:full": "npm run test:azure:relay",
     "lint": "eslint . --ext .js,.ts,.tsx",
     "fmt:check": "prettier --check .",
     "fmt": "prettier --write .",
