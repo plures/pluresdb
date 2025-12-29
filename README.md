@@ -345,6 +345,24 @@ npm run verify
 
 The command executes `tsc -p tsconfig.json` followed by `deno test -A --unstable-kv`, ensuring shipping builds stay green.
 
+### Azure Relay Testing
+
+For testing P2P relay functionality in a cloud environment, PluresDB includes Azure infrastructure automation:
+
+```bash
+# Deploy test environment with 3 nodes
+cd azure/scripts
+./deploy.sh --environment test --node-count 3
+
+# Run relay tests
+npm run test:azure:relay
+
+# Clean up
+./destroy.sh --environment test
+```
+
+See [Azure Testing Guide](azure/README.md) and [Quick Start](azure/QUICKSTART.md) for detailed instructions.
+
 ## 📊 Performance
 
 - **Vector Search**: Sub-millisecond similarity search

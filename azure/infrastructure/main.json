@@ -1,0 +1,346 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.39.26.7824",
+      "templateHash": "17817202740707505987"
+    }
+  },
+  "parameters": {
+    "environment": {
+      "type": "string",
+      "defaultValue": "test",
+      "allowedValues": [
+        "test",
+        "dev",
+        "prod"
+      ],
+      "metadata": {
+        "description": "The environment name (test, dev, or prod)"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "The Azure region for deployment"
+      }
+    },
+    "nodeCount": {
+      "type": "int",
+      "defaultValue": 3,
+      "minValue": 1,
+      "maxValue": 10,
+      "metadata": {
+        "description": "The number of PluresDB nodes to deploy"
+      }
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_B2s",
+      "metadata": {
+        "description": "VM size for PluresDB nodes"
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "azureuser",
+      "metadata": {
+        "description": "Admin username for VMs"
+      }
+    },
+    "sshPublicKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "SSH public key for VM access"
+      }
+    }
+  },
+  "variables": {
+    "resourcePrefix": "[format('pluresdb-{0}', parameters('environment'))]",
+    "vnetName": "[format('{0}-vnet', variables('resourcePrefix'))]",
+    "subnetName": "[format('{0}-subnet', variables('resourcePrefix'))]",
+    "nsgName": "[format('{0}-nsg', variables('resourcePrefix'))]",
+    "containerGroupName": "[format('{0}-nodes', variables('resourcePrefix'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.0.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "10.0.1.0/24",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+              }
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('nsgName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "AllowPluresDBP2P",
+            "properties": {
+              "priority": 100,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "34567",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "AllowPluresDBAPI",
+            "properties": {
+              "priority": 110,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "34568",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "AllowSSH",
+            "properties": {
+              "priority": 120,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "22",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}storage', replace(variables('resourcePrefix'), '-', ''))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[if(equals(parameters('environment'), 'prod'), 'Standard_GRS', 'Standard_LRS')]"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "accessTier": "Hot",
+        "minimumTlsVersion": "TLS1_2",
+        "supportsHttpsTrafficOnly": true
+      }
+    },
+    {
+      "copy": {
+        "name": "nodes",
+        "count": "[length(range(0, parameters('nodeCount')))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('{0}-node-{1}', variables('resourcePrefix'), range(0, parameters('nodeCount'))[copyIndex()])]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "nodeName": {
+            "value": "[format('{0}-node-{1}', variables('resourcePrefix'), range(0, parameters('nodeCount'))[copyIndex()])]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "nodeIndex": {
+            "value": "[range(0, parameters('nodeCount'))[copyIndex()]]"
+          },
+          "totalNodes": {
+            "value": "[parameters('nodeCount')]"
+          },
+          "subnetId": {
+            "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '2023-05-01').subnets[0].id]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "15825812964939608178"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "The Azure region for deployment"
+              }
+            },
+            "nodeName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name for this PluresDB node"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "metadata": {
+                "description": "The environment name (test, dev, or prod)"
+              }
+            },
+            "nodeIndex": {
+              "type": "int",
+              "metadata": {
+                "description": "The index of this node"
+              }
+            },
+            "totalNodes": {
+              "type": "int",
+              "metadata": {
+                "description": "Total number of nodes in the deployment"
+              }
+            },
+            "subnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "The subnet ID for network attachment"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ContainerInstance/containerGroups",
+              "apiVersion": "2023-05-01",
+              "name": "[parameters('nodeName')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "containers": [
+                  {
+                    "name": "pluresdb",
+                    "properties": {
+                      "image": "plures/pluresdb:latest",
+                      "resources": {
+                        "requests": {
+                          "cpu": 1,
+                          "memoryInGB": 2
+                        }
+                      },
+                      "ports": [
+                        {
+                          "port": 34567,
+                          "protocol": "TCP"
+                        },
+                        {
+                          "port": 34568,
+                          "protocol": "TCP"
+                        }
+                      ],
+                      "environmentVariables": [
+                        {
+                          "name": "NODE_ENV",
+                          "value": "[parameters('environment')]"
+                        },
+                        {
+                          "name": "NODE_INDEX",
+                          "value": "[string(parameters('nodeIndex'))]"
+                        },
+                        {
+                          "name": "TOTAL_NODES",
+                          "value": "[string(parameters('totalNodes'))]"
+                        },
+                        {
+                          "name": "PLURESDB_PORT",
+                          "value": "34567"
+                        },
+                        {
+                          "name": "PLURESDB_API_PORT",
+                          "value": "34568"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "osType": "Linux",
+                "restartPolicy": "Always",
+                "ipAddress": {
+                  "type": "Public",
+                  "ports": [
+                    {
+                      "port": 34567,
+                      "protocol": "TCP"
+                    },
+                    {
+                      "port": 34568,
+                      "protocol": "TCP"
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "containerGroupId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ContainerInstance/containerGroups', parameters('nodeName'))]"
+            },
+            "ipAddress": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ContainerInstance/containerGroups', parameters('nodeName')), '2023-05-01').ipAddress.ip]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "vnetId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+    },
+    "storageAccountName": {
+      "type": "string",
+      "value": "[format('{0}storage', replace(variables('resourcePrefix'), '-', ''))]"
+    },
+    "nodeNames": {
+      "type": "array",
+      "copy": {
+        "count": "[length(range(0, parameters('nodeCount')))]",
+        "input": "[format('{0}-node-{1}', variables('resourcePrefix'), range(0, parameters('nodeCount'))[copyIndex()])]"
+      }
+    }
+  }
+}
