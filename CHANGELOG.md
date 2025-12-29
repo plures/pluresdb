@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.3.4] - 2025-12-29
+
+### Other
+
+- Change package name to @plures/pluresdb
+
+
 ## [1.3.3] - 2025-12-29
 
 ### Other
