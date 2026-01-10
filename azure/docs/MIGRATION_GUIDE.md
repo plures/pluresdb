@@ -109,9 +109,9 @@ az account show --query id --output tsv
 
 # Verify service principal access
 az login --service-principal \
-  -u <AZURE_CLIENT_ID> \
-  -p <AZURE_CLIENT_SECRET> \
-  --tenant <AZURE_TENANT_ID>
+  -u {AZURE_CLIENT_ID} \
+  -p {AZURE_CLIENT_SECRET} \
+  --tenant {AZURE_TENANT_ID}
   
 az account list --output table
 ```

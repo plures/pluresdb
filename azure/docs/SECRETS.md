@@ -138,6 +138,7 @@ az ad sp create-for-rbac \
 # - AZURE_CLIENT_ID (appId from output)
 # - AZURE_CLIENT_SECRET (password from output)
 # - AZURE_TENANT_ID (tenant from output)
+# - AZURE_SUBSCRIPTION_ID (use: az account show --query id --output tsv)
 ```
 
 ### 2. Rotate Credentials Regularly
@@ -184,9 +185,9 @@ Test your secrets are configured correctly:
 ```bash
 # Test Azure CLI login with service principal
 az login --service-principal \
-  -u <clientId> \
-  -p <clientSecret> \
-  --tenant <tenantId>
+  -u {clientId} \
+  -p {clientSecret} \
+  --tenant {tenantId}
 
 # Verify access
 az account show
@@ -216,7 +217,7 @@ az group list --output table
 **Solution**:
 - Verify service principal has Contributor role
 - Check the scope is correct (subscription or resource group)
-- Verify role assignment: `az role assignment list --assignee <clientId>`
+- Verify role assignment: `az role assignment list --assignee {clientId}`
 
 ### Subscription Not Found
 
