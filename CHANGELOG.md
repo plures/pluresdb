@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.3.6] - 2026-01-10
+
+### Other
+
+- Add Copilot instructions for repository (#32)
+
+
 ## [1.3.5] - 2026-01-10
 
 ### Developer Experience
