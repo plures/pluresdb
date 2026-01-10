@@ -82,6 +82,7 @@ pluresdb/
 - **better-sqlite3 API**: Synchronous-style API for Node.js (`legacy/better-sqlite3.ts`)
 - **REST API**: Express-based HTTP server for web apps
 - **WebSocket API**: Real-time updates and synchronization
+- **Note**: Files in `legacy/` contain TypeScript implementations being gradually transitioned to Rust
 
 ### P2P Architecture
 - **Identity**: Public key infrastructure for peer identification (ed25519-dalek)
