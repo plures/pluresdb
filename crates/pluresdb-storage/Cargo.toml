@@ -23,3 +23,4 @@ tracing.workspace = true
 
 [dev-dependencies]
 tempfile = "3.10"
+chrono.workspace = true

@@ -4,6 +4,7 @@
 //! initial native bootstrap we provide a simple in-memory store and a sled-based
 //! durable implementation that can run entirely within the application process.
 
+pub mod encryption;
 pub mod wal;
 
 use std::collections::HashMap;
@@ -17,6 +18,7 @@ use sled::IVec;
 use tokio::sync::RwLock;
 use tracing::{info, instrument};
 
+pub use encryption::{EncryptionConfig, EncryptionMetadata};
 pub use wal::{DurabilityLevel, WalEntry, WalOperation, WalValidation, WriteAheadLog};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
