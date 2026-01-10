@@ -6,49 +6,64 @@ This document describes the secrets and credentials needed for Azure relay testi
 
 To enable automated Azure testing in GitHub Actions, configure these secrets in your repository settings:
 
-### 1. AZURE_CREDENTIALS
+### 1. AZURE_CLIENT_ID
 
-Azure Service Principal credentials for authentication.
+Azure Service Principal client ID for authentication.
 
-**How to create**:
+**How to create a Service Principal and get the values**:
 
 ```bash
 # Create a service principal with Contributor role
 az ad sp create-for-rbac \
   --name "pluresdb-github-actions" \
   --role contributor \
-  --scopes /subscriptions/{subscription-id} \
-  --sdk-auth
+  --scopes /subscriptions/{subscription-id}
 
-# The output will be a JSON object - copy the entire output
+# The output will be a JSON object with the required values
 ```
 
-**Format**:
+**Example output**:
 ```json
 {
-  "clientId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "clientSecret": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "subscriptionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "tenantId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "activeDirectoryEndpointUrl": "https://login.microsoftonline.com",
-  "resourceManagerEndpointUrl": "https://management.azure.com/",
-  "activeDirectoryGraphResourceId": "https://graph.windows.net/",
-  "sqlManagementEndpointUrl": "https://management.core.windows.net:8443/",
-  "galleryEndpointUrl": "https://gallery.azure.com/",
-  "managementEndpointUrl": "https://management.core.windows.net/"
+  "appId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "displayName": "pluresdb-github-actions",
+  "password": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "tenant": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 }
 ```
 
 **In GitHub**:
 1. Go to repository Settings → Secrets and variables → Actions
 2. Click "New repository secret"
-3. Name: `AZURE_CREDENTIALS`
-4. Value: Paste the entire JSON output from above
+3. Name: `AZURE_CLIENT_ID`
+4. Value: The `appId` value from the output above
 5. Click "Add secret"
 
-### 2. AZURE_SUBSCRIPTION_ID
+### 2. AZURE_CLIENT_SECRET
 
-Your Azure subscription ID (also in AZURE_CREDENTIALS, but useful separately).
+Azure Service Principal client secret (password) for authentication.
+
+**In GitHub**:
+1. Settings → Secrets and variables → Actions
+2. New repository secret
+3. Name: `AZURE_CLIENT_SECRET`
+4. Value: The `password` value from the service principal creation output
+5. Click "Add secret"
+
+### 3. AZURE_TENANT_ID
+
+Azure Active Directory tenant ID.
+
+**In GitHub**:
+1. Settings → Secrets and variables → Actions
+2. New repository secret
+3. Name: `AZURE_TENANT_ID`
+4. Value: The `tenant` value from the service principal creation output
+5. Click "Add secret"
+
+### 4. AZURE_SUBSCRIPTION_ID
+
+Your Azure subscription ID.
 
 **How to find**:
 ```bash
@@ -117,8 +132,12 @@ az group create --name pluresdb-github-rg --location eastus
 az ad sp create-for-rbac \
   --name "pluresdb-github-limited" \
   --role contributor \
-  --scopes /subscriptions/{subscription-id}/resourceGroups/pluresdb-github-rg \
-  --sdk-auth
+  --scopes /subscriptions/{subscription-id}/resourceGroups/pluresdb-github-rg
+
+# Extract the values from the output and configure them as separate GitHub secrets:
+# - AZURE_CLIENT_ID (appId from output)
+# - AZURE_CLIENT_SECRET (password from output)
+# - AZURE_TENANT_ID (tenant from output)
 ```
 
 ### 2. Rotate Credentials Regularly
@@ -126,10 +145,10 @@ az ad sp create-for-rbac \
 ```bash
 # Reset service principal credentials
 az ad sp credential reset \
-  --name "pluresdb-github-actions" \
-  --sdk-auth
+  --name "pluresdb-github-actions"
 
-# Update GitHub secret with new credentials
+# Update GitHub secrets with new credentials:
+# - Update AZURE_CLIENT_SECRET with the new password value
 ```
 
 ### 3. Use Separate Service Principals per Environment
@@ -139,15 +158,13 @@ az ad sp credential reset \
 az ad sp create-for-rbac \
   --name "pluresdb-test-sp" \
   --role contributor \
-  --scopes /subscriptions/{subscription-id}/resourceGroups/pluresdb-test-rg \
-  --sdk-auth
+  --scopes /subscriptions/{subscription-id}/resourceGroups/pluresdb-test-rg
 
 # Production environment (with more restrictions)
 az ad sp create-for-rbac \
   --name "pluresdb-prod-sp" \
   --role "Virtual Machine Contributor" \
-  --scopes /subscriptions/{subscription-id}/resourceGroups/pluresdb-prod-rg \
-  --sdk-auth
+  --scopes /subscriptions/{subscription-id}/resourceGroups/pluresdb-prod-rg
 ```
 
 ### 4. Monitor Service Principal Activity
@@ -180,12 +197,17 @@ az group list --output table
 
 ### Authentication Failed
 
-**Error**: `AADSTS7000215: Invalid client secret`
+**Error**: `AADSTS7000215: Invalid client secret` or `Login failed with Error: Using auth-type: SERVICE_PRINCIPAL. Not all values are present.`
 
 **Solution**: 
-- Verify `clientSecret` in AZURE_CREDENTIALS is correct
+- Verify all four required secrets are configured in GitHub:
+  - `AZURE_CLIENT_ID`
+  - `AZURE_CLIENT_SECRET`
+  - `AZURE_TENANT_ID`
+  - `AZURE_SUBSCRIPTION_ID`
 - Check if credentials have expired
-- Reset credentials: `az ad sp credential reset`
+- Reset credentials: `az ad sp credential reset --name "pluresdb-github-actions"`
+- Update the `AZURE_CLIENT_SECRET` with the new password value
 
 ### Insufficient Permissions
 
@@ -201,7 +223,7 @@ az group list --output table
 **Error**: `SubscriptionNotFound`
 
 **Solution**:
-- Verify `subscriptionId` in AZURE_CREDENTIALS is correct
+- Verify `AZURE_SUBSCRIPTION_ID` secret is correct
 - Check service principal has access: `az account list --output table`
 
 ## Additional Resources
