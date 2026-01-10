@@ -24,6 +24,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.4.0] - 2026-01-10
+
+### Added
+
+- add crates.io publishing and synchronize versions across all manifests (#34)
+
+
 ## [1.3.8] - 2026-01-10
 
 ### Other
