@@ -2,6 +2,8 @@
 
 This directory contains the Azure infrastructure and testing automation for PluresDB's P2P relay functionality.
 
+> **📢 Important**: If you're upgrading from an older version, please see [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md) for instructions on migrating your Azure secrets to the new format.
+
 ## Overview
 
 The Azure infrastructure enables testing of PluresDB's P2P relay/mesh networking capabilities across multiple nodes in a cloud environment. It supports three environments:
@@ -24,7 +26,9 @@ azure/
 │   └── relay-tests.ts   # P2P relay functionality tests
 └── docs/                # Documentation
     ├── TEST_PLAN.md     # Test plan and promotion criteria
-    └── ARCHITECTURE.md  # Infrastructure architecture
+    ├── ARCHITECTURE.md  # Infrastructure architecture
+    ├── SECRETS.md       # Secrets configuration guide
+    └── MIGRATION_GUIDE.md # Migration guide for secrets
 ```
 
 ## Quick Start
