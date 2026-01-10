@@ -9,11 +9,22 @@ description = "Storage abstraction layer for PluresDB, including in-memory and s
 keywords = ["database", "storage", "local-first"]
 
 [dependencies]
+aes-gcm.workspace = true
 anyhow.workspace = true
+argon2.workspace = true
 async-trait.workspace = true
+base64 = "0.22"
+bincode.workspace = true
+chrono.workspace = true
+crc32fast = "1.5"
+rand.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sled.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3.10"
+chrono.workspace = true

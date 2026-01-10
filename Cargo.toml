@@ -18,10 +18,11 @@ description = "P2P Graph Database with SQLite Compatibility - Local-first, offli
 repository = "https://github.com/plures/pluresdb"
 
 [workspace.dependencies]
-anyhow = "1.0"
-async-trait = "0.1"
 aes-gcm = "0.10"
+anyhow = "1.0"
 arc-swap = "1.6"
+argon2 = "0.5"
+async-trait = "0.1"
 axum = { version = "0.8", features = ["ws", "macros"] }
 bincode = "1.3"
 chrono = { version = "0.4", features = ["serde"] }
@@ -38,6 +39,7 @@ libp2p = "0.53"
 parking_lot = "0.12"
 proptest = "1.0"
 quinn = "0.11"
+rand = "0.8"
 rcgen = "0.12"
 ring = "0.17"
 rocksdb = "0.21"
