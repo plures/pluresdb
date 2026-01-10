@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added crates.io publishing workflow for Rust crates (pluresdb-core, pluresdb-storage, pluresdb-sync, pluresdb-cli)
+- Added CARGO_REGISTRY_TOKEN configuration to release workflow
+
+### Changed
+
+- Updated release workflow to publish to crates.io in addition to npm, Docker Hub, JSR, and GitHub Releases
+- Synchronized version across package.json (1.3.8), Cargo.toml (1.3.8), and deno.json (1.3.8)
+- Updated RELEASE_PROCESS.md to document crates.io publishing workflow
+- Updated README.md with crates.io badge and installation instructions
+- Enhanced release channel documentation to include all platforms: npm, crates.io, JSR, Docker Hub, winget, and GitHub Releases
+- Updated CI workflow to sync deno.json version during automated version bumps
+
 ### Fixed
 
 - Fix release workflow entry point paths (legacy/main.ts)
