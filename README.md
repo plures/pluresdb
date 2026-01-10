@@ -1,6 +1,7 @@
 # PluresDB
 
 [![npm version](https://badge.fury.io/js/pluresdb.svg)](https://badge.fury.io/js/pluresdb)
+[![crates.io](https://img.shields.io/crates/v/pluresdb-core.svg)](https://crates.io/crates/pluresdb-core)
 [![Deno version](https://img.shields.io/badge/deno-v2.x-blue)](https://deno.land)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
@@ -13,8 +14,11 @@
 ### Release channels (current)
 
 - **Winget:** Published as `pluresdb.pluresdb` ([manifest](https://github.com/plures/pluresdb/blob/main/packaging/winget/pluresdb.yaml)) for Windows installs
-- **npm:** [`pluresdb`](https://www.npmjs.com/package/pluresdb) (Node + better-sqlite3 compatibility)
+- **npm:** [`pluresdb`](https://www.npmjs.com/package/pluresdb) (Node.js + better-sqlite3 compatibility)
+- **crates.io:** [`pluresdb-core`](https://crates.io/crates/pluresdb-core), [`pluresdb-storage`](https://crates.io/crates/pluresdb-storage), [`pluresdb-sync`](https://crates.io/crates/pluresdb-sync), [`pluresdb-cli`](https://crates.io/crates/pluresdb-cli) (Rust crates)
 - **JSR:** [`@plures/pluresdb`](https://jsr.io/@plures/pluresdb) (Deno module)
+- **Docker Hub:** [`pluresdb/pluresdb`](https://hub.docker.com/r/pluresdb/pluresdb) (containerized deployment)
+- **GitHub Releases:** Pre-built binaries for Windows, macOS, and Linux
 
 For version-specific information and release notes, see the [CHANGELOG](CHANGELOG.md).
 
@@ -32,6 +36,15 @@ pnpm add pluresdb
 
 # Deno (JSR)
 deno add @plures/pluresdb
+
+# Rust (Cargo)
+cargo add pluresdb-core pluresdb-storage pluresdb-sync
+
+# Docker
+docker pull pluresdb/pluresdb:latest
+
+# Windows (Winget)
+winget install pluresdb.pluresdb
 ```
 
 ### Development Prerequisites (Rust Components)

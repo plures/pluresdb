@@ -8,9 +8,9 @@ The release process is fully automated using GitHub Actions workflows. The autom
 
 1. Detects version bump type from commit messages
 2. Updates CHANGELOG.md with categorized commits
-3. Bumps version in package.json and Cargo.toml
+3. Bumps version in package.json, Cargo.toml, and deno.json
 4. Creates and pushes git tags
-5. Publishes to npm, Docker Hub, and Deno
+5. Publishes to npm, crates.io, Docker Hub, JSR (Deno), and GitHub Packages
 6. Creates GitHub releases with binary packages
 
 ## Commit Message Convention
@@ -76,24 +76,32 @@ When a tag matching `v*` is pushed:
    - Builds the project
    - Publishes to npm registry (if NPM_TOKEN is configured)
 
-3. **Build Packages** job (parallel for Windows, macOS, Linux):
+3. **Publish to crates.io** job:
+   - Publishes Rust crates in dependency order:
+     - pluresdb-core (base CRDT and data structures)
+     - pluresdb-storage (storage abstraction layer)
+     - pluresdb-sync (P2P synchronization)
+     - pluresdb-cli (command-line interface)
+   - Skipped if CARGO_REGISTRY_TOKEN not configured
+
+4. **Build Packages** job (parallel for Windows, macOS, Linux):
    - Compiles Deno binary
    - Packages with web UI, documentation, and installer scripts
    - Uploads artifacts
 
-4. **Create GitHub Release** job:
+5. **Create GitHub Release** job:
    - Downloads all binary packages
    - Creates GitHub release with:
      - Release notes from CHANGELOG.md
      - Binary downloads for all platforms
      - Auto-generated release notes
 
-5. **Publish to Docker** job:
+6. **Publish to Docker** job:
    - Builds multi-arch Docker image (amd64, arm64)
    - Pushes to Docker Hub (if credentials configured)
 
-6. **Publish to Deno** job:
-   - Placeholder for Deno Land publishing (automatic via webhook)
+7. **Publish to Deno** job:
+   - Placeholder for JSR/Deno Land publishing (automatic via webhook)
 
 ## Manual Release
 
@@ -167,6 +175,7 @@ Configure these in GitHub repository settings → Secrets and variables → Acti
 | Secret | Required | Purpose |
 |--------|----------|---------|
 | `NPM_TOKEN` | Optional | Publishing to npm registry |
+| `CARGO_REGISTRY_TOKEN` | Optional | Publishing to crates.io |
 | `DOCKERHUB_USERNAME` | Optional | Docker Hub login |
 | `DOCKERHUB_TOKEN` | Optional | Docker Hub authentication |
 

@@ -155,11 +155,14 @@ jobs:
           # Update version in Cargo.toml workspace
           sed -i "s/^version = \".*\"/version = \"$new_version\"/" Cargo.toml
           
+          # Update version in deno.json
+          sed -i "s/\"version\": \".*\"/\"version\": \"$new_version\"/" deno.json
+          
           # Update changelog with new version
           npm run update-changelog "$new_version"
 
           # Add files to git
-          git add CHANGELOG.md package.json package-lock.json Cargo.toml
+          git add CHANGELOG.md package.json package-lock.json Cargo.toml deno.json
 
           # Create commit and tag
           git commit --no-verify -m "chore(release): $new_version"
