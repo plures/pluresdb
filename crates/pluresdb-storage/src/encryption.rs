@@ -10,6 +10,7 @@ use aes_gcm::{
 use anyhow::{Context, Result};
 use argon2::{Argon2, PasswordHasher};
 use argon2::password_hash::SaltString;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -180,11 +181,15 @@ impl EncryptionConfig {
 }
 
 impl Default for EncryptionConfig {
+    /// Creates a disabled encryption config.
+    /// 
+    /// WARNING: This config has zero-filled keys and should NEVER be used for actual encryption.
+    /// It exists only for compatibility and testing purposes with encryption explicitly disabled.
     fn default() -> Self {
         Self {
             master_key: [0u8; KEY_SIZE],
             salt: [0u8; SALT_SIZE],
-            enabled: false,
+            enabled: false,  // Explicitly disabled to prevent accidental use
         }
     }
 }
@@ -223,7 +228,7 @@ impl Default for EncryptionMetadata {
 impl EncryptionMetadata {
     /// Creates metadata from an encryption config.
     pub fn from_config(config: &EncryptionConfig) -> Self {
-        let salt_b64 = base64::encode(&config.salt);
+        let salt_b64 = BASE64.encode(&config.salt);
         Self {
             version: 1,
             kdf: "argon2id".to_string(),
@@ -269,72 +274,8 @@ impl EncryptionMetadata {
     
     /// Returns the salt as bytes.
     pub fn salt_bytes(&self) -> Result<Vec<u8>> {
-        base64::decode(&self.salt)
+        BASE64.decode(&self.salt)
             .map_err(|e| anyhow::anyhow!("Failed to decode salt: {}", e))
-    }
-}
-
-// Simple base64 encoding/decoding helpers
-mod base64 {
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    
-    pub fn encode(input: &[u8]) -> String {
-        let mut result = String::new();
-        let chunks = input.chunks(3);
-        
-        for chunk in chunks {
-            let b1 = chunk[0];
-            let b2 = chunk.get(1).copied().unwrap_or(0);
-            let b3 = chunk.get(2).copied().unwrap_or(0);
-            
-            result.push(CHARSET[(b1 >> 2) as usize] as char);
-            result.push(CHARSET[(((b1 & 0x03) << 4) | (b2 >> 4)) as usize] as char);
-            
-            if chunk.len() > 1 {
-                result.push(CHARSET[(((b2 & 0x0F) << 2) | (b3 >> 6)) as usize] as char);
-            } else {
-                result.push('=');
-            }
-            
-            if chunk.len() > 2 {
-                result.push(CHARSET[(b3 & 0x3F) as usize] as char);
-            } else {
-                result.push('=');
-            }
-        }
-        
-        result
-    }
-    
-    pub fn decode(input: &str) -> Result<Vec<u8>, String> {
-        let input = input.trim_end_matches('=');
-        let mut result = Vec::new();
-        let chars: Vec<u8> = input.bytes().collect();
-        
-        for chunk in chars.chunks(4) {
-            let decode_char = |c: u8| -> Result<u8, String> {
-                CHARSET.iter().position(|&x| x == c)
-                    .map(|p| p as u8)
-                    .ok_or_else(|| format!("Invalid character: {}", c as char))
-            };
-            
-            let c1 = decode_char(chunk[0])?;
-            let c2 = chunk.get(1).map(|&c| decode_char(c)).transpose()?.unwrap_or(0);
-            let c3 = chunk.get(2).map(|&c| decode_char(c)).transpose()?.unwrap_or(0);
-            let c4 = chunk.get(3).map(|&c| decode_char(c)).transpose()?.unwrap_or(0);
-            
-            result.push((c1 << 2) | (c2 >> 4));
-            
-            if chunk.len() > 2 {
-                result.push((c2 << 4) | (c3 >> 2));
-            }
-            
-            if chunk.len() > 3 {
-                result.push((c3 << 6) | c4);
-            }
-        }
-        
-        Ok(result)
     }
 }
 
@@ -473,5 +414,11 @@ mod tests {
         let decrypted = config.decrypt(&ciphertext).unwrap();
         
         assert_eq!(decrypted, plaintext);
+    }
+    
+    #[test]
+    fn test_default_config_is_disabled() {
+        let config = EncryptionConfig::default();
+        assert!(!config.is_enabled(), "Default config should be disabled to prevent accidental use");
     }
 }

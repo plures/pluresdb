@@ -17,9 +17,9 @@ struct Args {
     #[arg(short, long)]
     actor: Option<String>,
     
-    /// Validate checksums during replay
-    #[arg(short, long, default_value_t = true)]
-    validate: bool,
+    /// Skip checksum validation during replay (faster but less safe)
+    #[arg(long)]
+    no_validate: bool,
     
     /// Output format (json or summary)
     #[arg(short, long, default_value = "summary")]
@@ -37,12 +37,13 @@ async fn main() -> Result<()> {
     println!("========================");
     println!("WAL directory: {}", args.wal_dir.display());
     
-    if args.validate {
+    let validate = !args.no_validate;
+    if validate {
         println!("Validating checksums...");
     }
     
     // Perform replay
-    let (state, stats) = if args.validate {
+    let (state, stats) = if validate {
         rebuild_from_wal(&args.wal_dir, true).await?
     } else {
         replay_wal(&args.wal_dir, args.actor.as_deref()).await?

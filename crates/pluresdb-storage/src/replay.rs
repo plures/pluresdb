@@ -204,7 +204,7 @@ pub mod metadata_pruning {
             let prunable = identify_prunable_actors(&last_seen, &config);
             
             assert_eq!(prunable.len(), 1);
-            assert!(prunable.contains(&"old".to_string()));
+            assert_eq!(prunable[0], "old");
         }
         
         #[test]

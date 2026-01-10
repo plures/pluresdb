@@ -113,7 +113,7 @@ async fn main() -> Result<()> {
             println!("\n✓ WAL is healthy!");
         } else {
             println!("\n✗ WAL has integrity issues!");
-            std::process::exit(1);
+            return Err(anyhow::anyhow!("WAL validation failed"));
         }
     }
     

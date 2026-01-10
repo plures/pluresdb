@@ -13,6 +13,7 @@ aes-gcm.workspace = true
 anyhow.workspace = true
 argon2.workspace = true
 async-trait.workspace = true
+base64 = "0.22"
 bincode.workspace = true
 chrono.workspace = true
 crc32fast = "1.5"
