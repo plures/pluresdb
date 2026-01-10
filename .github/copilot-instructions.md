@@ -45,8 +45,9 @@ pluresdb/
 - **Target**: ES2022
 - **Module System**: CommonJS for Node.js compatibility, ESM for Deno
 - **Style**: Follow ESLint configuration in `eslint.config.js`
-- **Formatting**: Use Prettier with settings from `.prettierrc.cjs`
-  - Print width: 100 characters
+- **Formatting**: 
+  - For TypeScript/Node.js: Use Prettier with settings from `.prettierrc.cjs` (print width: 100)
+  - For Deno: Use `deno fmt` with settings from `deno.json` (line width: 80)
   - 2 spaces for indentation
   - Double quotes (not single quotes)
   - Trailing commas: always
@@ -244,9 +245,9 @@ Releases are fully automated via CI/CD:
 - [README.md](../README.md) - Project overview and quick start
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - Detailed contribution guide
 - [SECURITY.md](../SECURITY.md) - Security policy and best practices
-- [docs/API.md](../docs/API.md) - API reference
 - [docs/WINDOWS_GETTING_STARTED.md](../docs/WINDOWS_GETTING_STARTED.md) - Windows setup guide
 - [RELEASE_PROCESS.md](../RELEASE_PROCESS.md) - Release automation details
+- [docs/TESTING.md](../docs/TESTING.md) - Testing guidelines and benchmarks
 
 ## Common Tasks
 
