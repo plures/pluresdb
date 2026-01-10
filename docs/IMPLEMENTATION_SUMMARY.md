@@ -54,7 +54,7 @@ pub enum WalOperation {
 
 **Location**: `crates/pluresdb-storage/tests/durability_tests.rs`
 
-**Tests Implemented** (9 tests, all passing):
+**Tests Implemented** (15 tests total: 9 durability + 3 agent simulation + 3 encryption, all passing):
 1. `test_durability_across_restart` - Verifies operations survive process restart
 2. `test_deterministic_replay` - Ensures replay produces identical state
 3. `test_corruption_detection` - Validates checksum-based corruption detection

@@ -9,12 +9,13 @@ use std::path::Path;
 
 /// Encryption configuration and key management.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]  // Fields will be used when encryption is fully implemented
 pub struct EncryptionConfig {
     /// Master encryption key (32 bytes for AES-256)
+    #[allow(dead_code)]  // Will be used when encryption is fully implemented
     master_key: Vec<u8>,
     
     /// Salt for key derivation (16 bytes)
+    #[allow(dead_code)]  // Will be used when encryption is fully implemented
     salt: Vec<u8>,
     
     /// Whether encryption is enabled
