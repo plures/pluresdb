@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.3.8] - 2026-01-10
+
+### Other
+
+- Complete Pre-flight Hardening: PluresDB as Exclusive Local-First Agent Memory Store (#29)
+
+
 ## [1.3.7] - 2026-01-10
 
 ### Other
