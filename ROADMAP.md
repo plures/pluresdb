@@ -1,18 +1,19 @@
 # Roadmap (Next-Level Web UI and Product)
 
-## Current Status (as of today)
+## Current Status (January 2026)
 
 - Core engine: CRUD, subscriptions, CRDT merge with per-field state, vector search + in-memory index, mesh sync, rules scaffold.
 - CLI: serve/put/get/delete/vsearch/type/instances/list; config print/set.
 - HTTP: CRUD/search/list/instances/config; SSE stream.
 - UI (Svelte): Componentized with 24-tab navigation, comprehensive data exploration tools, graph visualization, vector search, faceted search, type management, history tracking, CRDT analysis, import/export, interactive notebooks, visual query building, rules engine, task scheduling, mesh management, storage control, performance profiling, security management, packaging deployment, billing management, SQLite compatibility, P2P ecosystem foundation, identity & discovery, encrypted data sharing, and cross-device sync.
-- Packaging: Dockerfile; Windows zip packaging (placeholder) via PowerShell script; MSI planned.
+- Packaging: Dockerfile; Windows MSI/winget; npm, JSR (Deno), crates.io (Rust), Docker Hub, GitHub Releases.
+- **All Phases Complete!** Phase 1, 2, 3, 4, 5, 6, Billing System, Foundation, and P2P Ecosystem ✅
 
-Phase 1, 2, 3, 4, 5, 6, Billing System, Foundation, and P2P Ecosystem complete! Next priorities:
-
-- Commercial launch and customer onboarding.
-- Advanced features and performance optimizations.
-- Community support and documentation.
+**Current Focus:**
+- Production stability and performance optimizations
+- Commercial launch preparation and customer onboarding
+- Enhanced documentation and developer experience
+- Community building and ecosystem growth
 
 This roadmap focuses on evolving PluresDB from functional to delightful, inspired by modern DB UIs (Supabase Studio, Prisma Studio, Directus, Hasura Console, Neo4j Bloom, Weaviate Console, RedisInsight, MongoDB Compass).
 
