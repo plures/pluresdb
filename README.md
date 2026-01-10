@@ -1,6 +1,6 @@
 # PluresDB
 
-[![npm version](https://badge.fury.io/js/pluresdb.svg)](https://badge.fury.io/js/pluresdb)
+[![npm version](https://badge.fury.io/js/pluresdb.svg)](https://badge.fury.io/js/@plures/pluresdb)
 [![crates.io](https://img.shields.io/crates/v/pluresdb-core.svg)](https://crates.io/crates/pluresdb-core)
 [![Deno version](https://img.shields.io/badge/deno-v2.x-blue)](https://deno.land)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
