@@ -242,7 +242,7 @@ jobs:
 
   create-github-release:
     name: Create GitHub Release
-    needs: [verify-release, build-packages, publish-npm]
+    needs: [verify-release, build-packages]
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' || needs.verify-release.outputs.is_on_main == 'true' }}
     steps:
