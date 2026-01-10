@@ -4,6 +4,8 @@
 //! initial native bootstrap we provide a simple in-memory store and a sled-based
 //! durable implementation that can run entirely within the application process.
 
+pub mod wal;
+
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -14,6 +16,8 @@ use serde::{Deserialize, Serialize};
 use sled::IVec;
 use tokio::sync::RwLock;
 use tracing::{info, instrument};
+
+pub use wal::{DurabilityLevel, WalEntry, WalOperation, WalValidation, WriteAheadLog};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StoredNode {
