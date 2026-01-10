@@ -24,6 +24,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.4.1] - 2026-01-10
+
+### Other
+
+- Update npm badge to reflect new scope
+
+
 ## [1.4.0] - 2026-01-10
 
 ### Added
