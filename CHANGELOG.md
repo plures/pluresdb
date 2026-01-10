@@ -10,6 +10,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.3.7] - 2026-01-10
+
+### Other
+
+- Fix Azure Login authentication format for azure/login@v1 (#30)
+
+
 ## [1.3.6] - 2026-01-10
 
 ### Other
