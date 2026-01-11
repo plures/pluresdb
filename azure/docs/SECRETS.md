@@ -254,8 +254,9 @@ az group list --output table
 **Error**: `SubscriptionNotFound`
 
 **Solution**:
-- Verify `AZURE_SUBSCRIPTION_ID` secret is correct
+- Verify the `subscriptionId` field in the `AZURE_CREDENTIALS` JSON is correct
 - Check service principal has access: `az account list --output table`
+- If the subscription ID is wrong, recreate the service principal or manually update the JSON
 
 ## Additional Resources
 
