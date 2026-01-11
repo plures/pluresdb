@@ -4,39 +4,63 @@ This document describes the secrets and credentials needed for Azure relay testi
 
 ## Required Secrets for GitHub Actions
 
-To enable automated Azure testing in GitHub Actions, configure these secrets in your repository settings:
+To enable automated Azure testing in GitHub Actions, you need to configure the `AZURE_CREDENTIALS` secret in your repository settings.
 
-### 1. AZURE_CLIENT_ID
+### AZURE_CREDENTIALS
 
-Azure Service Principal client ID for authentication.
+A JSON object containing Azure Service Principal authentication credentials.
 
-**How to create a Service Principal and get the values**:
+**How to create a Service Principal and get the credentials**:
 
 ```bash
 # Create a service principal with Contributor role
 az ad sp create-for-rbac \
   --name "pluresdb-github-actions" \
   --role contributor \
-  --scopes /subscriptions/{subscription-id}
+  --scopes /subscriptions/{subscription-id} \
+  --sdk-auth
 
-# The output will be a JSON object with the required values
+# The output will be a JSON object that you'll use as the AZURE_CREDENTIALS secret
 ```
 
 **Example output**:
 ```json
 {
-  "appId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "displayName": "pluresdb-github-actions",
-  "password": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "tenant": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  "clientId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "clientSecret": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "subscriptionId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "tenantId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "activeDirectoryEndpointUrl": "https://login.microsoftonline.com",
+  "resourceManagerEndpointUrl": "https://management.azure.com/",
+  "activeDirectoryGraphResourceId": "https://graph.windows.net/",
+  "sqlManagementEndpointUrl": "https://management.core.windows.net:8443/",
+  "galleryEndpointUrl": "https://gallery.azure.com/",
+  "managementEndpointUrl": "https://management.core.windows.net/"
 }
 ```
 
 **In GitHub**:
 1. Go to repository Settings → Secrets and variables → Actions
 2. Click "New repository secret"
+3. Name: `AZURE_CREDENTIALS`
+4. Value: Paste the entire JSON object from the command output above
+5. Click "Add secret"
+
+> **Note**: The `--sdk-auth` flag is deprecated but still supported for generating the JSON format required by the Azure Login action (currently using v1 in this workflow). For production use, consider migrating to OpenID Connect (OIDC) authentication which doesn't require storing secrets.
+
+## Alternative: Individual Secrets (Legacy)
+
+If you prefer to use individual secrets instead of the JSON format, you can configure these four separate secrets:
+
+### 1. AZURE_CLIENT_ID
+
+Azure Service Principal client ID for authentication.
+
+**In GitHub**:
+1. Settings → Secrets and variables → Actions
+2. New repository secret
 3. Name: `AZURE_CLIENT_ID`
-4. Value: The `appId` value from the output above
+4. Value: The `clientId` value from the service principal creation output
 5. Click "Add secret"
 
 ### 2. AZURE_CLIENT_SECRET
@@ -47,7 +71,7 @@ Azure Service Principal client secret (password) for authentication.
 1. Settings → Secrets and variables → Actions
 2. New repository secret
 3. Name: `AZURE_CLIENT_SECRET`
-4. Value: The `password` value from the service principal creation output
+4. Value: The `clientSecret` value from the service principal creation output
 5. Click "Add secret"
 
 ### 3. AZURE_TENANT_ID
@@ -58,7 +82,7 @@ Azure Active Directory tenant ID.
 1. Settings → Secrets and variables → Actions
 2. New repository secret
 3. Name: `AZURE_TENANT_ID`
-4. Value: The `tenant` value from the service principal creation output
+4. Value: The `tenantId` value from the service principal creation output
 5. Click "Add secret"
 
 ### 4. AZURE_SUBSCRIPTION_ID
@@ -75,6 +99,8 @@ az account show --query id --output tsv
 2. New repository secret
 3. Name: `AZURE_SUBSCRIPTION_ID`
 4. Value: Your subscription ID (e.g., `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+
+> **Note**: The workflow currently uses `AZURE_CREDENTIALS` (JSON format). If you want to use individual secrets, you'll need to modify the workflow file to use them instead.
 
 ## Optional Secrets
 
@@ -198,17 +224,21 @@ az group list --output table
 
 ### Authentication Failed
 
-**Error**: `AADSTS7000215: Invalid client secret` or `Login failed with Error: Using auth-type: SERVICE_PRINCIPAL. Not all values are present.`
+**Error**: `AADSTS7000215: Invalid client secret`, `Login failed with Error: Using auth-type: SERVICE_PRINCIPAL. Not all values are present.`, or `Unexpected input(s) 'client-secret'`
 
 **Solution**: 
-- Verify all four required secrets are configured in GitHub:
-  - `AZURE_CLIENT_ID`
-  - `AZURE_CLIENT_SECRET`
-  - `AZURE_TENANT_ID`
-  - `AZURE_SUBSCRIPTION_ID`
+- Verify the `AZURE_CREDENTIALS` secret is configured in GitHub with a valid JSON object
+- The JSON must include: `clientId`, `clientSecret`, `subscriptionId`, and `tenantId`
 - Check if credentials have expired
-- Reset credentials: `az ad sp credential reset --name "pluresdb-github-actions"`
-- Update the `AZURE_CLIENT_SECRET` with the new password value
+- Reset credentials and update the secret:
+  ```bash
+  az ad sp create-for-rbac \
+    --name "pluresdb-github-actions" \
+    --role contributor \
+    --scopes /subscriptions/{subscription-id} \
+    --sdk-auth
+  ```
+- Copy the entire JSON output and update the `AZURE_CREDENTIALS` secret in GitHub
 
 ### Insufficient Permissions
 
@@ -224,8 +254,9 @@ az group list --output table
 **Error**: `SubscriptionNotFound`
 
 **Solution**:
-- Verify `AZURE_SUBSCRIPTION_ID` secret is correct
+- Verify the `subscriptionId` field in the `AZURE_CREDENTIALS` JSON is correct
 - Check service principal has access: `az account list --output table`
+- If the subscription ID is wrong, recreate the service principal or manually update the JSON
 
 ## Additional Resources
 

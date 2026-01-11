@@ -298,11 +298,9 @@ Trigger manually:
 
 1. Azure subscription with appropriate permissions
 2. Azure CLI installed (`az` command)
-3. For GitHub Actions: Four Azure secrets must be configured:
-   - AZURE_CLIENT_ID
-   - AZURE_CLIENT_SECRET
-   - AZURE_TENANT_ID
-   - AZURE_SUBSCRIPTION_ID
+3. For GitHub Actions: `AZURE_CREDENTIALS` secret must be configured
+   - Contains JSON object with Azure Service Principal credentials
+   - Includes: clientId, clientSecret, subscriptionId, tenantId
    
    See [azure/docs/SECRETS.md](azure/docs/SECRETS.md) for details.
 
