@@ -46,7 +46,10 @@ This will output a JSON object like:
 
 > **Note**: If you already have a service principal, you can reset its credentials to get new output:
 > ```bash
-> az ad sp credential reset --name "pluresdb-github-actions" --sdk-auth
+> # Reset credentials for the service principal
+> az ad sp credential reset \
+>   --name "pluresdb-github-actions" \
+>   --sdk-auth
 > ```
 
 ### Step 2: Configure GitHub Secret

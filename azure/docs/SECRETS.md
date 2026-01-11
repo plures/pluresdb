@@ -46,7 +46,7 @@ az ad sp create-for-rbac \
 4. Value: Paste the entire JSON object from the command output above
 5. Click "Add secret"
 
-> **Note**: The `--sdk-auth` flag is deprecated but still supported for generating the JSON format required by `azure/login@v1` action. For production use, consider migrating to OpenID Connect (OIDC) authentication which doesn't require storing secrets.
+> **Note**: The `--sdk-auth` flag is deprecated but still supported for generating the JSON format required by the Azure Login action (currently using v1 in this workflow). For production use, consider migrating to OpenID Connect (OIDC) authentication which doesn't require storing secrets.
 
 ## Alternative: Individual Secrets (Legacy)
 
