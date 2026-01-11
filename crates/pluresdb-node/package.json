@@ -1,6 +1,6 @@
 {
   "name": "@plures/pluresdb-native",
-  "version": "1.4.2",
+  "version": "1.5.1",
   "description": "Native Node.js bindings for PluresDB",
   "main": "index.js",
   "types": "index.d.ts",
