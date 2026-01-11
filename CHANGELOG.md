@@ -69,6 +69,23 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.5.1] - 2026-01-11
+
+### Documentation
+
+- Add release trigger instructions
+
+### Developer Experience
+
+- Bump version to 1.4.3 for new release
+- publish instr
+- Add pluresdb unified crate to release workflow publishing order
+
+### Other
+
+- Release ready for publishing
+
+
 ## [1.5.0] - 2026-01-11
 
 ### Added
