@@ -10,9 +10,11 @@ keywords = ["database", "crdt", "local-first", "p2p", "sqlite"]
 readme = "README.md"
 
 [dependencies]
-pluresdb-core = { path = "../pluresdb-core", version.workspace = true }
-pluresdb-storage = { path = "../pluresdb-storage", version.workspace = true }
-pluresdb-sync = { path = "../pluresdb-sync", version.workspace = true }
+# Use explicit version - Cargo resolves from crates.io when publishing
+# For local development, workspace members are used via path resolution
+pluresdb-core = "1.5.2"
+pluresdb-storage = "1.5.2"
+pluresdb-sync = "1.5.2"
 
 [dependencies.tokio]
 workspace = true
