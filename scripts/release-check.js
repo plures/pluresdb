@@ -47,6 +47,14 @@ function checkPackageVersions() {
   
   if (cargoVersion && packageVersion !== cargoVersion) {
     console.error('❌ Version mismatch between package.json and Cargo.toml');
+    console.error('');
+    console.error('To fix this issue:');
+    console.error(`  1. Update package.json version from ${packageVersion} to ${cargoVersion}`);
+    console.error(`     OR update Cargo.toml version from ${cargoVersion} to ${packageVersion}`);
+    console.error('  2. Ensure both files always have the same version number');
+    console.error('  3. Run this check again: npm run release-check');
+    console.error('');
+    console.error('Note: The version in both files must be identical for releases.');
     return false;
   }
   
