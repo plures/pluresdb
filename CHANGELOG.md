@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.5.2] - 2026-01-11
+
+### Other
+
+- [WIP] Fix release-check errors in CI job (#38)
+
+
 ## [1.5.1] - 2026-01-11
 
 ### Documentation
