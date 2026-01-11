@@ -160,11 +160,32 @@ Check that required secrets are configured in GitHub:
 
 ### Version Mismatch
 
-If package.json and Cargo.toml versions are out of sync:
+If package.json, Cargo.toml, and deno.json versions are out of sync, the `release-check` job will fail with a detailed error message.
 
-1. Manually update both files to match
-2. Commit the fix
-3. The next release will work correctly
+**Symptoms:**
+- CI fails with "❌ Version mismatch between package.json and Cargo.toml" or similar
+- The error message shows the version in each file
+
+**Resolution:**
+
+1. **Identify the correct version** - Determine which version is correct based on your intended release
+2. **Update all files to match**:
+   - Update `package.json`: Change the `version` field (line ~3)
+   - Update `Cargo.toml`: Change the `version` field in `[workspace.package]` section (line ~16)
+   - Update `deno.json`: Change the `version` field (line ~2)
+3. **Verify the fix**: Run `npm run release-check` locally to confirm all versions match
+4. **Commit the fix**: 
+   ```bash
+   git add package.json Cargo.toml deno.json
+   git commit -m "fix: synchronize package versions"
+   git push
+   ```
+5. The next CI run will succeed
+
+**Prevention:**
+- The automated release workflow updates all three files together
+- Always use conventional commits to trigger automated version bumps
+- Run `npm run release-check` before pushing to catch issues early
 
 ## Configuration
 

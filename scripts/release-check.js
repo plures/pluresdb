@@ -38,15 +38,49 @@ function checkPackageVersions() {
   const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const cargoToml = fs.readFileSync('Cargo.toml', 'utf8');
   
+  let denoVersion = null;
+  if (fs.existsSync('deno.json')) {
+    const denoJson = JSON.parse(fs.readFileSync('deno.json', 'utf8'));
+    denoVersion = denoJson.version;
+  }
+  
   const packageVersion = packageJson.version;
   const cargoMatch = cargoToml.match(/^version\s*=\s*"([^"]+)"/m);
   const cargoVersion = cargoMatch ? cargoMatch[1] : null;
   
   console.log(`  package.json: ${packageVersion}`);
   console.log(`  Cargo.toml:   ${cargoVersion || 'not found'}`);
+  if (denoVersion) {
+    console.log(`  deno.json:    ${denoVersion}`);
+  }
+  
+  let hasError = false;
   
   if (cargoVersion && packageVersion !== cargoVersion) {
     console.error('❌ Version mismatch between package.json and Cargo.toml');
+    console.error('');
+    console.error('To fix this issue:');
+    console.error(`  1. Update package.json version from ${packageVersion} to ${cargoVersion}`);
+    console.error(`     OR update Cargo.toml version from ${cargoVersion} to ${packageVersion}`);
+    console.error('  2. Ensure both files always have the same version number');
+    console.error('  3. Run this check again: npm run release-check');
+    console.error('');
+    console.error('Note: The version in both files must be identical for releases.');
+    hasError = true;
+  }
+  
+  if (denoVersion && packageVersion !== denoVersion) {
+    console.error('❌ Version mismatch between package.json and deno.json');
+    console.error('');
+    console.error('To fix this issue:');
+    console.error(`  1. Update deno.json version from ${denoVersion} to ${packageVersion}`);
+    console.error(`     OR update package.json version from ${packageVersion} to ${denoVersion}`);
+    console.error('  2. Ensure both files always have the same version number');
+    console.error('');
+    hasError = true;
+  }
+  
+  if (hasError) {
     return false;
   }
   
