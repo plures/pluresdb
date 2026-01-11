@@ -63,16 +63,14 @@ Add or update this secret:
 
 ### Step 3: Remove Old Secrets (Optional)
 
-If you previously configured individual secrets, you can optionally remove them:
+If you previously configured individual secrets, you can remove them as they're no longer used:
 
 1. Go to repository Settings → Secrets and variables → Actions
-2. Remove these secrets if they exist (they're no longer used):
+2. Remove these secrets if they exist:
    - `AZURE_CLIENT_ID`
    - `AZURE_CLIENT_SECRET`
    - `AZURE_TENANT_ID`
    - `AZURE_SUBSCRIPTION_ID`
-
-> **Note**: Keep `AZURE_SUBSCRIPTION_ID` if it's used elsewhere in your workflows.
 
 ### Step 4: Verify Configuration
 
