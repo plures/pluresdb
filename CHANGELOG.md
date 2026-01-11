@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.5.3] - 2026-01-11
+
+### Fixed
+
+- Remove path dependencies from pluresdb crate for publishing
+
+
 ## [1.5.2] - 2026-01-11
 
 ### Other

@@ -1,6 +1,6 @@
 {
   "name": "@plures/pluresdb",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications",
   "main": "dist/node-index.js",
   "types": "dist/node-index.d.ts",
