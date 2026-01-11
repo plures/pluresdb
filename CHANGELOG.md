@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.5.0] - 2026-01-11
+
+### Added
+
+- Complete all missing crate implementations and add unified pluresdb crate
+
+
 ## [1.4.2] - 2026-01-10
 
 ### Other
