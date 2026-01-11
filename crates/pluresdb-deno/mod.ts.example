@@ -1,0 +1,33 @@
+// Deno module wrapper for pluresdb-deno
+// This file should be created after building the bindings
+// 
+// Usage:
+// 1. Build the crate: cargo build --release
+// 2. Generate bindings: deno_bindgen --release
+// 3. Copy this file to mod.ts
+// 4. Update the import path to match your bindings location
+
+import { PluresDatabase } from "./bindings/bindings.ts";
+
+// Re-export the main class
+export { PluresDatabase };
+
+// Re-export types
+export type {
+  QueryResult,
+  ExecutionResult,
+  NodeWithMetadata,
+  SearchResult,
+  DatabaseStats,
+} from "./bindings/bindings.ts";
+
+// Example usage:
+/*
+import { PluresDatabase } from "jsr:@plures/pluresdb/mod.ts";
+
+const db = new PluresDatabase("my-actor", "./data.db");
+db.put("node-1", { name: "Alice", age: 30 });
+const node = db.get("node-1");
+console.log(node);
+*/
+

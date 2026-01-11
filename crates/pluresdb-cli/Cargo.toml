@@ -8,6 +8,10 @@ repository.workspace = true
 description = "Command-line interface for managing PluresDB nodes."
 keywords = ["cli", "database", "pluresdb"]
 
+[[bin]]
+name = "pluresdb"
+path = "src/main.rs"
+
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true

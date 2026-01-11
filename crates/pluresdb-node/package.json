@@ -1,6 +1,6 @@
 {
   "name": "@plures/pluresdb-native",
-  "version": "1.2.10",
+  "version": "1.4.2",
   "description": "Native Node.js bindings for PluresDB",
   "main": "index.js",
   "types": "index.d.ts",
@@ -20,7 +20,9 @@
   },
   "scripts": {
     "build": "napi build --platform --release",
-    "build:debug": "napi build --platform"
+    "build:debug": "napi build --platform",
+    "test": "node test-node.js",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "database",

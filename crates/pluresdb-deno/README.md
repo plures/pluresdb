@@ -1,6 +1,6 @@
-# pluresdb-node
+# pluresdb-deno
 
-Native Node.js bindings for PluresDB using N-API.
+Native Deno bindings for PluresDB using deno_bindgen FFI.
 
 ## Features
 
@@ -23,7 +23,7 @@ Native Node.js bindings for PluresDB using N-API.
   - `vectorSearch(query, limit?, threshold?)` - Vector similarity search (placeholder, uses text search)
 
 - **Subscriptions**
-  - `subscribe()` - Subscribe to node change events (infrastructure ready)
+  - Infrastructure ready via SyncBroadcaster (full async support pending)
 
 - **Utilities**
   - `getActorId()` - Get the actor ID for this database instance
@@ -32,7 +32,7 @@ Native Node.js bindings for PluresDB using N-API.
 ## Usage
 
 ```typescript
-import { PluresDatabase } from '@plures/pluresdb-native';
+import { PluresDatabase } from './bindings/bindings.ts';
 
 // Create a new database instance
 const db = new PluresDatabase('my-actor-id', './data.db');
@@ -70,11 +70,13 @@ console.log(stats); // { totalNodes: 1, typeCounts: {} }
 ## Building
 
 ```bash
-cd crates/pluresdb-node
-npm install
-npm run build
+cd crates/pluresdb-deno
+deno_bindgen --release
 ```
+
+This will generate TypeScript bindings in `bindings/` directory.
 
 ## Status
 
 ✅ **Implementation Complete** - Ready for testing and publishing
+

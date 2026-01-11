@@ -1,0 +1,24 @@
+[package]
+name = "pluresdb"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications"
+keywords = ["database", "crdt", "local-first", "p2p", "sqlite"]
+readme = "README.md"
+
+[dependencies]
+pluresdb-core = { path = "../pluresdb-core", version.workspace = true }
+pluresdb-storage = { path = "../pluresdb-storage", version.workspace = true }
+pluresdb-sync = { path = "../pluresdb-sync", version.workspace = true }
+
+[dependencies.tokio]
+workspace = true
+optional = true
+
+[features]
+default = ["tokio"]
+async = ["tokio"]
+

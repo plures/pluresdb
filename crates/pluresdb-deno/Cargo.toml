@@ -8,5 +8,17 @@ repository.workspace = true
 description = "Deno bindings for PluresDB."
 keywords = ["database", "deno", "bindings"]
 
+[lib]
+crate-type = ["cdylib"]
+
+[build-dependencies]
+deno_bindgen = "0.9"
+
 [dependencies]
+deno_bindgen = "0.9"
 pluresdb-core = { path = "../pluresdb-core" }
+pluresdb-sync = { path = "../pluresdb-sync" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+tokio = { workspace = true, features = ["rt", "sync"] }

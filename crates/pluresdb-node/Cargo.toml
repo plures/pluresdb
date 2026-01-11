@@ -15,6 +15,7 @@ crate-type = ["cdylib"]
 napi = { version = "2.16", features = ["napi6", "serde-json"] }
 napi-derive = "2.16"
 pluresdb-core = { path = "../pluresdb-core" }
+pluresdb-sync = { path = "../pluresdb-sync" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 parking_lot = { workspace = true }

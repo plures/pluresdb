@@ -1,0 +1,164 @@
+// Comprehensive test script for Deno bindings
+// Run with: deno run --allow-read --allow-write --allow-ffi test-deno.ts (after building)
+
+import { PluresDatabase } from "./bindings/bindings.ts";
+import { ensureFile, exists } from "https://deno.land/std@0.208.0/fs/mod.ts";
+
+const testDbPath = "./test-deno.db";
+
+// Clean up test database
+if (await exists(testDbPath)) {
+  await Deno.remove(testDbPath);
+}
+
+async function test() {
+  console.log("=== PluresDB Deno Bindings Test Suite ===\n");
+
+  // Test 1: Basic CRUD operations
+  console.log("Test 1: Basic CRUD operations");
+  const db = new PluresDatabase("test-actor");
+
+  console.log("  ✓ Creating database instance");
+  console.log("  ✓ Actor ID:", db.getActorId());
+
+  // Put
+  const id1 = db.put("node-1", { name: "Alice", age: 30, type: "Person" });
+  console.log("  ✓ Put node:", id1);
+
+  // Get
+  const node1 = db.get("node-1");
+  console.log("  ✓ Get node:", JSON.stringify(node1));
+  if (!node1 || node1.name !== "Alice") {
+    throw new Error("Get failed: node data incorrect");
+  }
+
+  // Get with metadata
+  const node1Meta = db.getWithMetadata("node-1");
+  console.log("  ✓ Get with metadata:", JSON.stringify(node1Meta, null, 2));
+  if (!node1Meta || !node1Meta.clock || !node1Meta.timestamp) {
+    throw new Error("Get with metadata failed");
+  }
+
+  // List
+  const all = db.list();
+  console.log("  ✓ List nodes:", all.length, "nodes");
+  if (all.length !== 1) {
+    throw new Error("List failed: expected 1 node");
+  }
+
+  // Delete
+  db.delete("node-1");
+  const deleted = db.get("node-1");
+  if (deleted !== null) {
+    throw new Error("Delete failed: node still exists");
+  }
+  console.log("  ✓ Delete node: success\n");
+
+  // Test 2: Type filtering
+  console.log("Test 2: Type filtering");
+  db.put("person-1", { name: "Bob", type: "Person" });
+  db.put("person-2", { name: "Charlie", type: "Person" });
+  db.put("item-1", { name: "Widget", type: "Item" });
+
+  const people = db.listByType("Person");
+  console.log('  ✓ List by type "Person":', people.length, "nodes");
+  if (people.length !== 2) {
+    throw new Error("List by type failed: expected 2 Person nodes");
+  }
+
+  const items = db.listByType("Item");
+  console.log('  ✓ List by type "Item":', items.length, "nodes");
+  if (items.length !== 1) {
+    throw new Error("List by type failed: expected 1 Item node");
+  }
+  console.log("");
+
+  // Test 3: Search
+  console.log("Test 3: Text search");
+  db.put("doc-1", {
+    title: "Introduction to Rust",
+    content: "Rust is a systems programming language",
+  });
+  db.put("doc-2", {
+    title: "JavaScript Guide",
+    content: "JavaScript is a scripting language",
+  });
+  db.put("doc-3", {
+    title: "Python Tutorial",
+    content: "Python is a high-level language",
+  });
+
+  const rustResults = db.search("Rust", 5);
+  console.log('  ✓ Search "Rust":', rustResults.length, "results");
+  if (rustResults.length === 0 || rustResults[0].id !== "doc-1") {
+    throw new Error("Search failed: expected doc-1 in results");
+  }
+
+  const langResults = db.search("language", 10);
+  console.log('  ✓ Search "language":', langResults.length, "results");
+  if (langResults.length < 3) {
+    throw new Error("Search failed: expected at least 3 results");
+  }
+  console.log("");
+
+  // Test 4: Vector search (placeholder)
+  console.log("Test 4: Vector search (placeholder)");
+  const vectorResults = db.vectorSearch("Rust", 5, 0.7);
+  console.log("  ✓ Vector search:", vectorResults.length, "results");
+  console.log("");
+
+  // Test 5: SQL queries (requires database)
+  console.log("Test 5: SQL queries");
+  const dbWithSql = new PluresDatabase("test-actor", testDbPath);
+
+  // Create table
+  dbWithSql.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE
+    )
+  `);
+  console.log("  ✓ Created table");
+
+  // Insert data
+  dbWithSql.exec(
+    `INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com')`
+  );
+  dbWithSql.exec(
+    `INSERT INTO users (name, email) VALUES ('Bob', 'bob@example.com')`
+  );
+  console.log("  ✓ Inserted data");
+
+  // Query data
+  const queryResult = dbWithSql.query("SELECT * FROM users WHERE name = ?", [
+    "Alice",
+  ]);
+  console.log("  ✓ Query result:", JSON.stringify(queryResult, null, 2));
+  if (queryResult.rows.length !== 1 || queryResult.rows[0].name !== "Alice") {
+    throw new Error("Query failed: incorrect results");
+  }
+
+  // Clean up
+  if (await exists(testDbPath)) {
+    await Deno.remove(testDbPath);
+  }
+  console.log("");
+
+  // Test 6: Statistics
+  console.log("Test 6: Database statistics");
+  const stats = db.stats();
+  console.log("  ✓ Stats:", JSON.stringify(stats, null, 2));
+  if (stats.total_nodes < 5) {
+    throw new Error("Stats failed: incorrect node count");
+  }
+  console.log("");
+
+  console.log("=== All tests passed! ===");
+}
+
+test().catch((error) => {
+  console.error("Test failed:", error);
+  Deno.exit(1);
+});
+
