@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.5.4] - 2026-01-11
+
+### Other
+
+- Fix Azure Login authentication in relay tests workflow (#36)
+
+
 ## [1.5.3] - 2026-01-11
 
 ### Fixed
