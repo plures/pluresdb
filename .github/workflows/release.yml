@@ -395,6 +395,16 @@ jobs:
         if: steps.check-cargo-token.outputs.has_token == 'true'
         run: sleep 30
 
+      - name: Publish pluresdb (unified crate)
+        if: steps.check-cargo-token.outputs.has_token == 'true'
+        working-directory: crates/pluresdb
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+      - name: Wait for pluresdb to be available
+        if: steps.check-cargo-token.outputs.has_token == 'true'
+        run: sleep 30
+
       - name: Publish pluresdb-cli
         if: steps.check-cargo-token.outputs.has_token == 'true'
         working-directory: crates/pluresdb-cli
