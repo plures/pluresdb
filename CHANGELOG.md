@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.5.6] - 2026-01-25
+
+### Fixed
+
+- gracefully skip Azure relay tests when credentials not configured + migrate to OIDC (#41)
+
+
 ## [1.5.5] - 2026-01-25
 
 ### Developer Experience
