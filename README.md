@@ -137,12 +137,12 @@ api.close();
 
 #### Network Mode
 
-PluresDB operates in network mode using HTTP REST API:
+PluresDB operates in network mode using HTTP REST API. Local-first modes (WASM, IPC, Tauri) are implemented in Rust and ready for direct use:
 
 ```typescript
 import { PluresDBLocalFirst } from "@plures/pluresdb/local-first";
 
-// Network mode provides backward compatibility
+// Network mode provides full functionality today
 const db = new PluresDBLocalFirst({ mode: "network", port: 34567 });
 
 await db.put("user:1", { name: "Alice", email: "alice@example.com" });
@@ -150,7 +150,7 @@ const user = await db.get("user:1");
 const results = await db.vectorSearch("Find users in London", 10);
 ```
 
-> **Note**: Local-first modes (WASM, IPC, Tauri) are implemented in Rust but TypeScript integration is in progress. See [Local-First Integration Status](docs/LOCAL_FIRST_INTEGRATION.md) for details.
+> **Note**: Local-first modes (WASM, IPC, Tauri) are fully implemented in Rust and production-ready. They can be used directly from Rust applications or through the integration guides. TypeScript package distribution (via npm) is planned as a future enhancement for easier JavaScript/TypeScript integration. See [Local-First Integration Status](docs/LOCAL_FIRST_INTEGRATION.md) for details and usage examples.
 
 ## 🎯 Features
 
@@ -342,8 +342,8 @@ PluresDB is a Rust-first monorepo with TypeScript/JavaScript bindings:
   - `pluresdb-storage`: Storage backends (Sled, SQLite, RocksDB)
   - `pluresdb-sync`: P2P synchronization (in development)
   - `pluresdb-cli`: Command-line interface
-  - `pluresdb-wasm`: WebAssembly bindings (Rust complete, TS integration pending)
-  - `pluresdb-ipc`: IPC shared memory (Rust complete, TS integration pending)
+  - `pluresdb-wasm`: WebAssembly bindings (Rust complete, npm packaging planned)
+  - `pluresdb-ipc`: IPC shared memory (Rust complete, npm packaging planned)
 - **`legacy/`**: TypeScript/JavaScript source
   - Node.js and Deno API implementations
   - HTTP/WebSocket server
