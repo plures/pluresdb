@@ -35,6 +35,11 @@
       "require": "./dist/types/node-types.js",
       "default": "./dist/types/node-types.js"
     },
+    "./local-first": {
+      "types": "./dist/local-first/unified-api.d.ts",
+      "require": "./dist/local-first/unified-api.js",
+      "default": "./dist/local-first/unified-api.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {

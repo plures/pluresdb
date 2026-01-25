@@ -821,3 +821,7 @@ export {
   createPluresExtension,
   PluresVSCodeExtension,
 } from "./vscode/extension";
+
+// Export local-first integration API
+export { PluresDBLocalFirst } from "./local-first/unified-api";
+export type { LocalFirstOptions, LocalFirstBackend } from "./local-first/unified-api";
