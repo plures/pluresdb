@@ -11,7 +11,7 @@
  * and minimizing network overhead.
  */
 
-import { debugLog } from "../util/debug.ts";
+import { debugLog } from "../util/debug";
 
 export interface LocalFirstOptions {
   /**
@@ -308,7 +308,7 @@ class NetworkBackend implements LocalFirstBackend {
     }
 
     // API returns array of { id, data }
-    const nodes: Array<{ id: string; data: unknown }> = await response.json();
+    const nodes = await response.json() as Array<{ id: string; data: unknown }>;
     return nodes;
   }
 
@@ -324,7 +324,7 @@ class NetworkBackend implements LocalFirstBackend {
     }
 
     // API returns array of { id, data }
-    const nodes: Array<{ id: string; data: unknown }> = await response.json();
+    const nodes = await response.json() as Array<{ id: string; data: unknown }>;
     return nodes;
   }
 }
