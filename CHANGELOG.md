@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.6.4] - 2026-01-25
+
+### Other
+
+- Document accurate local-first integration status: 90% complete (Rust done, TS integration pending) (#52)
+
+
 ## [1.6.3] - 2026-01-25
 
 ### Other
