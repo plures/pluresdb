@@ -74,6 +74,8 @@ az ad app federated-credential create \
   }'
 ```
 
+> **Note**: Replace `plures/pluresdb` with your actual GitHub organization/repository name if different.
+
 #### 4. Configure GitHub Secrets
 
 Add these three secrets in your GitHub repository:
@@ -378,8 +380,8 @@ az group list --output table
    az ad app federated-credential list --id $APP_ID
    ```
 2. Check the subject matches your repository and branch:
-   - Should be: `repo:plures/pluresdb:ref:refs/heads/main`
-   - Or for PRs: `repo:plures/pluresdb:pull_request`
+   - Should be: `repo:<your-org>/<your-repo>:ref:refs/heads/main` (e.g., `repo:plures/pluresdb:ref:refs/heads/main`)
+   - Or for PRs: `repo:<your-org>/<your-repo>:pull_request`
 3. Verify the three GitHub secrets are correctly set:
    - `AZURE_CLIENT_ID` (Application/Client ID)
    - `AZURE_TENANT_ID` (Directory/Tenant ID)
