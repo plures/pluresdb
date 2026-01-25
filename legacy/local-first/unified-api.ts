@@ -67,14 +67,16 @@ export interface LocalFirstBackend {
  */
 class RuntimeDetector {
   static isBrowser(): boolean {
-    return typeof window !== "undefined" &&
-      typeof document !== "undefined" &&
-      typeof WebAssembly !== "undefined";
+    return typeof globalThis !== "undefined" &&
+      typeof (globalThis as any).window !== "undefined" &&
+      typeof (globalThis as any).document !== "undefined" &&
+      typeof (globalThis as any).WebAssembly !== "undefined";
   }
 
   static isTauri(): boolean {
-    return typeof window !== "undefined" &&
-      (window as any).__TAURI__ !== undefined;
+    return typeof globalThis !== "undefined" &&
+      typeof (globalThis as any).window !== "undefined" &&
+      (globalThis as any).window?.__TAURI__ !== undefined;
   }
 
   static isNode(): boolean {
@@ -84,7 +86,8 @@ class RuntimeDetector {
   }
 
   static isDeno(): boolean {
-    return (globalThis as any).Deno !== undefined;
+    return typeof globalThis !== "undefined" &&
+      (globalThis as any).Deno !== undefined;
   }
 
   static hasIPCEnvironment(): boolean {
@@ -92,7 +95,8 @@ class RuntimeDetector {
       return process.env.PLURESDB_IPC === "true";
     }
     if (this.isDeno()) {
-      return Deno.env.get("PLURESDB_IPC") === "true";
+      const Deno = (globalThis as any).Deno;
+      return Deno?.env?.get?.("PLURESDB_IPC") === "true";
     }
     return false;
   }
@@ -183,10 +187,11 @@ class TauriBackend implements LocalFirstBackend {
   private invoke: any;
 
   constructor() {
-    if (typeof window === "undefined" || !(window as any).__TAURI__) {
+    const win = typeof globalThis !== "undefined" ? (globalThis as any).window : undefined;
+    if (!win || !win.__TAURI__) {
       throw new Error("Tauri backend requires Tauri environment");
     }
-    this.invoke = (window as any).__TAURI__.invoke;
+    this.invoke = win.__TAURI__.invoke;
   }
 
   async put(id: string, data: any): Promise<string> {
@@ -276,7 +281,7 @@ class NetworkBackend implements LocalFirstBackend {
       throw new Error(`PUT failed: ${response.statusText}`);
     }
 
-    const result = await response.json();
+    const result: any = await response.json();
     return result.id || id;
   }
 
@@ -288,7 +293,7 @@ class NetworkBackend implements LocalFirstBackend {
       throw new Error(`GET failed: ${response.statusText}`);
     }
 
-    const result = await response.json();
+    const result: any = await response.json();
     return result.data;
   }
 
@@ -309,7 +314,7 @@ class NetworkBackend implements LocalFirstBackend {
       throw new Error(`LIST failed: ${response.statusText}`);
     }
 
-    const result = await response.json();
+    const result: any = await response.json();
     return result.nodes || [];
   }
 
@@ -324,7 +329,7 @@ class NetworkBackend implements LocalFirstBackend {
       throw new Error(`VECTOR_SEARCH failed: ${response.statusText}`);
     }
 
-    const result = await response.json();
+    const result: any = await response.json();
     return result.results || [];
   }
 }
