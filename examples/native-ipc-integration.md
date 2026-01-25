@@ -491,14 +491,17 @@ pluresdb serve --ipc --channel "my-app-channel"
 
 ### Permission denied on shared memory
 
-On Linux/macOS, ensure proper permissions:
+On Linux/macOS, ensure proper permissions without exposing shared memory to all users:
 
 ```bash
 # Check shared memory permissions
 ls -l /dev/shm/
 
-# Set permissions if needed
-chmod 666 /dev/shm/pluresdb-*
+# Set ownership to the PluresDB service user (adjust user/group as needed)
+sudo chown pluresdb:pluresdb /dev/shm/pluresdb-*
+
+# Restrict access to that user (or user+group if using a dedicated group)
+sudo chmod 600 /dev/shm/pluresdb-*
 ```
 
 ## Implementation Status

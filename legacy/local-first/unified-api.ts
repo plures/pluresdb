@@ -11,6 +11,8 @@
  * and minimizing network overhead.
  */
 
+import { debugLog } from "../util/debug.ts";
+
 export interface LocalFirstOptions {
   /**
    * Integration mode. If not specified, auto-detects the best mode.
@@ -41,24 +43,14 @@ export interface LocalFirstOptions {
    * Network port (for network mode)
    */
   port?: number;
-
-  /**
-   * Actor ID for CRDT operations
-   */
-  actorId?: string;
-
-  /**
-   * Data directory for persistence
-   */
-  dataDir?: string;
 }
 
 export interface LocalFirstBackend {
-  put(id: string, data: any): Promise<string>;
-  get(id: string): Promise<any>;
+  put(id: string, data: unknown): Promise<string>;
+  get(id: string): Promise<unknown>;
   delete(id: string): Promise<void>;
-  list(): Promise<any[]>;
-  vectorSearch?(query: string, limit: number): Promise<any[]>;
+  list(): Promise<unknown[]>;
+  vectorSearch?(query: string, limit: number): Promise<unknown[]>;
   close?(): Promise<void>;
 }
 
@@ -103,21 +95,21 @@ class RuntimeDetector {
 
   static detectBestMode(): "wasm" | "tauri" | "ipc" | "network" {
     if (this.isTauri()) {
-      console.log("[PluresDB] Detected Tauri environment - using native integration");
+      debugLog("Detected Tauri environment - using native integration");
       return "tauri";
     }
 
     if (this.isBrowser()) {
-      console.log("[PluresDB] Detected browser environment - using WASM");
+      debugLog("Detected browser environment - using WASM");
       return "wasm";
     }
 
     if (this.hasIPCEnvironment()) {
-      console.log("[PluresDB] Detected IPC environment - using shared memory");
+      debugLog("Detected IPC environment - using shared memory");
       return "ipc";
     }
 
-    console.log("[PluresDB] Using network mode (fallback)");
+    debugLog("Using network mode (fallback)");
     return "network";
   }
 }
@@ -129,7 +121,7 @@ class RuntimeDetector {
  * Data is persisted in IndexedDB.
  */
 class WasmBackend implements LocalFirstBackend {
-  private db: any = null;
+  private db: unknown = null;
   private dbName: string;
 
   constructor(dbName: string = "pluresdb") {
@@ -144,34 +136,34 @@ class WasmBackend implements LocalFirstBackend {
     );
   }
 
-  async put(id: string, data: any): Promise<string> {
+  async put(id: string, data: unknown): Promise<string> {
     if (!this.db) await this.initialize();
-    return this.db.put(id, data);
+    return (this.db as any).put(id, data);
   }
 
-  async get(id: string): Promise<any> {
+  async get(id: string): Promise<unknown> {
     if (!this.db) await this.initialize();
-    return this.db.get(id);
+    return (this.db as any).get(id);
   }
 
   async delete(id: string): Promise<void> {
     if (!this.db) await this.initialize();
-    return this.db.delete(id);
+    return (this.db as any).delete(id);
   }
 
-  async list(): Promise<any[]> {
+  async list(): Promise<unknown[]> {
     if (!this.db) await this.initialize();
-    return this.db.list();
+    return (this.db as any).list();
   }
 
-  async vectorSearch(query: string, limit: number): Promise<any[]> {
+  async vectorSearch(query: string, limit: number): Promise<unknown[]> {
     if (!this.db) await this.initialize();
-    return this.db.vectorSearch(query, limit);
+    return (this.db as any).vectorSearch(query, limit);
   }
 
   async close(): Promise<void> {
     if (this.db) {
-      await this.db.close();
+      await (this.db as any).close();
       this.db = null;
     }
   }
@@ -194,11 +186,11 @@ class TauriBackend implements LocalFirstBackend {
     this.invoke = win.__TAURI__.invoke;
   }
 
-  async put(id: string, data: any): Promise<string> {
+  async put(id: string, data: unknown): Promise<string> {
     return await this.invoke("pluresdb_put", { id, data });
   }
 
-  async get(id: string): Promise<any> {
+  async get(id: string): Promise<unknown> {
     return await this.invoke("pluresdb_get", { id });
   }
 
@@ -206,11 +198,11 @@ class TauriBackend implements LocalFirstBackend {
     await this.invoke("pluresdb_delete", { id });
   }
 
-  async list(): Promise<any[]> {
+  async list(): Promise<unknown[]> {
     return await this.invoke("pluresdb_list");
   }
 
-  async vectorSearch(query: string, limit: number): Promise<any[]> {
+  async vectorSearch(query: string, limit: number): Promise<unknown[]> {
     return await this.invoke("pluresdb_vector_search", { query, limit });
   }
 }
@@ -236,11 +228,11 @@ class IPCBackend implements LocalFirstBackend {
     );
   }
 
-  async put(id: string, data: any): Promise<string> {
+  async put(id: string, data: unknown): Promise<string> {
     throw new Error("IPC backend not yet implemented");
   }
 
-  async get(id: string): Promise<any> {
+  async get(id: string): Promise<unknown> {
     throw new Error("IPC backend not yet implemented");
   }
 
@@ -248,11 +240,11 @@ class IPCBackend implements LocalFirstBackend {
     throw new Error("IPC backend not yet implemented");
   }
 
-  async list(): Promise<any[]> {
+  async list(): Promise<unknown[]> {
     throw new Error("IPC backend not yet implemented");
   }
 
-  async vectorSearch(query: string, limit: number): Promise<any[]> {
+  async vectorSearch(query: string, limit: number): Promise<unknown[]> {
     throw new Error("IPC backend not yet implemented");
   }
 }
@@ -270,7 +262,7 @@ class NetworkBackend implements LocalFirstBackend {
     this.baseUrl = url || `http://localhost:${port || 34567}`;
   }
 
-  async put(id: string, data: any): Promise<string> {
+  async put(id: string, data: unknown): Promise<string> {
     const response = await fetch(`${this.baseUrl}/api/put`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -281,11 +273,12 @@ class NetworkBackend implements LocalFirstBackend {
       throw new Error(`PUT failed: ${response.statusText}`);
     }
 
-    const result: any = await response.json();
-    return result.id || id;
+    // API returns { ok: true }, return the id
+    await response.json();
+    return id;
   }
 
-  async get(id: string): Promise<any> {
+  async get(id: string): Promise<unknown> {
     const response = await fetch(`${this.baseUrl}/api/get?id=${encodeURIComponent(id)}`);
 
     if (!response.ok) {
@@ -293,8 +286,8 @@ class NetworkBackend implements LocalFirstBackend {
       throw new Error(`GET failed: ${response.statusText}`);
     }
 
-    const result: any = await response.json();
-    return result.data;
+    // API returns the node data directly (can be null)
+    return await response.json();
   }
 
   async delete(id: string): Promise<void> {
@@ -307,18 +300,19 @@ class NetworkBackend implements LocalFirstBackend {
     }
   }
 
-  async list(): Promise<any[]> {
+  async list(): Promise<unknown[]> {
     const response = await fetch(`${this.baseUrl}/api/list`);
 
     if (!response.ok) {
       throw new Error(`LIST failed: ${response.statusText}`);
     }
 
-    const result: any = await response.json();
-    return result.nodes || [];
+    // API returns array of { id, data }
+    const nodes: Array<{ id: string; data: unknown }> = await response.json();
+    return nodes;
   }
 
-  async vectorSearch(query: string, limit: number): Promise<any[]> {
+  async vectorSearch(query: string, limit: number): Promise<unknown[]> {
     const response = await fetch(`${this.baseUrl}/api/search`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -329,8 +323,9 @@ class NetworkBackend implements LocalFirstBackend {
       throw new Error(`VECTOR_SEARCH failed: ${response.statusText}`);
     }
 
-    const result: any = await response.json();
-    return result.results || [];
+    // API returns array of { id, data }
+    const nodes: Array<{ id: string; data: unknown }> = await response.json();
+    return nodes;
   }
 }
 
@@ -390,7 +385,7 @@ export class PluresDBLocalFirst {
         throw new Error(`Unknown mode: ${actualMode}`);
     }
 
-    console.log(`[PluresDB] Initialized in ${this.mode} mode`);
+    debugLog(`Initialized in ${this.mode} mode`);
   }
 
   /**
@@ -403,14 +398,14 @@ export class PluresDBLocalFirst {
   /**
    * Insert or update a node
    */
-  async put(id: string, data: any): Promise<string> {
+  async put(id: string, data: unknown): Promise<string> {
     return this.backend.put(id, data);
   }
 
   /**
    * Retrieve a node by ID
    */
-  async get(id: string): Promise<any> {
+  async get(id: string): Promise<unknown> {
     return this.backend.get(id);
   }
 
@@ -424,14 +419,14 @@ export class PluresDBLocalFirst {
   /**
    * List all nodes
    */
-  async list(): Promise<any[]> {
+  async list(): Promise<unknown[]> {
     return this.backend.list();
   }
 
   /**
    * Vector search (semantic similarity)
    */
-  async vectorSearch(query: string, limit: number = 10): Promise<any[]> {
+  async vectorSearch(query: string, limit: number = 10): Promise<unknown[]> {
     if (!this.backend.vectorSearch) {
       throw new Error("Vector search not supported in this mode");
     }

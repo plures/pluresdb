@@ -2,8 +2,8 @@
  * Tests for Local-First Unified API
  */
 
-import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
-import { PluresDBLocalFirst } from "../legacy/local-first/unified-api.ts";
+import { assertEquals, assertExists } from "jsr:@std/assert@1.0.14";
+import { PluresDBLocalFirst } from "../../local-first/unified-api.ts";
 
 Deno.test("PluresDBLocalFirst - Runtime detection", () => {
   // Should detect "network" mode in Deno test environment
