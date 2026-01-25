@@ -8,6 +8,96 @@ export interface ApiServerHandle {
 
 const STATIC_ROOT = new URL("../../web/svelte/dist/", import.meta.url);
 
+// Example dataset generator
+async function loadExampleDataset(
+  db: GunDB,
+  datasetId: string,
+): Promise<number> {
+  const datasets: Record<
+    string,
+    Array<{ id: string; data: Record<string, unknown> }>
+  > = {
+    users: Array.from({ length: 50 }, (_, i) => ({
+      id: `user_${i}`,
+      data: {
+        type: "User",
+        name: `User ${i}`,
+        email: `user${i}@example.com`,
+        age: 20 + (i % 50),
+        role: ["admin", "user", "moderator"][i % 3],
+        createdAt: Date.now() - i * 86400000,
+      },
+    })),
+    products: Array.from({ length: 100 }, (_, i) => ({
+      id: `product_${i}`,
+      data: {
+        type: "Product",
+        name: `Product ${i}`,
+        category: ["Electronics", "Clothing", "Books", "Home", "Sports"][i % 5],
+        price: 10 + (i * 5) % 500,
+        rating: 1 + (i % 5),
+        inStock: i % 3 !== 0,
+        description: `Description for product ${i}`,
+      },
+    })),
+    social: Array.from({ length: 150 }, (_, i) => {
+      if (i < 50) {
+        return {
+          id: `user_${i}`,
+          data: {
+            type: "User",
+            name: `User ${i}`,
+            followers: i * 10,
+            following: i * 5,
+          },
+        };
+      } else if (i < 100) {
+        return {
+          id: `post_${i - 50}`,
+          data: {
+            type: "Post",
+            userId: `user_${(i - 50) % 50}`,
+            content: `This is post ${i - 50}`,
+            likes: (i - 50) * 2,
+            createdAt: Date.now() - (i - 50) * 3600000,
+          },
+        };
+      } else {
+        return {
+          id: `comment_${i - 100}`,
+          data: {
+            type: "Comment",
+            postId: `post_${(i - 100) % 50}`,
+            userId: `user_${(i - 100) % 50}`,
+            content: `Comment ${i - 100}`,
+            createdAt: Date.now() - (i - 100) * 1800000,
+          },
+        };
+      }
+    }),
+    documents: Array.from({ length: 75 }, (_, i) => ({
+      id: `doc_${i}`,
+      data: {
+        type: "Document",
+        title: `Document ${i}`,
+        content: `This is the content of document ${i}. It contains information about topic ${i % 10}.`,
+        tags: [`tag${i % 5}`, `tag${(i + 1) % 5}`],
+        embedding: Array.from({ length: 384 }, () => Math.random() - 0.5),
+        createdAt: Date.now() - i * 43200000,
+      },
+    })),
+  };
+
+  const data = datasets[datasetId];
+  if (!data) return 0;
+
+  for (const item of data) {
+    await db.put(item.id, item.data);
+  }
+
+  return data.length;
+}
+
 function corsHeaders(extra?: Record<string, string>): Headers {
   const headers = new Headers(extra);
   headers.set("Access-Control-Allow-Origin", "*");
@@ -258,6 +348,16 @@ export function startApiServer(
             return json({ success: true, deviceId: body.deviceId });
           }
           default:
+            // Check if it's an example dataset request
+            if (path.startsWith("/api/examples/")) {
+              if (req.method !== "POST") return json({ error: "method" }, 405);
+              const datasetId = path.slice("/api/examples/".length);
+              const count = await loadExampleDataset(db, datasetId);
+              if (count === 0) {
+                return json({ error: "unknown dataset" }, 404);
+              }
+              return json({ success: true, dataset: datasetId, count });
+            }
             return json({ error: "not found" }, 404);
         }
       }

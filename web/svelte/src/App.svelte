@@ -28,6 +28,8 @@
   import EncryptedSharing from "./components/EncryptedSharing.svelte";
   import CrossDeviceSync from "./components/CrossDeviceSync.svelte";
   import Toasts from "./components/Toasts.svelte";
+  import GuidedTour from "./components/GuidedTour.svelte";
+  import ExampleDatasets from "./components/ExampleDatasets.svelte";
   let activeView:
     | "data"
     | "types"
@@ -52,8 +54,13 @@
     | "identity"
     | "sharing"
     | "sync"
-    | "settings" = "data";
+    | "settings"
+    | "examples" = "data";
   let dark = false;
+
+  function handleViewChange(view: string) {
+    activeView = view as typeof activeView;
+  }
 
   async function loadConfig() {
     const res = await fetch("/api/config");
@@ -486,8 +493,13 @@
     <div role="main">
       <SettingsPanel />
     </div>
+  {:else if activeView === "examples"}
+    <div role="main">
+      <ExampleDatasets />
+    </div>
   {/if}
 
+  <GuidedTour onViewChange={handleViewChange} />
   <Toasts />
 </main>
 

@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { push as toast } from "../lib/toasts";
+  import ExampleDatasets from "./ExampleDatasets.svelte";
 
-  let activeTab: "import" | "export" = "export";
+  let activeTab: "import" | "export" | "examples" = "export";
   let exportFormat: "json" | "csv" = "json";
   let importFormat: "json" | "csv" = "json";
   let exportType = "";
@@ -223,9 +224,19 @@
     >
       Import
     </button>
+    <button
+      class="tab-button"
+      class:active={activeTab === "examples"}
+      on:click={() => (activeTab = "examples")}
+      aria-pressed={activeTab === "examples"}
+    >
+      Examples
+    </button>
   </div>
 
-  {#if activeTab === "export"}
+  {#if activeTab === "examples"}
+    <ExampleDatasets />
+  {:else if activeTab === "export"}
     <div class="export-section">
       <div class="export-controls">
         <div class="input-group">
