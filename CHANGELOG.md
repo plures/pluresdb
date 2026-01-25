@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.6.6] - 2026-01-25
+
+### Fixed
+
+- Remove duplicate closing button tag in ExampleDatasets.svelte (#56)
+
+
 ## [1.6.5] - 2026-01-25
 
 ### Other
