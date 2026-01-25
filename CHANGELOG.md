@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.6.3] - 2026-01-25
+
+### Other
+
+- Complete local-first integration: WASM IndexedDB, IPC shared memory, Tauri demos (#50)
+
+
 ## [1.6.2] - 2026-01-25
 
 ### Other
