@@ -1,41 +1,21 @@
 # PluresDB Browser Demo
 
-A fully-functional browser-based demo of PluresDB's local-first integration.
+A fully-functional browser-based demo of PluresDB's local-first integration with WebAssembly.
 
 ## Features
 
-- 🚀 Local-first database in the browser
+- 🚀 Local-first database running entirely in the browser
 - 📝 Add, list, and delete users
-- 🔍 Vector search demonstration
+- 💾 Automatic persistence with IndexedDB
 - 🎨 Beautiful, modern UI
 - ⚡ Real-time updates
+- 🔌 Offline-first by default
 
 ## Running the Demo
 
-### Option 1: With PluresDB Server (Current)
+### Option 1: With WASM (Recommended)
 
-Since WASM bindings are still in development, the demo currently uses network fallback mode:
-
-1. Start the PluresDB server:
-   ```bash
-   npm start
-   ```
-
-2. Open `index.html` in your browser:
-   ```bash
-   # On macOS
-   open index.html
-
-   # On Linux
-   xdg-open index.html
-
-   # On Windows
-   start index.html
-   ```
-
-### Option 2: With WASM (Future)
-
-Once WASM bindings are complete, the demo will run entirely in-browser without any server:
+The WASM bindings are now complete! Run the demo entirely in-browser without any server:
 
 1. Build the WASM module:
    ```bash
@@ -43,28 +23,45 @@ Once WASM bindings are complete, the demo will run entirely in-browser without a
    wasm-pack build --target web
    ```
 
-2. Update the import in `index.html` to use the actual WASM module:
-   ```javascript
-   import init, { PluresDBBrowser } from './pkg/pluresdb_wasm.js';
-   await init();
-   const db = new PluresDBBrowser("browser-demo-db");
+2. Serve the demo with a local HTTP server:
+   ```bash
+   # Using Python
+   python -m http.server 8000
+   
+   # Or using Node.js
+   npx http-server
    ```
 
-3. Open `index.html` - no server needed!
+3. Open `http://localhost:8000/examples/browser-demo/index.html` in your browser
+
+4. The demo will automatically use WASM mode with IndexedDB persistence - no server needed!
+
+### Option 2: With PluresDB Server (Fallback)
+
+For testing network mode:
+
+1. Start the PluresDB server:
+   ```bash
+   npm start
+   ```
+
+2. Open `index.html` in your browser - it will fall back to network mode
 
 ## What This Demonstrates
 
 ### Local-First Integration
-- **Auto-detection**: Automatically uses the best integration method
-- **Network fallback**: Falls back to HTTP REST when WASM unavailable
+- **WebAssembly**: Runs PluresDB core directly in the browser
+- **IndexedDB**: Automatic data persistence
+- **Auto-detection**: Automatically uses WASM when available
+- **Network fallback**: Falls back to HTTP REST when needed
 - **Unified API**: Same API regardless of backend
 
 ### Database Operations
-- **Put**: Insert or update records
+- **Put**: Insert or update records with persistence
 - **Get**: Retrieve records by ID
 - **List**: Query all records
-- **Delete**: Remove records
-- **Vector Search**: Semantic similarity search
+- **Delete**: Remove records from memory and IndexedDB
+- **Clear**: Wipe all data
 
 ### User Interface
 - Clean, modern design
@@ -74,6 +71,7 @@ Once WASM bindings are complete, the demo will run entirely in-browser without a
 
 ## Architecture
 
+### WASM Mode (Default)
 ```
 ┌─────────────────────────────────┐
 │   Browser (index.html)          │
@@ -81,9 +79,26 @@ Once WASM bindings are complete, the demo will run entirely in-browser without a
 │   PluresDBLocalFirst            │
 │   (Auto-detection)              │
 │           │                     │
-│           ├─ WASM (future)      │
+│           ▼                     │
+│   PluresDBBrowser (WASM)        │
 │           │                     │
-│           └─ Network (current)  │
+│           ▼                     │
+│   IndexedDB (Persistence)       │
+│                                 │
+└─────────────────────────────────┘
+     100% In-Browser
+     No Network Required
+```
+
+### Network Mode (Fallback)
+```
+┌─────────────────────────────────┐
+│   Browser (index.html)          │
+│                                 │
+│   PluresDBLocalFirst            │
+│   (Auto-detection)              │
+│           │                     │
+│           └─ Network            │
 │                   │             │
 └───────────────────┼─────────────┘
                     │ HTTP
@@ -95,7 +110,7 @@ Once WASM bindings are complete, the demo will run entirely in-browser without a
 
 ## Performance
 
-When WASM is complete, this demo will achieve:
+With WASM mode enabled:
 
 | Metric | Network Mode | WASM Mode | Improvement |
 |--------|--------------|-----------|-------------|
@@ -103,14 +118,20 @@ When WASM is complete, this demo will achieve:
 | **Throughput** | ~100 ops/s | ~100k ops/s | **1000x faster** |
 | **Offline** | ❌ Requires server | ✅ Fully offline | **100% available** |
 | **Network** | Required | None | **Zero bandwidth** |
+| **Persistence** | Server-side | IndexedDB | **Local storage** |
 
 ## Development
 
 To modify the demo:
 
 1. Edit `index.html` - all code is in a single file for simplicity
-2. Refresh the browser to see changes
-3. Use browser DevTools (F12) to debug
+2. Rebuild WASM if you modified Rust code:
+   ```bash
+   cd crates/pluresdb-wasm
+   wasm-pack build --target web
+   ```
+3. Refresh the browser to see changes
+4. Use browser DevTools (F12) to debug
 
 ## Integration with Your App
 
@@ -119,18 +140,34 @@ To integrate PluresDB local-first into your own application:
 ```javascript
 import { PluresDBLocalFirst } from "@plures/pluresdb/local-first";
 
-// Auto-detects best mode
+// Auto-detects best mode (WASM in browser)
 const db = new PluresDBLocalFirst({ mode: "auto" });
 
-// Or force a specific mode
+// Or force WASM mode
 const db = new PluresDBLocalFirst({ mode: "wasm", dbName: "my-app" });
+
+// Use the API
+await db.put("user:1", { name: "Alice", email: "alice@example.com" });
+const user = await db.get("user:1");
 ```
 
 See the [Local-First Integration Guide](../../docs/LOCAL_FIRST_INTEGRATION.md) for complete documentation.
 
 ## Troubleshooting
 
-### "Failed to connect" error
+### WASM not loading
+
+1. Make sure you built the WASM module:
+   ```bash
+   cd crates/pluresdb-wasm
+   wasm-pack build --target web
+   ```
+
+2. Check browser console for errors
+
+3. Ensure you're using a local HTTP server (not file://)
+
+### "Failed to connect" error (network mode)
 
 Make sure the PluresDB server is running:
 ```bash
@@ -139,28 +176,28 @@ npm start
 
 The server should be listening on port 34567.
 
-### CORS errors
+### IndexedDB not persisting data
 
-If you see CORS errors, you may need to run a local HTTP server:
+1. Check browser console for IndexedDB errors
+2. Make sure you called `init_persistence()` on the WASM instance
+3. Check browser storage settings (some browsers block IndexedDB in private mode)
 
-```bash
-# Using Python
-python -m http.server 8000
+## Browser Compatibility
 
-# Using Node.js
-npx http-server
+WASM mode is supported in:
+- ✅ Chrome/Edge 57+
+- ✅ Firefox 52+
+- ✅ Safari 11+
+- ✅ Opera 44+
 
-# Using PHP
-php -S localhost:8000
-```
-
-Then open `http://localhost:8000/index.html`
+IndexedDB is supported in all modern browsers.
 
 ## Next Steps
 
 - [Browser WASM Integration Guide](../browser-wasm-integration.md)
 - [Local-First Integration Methodology](../../docs/LOCAL_FIRST_INTEGRATION.md)
 - [Tauri Integration Example](../tauri-integration.md)
+- [IPC Integration Example](../ipc-demo/README.md)
 
 ## License
 
