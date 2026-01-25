@@ -2,13 +2,21 @@
 
 This document describes the secrets and credentials needed for Azure relay testing.
 
-## Required Secrets for GitHub Actions
+## Optional Secret for GitHub Actions
 
-To enable automated Azure testing in GitHub Actions, you need to configure the `AZURE_CREDENTIALS` secret in your repository settings.
+> **Note**: The Azure relay tests are **optional**. If you don't configure Azure credentials, the scheduled tests will be automatically skipped with a notification. You only need to configure this if you want to run Azure infrastructure tests.
 
-### AZURE_CREDENTIALS
+To enable automated Azure testing in GitHub Actions, you can optionally configure the `AZURE_CREDENTIALS` secret in your repository settings.
+
+### AZURE_CREDENTIALS (Optional)
 
 A JSON object containing Azure Service Principal authentication credentials.
+
+> **Important**: This secret is **optional**. If not configured:
+> - Scheduled Azure relay tests will be automatically skipped
+> - A notification will be logged in the workflow run
+> - On the first scheduled run without credentials, an issue will be created to guide you through setup
+> - You can manually trigger the workflow when ready by configuring the secret
 
 **How to create a Service Principal and get the credentials**:
 
@@ -221,6 +229,20 @@ az group list --output table
 ```
 
 ## Troubleshooting
+
+### Tests Are Being Skipped (Credentials Not Configured)
+
+**Symptom**: Scheduled Azure relay tests show "Skipped" status, and you see a message like "Azure credentials are not configured"
+
+**This is expected behavior** if you haven't configured the `AZURE_CREDENTIALS` secret. The workflow is designed to gracefully skip Azure tests when credentials are missing.
+
+**To fix** (if you want to run the tests):
+1. Follow the instructions above to create a Service Principal
+2. Configure the `AZURE_CREDENTIALS` secret in GitHub
+3. Wait for the next scheduled run or manually trigger the workflow
+
+**To disable notifications**:
+- If you don't plan to use Azure testing, you can disable the scheduled workflow by commenting out the `schedule` section in `.github/workflows/azure-relay-tests.yml`
 
 ### Authentication Failed
 
