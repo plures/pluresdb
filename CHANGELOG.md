@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.6.1] - 2026-01-25
+
+### Other
+
+- Add local-first integration API with runtime auto-detection (#46)
+
+
 ## [1.6.0] - 2026-01-25
 
 ### Added
