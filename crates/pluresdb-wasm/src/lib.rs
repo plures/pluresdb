@@ -29,6 +29,9 @@ use pluresdb_core::CrdtStore;
 use serde_json::Value;
 use std::cell::RefCell;
 
+mod indexeddb;
+use indexeddb::IndexedDBStore;
+
 // Set panic hook for better error messages in the browser
 #[cfg(feature = "console_error_panic_hook")]
 pub use console_error_panic_hook::set_once as set_panic_hook;
@@ -44,10 +47,12 @@ pub fn init() {
 ///
 /// This is the main entry point for using PluresDB in the browser.
 /// It wraps the core CRDT store and provides a JavaScript-friendly API.
+/// Data is persisted to IndexedDB automatically.
 #[wasm_bindgen]
 pub struct PluresDBBrowser {
     store: RefCell<CrdtStore>,
     db_name: String,
+    persistence: Option<IndexedDBStore>,
 }
 
 #[wasm_bindgen]
@@ -57,6 +62,9 @@ impl PluresDBBrowser {
     /// # Arguments
     ///
     /// * `db_name` - Name of the database (used for IndexedDB storage)
+    ///
+    /// Note: This creates the instance but persistence is initialized lazily.
+    /// Call `init_persistence()` to enable IndexedDB persistence.
     #[wasm_bindgen(constructor)]
     pub fn new(db_name: String) -> Result<PluresDBBrowser, JsValue> {
         let store = CrdtStore::default();
@@ -64,7 +72,29 @@ impl PluresDBBrowser {
         Ok(PluresDBBrowser {
             store: RefCell::new(store),
             db_name,
+            persistence: None,
         })
+    }
+
+    /// Initialize IndexedDB persistence
+    ///
+    /// This should be called after creating the instance to enable
+    /// automatic persistence to IndexedDB.
+    #[wasm_bindgen]
+    pub async fn init_persistence(&mut self) -> Result<(), JsValue> {
+        let idb = IndexedDBStore::open(&self.db_name).await?;
+        
+        // Load existing data from IndexedDB into the store
+        let keys = idb.get_all_keys().await?;
+        for key in keys {
+            if let Some(value) = idb.get(&key).await? {
+                let mut store = self.store.borrow_mut();
+                store.put(key, "browser".to_string(), value);
+            }
+        }
+        
+        self.persistence = Some(idb);
+        Ok(())
     }
 
     /// Insert or update a node in the database
@@ -78,12 +108,18 @@ impl PluresDBBrowser {
     ///
     /// Node ID on success
     #[wasm_bindgen]
-    pub fn put(&self, id: String, data: JsValue) -> Result<String, JsValue> {
+    pub async fn put(&mut self, id: String, data: JsValue) -> Result<String, JsValue> {
         let data_value: Value = serde_wasm_bindgen::from_value(data)
             .map_err(|e| JsValue::from_str(&format!("Failed to deserialize data: {}", e)))?;
 
         let mut store = self.store.borrow_mut();
-        let node_id = store.put(id.clone(), "wasm".to_string(), data_value);
+        let node_id = store.put(id.clone(), "wasm".to_string(), data_value.clone());
+        drop(store); // Release borrow before async operation
+        
+        // Persist to IndexedDB if enabled
+        if let Some(ref idb) = self.persistence {
+            idb.put(&node_id, &data_value).await?;
+        }
         
         Ok(node_id)
     }
@@ -116,10 +152,16 @@ impl PluresDBBrowser {
     ///
     /// * `id` - Node identifier
     #[wasm_bindgen]
-    pub fn delete(&self, id: String) -> Result<(), JsValue> {
+    pub async fn delete(&mut self, id: String) -> Result<(), JsValue> {
         let mut store = self.store.borrow_mut();
         store.delete(&id)
             .map_err(|e| JsValue::from_str(&format!("Failed to delete: {}", e)))?;
+        drop(store); // Release borrow before async operation
+        
+        // Delete from IndexedDB if enabled
+        if let Some(ref idb) = self.persistence {
+            idb.delete(&id).await?;
+        }
         
         Ok(())
     }
@@ -160,6 +202,25 @@ impl PluresDBBrowser {
     pub fn count(&self) -> usize {
         let store = self.store.borrow();
         store.list().len()
+    }
+
+    /// Clear all data from the database (memory and IndexedDB)
+    #[wasm_bindgen]
+    pub async fn clear(&mut self) -> Result<(), JsValue> {
+        // Clear in-memory store
+        let mut store = self.store.borrow_mut();
+        let keys: Vec<String> = store.list().iter().map(|r| r.id.clone()).collect();
+        for key in keys {
+            let _ = store.delete(&key);
+        }
+        drop(store);
+        
+        // Clear IndexedDB if enabled
+        if let Some(ref idb) = self.persistence {
+            idb.clear().await?;
+        }
+        
+        Ok(())
     }
 }
 
