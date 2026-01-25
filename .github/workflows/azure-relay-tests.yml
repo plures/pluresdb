@@ -28,6 +28,7 @@ on:
     - cron: '0 2 * * 0' # Every Sunday at 2 AM UTC
 
 permissions:
+  id-token: write  # Required for OIDC authentication with Azure
   contents: read
   issues: write
 
@@ -35,10 +36,41 @@ env:
   AZURE_LOCATION: eastus
 
 jobs:
+  check-credentials:
+    name: Check Azure Credentials
+    runs-on: ubuntu-latest
+    outputs:
+      has_credentials: ${{ steps.check.outputs.has_credentials }}
+    steps:
+      - name: Check if Azure credentials are configured
+        id: check
+        run: |
+          # Check for OIDC credentials (recommended)
+          if [ -n "${{ secrets.AZURE_CLIENT_ID }}" ] && [ -n "${{ secrets.AZURE_TENANT_ID }}" ] && [ -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]; then
+            echo "has_credentials=true" >> $GITHUB_OUTPUT
+            echo "✓ Azure OIDC credentials are configured"
+          # Fallback: Check for legacy AZURE_CREDENTIALS secret
+          elif [ -n "${{ secrets.AZURE_CREDENTIALS }}" ]; then
+            echo "has_credentials=true" >> $GITHUB_OUTPUT
+            echo "⚠️  Using legacy AZURE_CREDENTIALS secret (consider migrating to OIDC)"
+          else
+            echo "has_credentials=false" >> $GITHUB_OUTPUT
+            echo "⚠️  Azure credentials are not configured"
+            echo "This workflow requires Azure OIDC credentials to be set."
+            echo "See azure/docs/SECRETS.md for configuration instructions."
+            echo ""
+            echo "To configure OIDC (recommended):"
+            echo "1. Create an Azure App Registration with federated credentials"
+            echo "2. Add AZURE_CLIENT_ID, AZURE_TENANT_ID, and AZURE_SUBSCRIPTION_ID secrets"
+            echo "3. Manually trigger this workflow or wait for the next scheduled run"
+          fi
+
   deploy-infrastructure:
     name: Deploy Azure Infrastructure
     runs-on: ubuntu-latest
-    if: ${{ !inputs.skip_deployment }}
+    needs: [check-credentials]
+    # Skip if deployment is disabled OR if Azure credentials are not configured
+    if: ${{ !inputs.skip_deployment && needs.check-credentials.outputs.has_credentials == 'true' }}
     outputs:
       resource_group: ${{ steps.deploy.outputs.resource_group }}
       
@@ -46,8 +78,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Azure Login
-        uses: azure/login@v1
+      - name: Azure Login (OIDC)
+        if: ${{ secrets.AZURE_CLIENT_ID != '' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Azure Login (Legacy)
+        if: ${{ secrets.AZURE_CLIENT_ID == '' && secrets.AZURE_CREDENTIALS != '' }}
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       
@@ -114,8 +155,8 @@ jobs:
   run-relay-tests:
     name: Run Relay Tests
     runs-on: ubuntu-latest
-    needs: [deploy-infrastructure]
-    if: always() && (needs.deploy-infrastructure.result == 'success' || inputs.skip_deployment)
+    needs: [check-credentials, deploy-infrastructure]
+    if: always() && needs.check-credentials.outputs.has_credentials == 'true' && (needs.deploy-infrastructure.result == 'success' || inputs.skip_deployment)
     
     steps:
       - name: Checkout code
@@ -126,8 +167,17 @@ jobs:
         with:
           deno-version: v2.x
       
-      - name: Azure Login
-        uses: azure/login@v1
+      - name: Azure Login (OIDC)
+        if: ${{ secrets.AZURE_CLIENT_ID != '' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Azure Login (Legacy)
+        if: ${{ secrets.AZURE_CLIENT_ID == '' && secrets.AZURE_CREDENTIALS != '' }}
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       
@@ -196,15 +246,24 @@ jobs:
   cleanup-infrastructure:
     name: Cleanup Azure Infrastructure
     runs-on: ubuntu-latest
-    needs: [run-relay-tests]
-    if: always() && !inputs.skip_deployment && inputs.environment == 'test'
+    needs: [check-credentials, run-relay-tests]
+    if: always() && needs.check-credentials.outputs.has_credentials == 'true' && !inputs.skip_deployment && inputs.environment == 'test'
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Azure Login
-        uses: azure/login@v1
+      - name: Azure Login (OIDC)
+        if: ${{ secrets.AZURE_CLIENT_ID != '' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Azure Login (Legacy)
+        if: ${{ secrets.AZURE_CLIENT_ID == '' && secrets.AZURE_CREDENTIALS != '' }}
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       
@@ -237,8 +296,9 @@ jobs:
   report-results:
     name: Report Test Results
     runs-on: ubuntu-latest
-    needs: [run-relay-tests]
-    if: failure()
+    needs: [check-credentials, run-relay-tests]
+    # Report failure only if credentials are configured and tests actually ran and failed
+    if: always() && needs.check-credentials.outputs.has_credentials == 'true' && needs.run-relay-tests.result == 'failure'
     
     steps:
       - name: Create issue on failure
@@ -272,3 +332,89 @@ jobs:
               `,
               labels: ['bug', 'azure', 'relay', 'tests', 'ci']
             })
+
+  notify-credentials-missing:
+    name: Notify Missing Credentials
+    runs-on: ubuntu-latest
+    needs: [check-credentials]
+    # Only run on scheduled triggers when credentials are missing
+    if: github.event_name == 'schedule' && needs.check-credentials.outputs.has_credentials != 'true'
+    
+    steps:
+      - name: Create issue for missing credentials
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Check if an issue already exists for this
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['azure', 'configuration'],
+              per_page: 10
+            });
+            
+            const existingIssue = issues.data.find(issue => 
+              issue.title.includes('Azure Credentials Not Configured')
+            );
+            
+            if (existingIssue) {
+              // Update existing issue with a comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `Azure relay tests were skipped again on ${new Date().toISOString()} because credentials are not configured.\n\nWorkflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+              });
+            } else {
+              // Create new issue
+              const body = 'The scheduled Azure relay tests are being skipped because Azure OIDC credentials are not configured.\n\n' +
+                '**What happened:**\n' +
+                '- The Azure relay tests are scheduled to run automatically (weekly on Sundays at 2 AM UTC)\n' +
+                '- The workflow detected that Azure credentials are not configured\n' +
+                '- All Azure deployment and testing jobs were skipped\n\n' +
+                '**How to fix:**\n\n' +
+                '### Option 1: Configure Azure OIDC Credentials (Recommended)\n\n' +
+                'OIDC provides secretless authentication and is more secure than storing credentials.\n\n' +
+                '1. Create an Azure App Registration with federated credentials:\n' +
+                '   ```bash\n' +
+                '   # Create the app registration\n' +
+                '   az ad app create --display-name "pluresdb-github-actions"\n' +
+                '   # Note the Application (client) ID from output\n' +
+                '   \n' +
+                '   # Create service principal\n' +
+                '   az ad sp create --id <application-id>\n' +
+                '   \n' +
+                '   # Assign Contributor role\n' +
+                '   az role assignment create \\\n' +
+                '     --assignee <application-id> \\\n' +
+                '     --role Contributor \\\n' +
+                '     --scope /subscriptions/{subscription-id}\n' +
+                '   \n' +
+                '   # Add federated credential for GitHub Actions\n' +
+                '   az ad app federated-credential create \\\n' +
+                '     --id <application-id> \\\n' +
+                '     --parameters \'{"name":"github-federated","issuer":"https://token.actions.githubusercontent.com","subject":"repo:plures/pluresdb:ref:refs/heads/main","audiences":["api://AzureADTokenExchange"]}\'\n' +
+                '   ```\n\n' +
+                '2. Add three repository secrets:\n' +
+                '   - Go to Settings → Secrets and variables → Actions\n' +
+                '   - Add `AZURE_CLIENT_ID` (Application/client ID)\n' +
+                '   - Add `AZURE_TENANT_ID` (Directory/tenant ID)\n' +
+                '   - Add `AZURE_SUBSCRIPTION_ID` (Subscription ID)\n\n' +
+                '### Option 2: Disable Scheduled Tests\n\n' +
+                'If you don\'t want to run Azure relay tests:\n\n' +
+                '1. Edit `.github/workflows/azure-relay-tests.yml`\n' +
+                '2. Comment out or remove the `schedule` trigger section\n\n' +
+                '**Documentation:**\n' +
+                '- [Azure Secrets Configuration Guide](azure/docs/SECRETS.md)\n' +
+                '- [Test Plan](azure/docs/TEST_PLAN.md)\n\n' +
+                `**Workflow Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+              
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Azure Credentials Not Configured - Scheduled Tests Skipped',
+                body: body,
+                labels: ['configuration', 'azure', 'help wanted']
+              });
+            }
