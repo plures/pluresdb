@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PluresDB Browser Demo - Local-First Integration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .status {
+            background: #f0f4f8;
+            padding: 15px 30px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .status-badge.active {
+            background: #48bb78;
+            color: white;
+        }
+
+        .status-badge.fallback {
+            background: #ed8936;
+            color: white;
+        }
+
+        main {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #4a5568;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        #output {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .user-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .user-item {
+            background: #f7fafc;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .user-email {
+            color: #718096;
+            font-size: 0.9em;
+        }
+
+        .delete-btn {
+            background: #fc8181;
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+
+        .delete-btn:hover {
+            background: #f56565;
+        }
+
+        .info-box {
+            background: #ebf8ff;
+            border-left: 4px solid #4299e1;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .info-box strong {
+            color: #2c5282;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 PluresDB Browser Demo</h1>
+            <p>Local-First Database - Zero Network Overhead</p>
+        </header>
+
+        <div class="status">
+            <span>Integration Mode: </span>
+            <span id="mode-badge" class="status-badge fallback">Network (Fallback)</span>
+            <span style="margin-left: 15px; color: #718096;">
+                <span id="node-count">0</span> nodes stored
+            </span>
+        </div>
+
+        <main>
+            <div class="info-box">
+                <strong>ℹ️ Note:</strong> This demo currently runs in <strong>network fallback mode</strong> since WASM bindings are not yet fully implemented. 
+                To use this demo, start the PluresDB server with <code>npm start</code>. 
+                Once WASM is complete, this will run entirely in-browser with zero network overhead!
+            </div>
+
+            <!-- Add User Section -->
+            <div class="section">
+                <h2>📝 Add User</h2>
+                <div class="form-group">
+                    <label for="userId">User ID</label>
+                    <input type="text" id="userId" placeholder="e.g., user:alice" value="user:alice">
+                </div>
+                <div class="form-group">
+                    <label for="userName">Name</label>
+                    <input type="text" id="userName" placeholder="e.g., Alice Johnson" value="Alice Johnson">
+                </div>
+                <div class="form-group">
+                    <label for="userEmail">Email</label>
+                    <input type="email" id="userEmail" placeholder="e.g., alice@example.com" value="alice@example.com">
+                </div>
+                <button onclick="addUser()">➕ Add User</button>
+            </div>
+
+            <!-- Actions Section -->
+            <div class="section">
+                <h2>⚡ Actions</h2>
+                <div class="button-group">
+                    <button onclick="listUsers()">📋 List All Users</button>
+                    <button onclick="searchUsers()">🔍 Vector Search Demo</button>
+                    <button onclick="clearOutput()">🗑️ Clear Output</button>
+                </div>
+            </div>
+
+            <!-- Users List -->
+            <div class="section" id="usersSection" style="display: none;">
+                <h2>👥 Users</h2>
+                <ul id="usersList" class="user-list"></ul>
+            </div>
+
+            <!-- Output Section -->
+            <div class="section">
+                <h2>📊 Output</h2>
+                <pre id="output">Ready. Click actions above to interact with the database.</pre>
+            </div>
+        </main>
+    </div>
+
+    <script type="module">
+        // Import PluresDB Local-First API
+        // Note: In production, this would use the actual module import
+        // For now, we'll use a mock implementation that demonstrates the network fallback
+
+        class MockPluresDBLocalFirst {
+            constructor() {
+                this.baseUrl = 'http://localhost:34567';
+                this.mode = 'network';
+            }
+
+            getMode() {
+                return this.mode;
+            }
+
+            async put(id, data) {
+                try {
+                    const response = await fetch(`${this.baseUrl}/api/put`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id, data })
+                    });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return id;
+                } catch (error) {
+                    throw new Error(`Failed to connect to PluresDB server. Please start it with 'npm start'`);
+                }
+            }
+
+            async get(id) {
+                const response = await fetch(`${this.baseUrl}/api/get?id=${encodeURIComponent(id)}`);
+                if (!response.ok && response.status !== 404) throw new Error(`HTTP ${response.status}`);
+                return response.status === 404 ? null : await response.json();
+            }
+
+            async list() {
+                const response = await fetch(`${this.baseUrl}/api/list`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            }
+
+            async delete(id) {
+                const response = await fetch(`${this.baseUrl}/api/delete?id=${encodeURIComponent(id)}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            }
+
+            async vectorSearch(query, limit) {
+                const response = await fetch(`${this.baseUrl}/api/search`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, limit })
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            }
+        }
+
+        // Initialize database
+        const db = new MockPluresDBLocalFirst();
+        window.db = db; // Make available to inline event handlers
+
+        // Update mode badge
+        const modeBadge = document.getElementById('mode-badge');
+        modeBadge.textContent = `${db.getMode().toUpperCase()} (Fallback)`;
+        modeBadge.className = 'status-badge fallback';
+
+        // Helper functions
+        function output(data) {
+            const outputEl = document.getElementById('output');
+            if (typeof data === 'object') {
+                outputEl.textContent = JSON.stringify(data, null, 2);
+            } else {
+                outputEl.textContent = data;
+            }
+        }
+
+        function updateNodeCount(count) {
+            document.getElementById('node-count').textContent = count;
+        }
+
+        // Action: Add User
+        window.addUser = async function() {
+            try {
+                const id = document.getElementById('userId').value;
+                const name = document.getElementById('userName').value;
+                const email = document.getElementById('userEmail').value;
+
+                if (!id || !name || !email) {
+                    output('❌ Please fill in all fields');
+                    return;
+                }
+
+                await db.put(id, {
+                    type: 'User',
+                    name,
+                    email,
+                    createdAt: new Date().toISOString()
+                });
+
+                output(`✅ User added successfully!\n\nID: ${id}\nName: ${name}\nEmail: ${email}`);
+                
+                // Clear form
+                document.getElementById('userId').value = `user:${Date.now()}`;
+                document.getElementById('userName').value = '';
+                document.getElementById('userEmail').value = '';
+
+                // Refresh user list if visible
+                const usersSection = document.getElementById('usersSection');
+                if (usersSection.style.display !== 'none') {
+                    await listUsers();
+                }
+            } catch (error) {
+                output(`❌ Error: ${error.message}`);
+            }
+        };
+
+        // Action: List Users
+        window.listUsers = async function() {
+            try {
+                const nodes = await db.list();
+                const users = nodes.filter(node => node.data?.type === 'User');
+
+                updateNodeCount(nodes.length);
+
+                if (users.length === 0) {
+                    output('📭 No users found. Add some users first!');
+                    document.getElementById('usersSection').style.display = 'none';
+                    return;
+                }
+
+                // Show users in the dedicated section
+                const usersList = document.getElementById('usersList');
+                usersList.innerHTML = '';
+
+                users.forEach(user => {
+                    const li = document.createElement('li');
+                    li.className = 'user-item';
+                    li.innerHTML = `
+                        <div class="user-info">
+                            <div class="user-name">${user.data.name}</div>
+                            <div class="user-email">${user.data.email}</div>
+                        </div>
+                        <button class="delete-btn" onclick="deleteUser('${user.id}')">Delete</button>
+                    `;
+                    usersList.appendChild(li);
+                });
+
+                document.getElementById('usersSection').style.display = 'block';
+                output(`✅ Found ${users.length} user(s)\n${nodes.length} total nodes in database`);
+            } catch (error) {
+                output(`❌ Error: ${error.message}`);
+            }
+        };
+
+        // Action: Delete User
+        window.deleteUser = async function(id) {
+            try {
+                await db.delete(id);
+                output(`✅ User ${id} deleted successfully`);
+                await listUsers();
+            } catch (error) {
+                output(`❌ Error: ${error.message}`);
+            }
+        };
+
+        // Action: Vector Search Demo
+        window.searchUsers = async function() {
+            try {
+                const results = await db.vectorSearch('Find users', 10);
+                output({
+                    query: 'Find users',
+                    results: results.length,
+                    data: results
+                });
+            } catch (error) {
+                output(`❌ Error: ${error.message}\n\nNote: Vector search requires the server to be running.`);
+            }
+        };
+
+        // Action: Clear Output
+        window.clearOutput = function() {
+            output('Output cleared.');
+        };
+
+        // Initialize - try to get node count
+        (async function() {
+            try {
+                const nodes = await db.list();
+                updateNodeCount(nodes.length);
+                output(`✅ Connected to PluresDB server\n${nodes.length} nodes in database\n\nMode: ${db.getMode()} (fallback)`);
+            } catch (error) {
+                output(`⚠️ PluresDB server not running\n\nPlease start it with: npm start\n\nOnce started, refresh this page.`);
+            }
+        })();
+    </script>
+</body>
+</html>
