@@ -120,8 +120,6 @@
     >
       {clearingData ? "Clearing..." : "Clear All Data"}
     </button>
-      Clear All Data
-    </button>
   </div>
 </div>
 
