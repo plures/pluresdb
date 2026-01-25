@@ -54,6 +54,12 @@ bin/
 node_modules/
 pluresdb/web/dist/
 
+# E2E Testing
+e2e/node_modules/
+e2e/playwright-report/
+e2e/test-results/
+e2e/.playwright/
+
 
 
 # Rust/Cargo build artifacts
