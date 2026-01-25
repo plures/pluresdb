@@ -1,4 +1,4 @@
-import type { Plugin, EmbeddingProvider } from "./plugin-system.ts";
+import type { Plugin, EmbeddingProvider } from "./plugin-system";
 
 /**
  * Example Custom Embedding Provider Plugin

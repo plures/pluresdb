@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from "svelte";
+  import { push as toast } from "../lib/toasts";
   
   const dispatch = createEventDispatcher();
   
@@ -46,13 +47,14 @@
       
       const result = await response.json();
       loadedDataset = datasetId;
+      toast(`Successfully loaded ${result.count} nodes from ${datasetId} dataset`, "success");
       dispatch("loaded", { dataset: datasetId, count: result.count });
       
       // Refresh the page data
       window.location.reload();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading dataset:", error);
-      alert(`Failed to load dataset: ${error.message}`);
+      toast(`Failed to load dataset: ${error.message}`, "error");
     } finally {
       loading = false;
     }
@@ -65,8 +67,8 @@
     
     loading = true;
     try {
-      const response = await fetch("/api/nodes", {
-        method: "DELETE"
+      const response = await fetch("/api/data/clear", {
+        method: "POST"
       });
       
       if (!response.ok) {
@@ -74,10 +76,11 @@
       }
       
       loadedDataset = null;
+      toast("All data cleared successfully", "success");
       window.location.reload();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error clearing data:", error);
-      alert(`Failed to clear data: ${error.message}`);
+      toast(`Failed to clear data: ${error.message}`, "error");
     } finally {
       loading = false;
     }

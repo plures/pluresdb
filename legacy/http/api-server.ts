@@ -8,6 +8,9 @@ export interface ApiServerHandle {
 
 const STATIC_ROOT = new URL("../../web/svelte/dist/", import.meta.url);
 
+// Constants
+const DEFAULT_EMBEDDING_DIMENSIONS = 384;
+
 // Example dataset generator
 async function loadExampleDataset(
   db: GunDB,
@@ -82,7 +85,7 @@ async function loadExampleDataset(
         title: `Document ${i}`,
         content: `This is the content of document ${i}. It contains information about topic ${i % 10}.`,
         tags: [`tag${i % 5}`, `tag${(i + 1) % 5}`],
-        embedding: Array.from({ length: 384 }, () => Math.random() - 0.5),
+        embedding: Array.from({ length: DEFAULT_EMBEDDING_DIMENSIONS }, () => Math.random() - 0.5),
         createdAt: Date.now() - i * 43200000,
       },
     })),
@@ -346,6 +349,18 @@ export function startApiServer(
             }
             // Stub implementation - sync with device
             return json({ success: true, deviceId: body.deviceId });
+          }
+          case "/api/data/clear": {
+            if (req.method !== "POST") return json({ error: "method" }, 405);
+            // Clear all nodes from the database
+            const nodes: string[] = [];
+            for await (const n of db.list()) {
+              nodes.push(n.id);
+            }
+            for (const id of nodes) {
+              await db.delete(id);
+            }
+            return json({ success: true, count: nodes.length });
           }
           default:
             // Check if it's an example dataset request
