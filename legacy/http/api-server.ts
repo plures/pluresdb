@@ -8,6 +8,108 @@ export interface ApiServerHandle {
 
 const STATIC_ROOT = new URL("../../web/svelte/dist/", import.meta.url);
 
+// Constants
+const DEFAULT_EMBEDDING_DIMENSIONS = 384;
+
+// Allowed dataset IDs (whitelist to prevent prototype pollution)
+const ALLOWED_DATASETS = ["users", "products", "social", "documents"] as const;
+type AllowedDatasetId = typeof ALLOWED_DATASETS[number];
+
+// Example dataset generator
+async function loadExampleDataset(
+  db: GunDB,
+  datasetId: string,
+): Promise<number> {
+  // Validate datasetId against whitelist to prevent prototype pollution
+  if (!ALLOWED_DATASETS.includes(datasetId as AllowedDatasetId)) {
+    return 0;
+  }
+
+  const datasets: Record<
+    AllowedDatasetId,
+    Array<{ id: string; data: Record<string, unknown> }>
+  > = {
+    users: Array.from({ length: 50 }, (_, i) => ({
+      id: `user_${i}`,
+      data: {
+        type: "User",
+        name: `User ${i}`,
+        email: `user${i}@example.com`,
+        age: 20 + (i % 50),
+        role: ["admin", "user", "moderator"][i % 3],
+        createdAt: Date.now() - i * 86400000,
+      },
+    })),
+    products: Array.from({ length: 100 }, (_, i) => ({
+      id: `product_${i}`,
+      data: {
+        type: "Product",
+        name: `Product ${i}`,
+        category: ["Electronics", "Clothing", "Books", "Home", "Sports"][i % 5],
+        price: 10 + (i * 5) % 500,
+        rating: 1 + (i % 5),
+        inStock: i % 3 !== 0,
+        description: `Description for product ${i}`,
+      },
+    })),
+    social: Array.from({ length: 150 }, (_, i) => {
+      if (i < 50) {
+        return {
+          id: `user_${i}`,
+          data: {
+            type: "User",
+            name: `User ${i}`,
+            followers: i * 10,
+            following: i * 5,
+          },
+        };
+      } else if (i < 100) {
+        return {
+          id: `post_${i - 50}`,
+          data: {
+            type: "Post",
+            userId: `user_${(i - 50) % 50}`,
+            content: `This is post ${i - 50}`,
+            likes: (i - 50) * 2,
+            createdAt: Date.now() - (i - 50) * 3600000,
+          },
+        };
+      } else {
+        return {
+          id: `comment_${i - 100}`,
+          data: {
+            type: "Comment",
+            postId: `post_${(i - 100) % 50}`,
+            userId: `user_${(i - 100) % 50}`,
+            content: `Comment ${i - 100}`,
+            createdAt: Date.now() - (i - 100) * 1800000,
+          },
+        };
+      }
+    }),
+    documents: Array.from({ length: 75 }, (_, i) => ({
+      id: `doc_${i}`,
+      data: {
+        type: "Document",
+        title: `Document ${i}`,
+        content: `This is the content of document ${i}. It contains information about topic ${i % 10}.`,
+        tags: [`tag${i % 5}`, `tag${(i + 1) % 5}`],
+        embedding: Array.from({ length: DEFAULT_EMBEDDING_DIMENSIONS }, () => Math.random() - 0.5),
+        createdAt: Date.now() - i * 43200000,
+      },
+    })),
+  };
+
+  const data = datasets[datasetId as AllowedDatasetId];
+  if (!data) return 0;
+
+  for (const item of data) {
+    await db.put(item.id, item.data);
+  }
+
+  return data.length;
+}
+
 function corsHeaders(extra?: Record<string, string>): Headers {
   const headers = new Headers(extra);
   headers.set("Access-Control-Allow-Origin", "*");
@@ -257,7 +359,36 @@ export function startApiServer(
             // Stub implementation - sync with device
             return json({ success: true, deviceId: body.deviceId });
           }
+          case "/api/data/clear": {
+            if (req.method !== "POST") return json({ error: "method" }, 405);
+            // WARNING: This is a destructive operation that clears all data.
+            // In production, this should require authentication/authorization.
+            // This endpoint is intended for development and testing only.
+            // TODO: Add authentication/authorization checks before production use.
+            const nodes: string[] = [];
+            for await (const n of db.list()) {
+              nodes.push(n.id);
+            }
+            for (const id of nodes) {
+              await db.delete(id);
+            }
+            return json({ success: true, count: nodes.length });
+          }
           default:
+            // Check if it's an example dataset request
+            if (path.startsWith("/api/examples/")) {
+              if (req.method !== "POST") return json({ error: "method" }, 405);
+              // WARNING: This endpoint allows bulk data insertion without authentication.
+              // In production, this should require authentication/authorization.
+              // This endpoint is intended for development and testing only.
+              // TODO: Add authentication/authorization checks before production use.
+              const datasetId = path.slice("/api/examples/".length);
+              const count = await loadExampleDataset(db, datasetId);
+              if (count === 0) {
+                return json({ error: "unknown dataset" }, 404);
+              }
+              return json({ success: true, dataset: datasetId, count });
+            }
             return json({ error: "not found" }, 404);
         }
       }
