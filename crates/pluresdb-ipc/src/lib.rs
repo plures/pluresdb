@@ -11,6 +11,23 @@
  * - Process isolation
  * - No network exposure
  *
+ * # Limitations
+ *
+ * - **Single Client**: Current implementation supports one client at a time.
+ *   Multiple concurrent clients would require additional synchronization.
+ * - **Polling**: Uses polling instead of event-driven synchronization for simplicity.
+ *   Future versions could use condition variables for better performance.
+ * - **Platform-specific**: Shared memory behavior varies across platforms.
+ *   Thoroughly test on target platforms (Windows, macOS, Linux).
+ *
+ * # Safety
+ *
+ * This crate uses `unsafe` code for shared memory access. Safety is ensured by:
+ * - Single writer (server) per shared memory region
+ * - Request/response flags prevent concurrent access
+ * - repr(C) layout ensures consistent memory structure
+ * - Client waits for response before sending next request
+ *
  * # Example
  *
  * ```rust,no_run
@@ -176,6 +193,8 @@ impl IPCServer {
 
     /// Process one message from the shared memory
     fn process_one_message(&self) -> Result<()> {
+        // Safety: We control the shared memory lifecycle and ensure single writer.
+        // The ShmemLayout is repr(C) and matches the memory layout exactly.
         let layout = unsafe {
             &mut *(self.shmem.as_ptr() as *mut ShmemLayout)
         };
@@ -277,6 +296,8 @@ impl IPCClient {
 
     /// Send a message and wait for response
     fn send_message(&mut self, message: IPCMessage) -> Result<IPCMessage> {
+        // Safety: We control the shared memory lifecycle and ensure proper synchronization.
+        // The ShmemLayout is repr(C) and matches the memory layout exactly.
         let layout = unsafe {
             &mut *(self.shmem.as_ptr() as *mut ShmemLayout)
         };

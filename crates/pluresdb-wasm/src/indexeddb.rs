@@ -160,13 +160,10 @@ impl IndexedDBStore {
         let result = JsFuture::from(request).await?;
         let keys_array = js_sys::Array::from(&result);
 
-        let mut keys = Vec::new();
-        for i in 0..keys_array.length() {
-            let key_value = keys_array.get(i);
-            if let Some(key_str) = key_value.as_string() {
-                keys.push(key_str);
-            }
-        }
+        // Use iterator methods for better performance
+        let keys = (0..keys_array.length())
+            .filter_map(|i| keys_array.get(i).as_string())
+            .collect();
 
         Ok(keys)
     }
