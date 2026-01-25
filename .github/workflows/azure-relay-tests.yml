@@ -28,6 +28,7 @@ on:
     - cron: '0 2 * * 0' # Every Sunday at 2 AM UTC
 
 permissions:
+  id-token: write  # Required for OIDC authentication with Azure
   contents: read
   issues: write
 
@@ -44,18 +45,23 @@ jobs:
       - name: Check if Azure credentials are configured
         id: check
         run: |
-          if [ -n "${{ secrets.AZURE_CREDENTIALS }}" ]; then
+          # Check for OIDC credentials (recommended)
+          if [ -n "${{ secrets.AZURE_CLIENT_ID }}" ] && [ -n "${{ secrets.AZURE_TENANT_ID }}" ] && [ -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]; then
             echo "has_credentials=true" >> $GITHUB_OUTPUT
-            echo "✓ Azure credentials are configured"
+            echo "✓ Azure OIDC credentials are configured"
+          # Fallback: Check for legacy AZURE_CREDENTIALS secret
+          elif [ -n "${{ secrets.AZURE_CREDENTIALS }}" ]; then
+            echo "has_credentials=true" >> $GITHUB_OUTPUT
+            echo "⚠️  Using legacy AZURE_CREDENTIALS secret (consider migrating to OIDC)"
           else
             echo "has_credentials=false" >> $GITHUB_OUTPUT
             echo "⚠️  Azure credentials are not configured"
-            echo "This workflow requires the AZURE_CREDENTIALS secret to be set."
+            echo "This workflow requires Azure OIDC credentials to be set."
             echo "See azure/docs/SECRETS.md for configuration instructions."
             echo ""
-            echo "To configure:"
-            echo "1. Create an Azure Service Principal"
-            echo "2. Add the AZURE_CREDENTIALS secret in repository settings"
+            echo "To configure OIDC (recommended):"
+            echo "1. Create an Azure App Registration with federated credentials"
+            echo "2. Add AZURE_CLIENT_ID, AZURE_TENANT_ID, and AZURE_SUBSCRIPTION_ID secrets"
             echo "3. Manually trigger this workflow or wait for the next scheduled run"
           fi
 
@@ -73,8 +79,12 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Azure Login
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          # Fallback to legacy credentials if OIDC secrets not configured
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       
       - name: Set environment variables
@@ -153,8 +163,12 @@ jobs:
           deno-version: v2.x
       
       - name: Azure Login
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          # Fallback to legacy credentials if OIDC secrets not configured
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       
       - name: Set environment variables
@@ -230,8 +244,12 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Azure Login
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          # Fallback to legacy credentials if OIDC secrets not configured
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       
       - name: Set environment variables
@@ -335,29 +353,39 @@ jobs:
               });
             } else {
               // Create new issue
-              const body = 'The scheduled Azure relay tests are being skipped because the AZURE_CREDENTIALS secret is not configured.\n\n' +
+              const body = 'The scheduled Azure relay tests are being skipped because Azure OIDC credentials are not configured.\n\n' +
                 '**What happened:**\n' +
                 '- The Azure relay tests are scheduled to run automatically (weekly on Sundays at 2 AM UTC)\n' +
                 '- The workflow detected that Azure credentials are not configured\n' +
                 '- All Azure deployment and testing jobs were skipped\n\n' +
                 '**How to fix:**\n\n' +
-                '### Option 1: Configure Azure Credentials (Recommended for actual testing)\n\n' +
-                '1. Create an Azure Service Principal:\n' +
+                '### Option 1: Configure Azure OIDC Credentials (Recommended)\n\n' +
+                'OIDC provides secretless authentication and is more secure than storing credentials.\n\n' +
+                '1. Create an Azure App Registration with federated credentials:\n' +
                 '   ```bash\n' +
-                '   # Note: --sdk-auth is deprecated but still required for azure/login@v1\n' +
-                '   az ad sp create-for-rbac \\\n' +
-                '     --name "pluresdb-github-actions" \\\n' +
-                '     --role contributor \\\n' +
-                '     --scopes /subscriptions/{subscription-id} \\\n' +
-                '     --sdk-auth\n' +
+                '   # Create the app registration\n' +
+                '   az ad app create --display-name "pluresdb-github-actions"\n' +
+                '   # Note the Application (client) ID from output\n' +
+                '   \n' +
+                '   # Create service principal\n' +
+                '   az ad sp create --id <application-id>\n' +
+                '   \n' +
+                '   # Assign Contributor role\n' +
+                '   az role assignment create \\\n' +
+                '     --assignee <application-id> \\\n' +
+                '     --role Contributor \\\n' +
+                '     --scope /subscriptions/{subscription-id}\n' +
+                '   \n' +
+                '   # Add federated credential for GitHub Actions\n' +
+                '   az ad app federated-credential create \\\n' +
+                '     --id <application-id> \\\n' +
+                '     --parameters \'{"name":"github-federated","issuer":"https://token.actions.githubusercontent.com","subject":"repo:plures/pluresdb:ref:refs/heads/main","audiences":["api://AzureADTokenExchange"]}\'\n' +
                 '   ```\n\n' +
-                '2. Copy the JSON output\n\n' +
-                '3. Add it as a repository secret:\n' +
+                '2. Add three repository secrets:\n' +
                 '   - Go to Settings → Secrets and variables → Actions\n' +
-                '   - Click "New repository secret"\n' +
-                '   - Name: `AZURE_CREDENTIALS`\n' +
-                '   - Value: Paste the JSON from step 2\n' +
-                '   - Click "Add secret"\n\n' +
+                '   - Add `AZURE_CLIENT_ID` (Application/client ID)\n' +
+                '   - Add `AZURE_TENANT_ID` (Directory/tenant ID)\n' +
+                '   - Add `AZURE_SUBSCRIPTION_ID` (Subscription ID)\n\n' +
                 '### Option 2: Disable Scheduled Tests\n\n' +
                 'If you don\'t want to run Azure relay tests:\n\n' +
                 '1. Edit `.github/workflows/azure-relay-tests.yml`\n' +

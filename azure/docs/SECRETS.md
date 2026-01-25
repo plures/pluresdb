@@ -2,26 +2,130 @@
 
 This document describes the secrets and credentials needed for Azure relay testing.
 
-## Optional Secret for GitHub Actions
+## Optional Credentials for GitHub Actions
 
 > **Note**: The Azure relay tests are **optional**. If you don't configure Azure credentials, the scheduled tests will be automatically skipped with a notification. You only need to configure this if you want to run Azure infrastructure tests.
 
-To enable automated Azure testing in GitHub Actions, you can optionally configure the `AZURE_CREDENTIALS` secret in your repository settings.
+To enable automated Azure testing in GitHub Actions, you can optionally configure Azure credentials using one of two methods:
 
-### AZURE_CREDENTIALS (Optional)
+## Method 1: OIDC Authentication (Recommended)
+
+**OpenID Connect (OIDC)** provides secretless authentication to Azure and is the recommended approach for security and maintainability.
+
+### Benefits of OIDC
+- ✅ No secrets stored in GitHub (more secure)
+- ✅ Short-lived tokens (automatic rotation)
+- ✅ No credential expiration management
+- ✅ Azure-recommended best practice
+- ✅ Better audit trail
+
+### Setup Steps
+
+#### 1. Create Azure App Registration
+
+```bash
+# Get your subscription and tenant IDs
+SUBSCRIPTION_ID=$(az account show --query id --output tsv)
+TENANT_ID=$(az account show --query tenantId --output tsv)
+
+# Create the app registration
+APP_ID=$(az ad app create --display-name "pluresdb-github-actions" \
+  --query appId --output tsv)
+
+echo "Application (Client) ID: $APP_ID"
+echo "Tenant ID: $TENANT_ID"
+echo "Subscription ID: $SUBSCRIPTION_ID"
+```
+
+#### 2. Create Service Principal and Assign Role
+
+```bash
+# Create service principal
+az ad sp create --id $APP_ID
+
+# Assign Contributor role to the subscription (or specific resource group)
+az role assignment create \
+  --assignee $APP_ID \
+  --role Contributor \
+  --scope /subscriptions/$SUBSCRIPTION_ID
+```
+
+#### 3. Add Federated Credential for GitHub
+
+```bash
+# For the main branch (adjust repo name if needed)
+az ad app federated-credential create \
+  --id $APP_ID \
+  --parameters '{
+    "name": "github-main",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:plures/pluresdb:ref:refs/heads/main",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+
+# Optional: Add for pull requests
+az ad app federated-credential create \
+  --id $APP_ID \
+  --parameters '{
+    "name": "github-pr",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:plures/pluresdb:pull_request",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+```
+
+#### 4. Configure GitHub Secrets
+
+Add these three secrets in your GitHub repository:
+
+1. **AZURE_CLIENT_ID**
+   - Go to Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `AZURE_CLIENT_ID`
+   - Value: The Application (Client) ID from step 1
+
+2. **AZURE_TENANT_ID**
+   - Click "New repository secret"
+   - Name: `AZURE_TENANT_ID`
+   - Value: The Tenant ID from step 1
+
+3. **AZURE_SUBSCRIPTION_ID**
+   - Click "New repository secret"
+   - Name: `AZURE_SUBSCRIPTION_ID`
+   - Value: The Subscription ID from step 1
+
+### Verification
+
+Test the OIDC setup:
+
+```bash
+# List federated credentials
+az ad app federated-credential list --id $APP_ID
+
+# Verify role assignment
+az role assignment list --assignee $APP_ID --output table
+```
+
+The workflow will automatically use OIDC when these three secrets are configured.
+
+---
+
+## Method 2: Service Principal with Secret (Legacy)
+
+> **⚠️ DEPRECATED**: This method uses the deprecated `--sdk-auth` flag and stores long-lived secrets. **Use OIDC (Method 1) instead for better security.**
+
+<details>
+<summary>Click to see legacy setup instructions (not recommended)</summary>
+
+### AZURE_CREDENTIALS (Legacy)
 
 A JSON object containing Azure Service Principal authentication credentials.
-
-> **Important**: This secret is **optional**. If not configured:
-> - Scheduled Azure relay tests will be automatically skipped
-> - A notification will be logged in the workflow run
-> - On the first scheduled run without credentials, an issue will be created to guide you through setup
-> - You can manually trigger the workflow when ready by configuring the secret
 
 **How to create a Service Principal and get the credentials**:
 
 ```bash
 # Create a service principal with Contributor role
+# WARNING: --sdk-auth is deprecated
 az ad sp create-for-rbac \
   --name "pluresdb-github-actions" \
   --role contributor \
@@ -54,9 +158,16 @@ az ad sp create-for-rbac \
 4. Value: Paste the entire JSON object from the command output above
 5. Click "Add secret"
 
-> **Note**: The `--sdk-auth` flag is deprecated but still supported for generating the JSON format required by the Azure Login action (currently using v1 in this workflow). For production use, consider migrating to OpenID Connect (OIDC) authentication which doesn't require storing secrets.
+</details>
 
-## Alternative: Individual Secrets (Legacy)
+---
+
+## Alternative: Individual Secrets (Legacy - for backward compatibility)
+
+> **Note**: If you're setting up new credentials, use **OIDC (Method 1)** instead. This section is only for backward compatibility with existing setups.
+
+<details>
+<summary>Click to see individual secrets setup (legacy)</summary>
 
 If you prefer to use individual secrets instead of the JSON format, you can configure these four separate secrets:
 
@@ -108,7 +219,9 @@ az account show --query id --output tsv
 3. Name: `AZURE_SUBSCRIPTION_ID`
 4. Value: Your subscription ID (e.g., `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
 
-> **Note**: The workflow currently uses `AZURE_CREDENTIALS` (JSON format). If you want to use individual secrets, you'll need to modify the workflow file to use them instead.
+</details>
+
+---
 
 ## Optional Secrets
 
@@ -154,10 +267,31 @@ The service principal needs these permissions:
 
 ## Security Best Practices
 
-### 1. Limit Service Principal Scope
+### 1. Use OIDC Instead of Secrets
 
-Instead of subscription-level access, create resource group first:
+**Always prefer OIDC (Method 1) over storing credentials** for:
+- No secret storage (eliminates secret leakage risk)
+- Automatic token rotation
+- Better audit trail
+- Azure-recommended approach
 
+### 2. Limit Service Principal Scope
+
+Instead of subscription-level access, scope to specific resource groups:
+
+**For OIDC:**
+```bash
+# Create resource group
+az group create --name pluresdb-github-rg --location eastus
+
+# Assign Contributor role scoped to resource group only
+az role assignment create \
+  --assignee $APP_ID \
+  --role Contributor \
+  --scope /subscriptions/{subscription-id}/resourceGroups/pluresdb-github-rg
+```
+
+**For legacy service principal with secret:**
 ```bash
 # Create resource group
 az group create --name pluresdb-github-rg --location eastus
@@ -167,55 +301,45 @@ az ad sp create-for-rbac \
   --name "pluresdb-github-limited" \
   --role contributor \
   --scopes /subscriptions/{subscription-id}/resourceGroups/pluresdb-github-rg
-
-# Extract the values from the output and configure them as separate GitHub secrets:
-# - AZURE_CLIENT_ID (appId from output)
-# - AZURE_CLIENT_SECRET (password from output)
-# - AZURE_TENANT_ID (tenant from output)
-# - AZURE_SUBSCRIPTION_ID (use: az account show --query id --output tsv)
 ```
 
-### 2. Rotate Credentials Regularly
+### 3. Use Separate Credentials per Environment
 
-```bash
-# Reset service principal credentials
-az ad sp credential reset \
-  --name "pluresdb-github-actions"
-
-# Update GitHub secrets with new credentials:
-# - Update AZURE_CLIENT_SECRET with the new password value
-```
-
-### 3. Use Separate Service Principals per Environment
+**For OIDC:**
+Create separate app registrations for different environments with different federated credentials:
 
 ```bash
 # Test environment
-az ad sp create-for-rbac \
-  --name "pluresdb-test-sp" \
-  --role contributor \
-  --scopes /subscriptions/{subscription-id}/resourceGroups/pluresdb-test-rg
+az ad app create --display-name "pluresdb-test"
+# Add federated credential for test environment/branch
 
-# Production environment (with more restrictions)
-az ad sp create-for-rbac \
-  --name "pluresdb-prod-sp" \
-  --role "Virtual Machine Contributor" \
-  --scopes /subscriptions/{subscription-id}/resourceGroups/pluresdb-prod-rg
+# Production environment
+az ad app create --display-name "pluresdb-prod"
+# Add federated credential for prod environment/branch
 ```
 
 ### 4. Monitor Service Principal Activity
 
 ```bash
-# View service principal sign-ins
+# View app registration sign-ins (for OIDC)
 az monitor activity-log list \
-  --caller "pluresdb-github-actions" \
+  --caller $APP_ID \
   --start-time "2024-01-01" \
   --output table
 ```
 
 ## Verification
 
-Test your secrets are configured correctly:
+**For OIDC setup:**
+```bash
+# Verify federated credentials are configured
+az ad app federated-credential list --id $APP_ID
 
+# Verify role assignments
+az role assignment list --assignee $APP_ID --output table
+```
+
+**For legacy setup with secrets:**
 ```bash
 # Test Azure CLI login with service principal
 az login --service-principal \
@@ -234,33 +358,45 @@ az group list --output table
 
 **Symptom**: Scheduled Azure relay tests show "Skipped" status, and you see a message like "Azure credentials are not configured"
 
-**This is expected behavior** if you haven't configured the `AZURE_CREDENTIALS` secret. The workflow is designed to gracefully skip Azure tests when credentials are missing.
+**This is expected behavior** if you haven't configured Azure credentials. The workflow is designed to gracefully skip Azure tests when credentials are missing.
 
 **To fix** (if you want to run the tests):
-1. Follow the instructions above to create a Service Principal
-2. Configure the `AZURE_CREDENTIALS` secret in GitHub
+1. Follow **Method 1: OIDC Authentication** (recommended) above
+2. Configure the three OIDC secrets in GitHub (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`)
 3. Wait for the next scheduled run or manually trigger the workflow
 
 **To disable notifications**:
 - If you don't plan to use Azure testing, you can disable the scheduled workflow by commenting out the `schedule` section in `.github/workflows/azure-relay-tests.yml`
 
-### Authentication Failed
+### OIDC Authentication Failed
 
-**Error**: `AADSTS7000215: Invalid client secret`, `Login failed with Error: Using auth-type: SERVICE_PRINCIPAL. Not all values are present.`, or `Unexpected input(s) 'client-secret'`
+**Error**: `AADSTS700016: Application with identifier was not found` or `federated credential not found`
+
+**Solution**:
+1. Verify federated credential is configured:
+   ```bash
+   az ad app federated-credential list --id $APP_ID
+   ```
+2. Check the subject matches your repository and branch:
+   - Should be: `repo:plures/pluresdb:ref:refs/heads/main`
+   - Or for PRs: `repo:plures/pluresdb:pull_request`
+3. Verify the three GitHub secrets are correctly set:
+   - `AZURE_CLIENT_ID` (Application/Client ID)
+   - `AZURE_TENANT_ID` (Directory/Tenant ID)
+   - `AZURE_SUBSCRIPTION_ID` (Subscription ID)
+4. Ensure the workflow has `id-token: write` permission (already configured)
+
+### Legacy Authentication Failed
+
+**Error**: `AADSTS7000215: Invalid client secret`, `Login failed with Error: Using auth-type: SERVICE_PRINCIPAL. Not all values are present.`
 
 **Solution**: 
-- Verify the `AZURE_CREDENTIALS` secret is configured in GitHub with a valid JSON object
-- The JSON must include: `clientId`, `clientSecret`, `subscriptionId`, and `tenantId`
-- Check if credentials have expired
-- Reset credentials and update the secret:
-  ```bash
-  az ad sp create-for-rbac \
-    --name "pluresdb-github-actions" \
-    --role contributor \
-    --scopes /subscriptions/{subscription-id} \
-    --sdk-auth
-  ```
-- Copy the entire JSON output and update the `AZURE_CREDENTIALS` secret in GitHub
+- **Recommended**: Migrate to OIDC (Method 1) instead of fixing legacy auth
+- If you must use legacy auth:
+  - Verify the `AZURE_CREDENTIALS` secret is configured in GitHub with a valid JSON object
+  - The JSON must include: `clientId`, `clientSecret`, `subscriptionId`, and `tenantId`
+  - Check if credentials have expired (secrets expire after 1-2 years)
+  - Consider switching to OIDC to avoid credential expiration issues
 
 ### Insufficient Permissions
 
