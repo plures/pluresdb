@@ -26,10 +26,12 @@ web-sys = { workspace = true, features = [
     "IdbDatabase",
     "IdbObjectStore",
     "IdbTransaction",
+    "IdbTransactionMode",
     "IdbRequest",
     "IdbOpenDbRequest",
     "IdbVersionChangeEvent",
 ] }
+js-sys = "0.3"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
