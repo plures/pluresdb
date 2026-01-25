@@ -110,19 +110,19 @@ Deliverables:
 
 ## Cross-Cutting Enhancements
 
-- Docs & Examples: Guided tours, example datasets, one-click demo.
-- E2E Tests: Playwright flows (CRUD, search, rules, import/export); CI.
-- Plugin Hooks: UI/engine extension points (e.g., custom embeddings, panels).
+- ✅ Docs & Examples: Guided tours, example datasets, one-click demo.
+- ✅ E2E Tests: Playwright flows (CRUD, search, rules, import/export); CI.
+- ✅ Plugin Hooks: UI/engine extension points (e.g., custom embeddings, panels).
 
 ## Milestone Checklist (selected)
 
 - ✅ UI polish: CodeMirror editor, virtualized lists, dark mode, toasts, keyboard nav, ARIA labels, sort controls, WCAG AA contrast, inline schema validation - **PHASE 1 COMPLETE**
-- Schema & history: Type explorer, version diff/restore
-- Graph & vector: Graph view, KNN inspector, ANN toggle (HNSW)
-- Query & rules: Visual builder, scheduler, notebooks 
-- Ops: Mesh dashboard, storage/index manager, profiling
-- Security & packaging: Auth/RBAC, MSI/Winget, Docker/Compose [in progress: Docker]
-- DX & QA: Docs, tours, Playwright suites, plugin hooks
+- ✅ Schema & history: Type explorer, version diff/restore - **PHASE 2 COMPLETE**
+- ✅ Graph & vector: Graph view, KNN inspector, ANN toggle (HNSW) - **PHASE 3 COMPLETE**
+- ✅ Query & rules: Visual builder, scheduler, notebooks - **PHASE 4 COMPLETE**
+- ✅ Ops: Mesh dashboard, storage/index manager, profiling - **PHASE 5 COMPLETE**
+- ✅ Security & packaging: Auth/RBAC, MSI/Winget, Docker/Compose - **PHASE 6 COMPLETE**
+- ✅ DX & QA: Docs, tours, Playwright suites, plugin hooks - **PHASE 7 COMPLETE**
 
 ## Notes on References
 
