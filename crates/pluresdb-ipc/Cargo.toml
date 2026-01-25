@@ -1,0 +1,30 @@
+[package]
+name = "pluresdb-ipc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Inter-process communication layer for PluresDB - high-performance local-first integration"
+repository.workspace = true
+
+[dependencies]
+pluresdb-core = { path = "../pluresdb-core" }
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+bincode.workspace = true
+parking_lot.workspace = true
+
+# Shared memory IPC
+shared_memory = "0.12"
+
+# For async runtime
+tokio = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio.workspace = true
+
+[features]
+default = []
+async = ["tokio"]
