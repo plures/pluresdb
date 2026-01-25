@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.6.5] - 2026-01-25
+
+### Other
+
+- Complete local-first integration roadmap and refactor README.md (#54)
+
+
 ## [1.6.4] - 2026-01-25
 
 ### Other
