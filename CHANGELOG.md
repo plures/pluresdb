@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.6.2] - 2026-01-25
+
+### Other
+
+- Add WASM and IPC integration infrastructure for local-first operation (#48)
+
+
 ## [1.6.1] - 2026-01-25
 
 ### Other
