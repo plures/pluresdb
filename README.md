@@ -7,7 +7,7 @@
 
 **Local-First Graph Database with SQLite Compatibility**
 
-PluresDB is a CRDT-based graph database that speaks SQLite. Built with Rust for performance and TypeScript for accessibility, it provides 95% SQLite API compatibility while adding graph relationships, vector search, and P2P synchronization. Perfect for desktop applications, VSCode extensions, and personal knowledge management.
+PluresDB is a CRDT-based graph database that speaks SQLite. Built with Rust for performance and TypeScript for accessibility, it provides SQLite API compatibility while adding graph relationships, vector search, and P2P synchronization. Perfect for desktop applications, VSCode extensions, and personal knowledge management.
 
 > 💡 **Ideal for Windows Desktop Apps**: Drop-in SQLite replacement with graph capabilities, vector search, and a comprehensive web UI. [Get Started on Windows →](docs/WINDOWS_GETTING_STARTED.md)
 
@@ -52,8 +52,10 @@ await sqlite.exec(`
 `);
 
 // Insert data
-await sqlite.run("INSERT INTO users (name, email) VALUES (?, ?)", 
-  ["Alice", "alice@example.com"]);
+await sqlite.run(
+  "INSERT INTO users (name, email) VALUES (?, ?)", 
+  ["Alice", "alice@example.com"]
+);
 
 // Query data
 const users = await sqlite.all("SELECT * FROM users");
@@ -222,10 +224,10 @@ curl -X POST http://localhost:34567/api/search \
 
 PluresDB provides production-ready Rust implementations for local-first integration:
 
-**WASM (Browser)**
+**WASM (Browser)** - Rust implementation complete, use directly:
 ```javascript
-import init, { PluresDBBrowser } from "@plures/pluresdb-wasm";
-await init();
+// Via wasm-bindgen (compile from source)
+import { PluresDBBrowser } from "./pluresdb-wasm/pkg";
 const db = new PluresDBBrowser("my-app");
 await db.init_persistence();
 await db.put("user:1", { name: "Alice" });
@@ -267,7 +269,7 @@ PluresDB is available through multiple channels:
 
 - **npm**: [`pluresdb`](https://www.npmjs.com/package/pluresdb) - Node.js package
 - **JSR**: [`@plures/pluresdb`](https://jsr.io/@plures/pluresdb) - Deno module
-- **crates.io**: [`pluresdb-core`](https://crates.io/crates/pluresdb-core) - Rust crates
+- **crates.io**: Rust crates ([pluresdb-core](https://crates.io/crates/pluresdb-core), [pluresdb-storage](https://crates.io/crates/pluresdb-storage), [pluresdb-sync](https://crates.io/crates/pluresdb-sync))
 - **Winget**: `pluresdb.pluresdb` - Windows package manager
 - **Docker Hub**: [`pluresdb/pluresdb`](https://hub.docker.com/r/pluresdb/pluresdb) - Container images
 - **GitHub Releases**: Pre-built binaries for Windows, macOS, Linux
