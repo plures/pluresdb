@@ -5,9 +5,9 @@
 [![Deno version](https://img.shields.io/badge/deno-v2.x-blue)](https://deno.land)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 
-**P2P Graph Database with SQLite Compatibility** - A local-first, offline-first database for modern applications.
+**Graph Database with SQLite Compatibility** - CRDT-based graph storage with vector search and TypeScript/Rust support.
 
-> 💡 **Perfect for Personal Use on Windows!** PluresDB is ideal for note-taking, knowledge management, personal wikis, task tracking, and more. [Get Started on Windows →](docs/WINDOWS_GETTING_STARTED.md)
+> 💡 **Perfect for Personal Use on Windows!** SQLite-compatible database with graph capabilities, vector search, and a comprehensive web UI. [Get Started on Windows →](docs/WINDOWS_GETTING_STARTED.md)
 
 ## 🚀 Quick Start
 
@@ -135,54 +135,48 @@ await db.close();
 api.close();
 ```
 
-#### Local-First Integration (New!)
+#### Network Mode
 
-PluresDB now supports true local-first integration without network overhead:
+PluresDB operates in network mode using HTTP REST API:
 
 ```typescript
 import { PluresDBLocalFirst } from "@plures/pluresdb/local-first";
 
-// Auto-detects best integration method:
-// - Browser: WebAssembly (WASM)
-// - Tauri: Direct Rust integration
-// - Native apps: Shared memory IPC
-// - Fallback: Network (HTTP REST)
-const db = new PluresDBLocalFirst({ mode: "auto" });
+// Network mode provides backward compatibility
+const db = new PluresDBLocalFirst({ mode: "network", port: 34567 });
 
-// Same API across all platforms - 10-1000x faster than network!
 await db.put("user:1", { name: "Alice", email: "alice@example.com" });
 const user = await db.get("user:1");
 const results = await db.vectorSearch("Find users in London", 10);
-
-// No server required, no network ports, true offline-first!
 ```
 
-📖 **[Complete Local-First Integration Guide →](docs/LOCAL_FIRST_INTEGRATION.md)**
+> **Note**: Local-first modes (WASM, IPC, Tauri) are implemented in Rust but TypeScript integration is in progress. See [Local-First Integration Status](docs/LOCAL_FIRST_INTEGRATION.md) for details.
 
 ## 🎯 Features
 
 ### Core Database
 
-- **P2P Graph Database**: Distributed, peer-to-peer data storage
-- **SQLite Compatibility**: 95% SQLite API compatibility for easy migration
-- **CRDT Conflict Resolution**: Automatic conflict resolution for distributed data
+- **Graph Database**: CRDT-based graph storage with conflict resolution
+- **SQLite Compatibility**: 95% SQLite API compatibility for easy migration  
 - **Vector Search**: Built-in vector embeddings and similarity search
-- **Local-First**: Offline-first data storage with sync when online
+- **REST API**: HTTP API for CRUD operations and queries
+- **TypeScript/JavaScript**: Full Node.js and Deno support
 
-### P2P Ecosystem
+### Web Interface
 
-- **Identity Management**: Public key infrastructure for peer identification
-- **Encrypted Sharing**: End-to-end encrypted data sharing between peers
-- **Cross-Device Sync**: Automatic synchronization across all your devices
-- **Acceptance Policies**: Granular control over what data to accept from peers
+- **24-Tab Management UI**: Comprehensive Svelte-based web interface
+- **Data Explorer**: Browse and edit nodes with JSON editing
+- **Graph Visualization**: Interactive Cytoscape.js graph views
+- **Vector Search UI**: Semantic search with similarity scoring
+- **Real-Time Updates**: Server-Sent Events for live data changes
 
 ### Developer Experience
 
-- **TypeScript Support**: Full TypeScript definitions included
-- **VSCode Integration**: Easy integration with VSCode extensions
-- **Web UI**: Comprehensive 24-tab management interface
-- **REST API**: Full REST API for web applications
-- **WebSocket API**: Real-time updates and synchronization
+- **TypeScript Definitions**: Complete type safety
+- **VSCode Integration**: SQLite-compatible API for extensions
+- **Rust Core**: High-performance Rust implementation
+- **Multiple Runtimes**: Node.js, Deno, and Rust bindings
+- **Docker Support**: Containerized deployment available
 
 ## 📦 Installation Methods
 
@@ -320,29 +314,42 @@ const write = db.transaction(async (users) => {
 await write([{ name: "Grace Hopper" }, { name: "Margaret Hamilton" }]);
 ```
 
-### P2P API
+### REST API
 
 ```typescript
-// Identity management
-await db.createIdentity({ name: "John", email: "john@example.com" });
-await db.searchPeers("developer");
+// Via HTTP client
+const response = await fetch("http://localhost:34567/api/put", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ id: "user:1", data: { name: "Alice" } })
+});
 
-// Encrypted sharing
-await db.shareNode(nodeId, targetPeerId, { accessLevel: "read-only" });
-await db.acceptSharedNode(sharedNodeId);
+// Get node
+const node = await fetch("http://localhost:34567/api/get?id=user:1")
+  .then(r => r.json());
 
-// Cross-device sync
-await db.addDevice({ name: "My Phone", type: "phone" });
-await db.syncWithDevice(deviceId);
+// List all nodes
+const nodes = await fetch("http://localhost:34567/api/list")
+  .then(r => r.json());
 ```
 
-## 🗂️ Monorepo layout & Rust implementation
+## 🗂️ Repository Structure
 
-PluresDB ships as a Rust-first monorepo with language bindings for Deno and Node; the top-level layout is:
+PluresDB is a Rust-first monorepo with TypeScript/JavaScript bindings:
 
-- **Rust workspace:** `crates/` hosts the production Rust core (`pluresdb-core`, `pluresdb-storage`, `pluresdb-sync`) plus bindings and tools (`pluresdb-cli`, `pluresdb-node`, `pluresdb-deno`).
-- **JavaScript/TypeScript:** `legacy/` retains the original Deno/Node code paths for compatibility and references the same APIs exported via `package.json`/`mod.ts`.
-- **Packaging:** `packaging/` and `packaging/winget/` contain the MSI/winget artifacts that back the published Windows package.
+- **`crates/`**: Rust core implementation
+  - `pluresdb-core`: CRDT storage engine
+  - `pluresdb-storage`: Storage backends (Sled, SQLite, RocksDB)
+  - `pluresdb-sync`: P2P synchronization (in development)
+  - `pluresdb-cli`: Command-line interface
+  - `pluresdb-wasm`: WebAssembly bindings (Rust complete, TS integration pending)
+  - `pluresdb-ipc`: IPC shared memory (Rust complete, TS integration pending)
+- **`legacy/`**: TypeScript/JavaScript source
+  - Node.js and Deno API implementations
+  - HTTP/WebSocket server
+  - better-sqlite3 compatibility layer
+- **`web/svelte/`**: Web UI components
+- **`packaging/`**: Distribution packages (MSI, winget, Docker)
 
 ## 🚀 Migration from SQLite
 
@@ -365,12 +372,13 @@ const db = new SQLiteCompatibleAPI();
 
 ## 🔒 Security
 
-- **End-to-End Encryption**: All shared data is encrypted
-- **Public Key Infrastructure**: Secure peer identification
-- **Access Control**: Granular permissions and policies
-- **Audit Trail**: Complete logging of all activities
-- **Local-First**: Your data stays on your devices
-- **Payload Sanitization**: Incoming records are scrubbed to neutralize prototype pollution and function injection attempts
+- **Input Validation**: All user inputs are validated
+- **Payload Sanitization**: Protection against prototype pollution and injection attacks
+- **AGPL v3 License**: Ensures modifications remain open source
+- **Audit Trail**: Complete logging of database operations
+- **Local Storage**: Data stored locally with optional network sync
+
+For security issues, see our [Security Policy](SECURITY.md).
 
 ## 🧪 Testing & Verification
 
@@ -402,46 +410,40 @@ See [Azure Testing Guide](azure/README.md) and [Quick Start](azure/QUICKSTART.md
 
 ## 📊 Performance
 
-- **Vector Search**: Sub-millisecond similarity search
-- **CRDT Sync**: Efficient conflict resolution
-- **Local Storage**: Fast local operations
-- **P2P Sync**: Optimized for bandwidth and latency
-- **Memory Efficient**: Minimal memory footprint
+- **Vector Search**: HNSW-based similarity search in Rust
+- **CRDT Operations**: Efficient conflict-free data structures
+- **Multiple Backends**: Sled, SQLite, RocksDB storage options
+- **HTTP REST API**: ~5-10ms latency for local operations
+- **Rust Core**: High-performance implementation with TypeScript bindings
 
 ## 🌍 Use Cases
 
-### Personal Database & Knowledge Management 📝
+### Personal Database & Knowledge Management
 
-PluresDB is **perfect for personal use on Windows** as a local-first database:
+PluresDB works well for personal Windows applications:
 
-- **Digital Journal**: Daily logs, mood tracking, personal reflections
-- **Note-taking System**: Organize notes with tags, relationships, and smart search
-- **Personal Wiki**: Build your own knowledge base with linked concepts
-- **Task Manager**: Track personal and work tasks with custom fields
-- **Research Database**: Collect papers, articles, bookmarks with metadata
-- **Contact Manager**: Store contacts with rich relationships
-- **Recipe Collection**: Searchable recipes with ingredients and ratings
-- **Password Vault**: Encrypted storage for sensitive information
-- **Bookmark Manager**: Save and organize web links with AI-powered search
+- **Note-taking**: Organize notes with graph relationships and vector search
+- **Knowledge Base**: Build interconnected wikis with semantic search
+- **Task Tracking**: Store tasks with custom fields and queries
+- **Research Data**: Collect and search research materials
+- **Bookmark Manager**: Save and organize links with full-text search
 
-👉 **[Windows Getting Started Guide](docs/WINDOWS_GETTING_STARTED.md)** for personal database setup
+See [Windows Getting Started Guide](docs/WINDOWS_GETTING_STARTED.md) for setup.
 
-### Application Development 🚀
+### Application Development
 
-- **VSCode Extensions**: Replace SQLite with P2P capabilities
-- **Local-First Apps**: Offline-first applications
-- **Collaborative Tools**: Real-time collaboration
-- **IoT Applications**: Edge computing and sync
-- **Research Projects**: Academic and research data
-- **Personal Knowledge Management**: Personal wikis and notes
+- **VSCode Extensions**: SQLite-compatible API for extension storage
+- **Desktop Applications**: Embedded database with web UI
+- **Data Tools**: Graph data structures with REST API access
+- **Prototyping**: Quick database setup with TypeScript/Rust support
 
 ## 📚 Documentation
 
-- [Installation Guide](packaging/INSTALLATION.md)
-- [API Reference](docs/API.md)
-- [VSCode Integration](examples/vscode-extension-integration.ts)
-- [Migration Guide](docs/MIGRATION.md)
-- [P2P Guide](docs/P2P.md)
+- [Windows Getting Started](docs/WINDOWS_GETTING_STARTED.md)
+- [Local-First Integration Status](docs/LOCAL_FIRST_INTEGRATION.md)
+- [VSCode Extension Example](examples/vscode-extension-integration.ts)
+- [CHANGELOG](CHANGELOG.md)
+- [Contributing Guide](CONTRIBUTING.md)
 
 ## 🤝 Contributing
 
@@ -469,6 +471,6 @@ For security issues, please see our [Security Policy](SECURITY.md).
 
 ---
 
-**Ready to build the future of local-first applications?** 🚀
+**Built with Rust and TypeScript** 🚀
 
-[Get Started](packaging/INSTALLATION.md) | [View Examples](examples/) | [GitHub Discussions](https://github.com/plures/pluresdb/discussions)
+[Windows Setup](docs/WINDOWS_GETTING_STARTED.md) | [Examples](examples/) | [Contributing](CONTRIBUTING.md)
