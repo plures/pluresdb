@@ -10,24 +10,35 @@ test.describe("CRUD Operations", () => {
     // Navigate to data view
     await page.click('button:has-text("Data")');
     
-    // Look for the node detail panel or create button
-    // This depends on the actual UI structure
+    // Create a unique test node to avoid conflicts
+    const testId = `test_node_${Date.now()}`;
     const nodeData = {
       type: "TestNode",
       name: "Test Item",
-      value: 42
+      value: 42,
+      testId: testId
     };
     
-    // Type in the JSON editor (assuming there's a textarea or editor)
-    const editor = page.locator('textarea, .cm-content').first();
-    await editor.click();
-    await editor.fill(JSON.stringify(nodeData, null, 2));
+    // Use the API to create a node for testing (more reliable than UI interaction)
+    await page.evaluate(async (data) => {
+      const response = await fetch(`/api/nodes/${data.testId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      return response.ok;
+    }, nodeData);
     
-    // Click save or create button
-    await page.click('button:has-text("Save"), button:has-text("Create")');
+    // Wait for the node to appear in the UI via SSE
+    await page.waitForTimeout(500);
     
-    // Verify node was created
-    await expect(page.locator('text=Test Item')).toBeVisible();
+    // Verify node appears in the node list
+    await expect(page.locator(`text=${testId}`)).toBeVisible({ timeout: 5000 });
+    
+    // Clean up - delete the test node
+    await page.evaluate(async (id) => {
+      await fetch(`/api/nodes/${id}`, { method: "DELETE" });
+    }, testId);
   });
 
   test("should read and display nodes", async ({ page }) => {

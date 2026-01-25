@@ -36,33 +36,14 @@ class SimpleEmbeddingProvider implements EmbeddingProvider {
   }
 }
 
-/**
- * OpenAI Embedding Provider
- * (Stub - would need actual API key and implementation)
- */
-class OpenAIEmbeddingProvider implements EmbeddingProvider {
-  name = "openai-ada-002";
-  dimensions = 1536;
-  
-  constructor(private apiKey: string) {}
-
-  async embed(text: string): Promise<number[]> {
-    // Stub implementation - in production, would call OpenAI API
-    console.warn("OpenAI embeddings not implemented - using random vector");
-    return Array.from({ length: this.dimensions }, () => Math.random() - 0.5);
-  }
-}
-
 export const customEmbeddingsPlugin: Plugin = {
   id: "custom-embeddings",
   name: "Custom Embeddings Provider",
   version: "1.0.0",
-  description: "Provides custom embedding providers for PluresDB",
+  description: "Provides a simple character-based embedding provider for PluresDB",
   
   embeddingProviders: [
     new SimpleEmbeddingProvider(),
-    // Uncomment and configure with API key to use:
-    // new OpenAIEmbeddingProvider(process.env.OPENAI_API_KEY || ""),
   ],
   
   async init() {

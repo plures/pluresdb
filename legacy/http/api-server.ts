@@ -11,13 +11,22 @@ const STATIC_ROOT = new URL("../../web/svelte/dist/", import.meta.url);
 // Constants
 const DEFAULT_EMBEDDING_DIMENSIONS = 384;
 
+// Allowed dataset IDs (whitelist to prevent prototype pollution)
+const ALLOWED_DATASETS = ["users", "products", "social", "documents"] as const;
+type AllowedDatasetId = typeof ALLOWED_DATASETS[number];
+
 // Example dataset generator
 async function loadExampleDataset(
   db: GunDB,
   datasetId: string,
 ): Promise<number> {
+  // Validate datasetId against whitelist to prevent prototype pollution
+  if (!ALLOWED_DATASETS.includes(datasetId as AllowedDatasetId)) {
+    return 0;
+  }
+
   const datasets: Record<
-    string,
+    AllowedDatasetId,
     Array<{ id: string; data: Record<string, unknown> }>
   > = {
     users: Array.from({ length: 50 }, (_, i) => ({
@@ -91,7 +100,7 @@ async function loadExampleDataset(
     })),
   };
 
-  const data = datasets[datasetId];
+  const data = datasets[datasetId as AllowedDatasetId];
   if (!data) return 0;
 
   for (const item of data) {
@@ -352,7 +361,10 @@ export function startApiServer(
           }
           case "/api/data/clear": {
             if (req.method !== "POST") return json({ error: "method" }, 405);
-            // Clear all nodes from the database
+            // WARNING: This is a destructive operation that clears all data.
+            // In production, this should require authentication/authorization.
+            // This endpoint is intended for development and testing only.
+            // TODO: Add authentication/authorization checks before production use.
             const nodes: string[] = [];
             for await (const n of db.list()) {
               nodes.push(n.id);
@@ -366,6 +378,10 @@ export function startApiServer(
             // Check if it's an example dataset request
             if (path.startsWith("/api/examples/")) {
               if (req.method !== "POST") return json({ error: "method" }, 405);
+              // WARNING: This endpoint allows bulk data insertion without authentication.
+              // In production, this should require authentication/authorization.
+              // This endpoint is intended for development and testing only.
+              // TODO: Add authentication/authorization checks before production use.
               const datasetId = path.slice("/api/examples/".length);
               const count = await loadExampleDataset(db, datasetId);
               if (count === 0) {

@@ -71,16 +71,23 @@
   ];
   
   onMount(() => {
-    const dismissed = localStorage.getItem("pluresdb_tour_dismissed");
-    if (!dismissed) {
-      const firstVisit = !localStorage.getItem("pluresdb_visited");
-      if (firstVisit) {
-        localStorage.setItem("pluresdb_visited", "true");
-        setTimeout(() => {
-          tourActive = true;
-        }, 1000);
+    try {
+      const dismissed = localStorage.getItem("pluresdb_tour_dismissed");
+      if (!dismissed) {
+        const firstVisit = !localStorage.getItem("pluresdb_visited");
+        if (firstVisit) {
+          localStorage.setItem("pluresdb_visited", "true");
+          setTimeout(() => {
+            tourActive = true;
+          }, 1000);
+        }
+      } else {
+        tourDismissed = true;
       }
-    } else {
+    } catch (error) {
+      // localStorage may not be available (private mode, quota exceeded, etc.)
+      console.warn("Tour: localStorage not available", error);
+      // Gracefully degrade - don't show tour if storage unavailable
       tourDismissed = true;
     }
   });
@@ -88,8 +95,12 @@
   function startTour() {
     currentStep = 0;
     tourActive = true;
-    localStorage.removeItem("pluresdb_tour_dismissed");
-    tourDismissed = false;
+    try {
+      localStorage.removeItem("pluresdb_tour_dismissed");
+      tourDismissed = false;
+    } catch (error) {
+      console.warn("Tour: Failed to update localStorage", error);
+    }
     if (tourSteps[0].view) {
       onViewChange(tourSteps[0].view);
     }
@@ -117,8 +128,14 @@
   
   function endTour() {
     tourActive = false;
-    localStorage.setItem("pluresdb_tour_dismissed", "true");
-    tourDismissed = true;
+    try {
+      localStorage.setItem("pluresdb_tour_dismissed", "true");
+      tourDismissed = true;
+    } catch (error) {
+      console.warn("Tour: Failed to update localStorage", error);
+      // Still set the flag even if we can't persist it
+      tourDismissed = true;
+    }
   }
   
   function skipTour() {

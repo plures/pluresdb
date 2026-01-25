@@ -54,8 +54,7 @@
     | "identity"
     | "sharing"
     | "sync"
-    | "settings"
-    | "examples" = "data";
+    | "settings" = "data";
   let dark = false;
 
   function handleViewChange(view: string) {
@@ -492,10 +491,6 @@
   {:else if activeView === "settings"}
     <div role="main">
       <SettingsPanel />
-    </div>
-  {:else if activeView === "examples"}
-    <div role="main">
-      <ExampleDatasets />
     </div>
   {/if}
 

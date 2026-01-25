@@ -9,7 +9,11 @@ The PluresDB plugin system allows you to extend the database with custom functio
 Add custom embedding providers for vector search:
 
 ```typescript
-import { Plugin, EmbeddingProvider } from "@plures/pluresdb/plugins";
+// For Deno projects
+import { Plugin, EmbeddingProvider } from "../legacy/plugins/plugin-system.ts";
+
+// For Node.js projects (after compilation)
+// import { Plugin, EmbeddingProvider } from "./legacy/plugins/plugin-system";
 
 class MyEmbeddingProvider implements EmbeddingProvider {
   name = "my-embeddings";
@@ -99,8 +103,13 @@ const plugin: Plugin = {
 ## Registering Plugins
 
 ```typescript
-import { pluginManager } from "@plures/pluresdb/plugins";
-import { myPlugin } from "./my-plugin";
+// For Deno projects
+import { pluginManager } from "../legacy/plugins/plugin-system.ts";
+import { myPlugin } from "./my-plugin.ts";
+
+// For Node.js projects (after compilation)
+// import { pluginManager } from "./legacy/plugins/plugin-system";
+// import { myPlugin } from "./my-plugin";
 
 // Register plugin
 await pluginManager.register(myPlugin);

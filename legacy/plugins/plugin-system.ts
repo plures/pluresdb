@@ -37,15 +37,16 @@ export interface UIPanel {
   icon?: string;
   /**
    * Svelte component to render
+   * Note: In production, use a proper Svelte component type
    */
-  component: any;
+  component: unknown;
   /**
    * Position in tab list (lower numbers appear first)
    */
   order?: number;
 }
 
-export interface QueryTransformer {
+export interface QueryTransformer<TQuery = Record<string, unknown>> {
   /**
    * Unique identifier for the transformer
    */
@@ -55,7 +56,7 @@ export interface QueryTransformer {
    * @param query - Original query
    * @returns Transformed query
    */
-  transform(query: any): Promise<any>;
+  transform(query: TQuery): Promise<TQuery>;
 }
 
 export interface DataValidator {
@@ -281,10 +282,10 @@ class PluginManager {
   /**
    * Apply all query transformers to a query
    */
-  async transformQuery(query: any): Promise<any> {
+  async transformQuery<T = Record<string, unknown>>(query: T): Promise<T> {
     let transformed = query;
     for (const transformer of this.queryTransformers.values()) {
-      transformed = await transformer.transform(transformed);
+      transformed = await transformer.transform(transformed as any) as T;
     }
     return transformed;
   }

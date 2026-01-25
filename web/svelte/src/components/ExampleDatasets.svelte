@@ -4,7 +4,8 @@
   
   const dispatch = createEventDispatcher();
   
-  let loading = false;
+  let loadingDatasets = new Set<string>();
+  let clearingData = false;
   let loadedDataset: string | null = null;
   
   const datasets = [
@@ -35,7 +36,8 @@
   ];
   
   async function loadDataset(datasetId: string) {
-    loading = true;
+    loadingDatasets.add(datasetId);
+    loadingDatasets = loadingDatasets; // trigger reactivity
     try {
       const response = await fetch(`/api/examples/${datasetId}`, {
         method: "POST"
@@ -56,7 +58,8 @@
       console.error("Error loading dataset:", error);
       toast(`Failed to load dataset: ${error.message}`, "error");
     } finally {
-      loading = false;
+      loadingDatasets.delete(datasetId);
+      loadingDatasets = loadingDatasets; // trigger reactivity
     }
   }
   
@@ -65,7 +68,7 @@
       return;
     }
     
-    loading = true;
+    clearingData = true;
     try {
       const response = await fetch("/api/data/clear", {
         method: "POST"
@@ -82,7 +85,7 @@
       console.error("Error clearing data:", error);
       toast(`Failed to clear data: ${error.message}`, "error");
     } finally {
-      loading = false;
+      clearingData = false;
     }
   }
 </script>
@@ -99,10 +102,10 @@
         <p class="dataset-count">{dataset.count} nodes</p>
         <button
           on:click={() => loadDataset(dataset.id)}
-          disabled={loading}
+          disabled={loadingDatasets.has(dataset.id) || clearingData}
           aria-label={`Load ${dataset.name} dataset`}
         >
-          {loading ? "Loading..." : "Load Dataset"}
+          {loadingDatasets.has(dataset.id) ? "Loading..." : "Load Dataset"}
         </button>
       </div>
     {/each}
@@ -112,9 +115,11 @@
     <button
       class="secondary"
       on:click={clearAllData}
-      disabled={loading}
+      disabled={loadingDatasets.size > 0 || clearingData}
       aria-label="Clear all data"
     >
+      {clearingData ? "Clearing..." : "Clear All Data"}
+    </button>
       Clear All Data
     </button>
   </div>

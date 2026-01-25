@@ -57,8 +57,11 @@ test.describe("Import/Export", () => {
     if (await examplesTab.isVisible()) {
       await examplesTab.click();
       
-      // Verify dataset cards are visible
-      await expect(page.locator('text=User Profiles, text=Products, text=Social')).toBeVisible();
+      // Verify dataset cards are visible (check each separately)
+      await expect(page.locator('text=User Profiles')).toBeVisible();
+      await expect(page.locator('text=E-Commerce Products')).toBeVisible();
+      await expect(page.locator('text=Social Graph')).toBeVisible();
+      await expect(page.locator('text=Document Collection')).toBeVisible();
     }
   });
 });
