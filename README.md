@@ -197,24 +197,56 @@ const users = await select.all();
 
 ### REST API
 
-```typescript
-// HTTP endpoints
-POST   /api/put       // Create/update node
-GET    /api/get       // Retrieve node
-DELETE /api/delete    // Remove node
-GET    /api/list      // List all nodes
-POST   /api/search    // Vector search
+```bash
+# Create/update node
+curl -X POST http://localhost:34567/api/put \
+  -H "Content-Type: application/json" \
+  -d '{"id": "user:1", "data": {"name": "Alice"}}'
+
+# Retrieve node
+curl http://localhost:34567/api/get?id=user:1
+
+# Delete node
+curl -X DELETE http://localhost:34567/api/delete?id=user:1
+
+# List all nodes
+curl http://localhost:34567/api/list
+
+# Vector search
+curl -X POST http://localhost:34567/api/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "machine learning", "limit": 10}'
 ```
 
 ### Local-First APIs
 
 PluresDB provides production-ready Rust implementations for local-first integration:
 
-- **WASM**: Browser integration with IndexedDB persistence
-- **IPC**: Shared memory for native desktop apps
-- **Tauri**: Direct Rust crate linking for Tauri apps
+**WASM (Browser)**
+```javascript
+import init, { PluresDBBrowser } from "@plures/pluresdb-wasm";
+await init();
+const db = new PluresDBBrowser("my-app");
+await db.init_persistence();
+await db.put("user:1", { name: "Alice" });
+```
 
-See [Local-First Integration](docs/LOCAL_FIRST_INTEGRATION.md) for usage guides.
+**Tauri (Desktop Apps)**
+```rust
+#[tauri::command]
+async fn db_put(state: State<'_, AppState>, id: String, data: Value) -> Result<String> {
+    state.db.lock().put(id, data)
+}
+```
+
+**IPC (Native Apps)**
+```rust
+let mut server = IPCServer::new("my-app", store)?;
+server.start()?;
+// Client connects via shared memory
+```
+
+See [Local-First Integration](docs/LOCAL_FIRST_INTEGRATION.md) for complete guides.
 
 ## 🗂️ Architecture
 
