@@ -26,3 +26,6 @@ export { BruteForceVectorIndex } from "./vector/index.ts";
 export type { VectorIndex, VectorIndexResult } from "./vector/index.ts";
 
 export { debugLog } from "./util/debug.ts";
+
+export { PluresDBLocalFirst } from "./local-first/unified-api.ts";
+export type { LocalFirstOptions, LocalFirstBackend } from "./local-first/unified-api.ts";

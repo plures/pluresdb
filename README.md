@@ -135,6 +135,30 @@ await db.close();
 api.close();
 ```
 
+#### Local-First Integration (New!)
+
+PluresDB now supports true local-first integration without network overhead:
+
+```typescript
+import { PluresDBLocalFirst } from "@plures/pluresdb/local-first";
+
+// Auto-detects best integration method:
+// - Browser: WebAssembly (WASM)
+// - Tauri: Direct Rust integration
+// - Native apps: Shared memory IPC
+// - Fallback: Network (HTTP REST)
+const db = new PluresDBLocalFirst({ mode: "auto" });
+
+// Same API across all platforms - 10-1000x faster than network!
+await db.put("user:1", { name: "Alice", email: "alice@example.com" });
+const user = await db.get("user:1");
+const results = await db.vectorSearch("Find users in London", 10);
+
+// No server required, no network ports, true offline-first!
+```
+
+📖 **[Complete Local-First Integration Guide →](docs/LOCAL_FIRST_INTEGRATION.md)**
+
 ## 🎯 Features
 
 ### Core Database
