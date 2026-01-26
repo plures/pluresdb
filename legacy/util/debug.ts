@@ -7,9 +7,12 @@ export const DEBUG_ENABLED: boolean = (() => {
       if (Deno.env && Deno.env.get) {
         v = Deno.env.get("PLURESDB_DEBUG") ?? "";
       }
-    } else if (typeof process !== "undefined" && process.env) {
+    } else {
       // Check for Node.js environment
-      v = process.env.PLURESDB_DEBUG ?? "";
+      const globalProcess = (globalThis as any).process;
+      if (typeof globalProcess !== "undefined" && globalProcess?.env) {
+        v = globalProcess.env.PLURESDB_DEBUG ?? "";
+      }
     }
     return v === "1" || v.toLowerCase() === "true";
   } catch {
