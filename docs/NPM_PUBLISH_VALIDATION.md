@@ -189,6 +189,6 @@ Before pushing changes that affect imports or the build process:
 
 ## References
 
-- [Deno Sloppy Imports Documentation](https://docs.deno.com/runtime/manual/basics/modules/#sloppy-imports)
+- [Deno Import Resolution](https://docs.deno.com/runtime/manual/basics/modules/)
 - [TypeScript Module Resolution](https://www.typescriptlang.org/docs/handbook/module-resolution.html)
 - [npm prepublishOnly Hook](https://docs.npmjs.com/cli/v9/using-npm/scripts#life-cycle-scripts)

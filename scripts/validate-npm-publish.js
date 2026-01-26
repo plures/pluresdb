@@ -163,7 +163,8 @@ async function main() {
     if (process.env.DENO_PATH) {
       // If DENO_PATH was provided, make sure it's in PATH for npm test
       const denoBinDir = path.dirname(process.env.DENO_PATH);
-      testEnv.PATH = `${denoBinDir}:${process.env.PATH}`;
+      // Use path.delimiter for cross-platform compatibility (: on Unix, ; on Windows)
+      testEnv.PATH = `${denoBinDir}${path.delimiter}${process.env.PATH}`;
     }
     
     try {
