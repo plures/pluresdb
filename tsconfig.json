@@ -32,7 +32,9 @@
     "legacy/node-wrapper.ts",
     "legacy/cli.ts",
     "legacy/types/node-types.ts",
-    "legacy/vscode/extension.ts"
+    "legacy/vscode/extension.ts",
+    "legacy/local-first/unified-api.ts",
+    "legacy/util/debug.ts"
   ],
   "exclude": ["node_modules", "dist", "web", "packaging", "demo", "docs"]
 }
