@@ -72,9 +72,9 @@ class RuntimeDetector {
   }
 
   static isNode(): boolean {
-    return typeof (globalThis as any).process !== "undefined" &&
-      (globalThis as any).process.versions != null &&
-      (globalThis as any).process.versions.node != null;
+    const globalProcess = (globalThis as any).process;
+    return typeof globalProcess !== "undefined" &&
+      globalProcess.versions?.node != null;
   }
 
   static isDeno(): boolean {
