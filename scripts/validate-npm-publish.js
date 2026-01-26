@@ -22,6 +22,9 @@ const YELLOW = "\x1b[33m";
 const RESET = "\x1b[0m";
 const BOLD = "\x1b[1m";
 
+// Configuration
+const MAX_PACKAGE_SIZE_MB = 10;
+
 function log(message, color = RESET) {
   console.log(`${color}${message}${RESET}`);
 }
@@ -123,27 +126,55 @@ async function main() {
     "legacy/better-sqlite3.ts",
   ];
 
-  for (const file of denoCheckFiles) {
-    if (
-      !runCommand(
-        `${denoPath} check --sloppy-imports ${file}`,
-        `Deno type check: ${file}`,
-      )
-    ) {
-      // Deno might not be available, make this a warning instead of failure
-      info(`Skipping Deno check (Deno not available or check failed)`);
-      break;
+  // Check if Deno is available
+  let denoAvailable = false;
+  try {
+    execSync(`${denoPath} --version`, { stdio: "pipe" });
+    denoAvailable = true;
+  } catch (err) {
+    info("Deno not available - skipping Deno type checks");
+  }
+
+  if (denoAvailable) {
+    let denoChecksFailed = false;
+    for (const file of denoCheckFiles) {
+      if (
+        !runCommand(
+          `${denoPath} check --sloppy-imports ${file}`,
+          `Deno type check: ${file}`,
+        )
+      ) {
+        error(`Deno type check failed for ${file}`);
+        denoChecksFailed = true;
+        allChecksPassed = false;
+        // Continue checking other files to show all failures
+      }
+    }
+    if (!denoChecksFailed) {
+      success("All Deno type checks passed");
     }
   }
 
   // 5. Run tests (if Deno is available)
   title("🧪 Running tests...");
-  try {
-    // Try to run Deno tests, but don't fail if Deno is not available
-    runCommand("npm test", "Deno tests");
-  } catch (err) {
-    info("Deno tests skipped (Deno not available or tests failed)");
-    // Don't mark as failure since tests might fail due to network issues (JSR)
+  if (denoAvailable) {
+    // Set DENO_PATH environment variable so npm test can find deno
+    const testEnv = { ...process.env };
+    if (process.env.DENO_PATH) {
+      // If DENO_PATH was provided, make sure it's in PATH for npm test
+      const denoBinDir = path.dirname(process.env.DENO_PATH);
+      testEnv.PATH = `${denoBinDir}:${process.env.PATH}`;
+    }
+    
+    try {
+      execSync("npm test", { stdio: "inherit", cwd: process.cwd(), env: testEnv });
+      success("Deno tests");
+    } catch (err) {
+      error("Tests failed");
+      allChecksPassed = false;
+    }
+  } else {
+    info("Deno tests skipped (Deno not available)");
   }
 
   // 6. Check package size
@@ -156,8 +187,8 @@ async function main() {
       const unit = sizeMatch[2];
       success(`Package size: ${size} ${unit}`);
 
-      // Warn if package is larger than 10 MB
-      if (unit.toLowerCase() === "mb" && size > 10) {
+      // Warn if package is larger than configured threshold
+      if (unit.toLowerCase() === "mb" && size > MAX_PACKAGE_SIZE_MB) {
         info(
           `Warning: Package size is quite large (${size} ${unit}). Consider excluding unnecessary files.`,
         );
