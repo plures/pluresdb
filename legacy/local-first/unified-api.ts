@@ -11,7 +11,7 @@
  * and minimizing network overhead.
  */
 
-import { debugLog } from "../util/debug.ts";
+import { debugLog } from "../util/debug";
 
 export interface LocalFirstOptions {
   /**
