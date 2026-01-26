@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.6.10] - 2026-01-26
+
+### Other
+
+- Fix npm publish failures from Deno/TypeScript import incompatibility (#64)
+
+
 ## [1.6.9] - 2026-01-26
 
 ### Fixed
