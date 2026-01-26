@@ -51,7 +51,7 @@
     "build:web": "cd web/svelte && npm install && npm run build",
     "dev": "deno run -A --unstable-kv --watch src/main.ts serve --port 34567",
     "start": "node dist/cli.js serve",
-    "test": "deno test -A --unstable-kv",
+    "test": "deno test -A --unstable-kv --sloppy-imports",
     "test:azure:relay": "deno test --allow-net --allow-env azure/tests/relay-tests.ts",
     "test:azure:full": "npm run test:azure:relay",
     "lint": "eslint . --ext .js,.ts,.tsx",
@@ -60,6 +60,7 @@
     "verify": "npm run build:lib && npm test",
     "prepare": "npm run build:lib",
     "prepublishOnly": "npm run verify && npm run build:web",
+    "validate-publish": "node scripts/validate-npm-publish.js",
     "postinstall": "node scripts/postinstall.js",
     "release-check": "node scripts/release-check.js",
     "update-changelog": "node scripts/update-changelog.js"
