@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.6.8] - 2026-01-26
+
+### Other
+
+- Fix Deno compilation errors: process global access and duplicate exports (#60)
+
+
 ## [1.6.7] - 2026-01-26
 
 ### Other
