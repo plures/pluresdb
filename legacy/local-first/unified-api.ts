@@ -84,7 +84,7 @@ class RuntimeDetector {
 
   static hasIPCEnvironment(): boolean {
     if (this.isNode()) {
-      return process.env.PLURESDB_IPC === "true";
+      return (globalThis as any).process?.env?.PLURESDB_IPC === "true";
     }
     if (this.isDeno()) {
       const Deno = (globalThis as any).Deno;
