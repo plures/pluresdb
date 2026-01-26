@@ -160,9 +160,10 @@ async function main() {
   if (denoAvailable) {
     // Set DENO_PATH environment variable so npm test can find deno
     const testEnv = { ...process.env };
-    if (process.env.DENO_PATH) {
-      // If DENO_PATH was provided, make sure it's in PATH for npm test
-      const denoBinDir = path.dirname(process.env.DENO_PATH);
+    const denoPathEnv = process.env.DENO_PATH;
+    if (denoPathEnv && denoPathEnv.includes(path.sep)) {
+      // If DENO_PATH was provided as a path, make sure its directory is in PATH for npm test
+      const denoBinDir = path.dirname(denoPathEnv);
       // Use path.delimiter for cross-platform compatibility (: on Unix, ; on Windows)
       testEnv.PATH = `${denoBinDir}${path.delimiter}${process.env.PATH}`;
     }
