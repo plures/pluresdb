@@ -11,7 +11,7 @@
  * and minimizing network overhead.
  */
 
-import { debugLog } from "../util/debug";
+import { debugLog } from "../util/debug.ts";
 
 export interface LocalFirstOptions {
   /**
@@ -72,9 +72,9 @@ class RuntimeDetector {
   }
 
   static isNode(): boolean {
-    return typeof process !== "undefined" &&
-      process.versions != null &&
-      process.versions.node != null;
+    return typeof (globalThis as any).process !== "undefined" &&
+      (globalThis as any).process.versions != null &&
+      (globalThis as any).process.versions.node != null;
   }
 
   static isDeno(): boolean {

@@ -313,6 +313,3 @@ class PluginManager {
 
 // Global plugin manager instance
 export const pluginManager = new PluginManager();
-
-// Export types
-export type { Plugin, EmbeddingProvider, UIPanel, QueryTransformer, DataValidator };
