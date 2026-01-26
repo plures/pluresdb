@@ -109,6 +109,10 @@ async function main() {
     "dist/cli.d.ts",
     "dist/local-first/unified-api.js",
     "dist/local-first/unified-api.d.ts",
+    "dist/vscode/extension.js",
+    "dist/vscode/extension.d.ts",
+    "dist/types/node-types.js",
+    "dist/types/node-types.d.ts",
   ];
 
   for (const file of requiredFiles) {
