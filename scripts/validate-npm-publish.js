@@ -128,6 +128,8 @@ async function main() {
     "legacy/local-first/unified-api.ts",
     "legacy/node-index.ts",
     "legacy/better-sqlite3.ts",
+    "legacy/cli.ts",
+    "legacy/vscode/extension.ts",
   ];
 
   // Check if Deno is available
