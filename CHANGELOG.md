@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.6.9] - 2026-01-26
+
+### Fixed
+
+- npm publish failures in unified-api.ts (#62)
+
+
 ## [1.6.8] - 2026-01-26
 
 ### Other
