@@ -49,11 +49,13 @@ pluresdb_add_command() {
     local error_output="${5:-}"
     local working_dir="${6:-$PWD}"
     
-    # Check ignore patterns
+    # Check ignore patterns - escape regex special characters
     if [ -n "$PLURESDB_IGNORE_PATTERNS" ]; then
         IFS=',' read -ra patterns <<< "$PLURESDB_IGNORE_PATTERNS"
         for pattern in "${patterns[@]}"; do
-            if [[ "$command" =~ ^$pattern ]]; then
+            # Escape regex special characters in pattern for safety
+            pattern_escaped=$(printf '%s\n' "$pattern" | sed 's/[.[\*^$()+?{|]/\\&/g')
+            if [[ "$command" =~ ^$pattern_escaped ]]; then
                 return 0
             fi
         done
@@ -119,7 +121,13 @@ pluresdb_history() {
                 shift
                 ;;
             --last)
-                last="$2"
+                # Validate that last is a positive integer
+                if [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -gt 0 ]; then
+                    last="$2"
+                else
+                    echo "Error: --last must be a positive integer" >&2
+                    return 1
+                fi
                 shift 2
                 ;;
             --unique)
@@ -133,18 +141,24 @@ pluresdb_history() {
         esac
     done
     
-    # Build WHERE clause
+    # Build WHERE clause - use parameter substitution for safety
     local conditions=()
     
     if [ -n "$command_like" ]; then
+        # Escape single quotes by doubling them for SQL
+        command_like="${command_like//\'/\'\'}"
         conditions+=("command LIKE '%$command_like%'")
     fi
     
     if [ -n "$hostname" ]; then
+        # Escape single quotes by doubling them for SQL
+        hostname="${hostname//\'/\'\'}"
         conditions+=("hostname = '$hostname'")
     fi
     
     if [ -n "$shell_type" ]; then
+        # Escape single quotes by doubling them for SQL
+        shell_type="${shell_type//\'/\'\'}"
         conditions+=("shell_type = '$shell_type'")
     fi
     
@@ -243,14 +257,29 @@ _pluresdb_last_command=""
 
 # Function to capture command before execution
 _pluresdb_preexec() {
-    _pluresdb_command_start_time=$(date +%s%3N)
+    # Get timestamp with fallback for systems without nanosecond support
+    if date +%s%3N &>/dev/null; then
+        _pluresdb_command_start_time=$(date +%s%3N)
+    else
+        # Fallback for macOS/BSD
+        _pluresdb_command_start_time=$(($(date +%s) * 1000))
+    fi
     _pluresdb_last_command="$1"
 }
 
 # Function to capture command after execution
 _pluresdb_precmd() {
     local exit_code=$?
-    local end_time=$(date +%s%3N)
+    local end_time
+    
+    # Get timestamp with fallback for systems without nanosecond support
+    if date +%s%3N &>/dev/null; then
+        end_time=$(date +%s%3N)
+    else
+        # Fallback for macOS/BSD - use milliseconds from epoch
+        end_time=$(($(date +%s) * 1000))
+    fi
+    
     local duration=$(( end_time - _pluresdb_command_start_time ))
     
     if [ -n "$_pluresdb_last_command" ] && [ "$_pluresdb_last_command" != "_pluresdb_precmd" ]; then
@@ -265,7 +294,12 @@ trap '"'"'_pluresdb_preexec "$BASH_COMMAND"'"'"' DEBUG
 
 # Hook into prompt command
 if [[ ! "$PROMPT_COMMAND" =~ "_pluresdb_precmd" ]]; then
-    PROMPT_COMMAND="_pluresdb_precmd${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+    # Safely append to PROMPT_COMMAND
+    if [ -n "$PROMPT_COMMAND" ]; then
+        PROMPT_COMMAND="_pluresdb_precmd;$PROMPT_COMMAND"
+    else
+        PROMPT_COMMAND="_pluresdb_precmd"
+    fi
 fi
 '
     
@@ -287,8 +321,14 @@ pluresdb_disable_integration() {
     fi
     
     if [ -f "$bash_profile" ]; then
-        # Remove integration code
+        # Remove integration code and clean up backup file
         sed -i.bak '/# PluresDB History Integration/,/^fi$/d' "$bash_profile"
+        
+        # Remove backup file if sed was successful
+        if [ -f "${bash_profile}.bak" ]; then
+            rm -f "${bash_profile}.bak"
+        fi
+        
         echo "✅ PluresDB history integration disabled"
         echo "   Run: source $bash_profile"
     fi

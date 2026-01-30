@@ -718,6 +718,58 @@ UPDATE command_history_config SET value = 'ls,cd,pwd' WHERE key = 'ignore_patter
    export PLURESDB_IGNORE_PATTERNS="ls,cd,pwd"
    ```
 
+## Security Considerations
+
+### Sensitive Commands
+
+**⚠️ IMPORTANT**: Command history tracking captures command-line arguments, which may include sensitive information such as:
+- Passwords passed as command-line arguments
+- API keys and tokens
+- Personal information
+- File paths containing sensitive data
+
+### Recommendations
+
+1. **Use ignore patterns** for commands that may contain sensitive data:
+   ```powershell
+   # PowerShell
+   Set-PluresDBConfig -IgnorePatterns @("*password*", "*token*", "*secret*", "*api*key*")
+   ```
+   ```bash
+   # Bash
+   export PLURESDB_IGNORE_PATTERNS="*password*,*token*,*secret*,*api*key*"
+   ```
+
+2. **Never enable output capture** for sensitive operations:
+   ```powershell
+   Set-PluresDBConfig -CaptureOutput $false  # Keep this disabled
+   ```
+
+3. **Use environment variables** instead of command-line arguments for sensitive data
+
+4. **Regularly clean history** to remove potentially sensitive commands:
+   ```powershell
+   Clear-PluresDBHistory -OlderThanDays 30
+   ```
+
+5. **Secure the database file** with appropriate file permissions:
+   ```bash
+   # Linux/macOS
+   chmod 600 ~/.pluresdb/history.db
+   ```
+   ```powershell
+   # PowerShell - Restrict to current user only
+   $acl = Get-Acl "$env:USERPROFILE\.pluresdb\history.db"
+   $acl.SetAccessRuleProtection($true, $false)
+   $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($env:USERNAME, "FullControl", "Allow")
+   $acl.SetAccessRule($rule)
+   Set-Acl "$env:USERPROFILE\.pluresdb\history.db" $acl
+   ```
+
+6. **Disable P2P sync** for sensitive environments unless using encrypted connections
+
+7. **Be aware** that command history is stored in plain text in the database
+
 ## See Also
 
 - [PluresDB Documentation](../README.md)

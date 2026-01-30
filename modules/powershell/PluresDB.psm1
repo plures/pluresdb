@@ -184,6 +184,7 @@ function Get-PluresDBHistory {
         
         [switch]$FailedOnly,
         
+        [ValidateRange(1, [int]::MaxValue)]
         [int]$Last = 100,
         
         [switch]$Unique
@@ -192,15 +193,21 @@ function Get-PluresDBHistory {
     $conditions = @()
     
     if ($CommandLike) {
-        $conditions += "command LIKE '$CommandLike'"
+        # Escape single quotes for SQL by doubling them
+        $escapedCommandLike = $CommandLike -replace "'", "''"
+        $conditions += "command LIKE '$escapedCommandLike'"
     }
     
     if ($Hostname) {
-        $conditions += "hostname = '$Hostname'"
+        # Escape single quotes for SQL by doubling them
+        $escapedHostname = $Hostname -replace "'", "''"
+        $conditions += "hostname = '$escapedHostname'"
     }
     
     if ($ShellType) {
-        $conditions += "shell_type = '$ShellType'"
+        # Escape single quotes for SQL by doubling them
+        $escapedShellType = $ShellType -replace "'", "''"
+        $conditions += "shell_type = '$escapedShellType'"
     }
     
     if ($SuccessOnly) {
@@ -219,6 +226,7 @@ function Get-PluresDBHistory {
     
     $table = if ($Unique) { "command_history_unique" } else { "command_history" }
     
+    # Last is validated to be a positive integer via [ValidateRange]
     $query = "SELECT * FROM $table $whereClause ORDER BY timestamp DESC LIMIT $Last"
     
     pluresdb query --db $script:PluresDBConfig.DBPath $query | ConvertFrom-Json
@@ -415,8 +423,11 @@ if (Get-Module PSReadLine) {
                 $duration = ((Get-Date) - $global:PluresDBCommandStart).TotalMilliseconds
             }
             
+            # Handle null or missing LASTEXITCODE
+            $exitCode = if ($null -ne $LASTEXITCODE) { $LASTEXITCODE } else { 0 }
+            
             Add-PluresDBCommand -Command $global:PluresDBLastCommand `
-                               -ExitCode $LASTEXITCODE `
+                               -ExitCode $exitCode `
                                -Duration $duration
             
             $global:PluresDBLastCommand = $null
