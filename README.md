@@ -250,6 +250,55 @@ server.start()?;
 
 See [Local-First Integration](docs/LOCAL_FIRST_INTEGRATION.md) for complete guides.
 
+## 🐚 Shell Integration
+
+PluresDB includes PowerShell and Bash modules for command history tracking and system integration:
+
+### PowerShell Module
+
+```powershell
+# Install and initialize
+Import-Module PluresDB
+Initialize-PluresDBHistory
+
+# Enable automatic history capture
+Enable-PluresDBHistoryIntegration
+
+# Query your command history
+Get-PluresDBHistory -Last 10
+Get-PluresDBCommandFrequency -Top 20
+Get-PluresDBFailedCommands -Last 5
+```
+
+### Bash Module
+
+```bash
+# Source the module
+source /path/to/pluresdb/modules/bash/pluresdb.sh
+
+# Initialize database
+pluresdb_init
+
+# Enable automatic history capture
+pluresdb_enable_integration
+
+# Query your command history
+pluresdb_history --last 10
+pluresdb_frequency 20
+pluresdb_failed 5
+```
+
+### Features
+
+- **Automatic History Capture** - Track every command you run
+- **Advanced Querying** - Search, filter, and analyze history
+- **Deduplication** - View unique commands and frequency stats
+- **Cross-Device Sync** - Access history from multiple machines via P2P
+- **NixOS Integration** - Track `nixos-rebuild` and nix commands
+- **WSL Support** - Track commands across Windows and Linux
+
+See [Command Line Integration Guide](docs/COMMAND_LINE_INTEGRATION.md) for comprehensive documentation.
+
 ## 🗂️ Architecture
 
 PluresDB is built as a Rust-first monorepo:
@@ -308,6 +357,7 @@ This executes TypeScript compilation and all Deno test suites (unit, integration
 ## 📚 Documentation
 
 - [Windows Getting Started Guide](docs/WINDOWS_GETTING_STARTED.md)
+- [Command Line Integration](docs/COMMAND_LINE_INTEGRATION.md)
 - [Local-First Integration](docs/LOCAL_FIRST_INTEGRATION.md)
 - [VSCode Extension Example](examples/vscode-extension-integration.ts)
 - [Contributing Guide](CONTRIBUTING.md)
