@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.6.11] - 2026-01-30
+
+### Other
+
+- Add PowerShell and Bash modules for command history tracking with P2P sync (#66)
+
+
 ## [1.6.10] - 2026-01-26
 
 ### Other
