@@ -1,0 +1,86 @@
+name: Test Workflow Logic
+
+# This workflow validates that the Azure relay tests workflow
+# correctly detects authentication types without accessing secrets
+# in conditional expressions (which doesn't work in GitHub Actions)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/azure-relay-tests.yml'
+      - '.github/workflows/test-workflow-logic.yml'
+
+jobs:
+  validate-auth-detection:
+    name: Validate Auth Type Detection Logic
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Verify auth_type output exists
+        run: |
+          # Check that the check-credentials job outputs auth_type
+          if ! grep -q "auth_type:" .github/workflows/azure-relay-tests.yml; then
+            echo "❌ FAIL: auth_type output not found in check-credentials job"
+            exit 1
+          fi
+          echo "✅ PASS: auth_type output exists"
+      
+      - name: Verify auth_type is set in all branches
+        run: |
+          # Check that all conditional branches set auth_type
+          if ! grep -q 'echo "auth_type=oidc"' .github/workflows/azure-relay-tests.yml; then
+            echo "❌ FAIL: OIDC auth_type not set"
+            exit 1
+          fi
+          if ! grep -q 'echo "auth_type=legacy"' .github/workflows/azure-relay-tests.yml; then
+            echo "❌ FAIL: Legacy auth_type not set"
+            exit 1
+          fi
+          if ! grep -q 'echo "auth_type=none"' .github/workflows/azure-relay-tests.yml; then
+            echo "❌ FAIL: None auth_type not set"
+            exit 1
+          fi
+          echo "✅ PASS: All auth_type values are set"
+      
+      - name: Verify no direct secret checks in conditionals
+        run: |
+          # Verify that Azure Login steps don't check secrets directly
+          # The pattern "if: ${{ secrets." followed by login steps indicates the bug
+          
+          # Extract Azure Login sections and check their conditionals
+          if grep -A 5 "name: Azure Login" .github/workflows/azure-relay-tests.yml | grep -q 'if:.*secrets\.AZURE_CLIENT_ID'; then
+            echo "❌ FAIL: Found direct secret check in Azure Login conditional"
+            echo "This is the bug we're fixing - secrets are not accessible in if conditionals"
+            exit 1
+          fi
+          echo "✅ PASS: No direct secret checks in Azure Login conditionals"
+      
+      - name: Verify correct auth_type usage
+        run: |
+          # Verify that Azure Login steps use auth_type output
+          if ! grep -A 5 "name: Azure Login (OIDC)" .github/workflows/azure-relay-tests.yml | grep -q "auth_type == 'oidc'"; then
+            echo "❌ FAIL: OIDC login doesn't check auth_type"
+            exit 1
+          fi
+          if ! grep -A 5 "name: Azure Login (Legacy)" .github/workflows/azure-relay-tests.yml | grep -q "auth_type == 'legacy'"; then
+            echo "❌ FAIL: Legacy login doesn't check auth_type"
+            exit 1
+          fi
+          echo "✅ PASS: Azure Login steps correctly use auth_type"
+      
+      - name: Summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ All workflow logic validation checks passed"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "The Azure relay tests workflow correctly:"
+          echo "  ✓ Detects auth type in shell context (where secrets work)"
+          echo "  ✓ Uses job outputs for conditionals (not direct secret checks)"
+          echo "  ✓ Sets auth_type for all code paths (oidc/legacy/none)"
+          echo "  ✓ Uses auth_type in Azure Login conditionals"
+          echo ""
+          echo "This prevents the bug where secrets.AZURE_CLIENT_ID != ''"
+          echo "always evaluates to false in GitHub Actions if conditionals."
