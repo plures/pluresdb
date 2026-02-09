@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.7.0] - 2026-02-09
+
+### Added
+
+- add embedded export for pure embedded database usage (#69)
+
+
 ## [1.6.11] - 2026-01-30
 
 ### Other
