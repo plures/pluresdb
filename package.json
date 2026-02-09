@@ -40,6 +40,11 @@
       "require": "./dist/local-first/unified-api.js",
       "default": "./dist/local-first/unified-api.js"
     },
+    "./embedded": {
+      "types": "./embedded.d.ts",
+      "require": "./embedded.js",
+      "default": "./embedded.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {
@@ -102,6 +107,11 @@
     "legacy/",
     "examples/",
     "scripts/",
+    "embedded.js",
+    "embedded.d.ts",
+    "crates/pluresdb-node/index.d.ts",
+    "crates/pluresdb-node/index.js",
+    "crates/pluresdb-node/*.node",
     "README.md",
     "LICENSE",
     "package.json"
