@@ -24,7 +24,7 @@ PluresDB's Hyperswarm sync transport provides:
 │ └────┬────┘ │                    │ └────┬────┘ │
 │      │      │                    │      │      │
 │ ┌────▼────┐ │                    │ ┌────▼────┐ │
-│ │Hyperswm │ │    DHT Network     │ │Hyperswm │ │
+│ │Hyperswarm│ │    DHT Network     │ │Hyperswarm│ │
 │ │  Sync   │ ├──────announce──────┤ │  Sync   │ │
 │ └────┬────┘ │                    │ └────┬────┘ │
 └──────┼──────┘                    └──────┼──────┘
