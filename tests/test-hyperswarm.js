@@ -4,8 +4,8 @@
  * Run with: node tests/test-hyperswarm.js
  */
 
-const { GunDB } = require("./dist/core/database.js");
-const { generateSyncKey } = require("./dist/network/hyperswarm-sync.js");
+const { GunDB } = require("../dist/core/database.js");
+const { generateSyncKey } = require("../dist/network/hyperswarm-sync.js");
 const fs = require("fs").promises;
 const path = require("path");
 
