@@ -6,14 +6,10 @@
  * @module hyperswarm-sync
  */
 
-import type { MeshMessage, NodeRecord } from "../types/index.ts";
+import type { MeshMessage } from "../types/index.ts";
 import { debugLog } from "../util/debug.ts";
 
 // Type definitions for Hyperswarm (for TypeScript/Deno compatibility)
-interface HyperswarmOptions {
-  bootstrap?: string[];
-  seed?: Buffer;
-}
 
 interface HyperswarmConnection {
   on(event: "data", handler: (data: Buffer) => void): void;
