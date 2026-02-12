@@ -19,10 +19,10 @@ export { loadConfig, saveConfig } from "./config.ts";
 export { connectToPeer, startMeshServer } from "./network/websocket-server.ts";
 export type { MeshServer } from "./network/websocket-server.ts";
 
-export {
-  HyperswarmSync,
-  generateSyncKey,
-} from "./network/hyperswarm-sync.ts";
+// Note: HyperswarmSync class is Node.js-only and not exported from this Deno-first entry.
+// For Node.js P2P sync, use the PluresNode wrapper from './node-index.ts'
+// or import HyperswarmSync directly: import { HyperswarmSync } from './network/hyperswarm-sync.ts'
+export { generateSyncKey } from "./network/hyperswarm-sync.ts";
 export type {
   SyncKeyOptions,
   SyncStats,
