@@ -9,6 +9,7 @@
  */
 
 import { WebSocketServer, WebSocket } from "ws";
+import * as http from "http";
 
 interface PeerConnection {
   id: string;
@@ -127,11 +128,29 @@ function relayData(from: PeerConnection, data: string): void {
  * Start the relay server
  */
 function startRelayServer(port: number): void {
-  const wss = new WebSocketServer({ port });
+  // Create HTTP server for health checks
+  const server = http.createServer((req, res) => {
+    if (req.url === "/health") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        status: "healthy",
+        topics: topics.size,
+        peers: peers.size,
+        uptime: process.uptime(),
+      }));
+    } else {
+      res.writeHead(404);
+      res.end("Not Found");
+    }
+  });
 
-  wss.on("listening", () => {
+  // Attach WebSocket server to HTTP server
+  const wss = new WebSocketServer({ server });
+
+  server.listen(port, () => {
     console.log(`[Relay] PluresDB WSS Relay Server listening on port ${port}`);
     console.log(`[Relay] Endpoint: wss://localhost:${port}`);
+    console.log(`[Relay] Health check: http://localhost:${port}/health`);
   });
 
   wss.on("connection", (socket: WebSocket) => {
@@ -153,7 +172,7 @@ function startRelayServer(port: number): void {
             }
 
             peer = {
-              id: msg.peerId || `peer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              id: msg.peerId || `peer-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
               topic: msg.topic,
               socket,
               connectedAt: new Date(),

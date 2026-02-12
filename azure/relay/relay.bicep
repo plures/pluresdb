@@ -18,7 +18,7 @@ var containerName = '${resourcePrefix}-container'
 var relayImage = 'plures/pluresdb-relay:latest'
 
 // Container Instance for relay server
-resource relayContainer 'Microsoft.ContainerInstance/containerGroups@2023-05-01' = {
+resource relayContainer 'Microsoft.ContainerInstance/containerGroups@2023-09-01' = {
   name: containerName
   location: location
   properties: {
