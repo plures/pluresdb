@@ -443,7 +443,7 @@ export class GunDB {
             send,
             broadcast: (obj) => {
               // Broadcast to all Hyperswarm peers except the sender
-              this.hyperswarmSync?.broadcast(obj);
+              this.hyperswarmSync?.broadcast(obj, peerId);
             },
             source: null as any, // Not needed for Hyperswarm
           });
