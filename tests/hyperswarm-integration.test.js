@@ -1,8 +1,11 @@
 /**
  * Integration tests for Hyperswarm P2P sync
  *
- * These tests require Node.js and are run separately from Deno tests.
+ * These tests require Node.js and real P2P connections.
  * Run with: node tests/hyperswarm-integration.test.js
+ *
+ * Note: These are manual integration tests, not automated CI tests.
+ * They require network access and may take several seconds.
  */
 
 const assert = require("assert");
@@ -11,6 +14,25 @@ const path = require("path");
 
 // Import from compiled dist
 const { GunDB } = require("../dist/core/database.js");
+
+let testsPassed = 0;
+let testsFailed = 0;
+
+async function test(name, fn) {
+  try {
+    process.stdout.write(`  ${name} ... `);
+    await fn();
+    console.log("✓ PASS");
+    testsPassed++;
+  } catch (error) {
+    console.log("✗ FAIL");
+    console.error(`    Error: ${error.message}`);
+    if (error.stack) {
+      console.error(`    ${error.stack.split("\n").slice(1, 3).join("\n    ")}`);
+    }
+    testsFailed++;
+  }
+}
 
 // Helper to create temporary file
 async function createTempFile() {
@@ -41,10 +63,13 @@ function waitFor(condition, timeout = 5000, checkInterval = 100) {
   });
 }
 
-describe("Hyperswarm P2P Sync Integration Tests", function () {
-  this.timeout(30000); // 30 second timeout for P2P tests
+async function runTests() {
+  console.log("\n🧪 Hyperswarm P2P Sync Integration Tests\n");
+  console.log(
+    "Note: These tests require network access and may take several seconds.\n",
+  );
 
-  it("should enable sync with a generated key", async () => {
+  await test("should enable sync with a generated key", async () => {
     const db = new GunDB();
     const kvPath = await createTempFile();
 
@@ -76,7 +101,7 @@ describe("Hyperswarm P2P Sync Integration Tests", function () {
     }
   });
 
-  it("should discover and connect two peers with same sync key", async () => {
+  await test("should discover and connect two peers with same sync key", async () => {
     const dbA = new GunDB({ peerId: "peer-A" });
     const dbB = new GunDB({ peerId: "peer-B" });
 
@@ -128,7 +153,7 @@ describe("Hyperswarm P2P Sync Integration Tests", function () {
     }
   });
 
-  it("should sync data between two peers", async () => {
+  await test("should sync data between two peers", async () => {
     const dbA = new GunDB({ peerId: "peer-A" });
     const dbB = new GunDB({ peerId: "peer-B" });
 
@@ -183,7 +208,7 @@ describe("Hyperswarm P2P Sync Integration Tests", function () {
     }
   });
 
-  it("should handle bidirectional sync", async () => {
+  await test("should handle bidirectional sync", async () => {
     const dbA = new GunDB({ peerId: "peer-A" });
     const dbB = new GunDB({ peerId: "peer-B" });
 
@@ -250,7 +275,7 @@ describe("Hyperswarm P2P Sync Integration Tests", function () {
     }
   });
 
-  it("should not connect peers with different keys", async () => {
+  await test("should not connect peers with different keys", async () => {
     const dbA = new GunDB({ peerId: "peer-A" });
     const dbB = new GunDB({ peerId: "peer-B" });
 
@@ -288,12 +313,22 @@ describe("Hyperswarm P2P Sync Integration Tests", function () {
       }
     }
   });
-});
+
+  console.log("\n" + "=".repeat(50));
+  console.log(
+    `Results: ${testsPassed} passed, ${testsFailed} failed, ${testsPassed + testsFailed} total`,
+  );
+  console.log("=".repeat(50) + "\n");
+
+  if (testsFailed > 0) {
+    process.exit(1);
+  }
+}
 
 // Only run if executed directly
 if (require.main === module) {
-  console.log("Running Hyperswarm integration tests...");
-  console.log(
-    "Note: These tests require Node.js and may take several seconds to complete.",
-  );
+  runTests().catch((error) => {
+    console.error("Fatal error:", error);
+    process.exit(1);
+  });
 }
