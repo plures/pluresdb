@@ -19,6 +19,17 @@ export { loadConfig, saveConfig } from "./config.ts";
 export { connectToPeer, startMeshServer } from "./network/websocket-server.ts";
 export type { MeshServer } from "./network/websocket-server.ts";
 
+export {
+  HyperswarmSync,
+  generateSyncKey,
+} from "./network/hyperswarm-sync.ts";
+export type {
+  SyncKeyOptions,
+  SyncStats,
+  PeerInfo,
+  HyperswarmSyncHandlers,
+} from "./network/hyperswarm-sync.ts";
+
 export { RuleEngine } from "./logic/rules.ts";
 export type { Rule, RuleContext } from "./logic/rules.ts";
 
