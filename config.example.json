@@ -1,0 +1,12 @@
+{
+  "kvPath": "./data/pluresdb.sqlite",
+  "port": 34567,
+  "apiPortOffset": 1,
+  "peers": [],
+  "syncTransport": {
+    "mode": "auto",
+    "azureRelayUrl": "wss://pluresdb-relay.azurewebsites.net",
+    "vercelRelayUrl": "wss://pluresdb-relay.vercel.app",
+    "connectionTimeoutMs": 30000
+  }
+}

@@ -1,8 +1,13 @@
+import type { TransportConfig } from "./sync/transport.ts";
+
 export interface AppConfig {
   kvPath?: string;
   port?: number;
   peers?: string[];
   apiPortOffset?: number; // default 1
+  
+  // Sync transport configuration
+  syncTransport?: TransportConfig;
 }
 
 export async function loadConfig(): Promise<AppConfig> {
