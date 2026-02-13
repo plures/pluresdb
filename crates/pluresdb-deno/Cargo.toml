@@ -12,10 +12,10 @@ keywords = ["database", "deno", "bindings"]
 crate-type = ["cdylib"]
 
 [build-dependencies]
-deno_bindgen = "0.9"
+deno_bindgen = "0.9.0-alpha"
 
 [dependencies]
-deno_bindgen = "0.9"
+deno_bindgen = "0.9.0-alpha"
 pluresdb-core = { path = "../pluresdb-core" }
 pluresdb-sync = { path = "../pluresdb-sync" }
 serde = { workspace = true }
