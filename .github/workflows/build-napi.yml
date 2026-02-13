@@ -6,7 +6,9 @@ permissions:
 
 on:
   push:
-    branches: [main, copilot/**]
+    branches: [main]
+    tags:
+      - 'v*'
     paths:
       - 'crates/pluresdb-node/**'
       - 'crates/pluresdb-core/**'
@@ -33,7 +35,9 @@ jobs:
               cd crates/pluresdb-node
               npm install
               npx napi build --platform --release --target x86_64-unknown-linux-gnu
-              strip -x *.node
+              if [ -f pluresdb-node.linux-x64-gnu.node ]; then
+                strip -x pluresdb-node.linux-x64-gnu.node
+              fi
           - host: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             build: |
@@ -48,14 +52,18 @@ jobs:
               cd crates/pluresdb-node
               npm install
               npx napi build --platform --release --target x86_64-apple-darwin
-              strip -x *.node
+              if [ -f pluresdb-node.darwin-x64.node ]; then
+                strip -x pluresdb-node.darwin-x64.node
+              fi
           - host: macos-latest
             target: aarch64-apple-darwin
             build: |
               cd crates/pluresdb-node
               npm install
               npx napi build --platform --release --target aarch64-apple-darwin
-              strip -x *.node
+              if [ -f pluresdb-node.darwin-arm64.node ]; then
+                strip -x pluresdb-node.darwin-arm64.node
+              fi
           - host: windows-latest
             target: x86_64-pc-windows-msvc
             build: |
