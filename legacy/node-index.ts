@@ -437,6 +437,87 @@ export class PluresNode extends EventEmitter {
 
     return response.json() as Promise<{ success: boolean }>;
   }
+
+  // Hyperswarm P2P Sync methods
+  /**
+   * Generate a new sync key for P2P synchronization
+   */
+  static generateSyncKey(): string {
+    const crypto = require("crypto");
+    return crypto.randomBytes(32).toString("hex");
+  }
+
+  /**
+   * Enable P2P sync via Hyperswarm
+   */
+  async enableSync(options: { key?: string } = {}): Promise<void> {
+    const response = await fetch(`${this.apiUrl}/api/sync/enable`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(options),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Enable sync failed: ${response.statusText}`);
+    }
+  }
+
+  /**
+   * Disable P2P sync
+   */
+  async disableSync(): Promise<void> {
+    const response = await fetch(`${this.apiUrl}/api/sync/disable`, {
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Disable sync failed: ${response.statusText}`);
+    }
+  }
+
+  /**
+   * Get sync statistics
+   */
+  async getSyncStats(): Promise<{
+    peersConnected: number;
+    messagesSent: number;
+    messagesReceived: number;
+    bytesTransmitted: number;
+    bytesReceived: number;
+  } | null> {
+    const response = await fetch(`${this.apiUrl}/api/sync/stats`);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return (await response.json()) as {
+      peersConnected: number;
+      messagesSent: number;
+      messagesReceived: number;
+      bytesTransmitted: number;
+      bytesReceived: number;
+    } | null;
+  }
+
+  /**
+   * Get connected P2P peers
+   */
+  async getSyncPeers(): Promise<
+    Array<{ peerId: string; connected: boolean; remotePublicKey?: string }>
+  > {
+    const response = await fetch(`${this.apiUrl}/api/sync/peers`);
+
+    if (!response.ok) {
+      return [];
+    }
+
+    return (await response.json()) as Array<{
+      peerId: string;
+      connected: boolean;
+      remotePublicKey?: string;
+    }>;
+  }
 }
 
 // SQLite-compatible API for easy migration

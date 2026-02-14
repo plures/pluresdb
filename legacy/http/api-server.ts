@@ -374,6 +374,43 @@ export function startApiServer(
             }
             return json({ success: true, count: nodes.length });
           }
+          case "/api/sync/enable": {
+            if (req.method !== "POST") return json({ error: "method" }, 405);
+            const body = (await req.json().catch(() => null)) as
+              | { key?: string }
+              | null;
+            try {
+              await db.enableSync(body || {});
+              return json({ success: true });
+            } catch (error) {
+              const msg = error && typeof error === "object" && "message" in error
+                ? String((error as any).message)
+                : String(error);
+              return json({ error: msg }, 400);
+            }
+          }
+          case "/api/sync/disable": {
+            if (req.method !== "POST") return json({ error: "method" }, 405);
+            try {
+              await db.disableSync();
+              return json({ success: true });
+            } catch (error) {
+              const msg = error && typeof error === "object" && "message" in error
+                ? String((error as any).message)
+                : String(error);
+              return json({ error: msg }, 400);
+            }
+          }
+          case "/api/sync/stats": {
+            if (req.method !== "GET") return json({ error: "method" }, 405);
+            const stats = db.getSyncStats();
+            return json(stats);
+          }
+          case "/api/sync/peers": {
+            if (req.method !== "GET") return json({ error: "method" }, 405);
+            const peers = db.getSyncPeers();
+            return json(peers);
+          }
           default:
             // Check if it's an example dataset request
             if (path.startsWith("/api/examples/")) {

@@ -119,6 +119,7 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "hyperswarm": "^4.8.4",
     "ws": "^8.18.3"
   },
   "devDependencies": {

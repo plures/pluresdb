@@ -149,6 +149,78 @@ export function activate(context: vscode.ExtensionContext) {
 }
 ```
 
+## 🔄 P2P Sync with Hyperswarm
+
+PluresDB supports **zero-configuration P2P synchronization** using Hyperswarm for DHT-based peer discovery and automatic NAT traversal. Perfect for:
+
+- **Multi-device sync** across different networks
+- **Collaborative applications** without central servers
+- **AI agent memory sharing** between distributed systems
+- **Offline-first apps** that sync when connected
+
+### Quick Example
+
+```javascript
+import { GunDB } from "pluresdb";
+
+// Device 1
+const db1 = new GunDB();
+await db1.ready();
+
+// Generate a shared sync key
+const syncKey = GunDB.generateSyncKey();
+console.log("Share this key securely:", syncKey);
+
+// Enable P2P sync
+await db1.enableSync({ key: syncKey });
+
+// Put data - automatically syncs to all connected peers
+await db1.put("user:alice", { name: "Alice", email: "alice@example.com" });
+
+// Device 2 (different network)
+const db2 = new GunDB();
+await db2.ready();
+await db2.enableSync({ key: syncKey }); // Same key!
+
+// Data automatically appears after DHT discovery (1-5 seconds)
+const user = await db2.get("user:alice");
+console.log(user); // { name: "Alice", email: "alice@example.com" }
+```
+
+### Features
+
+- **DHT Discovery**: Peers find each other automatically using a distributed hash table
+- **NAT Traversal**: UDP holepunching works through most firewalls (no port forwarding)
+- **Encryption**: All connections use Noise protocol encryption
+- **CRDT Merge**: Automatic conflict resolution for concurrent edits
+- **Selective Sync**: Different keys create isolated sync networks
+
+### Events
+
+```javascript
+// Listen for peer connections
+db.on("peer:connected", (info) => {
+  console.log("Peer connected:", info.peerId);
+});
+
+db.on("peer:disconnected", (info) => {
+  console.log("Peer disconnected:", info.peerId);
+});
+
+// Monitor sync stats
+const stats = db.getSyncStats();
+console.log("Connected peers:", stats.peersConnected);
+console.log("Messages exchanged:", stats.messagesSent + stats.messagesReceived);
+```
+
+### Platform Support
+
+- ✅ **Node.js**: Full support (Hyperswarm native)
+- ⚠️ **Deno**: Use WebSocket fallback (`db.serve()` + `db.connect()`)
+- ❌ **Browser**: Use WebSocket mesh networking
+
+📖 **[Read the full P2P Sync documentation →](docs/HYPERSWARM_SYNC.md)**
+
 ## 🌐 Web Interface
 
 PluresDB includes a comprehensive Svelte-based web UI at `http://localhost:34568`:

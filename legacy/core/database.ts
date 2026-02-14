@@ -9,6 +9,13 @@ import {
 import { debugLog } from "../util/debug.ts";
 import { type Rule, type RuleContext, RuleEngine } from "../logic/rules.ts";
 import { BruteForceVectorIndex } from "../vector/index.ts";
+import {
+  HyperswarmSync,
+  generateSyncKey,
+  type SyncKeyOptions,
+  type PeerInfo,
+  type SyncStats,
+} from "../network/hyperswarm-sync.ts";
 
 const FUNCTION_PLACEHOLDER = "[sanitized function]";
 
@@ -82,6 +89,7 @@ export class GunDB {
   private readyState = false;
   private readonly rules = new RuleEngine();
   private readonly vectorIndex = new BruteForceVectorIndex();
+  private hyperswarmSync: HyperswarmSync | null = null;
 
   constructor(options?: DatabaseOptions) {
     this.storage = new KvStorage();
@@ -381,8 +389,116 @@ export class GunDB {
       }
       this.meshServer = null;
     }
+    // Close Hyperswarm sync if enabled
+    if (this.hyperswarmSync) {
+      try {
+        await this.disableSync();
+      } catch {
+        /* ignore */
+      }
+    }
     await this.storage.close();
   }
+
+  // --- P2P Sync via Hyperswarm ---
+
+  /**
+   * Generate a new sync key for P2P synchronization
+   * @returns 32-byte hex string
+   */
+  static generateSyncKey(): string {
+    return generateSyncKey();
+  }
+
+  /**
+   * Enable P2P sync via Hyperswarm (DHT discovery + NAT traversal)
+   * @param options Sync configuration with key
+   */
+  async enableSync(options: SyncKeyOptions): Promise<void> {
+    this.ensureReady();
+
+    if (this.hyperswarmSync?.isEnabled()) {
+      throw new Error("Sync already enabled. Call disableSync() first.");
+    }
+
+    debugLog("enableSync", { keyProvided: !!options.key });
+
+    // Create HyperswarmSync instance if not exists
+    if (!this.hyperswarmSync) {
+      this.hyperswarmSync = new HyperswarmSync({
+        onPeerConnected: (info: PeerInfo) => {
+          debugLog("peer:connected", { peerId: info.peerId.slice(0, 16) });
+          this.emit("peer:connected", info);
+        },
+        onPeerDisconnected: (info: PeerInfo) => {
+          debugLog("peer:disconnected", { peerId: info.peerId.slice(0, 16) });
+          this.emit("peer:disconnected", info);
+        },
+        onSyncComplete: (stats: SyncStats) => {
+          debugLog("sync:complete", stats);
+          this.emit("sync:complete", stats);
+        },
+        onMessage: async ({ msg, peerId, send }) => {
+          await this.handleInboundMessage(msg, {
+            send,
+            broadcast: (obj) => {
+              // Broadcast to all Hyperswarm peers except the sender
+              this.hyperswarmSync?.broadcast(obj, peerId);
+            },
+            source: null as any, // Not needed for Hyperswarm
+          });
+        },
+      });
+    }
+
+    // Enable sync with the provided key
+    await this.hyperswarmSync.enableSync(options);
+
+    // Request sync from all peers
+    this.hyperswarmSync.broadcast({
+      type: "sync_request",
+      originId: this.peerId,
+    });
+  }
+
+  /**
+   * Disable P2P sync and disconnect from all peers
+   */
+  async disableSync(): Promise<void> {
+    if (this.hyperswarmSync) {
+      await this.hyperswarmSync.disableSync();
+    }
+  }
+
+  /**
+   * Get sync statistics (peer count, messages, bandwidth)
+   */
+  getSyncStats(): SyncStats | null {
+    return this.hyperswarmSync?.getStats() || null;
+  }
+
+  /**
+   * Get list of connected P2P peers
+   */
+  getSyncPeers(): PeerInfo[] {
+    return this.hyperswarmSync?.getPeers() || [];
+  }
+
+  /**
+   * Check if P2P sync is enabled
+   */
+  isSyncEnabled(): boolean {
+    return this.hyperswarmSync?.isEnabled() || false;
+  }
+
+  /**
+   * Get the current sync key (if sync is enabled)
+   */
+  getSyncKey(): string | null {
+    return this.hyperswarmSync?.getSyncKey() || null;
+  }
+
+  // ---
 
   private ensureReady(): void {
     if (!this.readyState || this.closed) {
@@ -466,6 +582,14 @@ export class GunDB {
     for (const s of this.peerSockets) {
       try {
         s.send(JSON.stringify(obj));
+      } catch {
+        /* ignore */
+      }
+    }
+    // Broadcast to Hyperswarm peers if sync is enabled
+    if (this.hyperswarmSync?.isEnabled()) {
+      try {
+        this.hyperswarmSync.broadcast(obj);
       } catch {
         /* ignore */
       }
