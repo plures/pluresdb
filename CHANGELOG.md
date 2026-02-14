@@ -69,6 +69,17 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.9.1] - 2026-02-14
+
+### Developer Experience
+
+- bump qs in the npm_and_yarn group across 1 directory (#76)
+
+### Other
+
+- Build and publish @plures/pluresdb-native N-API binary (#75)
+
+
 ## [1.9.0] - 2026-02-14
 
 ### Added
