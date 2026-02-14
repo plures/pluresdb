@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.9.0] - 2026-02-14
+
+### Added
+
+- P2P sync transport via Hyperswarm (DHT discovery + NAT holepunching) (#73)
+
+
 ## [1.8.0] - 2026-02-14
 
 ### Added
