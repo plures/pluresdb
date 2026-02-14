@@ -45,6 +45,8 @@ jobs:
               npm install
               sudo apt-get update
               sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+              rustup target add aarch64-unknown-linux-gnu
               npx napi build --platform --release --target aarch64-unknown-linux-gnu
           - host: macos-latest
             target: x86_64-apple-darwin
