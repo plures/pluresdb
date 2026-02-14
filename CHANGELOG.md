@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.8.0] - 2026-02-14
+
+### Added
+
+- pluggable sync transports — Azure relay (WSS:443), Vercel relay, Hyperswarm direct (#72)
+
+
 ## [1.7.1] - 2026-02-10
 
 ### Other
