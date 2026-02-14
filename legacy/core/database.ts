@@ -428,14 +428,20 @@ export class GunDB {
       this.hyperswarmSync = new HyperswarmSync({
         onPeerConnected: (info: PeerInfo) => {
           debugLog("peer:connected", { peerId: info.peerId.slice(0, 16) });
+          // Type assertion needed: emit expects NodeRecord but we're passing PeerInfo
+          // TODO: Refactor event system to support multiple event payload types
           this.emit("peer:connected", info as unknown as NodeRecord);
         },
         onPeerDisconnected: (info: PeerInfo) => {
           debugLog("peer:disconnected", { peerId: info.peerId.slice(0, 16) });
+          // Type assertion needed: emit expects NodeRecord but we're passing PeerInfo
+          // TODO: Refactor event system to support multiple event payload types
           this.emit("peer:disconnected", info as unknown as NodeRecord);
         },
         onSyncComplete: (stats: SyncStats) => {
           debugLog("sync:complete", stats);
+          // Type assertion needed: emit expects NodeRecord but we're passing SyncStats
+          // TODO: Refactor event system to support multiple event payload types
           this.emit("sync:complete", stats as unknown as NodeRecord);
         },
         onMessage: async ({ msg, peerId, send }) => {
