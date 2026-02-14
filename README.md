@@ -161,6 +161,41 @@ PluresDB includes a comprehensive Svelte-based web UI at `http://localhost:34568
 - **Performance Monitoring**: Real-time metrics and profiling
 - **History & Time Travel**: Version history with diff and restore
 
+## 🔄 P2P Sync Transport
+
+PluresDB supports pluggable sync transports for different network environments:
+
+| Transport | Environment | Port | Details |
+|-----------|-------------|------|---------|
+| **Auto** (default) | Any | Various | Automatic fallback: Direct → Azure → Vercel |
+| **Azure Relay** | Corporate | 443 | WSS on port 443, looks like HTTPS |
+| **Vercel Relay** | Corporate | 443 | Edge WebSocket, universally whitelisted |
+| **Direct** | Home/Personal | Various | P2P via Hyperswarm (best performance) |
+
+### Why Multiple Transports?
+
+Corporate networks often block:
+- UDP traffic (used by Hyperswarm)
+- Non-standard ports
+- Direct P2P connections
+
+Azure/Vercel relay transports use **WebSocket on port 443** (standard HTTPS port), making them indistinguishable from normal web traffic.
+
+### Configuration
+
+```json
+{
+  "syncTransport": {
+    "mode": "auto",
+    "azureRelayUrl": "wss://pluresdb-relay.azurewebsites.net",
+    "vercelRelayUrl": "wss://pluresdb-relay.vercel.app",
+    "connectionTimeoutMs": 30000
+  }
+}
+```
+
+**Learn more**: [Sync Transport Documentation](docs/SYNC_TRANSPORT.md)
+
 ## 🔌 API Options
 
 ### SQLite-Compatible API

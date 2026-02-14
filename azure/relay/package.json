@@ -1,0 +1,28 @@
+{
+  "name": "@plures/pluresdb-relay",
+  "version": "1.0.0",
+  "description": "PluresDB Azure WSS Relay Server - Corporate-safe WebSocket relay on port 443",
+  "main": "server.ts",
+  "scripts": {
+    "start": "tsx server.ts",
+    "dev": "tsx watch server.ts",
+    "build": "echo 'No build needed - TypeScript runs directly'"
+  },
+  "keywords": [
+    "pluresdb",
+    "relay",
+    "websocket",
+    "wss",
+    "p2p"
+  ],
+  "author": "Plures Organization",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.7.0"
+  }
+}
