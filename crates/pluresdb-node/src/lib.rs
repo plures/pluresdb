@@ -6,7 +6,7 @@
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use pluresdb_core::{
-    CrdtOperation, CrdtStore, Database, DatabaseOptions, NodeRecord, SqlValue,
+    CrdtStore, Database, DatabaseOptions, NodeRecord, SqlValue,
 };
 use pluresdb_sync::{SyncBroadcaster, SyncEvent};
 use std::collections::HashMap;
@@ -282,7 +282,7 @@ impl PluresDatabase {
 
     /// Vector similarity search (placeholder - returns text search results)
     #[napi]
-    pub fn vector_search(&self, query: String, limit: Option<u32>, threshold: Option<f64>) -> Result<Vec<serde_json::Value>> {
+    pub fn vector_search(&self, query: String, limit: Option<u32>, _threshold: Option<f64>) -> Result<Vec<serde_json::Value>> {
         // For now, vector search falls back to text search
         // In the future, this will use actual vector embeddings
         self.search(query, limit)

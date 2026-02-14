@@ -1,0 +1,179 @@
+name: Build N-API Bindings
+
+permissions:
+  contents: write
+  id-token: write
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+    paths:
+      - 'crates/pluresdb-node/**'
+      - 'crates/pluresdb-core/**'
+      - 'crates/pluresdb-sync/**'
+      - '.github/workflows/build-napi.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'crates/pluresdb-node/**'
+      - 'crates/pluresdb-core/**'
+      - 'crates/pluresdb-sync/**'
+      - '.github/workflows/build-napi.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            build: |
+              cd crates/pluresdb-node
+              npm install
+              npx napi build --platform --release --target x86_64-unknown-linux-gnu
+              if [ -f pluresdb-node.linux-x64-gnu.node ]; then
+                strip -x pluresdb-node.linux-x64-gnu.node
+              fi
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            build: |
+              cd crates/pluresdb-node
+              npm install
+              sudo apt-get update
+              sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+              rustup target add aarch64-unknown-linux-gnu
+              npx napi build --platform --release --target aarch64-unknown-linux-gnu
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            build: |
+              cd crates/pluresdb-node
+              npm install
+              npx napi build --platform --release --target x86_64-apple-darwin
+              if [ -f pluresdb-node.darwin-x64.node ]; then
+                strip -x pluresdb-node.darwin-x64.node
+              fi
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            build: |
+              cd crates/pluresdb-node
+              npm install
+              npx napi build --platform --release --target aarch64-apple-darwin
+              if [ -f pluresdb-node.darwin-arm64.node ]; then
+                strip -x pluresdb-node.darwin-arm64.node
+              fi
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            build: |
+              cd crates/pluresdb-node
+              npm install
+              npx napi build --platform --release --target x86_64-pc-windows-msvc
+          - host: windows-latest
+            target: aarch64-pc-windows-msvc
+            build: |
+              cd crates/pluresdb-node
+              npm install
+              npx napi build --platform --release --target aarch64-pc-windows-msvc
+
+    name: Build - ${{ matrix.settings.target }}
+    runs-on: ${{ matrix.settings.host }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ matrix.settings.target }}-cargo-
+
+      - name: Build
+        run: ${{ matrix.settings.build }}
+        shell: bash
+
+      - name: Test bindings
+        if: matrix.settings.host == 'ubuntu-latest' && matrix.settings.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          cd crates/pluresdb-node
+          node test-node.js
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: crates/pluresdb-node/*.node
+          if-no-files-found: error
+
+  publish-npm:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: crates/pluresdb-node/artifacts
+
+      - name: Move artifacts to package directory
+        run: |
+          cd crates/pluresdb-node
+          mv artifacts/**/*.node .
+          ls -la *.node
+
+      - name: Install dependencies
+        run: |
+          cd crates/pluresdb-node
+          npm install
+
+      - name: Check npm token
+        id: check-npm-token
+        run: |
+          if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm (dry-run)
+        if: steps.check-npm-token.outputs.has_token != 'true'
+        run: |
+          cd crates/pluresdb-node
+          npm publish --dry-run
+
+      - name: Publish to npm
+        if: steps.check-npm-token.outputs.has_token == 'true'
+        run: |
+          cd crates/pluresdb-node
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

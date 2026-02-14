@@ -1,0 +1,17 @@
+# Node.js
+node_modules/
+package-lock.json
+
+# Build artifacts
+*.node
+target/
+
+# Test artifacts
+*.db
+*.db-shm
+*.db-wal
+
+# NPM
+*.tgz
+npm
+.npmrc

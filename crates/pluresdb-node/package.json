@@ -1,22 +1,19 @@
 {
   "name": "@plures/pluresdb-native",
-  "version": "1.5.1",
+  "version": "2.0.0-alpha.1",
   "description": "Native Node.js bindings for PluresDB",
   "main": "index.js",
   "types": "index.d.ts",
   "napi": {
-    "name": "pluresdb-node",
-    "triples": {
-      "defaults": true,
-      "additional": [
-        "x86_64-apple-darwin",
-        "aarch64-apple-darwin",
-        "x86_64-unknown-linux-gnu",
-        "aarch64-unknown-linux-gnu",
-        "x86_64-pc-windows-msvc",
-        "aarch64-pc-windows-msvc"
-      ]
-    }
+    "binaryName": "pluresdb-node",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc",
+      "aarch64-pc-windows-msvc"
+    ]
   },
   "scripts": {
     "build": "napi build --platform --release",
@@ -31,6 +28,8 @@
     "napi"
   ],
   "author": "Plures Organization",
-  "license": "AGPL-3.0"
+  "license": "AGPL-3.0",
+  "devDependencies": {
+    "@napi-rs/cli": "^3.5.1"
+  }
 }
-
