@@ -428,15 +428,15 @@ export class GunDB {
       this.hyperswarmSync = new HyperswarmSync({
         onPeerConnected: (info: PeerInfo) => {
           debugLog("peer:connected", { peerId: info.peerId.slice(0, 16) });
-          this.emit("peer:connected", info);
+          this.emit("peer:connected", info as unknown as NodeRecord);
         },
         onPeerDisconnected: (info: PeerInfo) => {
           debugLog("peer:disconnected", { peerId: info.peerId.slice(0, 16) });
-          this.emit("peer:disconnected", info);
+          this.emit("peer:disconnected", info as unknown as NodeRecord);
         },
         onSyncComplete: (stats: SyncStats) => {
           debugLog("sync:complete", stats);
-          this.emit("sync:complete", stats);
+          this.emit("sync:complete", stats as unknown as NodeRecord);
         },
         onMessage: async ({ msg, peerId, send }) => {
           await this.handleInboundMessage(msg, {

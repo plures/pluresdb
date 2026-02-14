@@ -56,6 +56,7 @@ export interface PeerInfo {
 export interface HyperswarmSyncHandlers {
   onPeerConnected?: (info: PeerInfo) => void;
   onPeerDisconnected?: (info: PeerInfo) => void;
+  onSyncComplete?: (stats: SyncStats) => void;
   onMessage?: (payload: {
     msg: MeshMessage;
     peerId: string;
@@ -75,16 +76,10 @@ export function generateSyncKey(): string {
     return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
   }
 
-  // Fallback to Node.js crypto (dynamic import for compatibility)
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const nodeCrypto = require("crypto");
-    return nodeCrypto.randomBytes(32).toString("hex");
-  } catch {
-    throw new Error(
-      "Crypto not available. Please use a Node.js or Web environment with crypto support.",
-    );
-  }
+  // Fallback for environments without WebCrypto
+  throw new Error(
+    "Crypto not available. Please use a Node.js or Web environment with crypto support.",
+  );
 }
 
 /**
@@ -102,9 +97,9 @@ async function deriveTopicFromKey(key: string): Promise<Uint8Array> {
 
   // Fallback to Node.js crypto
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const nodeCrypto = require("crypto");
-    const hash = nodeCrypto.createHash("sha256").update(key, "hex").digest();
+    // Use dynamic import for Node.js compatibility  
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(key, "hex").digest();
     return new Uint8Array(hash);
   } catch {
     throw new Error(
@@ -382,7 +377,9 @@ export class HyperswarmSync {
     return Array.from(this.connections.entries()).map(([peerId, conn]) => ({
       peerId,
       connected: true,
-      remotePublicKey: conn.remotePublicKey?.toString("hex"),
+      remotePublicKey: conn.remotePublicKey
+        ? Array.from(conn.remotePublicKey, (b) => b.toString(16).padStart(2, "0")).join("")
+        : undefined,
     }));
   }
 
