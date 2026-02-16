@@ -159,19 +159,21 @@ Hyperswarm P2P sync tests are **automatically skipped in CI environments** to en
 - `tests/hyperswarm-integration.test.js`: All tests skipped with informative message
 - `legacy/tests/integration/mesh-network.test.ts`: Tests skip unless `RUN_MESH_TESTS=true`
 
-**Local Development (CI=false or unset):**
-- All Hyperswarm tests run normally
-- Full P2P sync coverage available
+**Local Development (CI unset - the default):**
+- All Hyperswarm tests run normally (subject to runtime limitations)
+- Full P2P sync coverage available in Node.js
 - Integration tests verify network functionality
+- Note: Some tests may skip in Deno due to native module incompatibility
 
 **To run Hyperswarm tests locally:**
 
 ```bash
-# Deno unit tests (some tests skip due to Deno runtime limitations)
-# Network test still skips in Deno even with CI=false due to udx-native incompatibility
+# Deno unit tests (CI is unset by default locally)
+# Network test skips in Deno even locally due to udx-native incompatibility with Deno runtime
 deno test -A --unstable-kv legacy/tests/unit/hyperswarm-sync.test.ts
 
 # Node.js integration tests (full P2P functionality, requires built dist/)
+# Runs automatically when CI is unset (default in local environments)
 node tests/hyperswarm-integration.test.js
 
 # Force mesh tests in any environment (requires network)

@@ -9,7 +9,8 @@
  * 2. P2P discovery can be slow/unreliable in CI network environments
  * 3. These are manual integration tests for local validation
  *
- * To run these tests locally: CI=false node tests/hyperswarm-integration.test.js
+ * To run these tests locally: node tests/hyperswarm-integration.test.js
+ * (CI is unset by default in local environments)
  */
 
 const assert = require("assert");

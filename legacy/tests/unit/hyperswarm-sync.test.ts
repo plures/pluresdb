@@ -9,7 +9,8 @@
  * 2. Network-dependent tests create CI instability
  * 3. Full integration tests run locally where Hyperswarm is available
  *
- * To run all tests locally (CI unset or CI=false): deno test -A --unstable-kv ...
+ * To run tests locally: deno test -A --unstable-kv ...
+ * (CI is unset by default locally; network test still skips in Deno due to udx-native)
  */
 
 import { assertEquals, assertExists, assertMatch } from "jsr:@std/assert@1.0.14";
