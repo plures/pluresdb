@@ -24,7 +24,7 @@ if (isCI) {
   console.log(
     "   These tests require real P2P network connections which are unstable in CI.",
   );
-  console.log("   Run locally with: CI=false node tests/hyperswarm-integration.test.js\n");
+  console.log("   Run locally: node tests/hyperswarm-integration.test.js\n");
   process.exit(0);
 }
 
