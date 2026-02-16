@@ -8,7 +8,7 @@ members = [
     "crates/pluresdb-sync",
     "crates/pluresdb-cli",
     # "crates/pluresdb-wasm",  # Temporarily excluded - IndexedDB web-sys API compatibility issues
-    "crates/pluresdb-ipc",
+    # "crates/pluresdb-ipc",  # Temporarily excluded - Send trait bounds issue with shared_memory
 ]
 resolver = "2"
 
