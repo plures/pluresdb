@@ -3,11 +3,11 @@ members = [
     "crates/pluresdb",
     "crates/pluresdb-core",
     "crates/pluresdb-node",
-    "crates/pluresdb-deno",
+    # "crates/pluresdb-deno",  # Temporarily excluded - deno_bindgen 0.9.0-alpha compatibility issues
     "crates/pluresdb-storage",
     "crates/pluresdb-sync",
     "crates/pluresdb-cli",
-    "crates/pluresdb-wasm",
+    # "crates/pluresdb-wasm",  # Temporarily excluded - IndexedDB web-sys API compatibility issues
     "crates/pluresdb-ipc",
 ]
 resolver = "2"

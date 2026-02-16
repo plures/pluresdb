@@ -14,6 +14,7 @@ readme = "README.md"
 pluresdb-core = { path = "../pluresdb-core" }
 pluresdb-storage = { path = "../pluresdb-storage" }
 pluresdb-sync = { path = "../pluresdb-sync" }
+anyhow = { workspace = true }
 
 [dependencies.tokio]
 workspace = true
