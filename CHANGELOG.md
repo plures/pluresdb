@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.9.3] - 2026-02-16
+
+### Documentation
+
+- add comprehensive DESIGN.md and ROADMAP.md
+
+
 ## [1.9.2] - 2026-02-14
 
 ### Other
