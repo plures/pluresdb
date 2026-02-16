@@ -146,6 +146,42 @@ Set the `RUN_MESH_TESTS` environment variable to `true` (or `1`) before invoking
 
 You can optionally override the default timeout for each mesh assertion by exporting `RUN_MESH_TEST_TIMEOUT_MS` (defaults to `10000`).
 
+#### Hyperswarm Network Tests
+
+Hyperswarm P2P sync tests are **automatically skipped in CI environments** to ensure reliable automated releases. These tests are skipped because:
+
+1. Hyperswarm requires Node.js native modules (udx-native) that fail in Deno CI environments
+2. P2P network connections are inherently unstable in CI infrastructure
+3. Full integration testing is preserved for local development
+
+**CI Behavior (CI=true):**
+- `legacy/tests/unit/hyperswarm-sync.test.ts`: Validation tests run, network tests skip
+- `tests/hyperswarm-integration.test.js`: All tests skipped with informative message
+- `legacy/tests/integration/mesh-network.test.ts`: Tests skip unless `RUN_MESH_TESTS=true`
+
+**Local Development (CI=false or unset):**
+- All Hyperswarm tests run normally
+- Full P2P sync coverage available
+- Integration tests verify network functionality
+
+**To run Hyperswarm tests locally:**
+
+```bash
+# Deno tests (validation only, network tests still skip in Deno)
+CI=false deno test -A --unstable-kv legacy/tests/unit/hyperswarm-sync.test.ts
+
+# Node.js integration tests (full P2P tests)
+CI=false node tests/hyperswarm-integration.test.js
+
+# Force mesh tests in any environment
+RUN_MESH_TESTS=true deno test -A --unstable-kv legacy/tests/integration/mesh-network.test.ts
+```
+
+**Environment Variables:**
+- `CI`: Set to "true" in CI environments (GitHub Actions, GitLab CI, etc.)
+- `RUN_MESH_TESTS`: Explicitly enable mesh network tests (overrides CI detection)
+- `RUN_MESH_TEST_TIMEOUT_MS`: Configure timeout for mesh tests (default: 10000ms)
+
 Example:
 
 ```typescript
@@ -259,6 +295,26 @@ Tests run automatically on:
 - Push to main/develop branches
 - Pull requests
 - Daily scheduled runs
+
+### CI Test Environment Isolation
+
+**Network-Dependent Tests:**
+To ensure CI reliability and fast feedback, network-dependent tests (Hyperswarm P2P sync) are automatically skipped in CI environments:
+
+- **Detection**: Tests check for `CI=true` environment variable (standard in GitHub Actions)
+- **Behavior**: Network tests skip with clear messaging, validation tests continue
+- **Override**: Set `RUN_MESH_TESTS=true` to force network tests in CI (not recommended)
+
+**Benefits:**
+- Consistent CI builds without network instability
+- Faster test execution
+- Reliable automated releases
+- Full test coverage preserved for local development
+
+**Trade-offs:**
+- P2P integration tests don't run in CI
+- Network functionality verified only in local development
+- Relies on comprehensive unit test coverage for validation logic
 
 ### Test Matrix
 

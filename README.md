@@ -461,6 +461,8 @@ npm run verify
 
 This executes TypeScript compilation and all Deno test suites (unit, integration, performance, security).
 
+**Note:** Network-dependent tests (Hyperswarm P2P sync) are automatically skipped in CI environments to ensure reliable automated releases. Full integration tests are preserved for local development. See [Testing Guide](docs/TESTING.md) for details.
+
 ## 📚 Documentation
 
 - [Windows Getting Started Guide](docs/WINDOWS_GETTING_STARTED.md)

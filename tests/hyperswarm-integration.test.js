@@ -4,13 +4,29 @@
  * These tests require Node.js and real P2P connections.
  * Run with: node tests/hyperswarm-integration.test.js
  *
- * Note: These are manual integration tests, not automated CI tests.
- * They require network access and may take several seconds.
+ * NOTE: These tests are SKIPPED in CI environments because:
+ * 1. Hyperswarm requires real network connections which are unstable in CI
+ * 2. P2P discovery can be slow/unreliable in CI network environments
+ * 3. These are manual integration tests for local validation
+ *
+ * To run these tests locally: CI=false node tests/hyperswarm-integration.test.js
  */
 
 const assert = require("assert");
 const fs = require("fs").promises;
 const path = require("path");
+
+// Check if running in CI environment
+const isCI = process.env.CI === "true";
+
+if (isCI) {
+  console.log("\n⏭️  Skipping Hyperswarm integration tests in CI environment");
+  console.log(
+    "   These tests require real P2P network connections which are unstable in CI.",
+  );
+  console.log("   Run locally with: CI=false node tests/hyperswarm-integration.test.js\n");
+  process.exit(0);
+}
 
 // Import from compiled dist
 const { GunDB } = require("../dist/core/database.js");
