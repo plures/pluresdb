@@ -24,8 +24,8 @@ on:
         type: boolean
   
   # Run on schedule (weekly for test environment)
-  schedule:
-    - cron: '0 2 * * 0' # Every Sunday at 2 AM UTC
+  # schedule:
+  #   - cron: '0 2 * * 0' # Every Sunday at 2 AM UTC
 
 permissions:
   id-token: write  # Required for OIDC authentication with Azure
