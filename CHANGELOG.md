@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.9.4] - 2026-02-16
+
+### Other
+
+- Skip Hyperswarm test in Deno to fix release pipeline (#80)
+
+
 ## [1.9.3] - 2026-02-16
 
 ### Documentation
