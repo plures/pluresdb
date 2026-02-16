@@ -19,5 +19,16 @@ serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+
 [dev-dependencies]
+criterion = { workspace = true, features = ["html_reports"] }
 tempfile = "3.10"
+
+[[bench]]
+name = "crdt_benchmarks"
+harness = false
+
+[[bench]]
+name = "sql_benchmarks"
+harness = false
+
