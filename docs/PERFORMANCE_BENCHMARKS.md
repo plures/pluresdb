@@ -143,9 +143,9 @@ cargo bench --workspace -- --baseline v2.0
 - **perf**: Linux performance monitoring
 
 ### CI/CD Integration
-- Benchmarks run on every PR to main
-- Performance regression detection (>5% slowdown triggers alert)
-- Historical trend tracking in benchmark database
+- Developers run `cargo bench` locally for performance validation
+- CI integration for automated regression detection is planned
+- Historical trend tracking of benchmark results is planned
 
 ## Real-World Performance
 
