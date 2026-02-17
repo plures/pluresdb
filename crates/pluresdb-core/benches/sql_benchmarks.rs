@@ -18,7 +18,7 @@ fn benchmark_sql_insert(c: &mut Criterion) {
                         stmt.run(&[
                             SqlValue::Text(format!("User {}", i)),
                             SqlValue::Text(format!("user{}@example.com", i)),
-                            SqlValue::Integer(20 + (i % 50)),
+                            SqlValue::Integer(20_i64 + (i as i64 % 50_i64)),
                         ]).unwrap();
                     }
                 },
