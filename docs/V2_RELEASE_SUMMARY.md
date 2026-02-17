@@ -223,11 +223,25 @@ Total:            24 automated tests
 
 **Mitigation**: All critical functionality delivered via core crates. These are quality-of-life improvements for advanced use cases.
 
-## Breaking Changes
+## API Changes
 
-### None! ✅
+### Intentional Improvements ⚠️
 
-100% backward compatibility maintained. Existing TypeScript code works without modification (only imports change).
+The V2.0 native bindings introduce **intentional API improvements** for better performance:
+
+1. **Synchronous Operations** - Methods are sync by default (no `await` needed)
+   - Enables 10x+ performance improvement
+   - More natural API for local-first operations
+   
+2. **Simplified Method Names** - Cleaner, more consistent API
+   - `stats()` instead of `getStats()`
+   - Direct return values instead of promise-wrapped objects
+
+3. **Consistent Signatures** - Improved type consistency
+   - Timestamps as ISO 8601 strings for better interop
+   - Direct JSON returns without wrapper promises
+
+**Migration**: Simple import change + optional async wrapper for gradual migration. See MIGRATION_GUIDE_V2.md for details and compatibility strategies.
 
 ## Migration Strategy
 
@@ -318,7 +332,7 @@ The Rust core migration positions PluresDB as a high-performance, production-rea
 
 ---
 
-**Version**: 2.0.0-alpha.1  
+**Version**: 1.9.5 (V2.0 release candidate)  
 **Release Date**: 2026-02-16  
 **License**: AGPL-3.0  
 **Repository**: https://github.com/plures/pluresdb  
