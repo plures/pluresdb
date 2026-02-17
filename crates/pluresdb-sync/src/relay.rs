@@ -12,7 +12,12 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 
-/// Relay transport using WebSocket connections
+/// Relay transport using WebSocket connections.
+///
+/// This is a stub implementation for WebSocket-based relay transport
+/// designed for corporate firewall traversal on port 443 (HTTPS).
+/// The relay server acts as a stateless message router, with all data
+/// remaining end-to-end encrypted between peers.
 pub struct RelayTransport {
     /// WebSocket relay server URL (wss://...)
     #[allow(dead_code)]
@@ -70,7 +75,11 @@ impl Transport for RelayTransport {
     }
 }
 
-/// Relay connection wrapper
+/// Relay connection wrapper.
+///
+/// This will wrap a WebSocket connection for peer-to-peer communication
+/// through the relay server once WebSocket client integration is complete.
+/// Data is end-to-end encrypted and the relay cannot read message contents.
 pub struct RelayConnection {
     peer_id: PeerId,
     // Will hold the WebSocket connection once implemented

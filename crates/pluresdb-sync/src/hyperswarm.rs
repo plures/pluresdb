@@ -15,7 +15,12 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 
-/// Hyperswarm-based transport for P2P sync
+/// Hyperswarm-based transport for P2P sync.
+///
+/// This is a stub implementation awaiting hyperswarm-rs integration.
+/// Once the hyperswarm-rs crate is available (from plures/hyperswarm),
+/// this will hold the DHT client instance and provide full P2P functionality
+/// including Kademlia DHT discovery, UDP holepunching, and Noise encryption.
 pub struct HyperswarmTransport {
     // Will hold the actual hyperswarm instance once integrated
     #[allow(dead_code)]
@@ -93,7 +98,11 @@ impl Transport for HyperswarmTransport {
     }
 }
 
-/// Hyperswarm connection wrapper
+/// Hyperswarm connection wrapper.
+///
+/// This will wrap a Hyperswarm encrypted stream for bidirectional
+/// peer-to-peer communication once hyperswarm-rs is integrated.
+/// The stream uses Noise XX encryption (25519/ChaChaPoly/BLAKE2s).
 pub struct HyperswarmConnection {
     peer_id: PeerId,
     // Will hold the actual stream once hyperswarm-rs is integrated

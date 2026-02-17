@@ -8,7 +8,11 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 
-/// Disabled transport for local-only operation
+/// Disabled transport for local-only operation.
+///
+/// This is a zero-sized type that provides graceful no-op behavior
+/// for databases operating in local-only mode without network synchronization.
+/// All sync operations are either silently ignored or return appropriate errors.
 pub struct DisabledTransport;
 
 impl DisabledTransport {
