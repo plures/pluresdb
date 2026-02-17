@@ -2,11 +2,23 @@
  * Unit tests for Hyperswarm P2P sync functionality
  *
  * Tests key generation, sync enable/disable, and basic operations
+ *
+ * NOTE: Tests that require actual Hyperswarm connections are skipped in CI
+ * environments (when CI=true) because:
+ * 1. Hyperswarm requires Node.js native modules (udx-native) that fail in Deno
+ * 2. Network-dependent tests create CI instability
+ * 3. Full integration tests run locally where Hyperswarm is available
+ *
+ * To run tests locally: deno test -A --unstable-kv ...
+ * (CI is unset by default locally; network test still skips in Deno due to udx-native)
  */
 
 import { assertEquals, assertExists, assertMatch } from "jsr:@std/assert@1.0.14";
 import { generateSyncKey } from "../../network/hyperswarm-sync.ts";
 import { GunDB } from "../../core/database.ts";
+
+// Detect CI environment - skip network-dependent tests in CI
+const isCI = Deno.env.get("CI") === "true";
 
 Deno.test("generateSyncKey - generates valid 64-char hex string", () => {
   const key = generateSyncKey();
@@ -132,11 +144,13 @@ Deno.test("GunDB.enableSync - requires database to be ready", async () => {
   assertEquals(db.isSyncEnabled(), false);
 });
 
-// Note: The following test is skipped in Deno because Hyperswarm requires Node.js
-// This test should only run in Node.js environments where Hyperswarm dependencies are available
+// Note: The following test is skipped in CI because Hyperswarm requires Node.js
+// This test verifies Deno incompatibility but requires importing hyperswarm which fails in CI
+// In CI: Skipped to avoid udx-native native module errors
+// Locally: Can run to verify the error message (though will still fail in Deno runtime)
 Deno.test({
   name: "GunDB.enableSync - throws error in Deno environment",
-  ignore: true, // Skip in Deno to avoid udx-native native module errors
+  ignore: isCI, // Skip in CI to avoid udx-native native module errors
   async fn() {
     const db = new GunDB();
     const kvPath = await Deno.makeTempFile({ prefix: "sync_test_", suffix: ".sqlite" });

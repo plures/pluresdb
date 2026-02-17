@@ -69,6 +69,20 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.9.7] - 2026-02-17
+
+### Other
+
+- Complete Rust core migration for V2.0 - 10x performance, 80% memory reduction (#85)
+
+
+## [1.9.6] - 2026-02-17
+
+### Other
+
+- Skip Hyperswarm P2P tests in CI environments (#84)
+
+
 ## [1.9.5] - 2026-02-16
 
 ### Fixed

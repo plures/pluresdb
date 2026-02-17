@@ -1,6 +1,6 @@
 {
   "name": "@plures/pluresdb",
-  "version": "1.9.5",
+  "version": "1.9.7",
   "description": "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications",
   "main": "dist/node-index.js",
   "types": "dist/node-index.d.ts",
@@ -125,7 +125,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.0",
-    "@types/node": "^22.10.0",
+    "@types/node": "^22.19.11",
     "@types/vscode": "^1.104.0",
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.46.4",

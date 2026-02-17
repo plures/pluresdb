@@ -2,16 +2,31 @@
 import { assertEquals, assertExists } from "jsr:@std/assert@1.0.14";
 import { GunDB } from "../../core/database.ts";
 
-const shouldRunMeshTests =
+// Check if we should run mesh network tests
+// Skip in CI by default unless explicitly enabled with RUN_MESH_TESTS=true
+const isCI = Deno.env.get("CI") === "true";
+const explicitlyEnabled =
   (Deno.env.get("RUN_MESH_TESTS") ?? "").toLowerCase() === "true";
+const shouldRunMeshTests = explicitlyEnabled || !isCI;
+
 const defaultTimeoutMs = Number(
   Deno.env.get("RUN_MESH_TEST_TIMEOUT_MS") ?? "10000",
 );
 
 if (!shouldRunMeshTests) {
   console.warn(
-    "[mesh-network.test] Skipping mesh networking integration tests. Set RUN_MESH_TESTS=true to enable.",
+    "[mesh-network.test] Skipping mesh networking integration tests.",
   );
+  if (isCI) {
+    console.warn(
+      "  Reason: Running in CI environment (CI=true). These tests require network access.",
+    );
+    console.warn(
+      "  To run in CI: Set RUN_MESH_TESTS=true environment variable.",
+    );
+  } else {
+    console.warn("  To enable: Set RUN_MESH_TESTS=true environment variable.");
+  }
 }
 
 function withTimeout<T>(

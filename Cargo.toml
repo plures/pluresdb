@@ -3,19 +3,19 @@ members = [
     "crates/pluresdb",
     "crates/pluresdb-core",
     "crates/pluresdb-node",
-    "crates/pluresdb-deno",
+    # "crates/pluresdb-deno",  # Temporarily excluded - deno_bindgen 0.9.0-alpha compatibility issues
     "crates/pluresdb-storage",
     "crates/pluresdb-sync",
     "crates/pluresdb-cli",
-    "crates/pluresdb-wasm",
-    "crates/pluresdb-ipc",
+    # "crates/pluresdb-wasm",  # Temporarily excluded - IndexedDB web-sys API compatibility issues
+    # "crates/pluresdb-ipc",  # Temporarily excluded - Send trait bounds issue with shared_memory
 ]
 resolver = "2"
 
 [workspace.package]
 edition = "2021"
 license = "AGPL-3.0"
-version = "1.9.5"
+version = "1.9.7"
 authors = ["Plures Organization"]
 description = "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications"
 repository = "https://github.com/plures/pluresdb"

@@ -68,7 +68,7 @@ pub fn new_memory_database() -> (CrdtStore, MemoryStorage) {
 /// Opens a persistent database using SledStorage at the given path.
 pub fn new_persistent_database(
     path: impl AsRef<std::path::Path>,
-) -> pluresdb_storage::anyhow::Result<(CrdtStore, SledStorage)> {
+) -> anyhow::Result<(CrdtStore, SledStorage)> {
     let storage = SledStorage::open(path)?;
     Ok((CrdtStore::default(), storage))
 }
