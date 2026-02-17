@@ -5,27 +5,27 @@ use serde_json::json;
 fn benchmark_put_operations(c: &mut Criterion) {
     let mut group = c.benchmark_group("crdt_put");
     
-    for size in [10, 100, 1000, 10000].iter() {
-        group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, _size| {
+    for &size in [10, 100, 1000, 10000].iter() {
+        group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, &size| {
             let store = CrdtStore::default();
-            let mut counter = 0;
             
             b.iter(|| {
-                let id = format!("node:{}", counter);
-                counter += 1;
-                store.put(
-                    id.clone(),
-                    "actor-bench",
-                    black_box(json!({
-                        "value": counter,
-                        "data": "benchmark data with some content",
-                        "timestamp": 1234567890,
-                        "metadata": {
-                            "type": "test",
-                            "tags": ["benchmark", "performance"]
-                        }
-                    }))
-                )
+                for i in 0..size {
+                    let id = format!("node:{}", i);
+                    store.put(
+                        id.clone(),
+                        "actor-bench",
+                        black_box(json!({
+                            "value": i,
+                            "data": "benchmark data with some content",
+                            "timestamp": 1234567890,
+                            "metadata": {
+                                "type": "test",
+                                "tags": ["benchmark", "performance"]
+                            }
+                        }))
+                    );
+                }
             });
         });
     }
