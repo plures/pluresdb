@@ -44,7 +44,7 @@ fn benchmark_sql_select(c: &mut Criterion) {
                 stmt.run(&[
                     SqlValue::Text(format!("Product {}", i)),
                     SqlValue::Real(9.99 + (i as f64)),
-                    SqlValue::Text(["electronics", "books", "clothing", "food"][i % 4].to_string()),
+                    SqlValue::Text(["electronics", "books", "clothing", "food"][(i % 4) as usize].to_string()),
                 ]).unwrap();
             }
             
