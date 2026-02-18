@@ -1404,6 +1404,9 @@ name = "pluresdb-sync"
 version = "1.9.5"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "blake2",
+ "hex",
  "serde",
  "serde_json",
  "tokio",
