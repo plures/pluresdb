@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.9.8] - 2026-02-18
+
+### Other
+
+- Add Transport trait abstraction for P2P sync with hyperswarm-rs integration points (#87)
+
+
 ## [1.9.7] - 2026-02-17
 
 ### Other
