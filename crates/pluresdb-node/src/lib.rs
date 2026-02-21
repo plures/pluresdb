@@ -280,12 +280,93 @@ impl PluresDatabase {
         Ok(result)
     }
 
-    /// Vector similarity search (placeholder - returns text search results)
+    /// Vector similarity search using a pre-computed embedding.
+    ///
+    /// `embedding` must be a flat array of finite floats.  Results are ordered
+    /// by cosine similarity (highest first) and filtered by `threshold` (0–1).
     #[napi]
-    pub fn vector_search(&self, query: String, limit: Option<u32>, _threshold: Option<f64>) -> Result<Vec<serde_json::Value>> {
-        // For now, vector search falls back to text search
-        // In the future, this will use actual vector embeddings
-        self.search(query, limit)
+    pub fn vector_search(
+        &self,
+        embedding: Vec<f64>,
+        limit: Option<u32>,
+        threshold: Option<f64>,
+    ) -> Result<Vec<serde_json::Value>> {
+        if embedding.is_empty() {
+            return Err(Error::from_reason("embedding must not be empty"));
+        }
+        if embedding.iter().any(|v| !v.is_finite()) {
+            return Err(Error::from_reason(
+                "embedding contains non-finite values (NaN or Inf)",
+            ));
+        }
+        let threshold_val = threshold.unwrap_or(0.0);
+        if !threshold_val.is_finite() || !(0.0..=1.0).contains(&threshold_val) {
+            return Err(Error::from_reason(
+                "threshold must be a finite number in [0.0, 1.0]",
+            ));
+        }
+
+        let store = self.store.clone();
+        let limit = limit.unwrap_or(10) as usize;
+        let min_score = threshold_val as f32;
+
+        // Convert f64 → f32 for the HNSW index.
+        let query: Vec<f32> = embedding.iter().map(|&v| v as f32).collect();
+
+        let results = {
+            let store = store.lock();
+            store.vector_search(&query, limit, min_score)
+        };
+
+        let output: Vec<serde_json::Value> = results
+            .into_iter()
+            .map(|r| {
+                serde_json::json!({
+                    "id": r.record.id,
+                    "data": r.record.data,
+                    "score": r.score,
+                    "timestamp": r.record.timestamp.to_rfc3339(),
+                })
+            })
+            .collect();
+
+        Ok(output)
+    }
+
+    /// Insert or update a node together with its embedding vector.
+    ///
+    /// The embedding is indexed immediately so that it is available for
+    /// subsequent [`vector_search`] calls.
+    #[napi]
+    pub fn put_with_embedding(
+        &self,
+        id: String,
+        data: serde_json::Value,
+        embedding: Vec<f64>,
+    ) -> Result<String> {
+        if embedding.is_empty() {
+            return Err(Error::from_reason("embedding must not be empty"));
+        }
+        if embedding.iter().any(|v| !v.is_finite()) {
+            return Err(Error::from_reason(
+                "embedding contains non-finite values (NaN or Inf)",
+            ));
+        }
+
+        let store = self.store.clone();
+        let broadcaster = self.broadcaster.clone();
+        let actor_id = self.actor_id.clone();
+
+        let emb_f32: Vec<f32> = embedding.iter().map(|&v| v as f32).collect();
+
+        let node_id = {
+            let store = store.lock();
+            store.put_with_embedding(id, actor_id, data, emb_f32)
+        };
+
+        let _ = broadcaster.publish(SyncEvent::NodeUpsert { id: node_id.clone() });
+
+        Ok(node_id)
     }
 
     /// Subscribe to node changes (returns a subscription ID)
