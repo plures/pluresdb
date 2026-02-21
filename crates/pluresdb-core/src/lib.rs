@@ -104,10 +104,6 @@ impl std::fmt::Debug for VectorIndex {
     }
 }
 
-// SAFETY: Hnsw uses Arc + RwLock / Mutex internally and is Send + Sync.
-unsafe impl Send for VectorIndex {}
-unsafe impl Sync for VectorIndex {}
-
 impl VectorIndex {
     /// Creates a new index with the given maximum capacity.
     pub fn new(max_elements: usize) -> Self {
