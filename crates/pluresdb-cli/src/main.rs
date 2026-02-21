@@ -1353,7 +1353,10 @@ fn main() -> Result<()> {
                 threshold,
             } => {
                 let emb_values: Vec<f64> = serde_json::from_str(&embedding)
-                    .context("embedding must be a JSON array of numbers, e.g. '[0.1,0.2,...]'")?;
+                    .with_context(|| format!(
+                        "embedding must be a JSON array of numbers (e.g. '[0.1,0.2,...]'): {}",
+                        embedding
+                    ))?;
                 let emb_f32: Vec<f32> = emb_values.iter().map(|&v| v as f32).collect();
                 handle_vsearch(store, emb_f32, limit, threshold as f32).await
             }

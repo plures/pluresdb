@@ -140,7 +140,7 @@ impl VectorIndex {
 
     /// Returns up to `limit` node IDs with their cosine similarity scores,
     /// ordered from most to least similar.  Scores are in \[0, 1\] (higher is
-    /// more similar).
+    /// more similar; orthogonal or opposite vectors score 0).
     pub fn search(&self, query: &[f32], limit: usize) -> Vec<(NodeId, f32)> {
         if self.id_to_idx.is_empty() {
             return Vec::new();
@@ -158,9 +158,16 @@ impl VectorIndex {
                 if *current_idx != n.d_id {
                     return None;
                 }
-                // DistCosine computes `1 – cos(θ)` (in [0, 2]).
-                // Convert to similarity in [0, 1].
-                let score = 1.0_f32 - n.distance;
+                // DistCosine computes `1 – cos(θ)`, so its output range is [0, 2]:
+                //   distance = 0  →  cos(θ) = 1  (identical vectors)
+                //   distance = 1  →  cos(θ) = 0  (orthogonal)
+                //   distance = 2  →  cos(θ) = -1 (opposite)
+                // We map this to a similarity score in [0, 1] by subtracting
+                // from 1 and clamping, so that:
+                //   distance 0 → score 1.0 (perfect match)
+                //   distance 1 → score 0.0 (no similarity)
+                //   distance 2 → score 0.0 (clamped; treated as no similarity)
+                let score = (1.0_f32 - n.distance).max(0.0);
                 Some((node_id.clone(), score))
             })
             .collect()
@@ -899,6 +906,15 @@ mod tests {
             "identical vector should have score near 1.0, got {}",
             results[0].score
         );
+        // All results must be ordered highest → lowest.
+        for w in results.windows(2) {
+            assert!(
+                w[0].score >= w[1].score,
+                "results should be ordered by descending score: {} < {}",
+                w[0].score,
+                w[1].score
+            );
+        }
     }
 
     #[test]
