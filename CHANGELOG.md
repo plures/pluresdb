@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.10.0] - 2026-02-21
+
+### Added
+
+- native HNSW vector index and similarity search (#92)
+
+
 ## [1.9.9] - 2026-02-21
 
 ### Developer Experience
