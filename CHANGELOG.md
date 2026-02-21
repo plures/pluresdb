@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.9.9] - 2026-02-21
+
+### Developer Experience
+
+- bump the npm_and_yarn group across 2 directories with 1 update (#89)
+
+
 ## [1.9.8] - 2026-02-18
 
 ### Other
