@@ -312,8 +312,25 @@ impl CrdtStore {
         &self,
         query_embedding: &[f32],
         limit: usize,
-        min_score: f32,
+        mut min_score: f32,
     ) -> Vec<VectorSearchResult> {
+        // Basic validation of the query embedding: it must be non-empty and contain
+        // only finite values to avoid confusing behavior or downstream errors.
+        if query_embedding.is_empty() {
+            return Vec::new();
+        }
+        if query_embedding.iter().any(|v| !v.is_finite()) {
+            return Vec::new();
+        }
+
+        // Normalize min_score to the documented [0.0, 1.0] range and ensure it is finite.
+        if !min_score.is_finite() {
+            min_score = 0.0;
+        } else if min_score < 0.0 {
+            min_score = 0.0;
+        } else if min_score > 1.0 {
+            min_score = 1.0;
+        }
         let candidates = self.vector_index.search(query_embedding, limit);
         let mut results: Vec<VectorSearchResult> = candidates
             .into_iter()
