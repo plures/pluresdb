@@ -37,7 +37,8 @@
 // Re-export core types
 pub use pluresdb_core::{
     ActorId, CrdtOperation, CrdtStore, Database, DatabaseOptions, DatabasePath, NodeData,
-    NodeId, NodeRecord, QueryResult, SqlValue, VectorClock,
+    NodeId, NodeRecord, QueryResult, SqlValue, VectorClock, VectorIndex, VectorSearchResult,
+    DEFAULT_EMBEDDING_DIM,
 };
 
 // Re-export storage types

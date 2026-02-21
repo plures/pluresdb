@@ -280,12 +280,70 @@ impl PluresDatabase {
         Ok(result)
     }
 
-    /// Vector similarity search (placeholder - returns text search results)
+    /// Vector similarity search using a pre-computed embedding.
+    ///
+    /// `embedding` must be a flat array of 32-bit floats (passed as JavaScript
+    /// `number[]`).  Results are ordered by cosine similarity (highest first)
+    /// and filtered by `threshold` (0–1, default 0.0).
     #[napi]
-    pub fn vector_search(&self, query: String, limit: Option<u32>, _threshold: Option<f64>) -> Result<Vec<serde_json::Value>> {
-        // For now, vector search falls back to text search
-        // In the future, this will use actual vector embeddings
-        self.search(query, limit)
+    pub fn vector_search(
+        &self,
+        embedding: Vec<f64>,
+        limit: Option<u32>,
+        threshold: Option<f64>,
+    ) -> Result<Vec<serde_json::Value>> {
+        let store = self.store.clone();
+        let limit = limit.unwrap_or(10) as usize;
+        let min_score = threshold.unwrap_or(0.0) as f32;
+
+        // Convert f64 → f32 for the HNSW index.
+        let query: Vec<f32> = embedding.iter().map(|&v| v as f32).collect();
+
+        let results = {
+            let store = store.lock();
+            store.vector_search(&query, limit, min_score)
+        };
+
+        let output: Vec<serde_json::Value> = results
+            .into_iter()
+            .map(|r| {
+                serde_json::json!({
+                    "id": r.record.id,
+                    "data": r.record.data,
+                    "score": r.score,
+                    "timestamp": r.record.timestamp.to_rfc3339(),
+                })
+            })
+            .collect();
+
+        Ok(output)
+    }
+
+    /// Insert or update a node together with its embedding vector.
+    ///
+    /// The embedding is indexed immediately so that it is available for
+    /// subsequent [`vector_search`] calls.
+    #[napi]
+    pub fn put_with_embedding(
+        &self,
+        id: String,
+        data: serde_json::Value,
+        embedding: Vec<f64>,
+    ) -> Result<String> {
+        let store = self.store.clone();
+        let broadcaster = self.broadcaster.clone();
+        let actor_id = self.actor_id.clone();
+
+        let emb_f32: Vec<f32> = embedding.iter().map(|&v| v as f32).collect();
+
+        let node_id = {
+            let store = store.lock();
+            store.put_with_embedding(id, actor_id, data, emb_f32)
+        };
+
+        let _ = broadcaster.publish(SyncEvent::NodeUpsert { id: node_id.clone() });
+
+        Ok(node_id)
     }
 
     /// Subscribe to node changes (returns a subscription ID)

@@ -12,6 +12,7 @@ keywords = ["database", "crdt", "local-first"]
 anyhow.workspace = true
 chrono.workspace = true
 dashmap.workspace = true
+hnsw_rs.workspace = true
 parking_lot.workspace = true
 rusqlite.workspace = true
 serde.workspace = true

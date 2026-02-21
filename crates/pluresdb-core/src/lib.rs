@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+use hnsw_rs::prelude::*;
 use parking_lot::Mutex;
 use rusqlite::types::{Value as SqliteValue, ValueRef};
 use rusqlite::{params_from_iter, Connection, OpenFlags, Transaction};
@@ -32,6 +33,17 @@ pub type VectorClock = HashMap<ActorId, u64>;
 /// Arbitrary JSON payload that callers persist inside PluresDB.
 pub type NodeData = JsonValue;
 
+/// Default embedding dimension (bge-small-en-v1.5).
+pub const DEFAULT_EMBEDDING_DIM: usize = 768;
+
+/// A search result from vector similarity search.
+#[derive(Debug, Clone)]
+pub struct VectorSearchResult {
+    pub record: NodeRecord,
+    /// Cosine similarity score in \[0, 1\] where 1 = identical direction.
+    pub score: f32,
+}
+
 /// Metadata associated with a persisted node in the CRDT store.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct NodeRecord {
@@ -39,6 +51,9 @@ pub struct NodeRecord {
     pub data: NodeData,
     pub clock: VectorClock,
     pub timestamp: DateTime<Utc>,
+    /// Optional embedding vector for vector similarity search.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding: Option<Vec<f32>>,
 }
 
 impl NodeRecord {
@@ -52,6 +67,7 @@ impl NodeRecord {
             data,
             clock,
             timestamp: Utc::now(),
+            embedding: None,
         }
     }
 
@@ -62,6 +78,103 @@ impl NodeRecord {
         *counter += 1;
         self.timestamp = Utc::now();
         self.data = data;
+    }
+}
+
+/// HNSW-based vector index for approximate nearest-neighbour search.
+///
+/// Internally this index maps string node IDs to integer HNSW indices and
+/// vice-versa so that the higher-level API can work with node IDs throughout.
+/// The HNSW structure uses interior mutability; the index itself is
+/// `Send + Sync` so it can be held behind an `Arc`.
+pub struct VectorIndex {
+    hnsw: Hnsw<'static, f32, DistCosine>,
+    /// String node-ID → HNSW numeric index (latest for each ID).
+    id_to_idx: DashMap<NodeId, usize>,
+    /// HNSW numeric index → string node-ID (set at insert time).
+    idx_to_id: DashMap<usize, NodeId>,
+    next_idx: Mutex<usize>,
+}
+
+impl std::fmt::Debug for VectorIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VectorIndex")
+            .field("indexed_nodes", &self.id_to_idx.len())
+            .finish()
+    }
+}
+
+// SAFETY: Hnsw uses Arc + RwLock / Mutex internally and is Send + Sync.
+unsafe impl Send for VectorIndex {}
+unsafe impl Sync for VectorIndex {}
+
+impl VectorIndex {
+    /// Creates a new index with the given maximum capacity.
+    pub fn new(max_elements: usize) -> Self {
+        // Standard HNSW hyper-parameters (Malkov & Yashunin 2018).
+        Self {
+            hnsw: Hnsw::new(16, max_elements, 16, 200, DistCosine),
+            id_to_idx: DashMap::new(),
+            idx_to_id: DashMap::new(),
+            next_idx: Mutex::new(0),
+        }
+    }
+
+    /// Inserts or updates the embedding for `id`.
+    ///
+    /// On repeated calls for the same `id` a fresh HNSW slot is allocated and
+    /// the ID→index mapping is updated.  The stale slot is automatically
+    /// filtered out in [`search`] because its reverse mapping no longer points
+    /// back to the same numeric index.
+    pub fn insert(&self, id: &str, embedding: &[f32]) {
+        let idx = {
+            let mut n = self.next_idx.lock();
+            let idx = *n;
+            *n += 1;
+            idx
+        };
+        self.id_to_idx.insert(id.to_string(), idx);
+        self.idx_to_id.insert(idx, id.to_string());
+        self.hnsw.insert((embedding, idx));
+    }
+
+    /// Returns up to `limit` node IDs with their cosine similarity scores,
+    /// ordered from most to least similar.  Scores are in \[0, 1\] (higher is
+    /// more similar).
+    pub fn search(&self, query: &[f32], limit: usize) -> Vec<(NodeId, f32)> {
+        if self.id_to_idx.is_empty() {
+            return Vec::new();
+        }
+        // ef_s controls the quality/speed trade-off at query time; 16 is a
+        // reasonable default for production workloads.
+        let neighbours = self.hnsw.search(query, limit, 16);
+        neighbours
+            .into_iter()
+            .filter_map(|n| {
+                // Skip stale HNSW slots whose forward mapping has been
+                // superseded by a newer insert for the same node ID.
+                let node_id = self.idx_to_id.get(&n.d_id)?.clone();
+                let current_idx = self.id_to_idx.get(&*node_id)?;
+                if *current_idx != n.d_id {
+                    return None;
+                }
+                // DistCosine computes `1 – cos(θ)` (in [0, 2]).
+                // Convert to similarity in [0, 1].
+                let score = 1.0_f32 - n.distance;
+                Some((node_id.clone(), score))
+            })
+            .collect()
+    }
+
+    /// Returns `true` if the index contains no vectors.
+    pub fn is_empty(&self) -> bool {
+        self.id_to_idx.is_empty()
+    }
+}
+
+impl Default for VectorIndex {
+    fn default() -> Self {
+        Self::new(1_000_000)
     }
 }
 
@@ -89,6 +202,7 @@ pub enum CrdtOperation {
 #[derive(Debug, Default)]
 pub struct CrdtStore {
     nodes: DashMap<NodeId, NodeRecord>,
+    vector_index: Arc<VectorIndex>,
 }
 
 impl CrdtStore {
@@ -100,6 +214,35 @@ impl CrdtStore {
             .entry(id.clone())
             .and_modify(|record| record.merge_update(actor.clone(), data.clone()))
             .or_insert_with(|| NodeRecord::new(id.clone(), actor, data));
+        id
+    }
+
+    /// Inserts or updates a node together with its embedding vector.
+    ///
+    /// The embedding is stored on the [`NodeRecord`] **and** indexed in the
+    /// HNSW graph so that future calls to [`vector_search`] can find it.
+    pub fn put_with_embedding(
+        &self,
+        id: impl Into<NodeId>,
+        actor: impl Into<ActorId>,
+        data: NodeData,
+        embedding: Vec<f32>,
+    ) -> NodeId {
+        let id = id.into();
+        let actor = actor.into();
+        let emb_clone = embedding.clone();
+        self.nodes
+            .entry(id.clone())
+            .and_modify(|record| {
+                record.merge_update(actor.clone(), data.clone());
+                record.embedding = Some(embedding.clone());
+            })
+            .or_insert_with(|| {
+                let mut r = NodeRecord::new(id.clone(), actor, data);
+                r.embedding = Some(embedding);
+                r
+            });
+        self.vector_index.insert(&id, &emb_clone);
         id
     }
 
@@ -150,6 +293,40 @@ impl CrdtStore {
             data,
         };
         (id, op)
+    }
+
+    /// Performs approximate nearest-neighbour search over all indexed nodes.
+    ///
+    /// # Arguments
+    /// * `query_embedding` – the query vector (must match the dimension used at
+    ///   insert time).
+    /// * `limit` – maximum number of results to return.
+    /// * `min_score` – minimum cosine similarity (0–1) a node must have to be
+    ///   included in the results.
+    ///
+    /// Returns results ordered from highest to lowest similarity score.
+    pub fn vector_search(
+        &self,
+        query_embedding: &[f32],
+        limit: usize,
+        min_score: f32,
+    ) -> Vec<VectorSearchResult> {
+        let candidates = self.vector_index.search(query_embedding, limit);
+        let mut results: Vec<VectorSearchResult> = candidates
+            .into_iter()
+            .filter_map(|(id, score)| {
+                if score < min_score {
+                    return None;
+                }
+                self.nodes.get(&id).map(|entry| VectorSearchResult {
+                    record: entry.value().clone(),
+                    score,
+                })
+            })
+            .collect();
+        // Ensure ordering from highest to lowest similarity.
+        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results
     }
 }
 
@@ -694,6 +871,76 @@ mod tests {
             SqlValue::Blob(value) => assert_eq!(value, &blob),
             other => panic!("unexpected value: {:?}", other),
         }
+    }
+
+    #[test]
+    fn put_with_embedding_stores_and_searches() {
+        let store = CrdtStore::default();
+
+        // Insert nodes with orthogonal unit-vector embeddings.
+        let emb_a: Vec<f32> = vec![1.0, 0.0, 0.0];
+        let emb_b: Vec<f32> = vec![0.0, 1.0, 0.0];
+        let emb_c: Vec<f32> = vec![0.0, 0.0, 1.0];
+
+        store.put_with_embedding("a", "actor-v", serde_json::json!({"label":"a"}), emb_a.clone());
+        store.put_with_embedding("b", "actor-v", serde_json::json!({"label":"b"}), emb_b);
+        store.put_with_embedding("c", "actor-v", serde_json::json!({"label":"c"}), emb_c);
+
+        // Embedding should be stored on the NodeRecord.
+        let record = store.get("a").expect("node a should exist");
+        assert_eq!(record.embedding, Some(emb_a.clone()));
+
+        // Searching with the same vector as "a" should return "a" first.
+        let results = store.vector_search(&emb_a, 3, 0.0);
+        assert!(!results.is_empty(), "should find at least one result");
+        assert_eq!(results[0].record.id, "a");
+        assert!(
+            results[0].score > 0.99,
+            "identical vector should have score near 1.0, got {}",
+            results[0].score
+        );
+    }
+
+    #[test]
+    fn vector_search_respects_min_score() {
+        let store = CrdtStore::default();
+
+        let emb_a: Vec<f32> = vec![1.0, 0.0, 0.0];
+        let emb_b: Vec<f32> = vec![0.0, 1.0, 0.0];
+
+        store.put_with_embedding("a", "actor-v", serde_json::json!({}), emb_a.clone());
+        store.put_with_embedding("b", "actor-v", serde_json::json!({}), emb_b);
+
+        // High min_score should filter out dissimilar vectors.
+        let results = store.vector_search(&emb_a, 10, 0.99);
+        assert_eq!(results.len(), 1, "only 'a' should pass the 0.99 threshold");
+        assert_eq!(results[0].record.id, "a");
+    }
+
+    #[test]
+    fn vector_search_empty_index_returns_empty() {
+        let store = CrdtStore::default();
+        let results = store.vector_search(&[1.0_f32, 0.0, 0.0], 5, 0.0);
+        assert!(results.is_empty(), "empty index should return no results");
+    }
+
+    #[test]
+    fn vector_index_update_keeps_latest_embedding() {
+        let store = CrdtStore::default();
+
+        let emb_v1: Vec<f32> = vec![1.0, 0.0, 0.0];
+        let emb_v2: Vec<f32> = vec![0.0, 1.0, 0.0];
+
+        store.put_with_embedding("node", "actor", serde_json::json!({"v": 1}), emb_v1);
+        store.put_with_embedding("node", "actor", serde_json::json!({"v": 2}), emb_v2.clone());
+
+        let record = store.get("node").expect("node should exist");
+        assert_eq!(record.embedding, Some(emb_v2.clone()));
+
+        // Searching with emb_v2 should return "node" as the top hit.
+        let results = store.vector_search(&emb_v2, 3, 0.0);
+        assert!(!results.is_empty());
+        assert_eq!(results[0].record.id, "node");
     }
 }
 

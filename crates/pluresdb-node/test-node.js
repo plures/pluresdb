@@ -92,10 +92,26 @@ async function test() {
   }
   console.log('');
   
-  // Test 4: Vector search (placeholder)
-  console.log('Test 4: Vector search (placeholder)');
-  const vectorResults = db.vectorSearch('Rust', 5, 0.7);
-  console.log('  ✓ Vector search:', vectorResults.length, 'results');
+  // Test 4: Vector search
+  console.log('Test 4: Vector search');
+  const dim = 4;
+  const embRust = [1.0, 0.0, 0.0, 0.0];
+  const embJs   = [0.0, 1.0, 0.0, 0.0];
+  const embPy   = [0.0, 0.0, 1.0, 0.0];
+
+  db.putWithEmbedding('emb-rust', { title: 'Rust' }, embRust);
+  db.putWithEmbedding('emb-js',   { title: 'JavaScript' }, embJs);
+  db.putWithEmbedding('emb-py',   { title: 'Python' }, embPy);
+
+  const vectorResults = db.vectorSearch(embRust, 3, 0.0);
+  console.log('  ✓ Vector search results:', vectorResults.length);
+  if (vectorResults.length === 0 || vectorResults[0].id !== 'emb-rust') {
+    throw new Error('Vector search failed: expected emb-rust as top result, got: ' + JSON.stringify(vectorResults));
+  }
+  if (vectorResults[0].score < 0.99) {
+    throw new Error('Vector search failed: expected score ~1.0 for identical vector, got: ' + vectorResults[0].score);
+  }
+  console.log('  ✓ Top result:', vectorResults[0].id, 'score:', vectorResults[0].score);
   console.log('');
   
   // Test 5: SQL queries (requires database)

@@ -9,7 +9,7 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::Json,
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use clap::{Parser, Subcommand};
@@ -18,6 +18,7 @@ use pluresdb_core::{
 };
 use pluresdb_storage::{MemoryStorage, SledStorage, StorageEngine, StoredNode};
 use pluresdb_sync::SyncBroadcaster;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::runtime::Runtime;
 use tokio::signal;
@@ -180,15 +181,15 @@ enum Commands {
 
     /// Vector similarity search
     Vsearch {
-        /// Search query (text or vector)
-        query: String,
+        /// Query embedding as a JSON array of floats, e.g. '[0.1, 0.2, ...]'
+        embedding: String,
 
         /// Limit number of results
         #[arg(long, short = 'l', default_value = "10")]
         limit: usize,
 
-        /// Similarity threshold (0.0-1.0)
-        #[arg(long, default_value = "0.7")]
+        /// Minimum similarity threshold (0.0-1.0)
+        #[arg(long, default_value = "0.0")]
         threshold: f64,
     },
 
@@ -693,13 +694,25 @@ async fn handle_search(
 }
 
 async fn handle_vsearch(
-    storage: Arc<dyn StorageEngine>,
-    query: String,
+    store: Arc<CrdtStore>,
+    embedding: Vec<f32>,
     limit: usize,
-    _threshold: f64,
+    min_score: f32,
 ) -> Result<()> {
-    warn!("Vector search is not yet fully implemented. Showing text-based similarity.");
-    handle_search(storage, query, limit).await
+    let results = store.vector_search(&embedding, limit, min_score);
+
+    println!("Found {} matches:", results.len());
+    for r in results {
+        println!("  {} (score: {:.4})", r.record.id, r.score);
+        let preview = serde_json::to_string_pretty(&r.record.data)?;
+        let preview_lines: Vec<&str> = preview.lines().take(5).collect();
+        println!("    {}", preview_lines.join("\n    "));
+        if preview.lines().count() > 5 {
+            println!("    ...");
+        }
+    }
+
+    Ok(())
 }
 
 async fn handle_type_define(
@@ -1069,6 +1082,7 @@ async fn create_api_server(state: AppState, bind: String, port: u16) -> Result<(
         .route("/health", get(health_handler))
         .route("/api/nodes", get(list_nodes_handler).post(create_node_handler))
         .route("/api/nodes/:id", get(get_node_handler).delete(delete_node_handler))
+        .route("/api/vector-search", post(vector_search_handler))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
@@ -1191,6 +1205,46 @@ async fn delete_node_handler(
     }
 }
 
+/// Request body for `POST /api/vector-search`.
+#[derive(Debug, Deserialize)]
+struct VectorSearchRequest {
+    /// Query embedding as a flat array of 32-bit floats.
+    embedding: Vec<f64>,
+    /// Maximum number of results to return (default: 10).
+    #[serde(default)]
+    limit: Option<usize>,
+    /// Minimum cosine similarity score in \[0, 1\] (default: 0.0).
+    #[serde(default)]
+    threshold: Option<f64>,
+}
+
+async fn vector_search_handler(
+    State(state): State<AppState>,
+    Json(req): Json<VectorSearchRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let limit = req.limit.unwrap_or(10);
+    let min_score = req.threshold.unwrap_or(0.0) as f32;
+    let query: Vec<f32> = req.embedding.iter().map(|&v| v as f32).collect();
+
+    let results = state.store.vector_search(&query, limit, min_score);
+    let data: Vec<Value> = results
+        .into_iter()
+        .map(|r| {
+            json!({
+                "id": r.record.id,
+                "data": r.record.data,
+                "score": r.score,
+                "timestamp": r.record.timestamp.to_rfc3339(),
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({
+        "success": true,
+        "data": data
+    })))
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     init_logging(&cli);
@@ -1294,10 +1348,15 @@ fn main() -> Result<()> {
             Commands::Search { query, limit } => handle_search(storage, query, limit).await,
 
             Commands::Vsearch {
-                query,
+                embedding,
                 limit,
                 threshold,
-            } => handle_vsearch(storage, query, limit, threshold).await,
+            } => {
+                let emb_values: Vec<f64> = serde_json::from_str(&embedding)
+                    .context("embedding must be a JSON array of numbers, e.g. '[0.1,0.2,...]'")?;
+                let emb_f32: Vec<f32> = emb_values.iter().map(|&v| v as f32).collect();
+                handle_vsearch(store, emb_f32, limit, threshold as f32).await
+            }
 
             Commands::Type(cmd) => match cmd {
                 TypeCommands::Define { name, schema } => {
