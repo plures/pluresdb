@@ -110,6 +110,10 @@ enum Commands {
         /// Tags (comma-separated)
         #[arg(long)]
         tags: Option<String>,
+
+        /// Embedding vector as a JSON array of floats, e.g. '[0.1, 0.2, ...]'
+        #[arg(long)]
+        embedding: Option<String>,
     },
 
     /// Retrieve a node by identifier
@@ -402,6 +406,7 @@ async fn handle_put(
     actor: String,
     node_type: Option<String>,
     tags: Option<String>,
+    embedding: Option<String>,
 ) -> Result<()> {
     let mut payload = load_payload(&data)?;
 
@@ -423,13 +428,24 @@ async fn handle_put(
         }
     }
 
-    let op = CrdtOperation::Put {
-        id: id.clone(),
-        actor: actor.clone(),
-        data: payload.clone(),
-    };
+    // Parse and index embedding if provided.
+    if let Some(emb_json) = embedding {
+        let emb_values: Vec<f64> = serde_json::from_str(&emb_json)
+            .with_context(|| format!(
+                "embedding must be a JSON array of numbers (e.g. '[0.1,0.2,...]'): {}",
+                emb_json
+            ))?;
+        let emb_f32: Vec<f32> = emb_values.iter().map(|&v| v as f32).collect();
+        store.put_with_embedding(id.clone(), actor.clone(), payload.clone(), emb_f32);
+    } else {
+        let op = CrdtOperation::Put {
+            id: id.clone(),
+            actor: actor.clone(),
+            data: payload.clone(),
+        };
+        store.apply(op)?;
+    }
 
-    store.apply(op)?;
     storage
         .put(StoredNode {
             id: id.clone(),
@@ -706,8 +722,10 @@ async fn handle_vsearch(
         println!("  {} (score: {:.4})", r.record.id, r.score);
         let preview = serde_json::to_string_pretty(&r.record.data)?;
         let preview_lines: Vec<&str> = preview.lines().take(5).collect();
+        // is_truncated if we hit the take(5) limit and there are more lines.
+        let is_truncated = preview_lines.len() == 5 && preview.lines().nth(5).is_some();
         println!("    {}", preview_lines.join("\n    "));
-        if preview.lines().count() > 5 {
+        if is_truncated {
             println!("    ...");
         }
     }
@@ -1082,6 +1100,7 @@ async fn create_api_server(state: AppState, bind: String, port: u16) -> Result<(
         .route("/health", get(health_handler))
         .route("/api/nodes", get(list_nodes_handler).post(create_node_handler))
         .route("/api/nodes/:id", get(get_node_handler).delete(delete_node_handler))
+        .route("/api/nodes/:id/embedding", post(node_embedding_handler))
         .route("/api/vector-search", post(vector_search_handler))
         .layer(
             ServiceBuilder::new()
@@ -1168,6 +1187,30 @@ async fn create_node_handler(
         .and_then(|v| v.as_str())
         .ok_or(StatusCode::BAD_REQUEST)?;
 
+    // If the request body contains a valid "embedding" array, index it in the
+    // CRDT store so that POST /api/vector-search can find this node.
+    let embedding: Option<Vec<f32>> = payload
+        .get("embedding")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|v| v.as_f64()).map(|f| f as f32).collect());
+
+    if let Some(emb) = embedding {
+        if !emb.is_empty() && emb.iter().all(|v| v.is_finite()) {
+            state.store.put_with_embedding(
+                id.to_string(),
+                "rest-actor".to_string(),
+                payload.clone(),
+                emb,
+            );
+        } else {
+            // Embedding was provided but invalid; still register the node so it
+            // is consistent with storage.
+            state.store.put(id.to_string(), "rest-actor".to_string(), payload.clone());
+        }
+    } else {
+        state.store.put(id.to_string(), "rest-actor".to_string(), payload.clone());
+    }
+
     let node = StoredNode {
         id: id.to_string(),
         payload: payload.clone(),
@@ -1203,6 +1246,48 @@ async fn delete_node_handler(
         }
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
+}
+
+/// Request body for `POST /api/nodes/:id/embedding`.
+#[derive(Debug, Deserialize)]
+struct NodeEmbeddingRequest {
+    /// Embedding vector as a flat array of floats.
+    embedding: Vec<f64>,
+}
+
+/// Attach (or replace) the embedding for an existing node and index it for
+/// vector search.  The node must already exist in `state.storage`.
+async fn node_embedding_handler(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(req): Json<NodeEmbeddingRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    if req.embedding.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if req.embedding.iter().any(|v| !v.is_finite()) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let emb_f32: Vec<f32> = req.embedding.iter().map(|&v| v as f32).collect();
+
+    // Use current CRDT data if available, otherwise fall back to storage.
+    let data = if let Some(record) = state.store.get(&id) {
+        record.data
+    } else {
+        match state.storage.get(&id).await {
+            Ok(Some(node)) => node.payload,
+            Ok(None) => return Err(StatusCode::NOT_FOUND),
+            Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    };
+
+    state.store.put_with_embedding(id.clone(), "rest-actor".to_string(), data, emb_f32);
+
+    Ok(Json(json!({
+        "success": true,
+        "id": id
+    })))
 }
 
 /// Request body for `POST /api/vector-search`.
@@ -1307,8 +1392,9 @@ fn main() -> Result<()> {
                 actor,
                 node_type,
                 tags,
+                embedding,
             } => {
-                handle_put(storage, store, broadcaster, id, data, actor, node_type, tags).await
+                handle_put(storage, store, broadcaster, id, data, actor, node_type, tags, embedding).await
             }
 
             Commands::Get { id, format, metadata } => {

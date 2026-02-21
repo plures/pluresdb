@@ -94,7 +94,18 @@ pub struct VectorIndex {
     /// HNSW numeric index → string node-ID (set at insert time).
     idx_to_id: DashMap<usize, NodeId>,
     next_idx: Mutex<usize>,
+    /// Maximum number of elements the HNSW graph was initialised for.
+    max_elements: usize,
 }
+
+/// Compile-time assertion that `VectorIndex` is `Send + Sync`.
+///
+/// If a future version of `hnsw_rs` removes those bounds this will
+/// produce a clear compiler error instead of silent unsoundness.
+const _: fn() = || {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<VectorIndex>();
+};
 
 impl std::fmt::Debug for VectorIndex {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -113,6 +124,7 @@ impl VectorIndex {
             id_to_idx: DashMap::new(),
             idx_to_id: DashMap::new(),
             next_idx: Mutex::new(0),
+            max_elements,
         }
     }
 
@@ -122,12 +134,33 @@ impl VectorIndex {
     /// the ID→index mapping is updated.  The stale slot is automatically
     /// filtered out in [`search`] because its reverse mapping no longer points
     /// back to the same numeric index.
+    ///
+    /// # Capacity
+    ///
+    /// The index was created with a fixed `max_elements` capacity.  Each call
+    /// (including updates) consumes one slot.  Inserts beyond the capacity are
+    /// silently dropped with a `debug!` log to prevent HNSW panics.  A warning
+    /// is emitted when slot usage reaches 90% of capacity.
     pub fn insert(&self, id: &str, embedding: &[f32]) {
         let idx = {
             let mut n = self.next_idx.lock();
-            let idx = *n;
+            let current = *n;
+            if current >= self.max_elements {
+                debug!(
+                    "VectorIndex at capacity ({} slots); insert for '{}' dropped",
+                    self.max_elements, id
+                );
+                return;
+            }
+            if current + 1 >= (self.max_elements as f64 * 0.9) as usize {
+                debug!(
+                    "VectorIndex nearing capacity: {} / {} slots used",
+                    current + 1,
+                    self.max_elements
+                );
+            }
             *n += 1;
-            idx
+            current
         };
         self.id_to_idx.insert(id.to_string(), idx);
         self.idx_to_id.insert(idx, id.to_string());

@@ -282,9 +282,8 @@ impl PluresDatabase {
 
     /// Vector similarity search using a pre-computed embedding.
     ///
-    /// `embedding` must be a flat array of 32-bit floats (passed as JavaScript
-    /// `number[]`).  Results are ordered by cosine similarity (highest first)
-    /// and filtered by `threshold` (0–1, default 0.0).
+    /// `embedding` must be a flat array of finite floats.  Results are ordered
+    /// by cosine similarity (highest first) and filtered by `threshold` (0–1).
     #[napi]
     pub fn vector_search(
         &self,
@@ -292,9 +291,24 @@ impl PluresDatabase {
         limit: Option<u32>,
         threshold: Option<f64>,
     ) -> Result<Vec<serde_json::Value>> {
+        if embedding.is_empty() {
+            return Err(Error::from_reason("embedding must not be empty"));
+        }
+        if embedding.iter().any(|v| !v.is_finite()) {
+            return Err(Error::from_reason(
+                "embedding contains non-finite values (NaN or Inf)",
+            ));
+        }
+        let threshold_val = threshold.unwrap_or(0.0);
+        if !threshold_val.is_finite() || !(0.0..=1.0).contains(&threshold_val) {
+            return Err(Error::from_reason(
+                "threshold must be a finite number in [0.0, 1.0]",
+            ));
+        }
+
         let store = self.store.clone();
         let limit = limit.unwrap_or(10) as usize;
-        let min_score = threshold.unwrap_or(0.0) as f32;
+        let min_score = threshold_val as f32;
 
         // Convert f64 → f32 for the HNSW index.
         let query: Vec<f32> = embedding.iter().map(|&v| v as f32).collect();
@@ -330,6 +344,15 @@ impl PluresDatabase {
         data: serde_json::Value,
         embedding: Vec<f64>,
     ) -> Result<String> {
+        if embedding.is_empty() {
+            return Err(Error::from_reason("embedding must not be empty"));
+        }
+        if embedding.iter().any(|v| !v.is_finite()) {
+            return Err(Error::from_reason(
+                "embedding contains non-finite values (NaN or Inf)",
+            ));
+        }
+
         let store = self.store.clone();
         let broadcaster = self.broadcaster.clone();
         let actor_id = self.actor_id.clone();
