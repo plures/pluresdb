@@ -2822,7 +2822,6 @@ version = "1.11.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
- "pluresdb-core",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",

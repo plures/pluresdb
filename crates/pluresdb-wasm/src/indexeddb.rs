@@ -5,16 +5,49 @@
  * in the browser's local storage.
  */
 
+use js_sys::Promise;
+use serde_json::Value;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{IdbDatabase, IdbObjectStore, IdbRequest, IdbTransaction, IdbTransactionMode};
-use serde_json::Value;
+use web_sys::{IdbDatabase, IdbRequest, IdbTransactionMode};
+
+/// Wrap an `IdbRequest` into a `Promise` that resolves with the request's
+/// result on success or rejects with the request's error on failure.
+///
+/// `IdbRequest` is not a `Promise`, so `JsFuture::from` cannot be used
+/// directly.  This helper installs onsuccess/onerror handlers and returns
+/// a `Promise` that can be driven by `JsFuture`.
+fn request_to_promise(request: IdbRequest) -> Promise {
+    Promise::new(&mut |resolve, reject| {
+        // Clone the request handle for each closure.
+        let req_ok = request.clone();
+        let on_success = Closure::once(Box::new(move || {
+            let result = req_ok.result().unwrap_or(JsValue::UNDEFINED);
+            let _ = resolve.call1(&JsValue::NULL, &result);
+        }) as Box<dyn FnOnce()>);
+
+        let req_err = request.clone();
+        let on_error = Closure::once(Box::new(move || {
+            let err = req_err
+                .error()
+                .ok()
+                .flatten()
+                .map(|e| JsValue::from(e))
+                .unwrap_or_else(|| JsValue::from_str("IdbRequest error"));
+            let _ = reject.call1(&JsValue::NULL, &err);
+        }) as Box<dyn FnOnce()>);
+
+        request.set_onsuccess(Some(on_success.as_ref().unchecked_ref()));
+        request.set_onerror(Some(on_error.as_ref().unchecked_ref()));
+        on_success.forget();
+        on_error.forget();
+    })
+}
 
 /// IndexedDB database wrapper
 pub struct IndexedDBStore {
     db: IdbDatabase,
-    db_name: String,
 }
 
 impl IndexedDBStore {
@@ -32,37 +65,35 @@ impl IndexedDBStore {
             .map_err(|e| JsValue::from_str(&format!("Failed to open database: {:?}", e)))?;
 
         // Handle database upgrade (create object store if needed)
-        let on_upgrade_needed = Closure::wrap(Box::new(move |event: web_sys::IdbVersionChangeEvent| {
-            let target = event.target().expect("Event should have target");
-            let request = target
-                .dyn_into::<web_sys::IdbOpenDbRequest>()
-                .expect("Event target should be IdbOpenDbRequest");
-            let db = request
-                .result()
-                .expect("Request should have result")
-                .dyn_into::<IdbDatabase>()
-                .expect("Result should be IdbDatabase");
+        let on_upgrade_needed =
+            Closure::wrap(Box::new(move |event: web_sys::IdbVersionChangeEvent| {
+                let target = event.target().expect("Event should have target");
+                let request = target
+                    .dyn_into::<web_sys::IdbOpenDbRequest>()
+                    .expect("Event target should be IdbOpenDbRequest");
+                let db = request
+                    .result()
+                    .expect("Request should have result")
+                    .dyn_into::<IdbDatabase>()
+                    .expect("Result should be IdbDatabase");
 
-            // Create object store if it doesn't exist
-            if !db.object_store_names().contains("nodes") {
-                let _ = db.create_object_store("nodes");
-            }
-        }) as Box<dyn FnMut(_)>);
+                // Create object store if it doesn't exist
+                if !db.object_store_names().contains("nodes") {
+                    let _ = db.create_object_store("nodes");
+                }
+            }) as Box<dyn FnMut(_)>);
 
         open_request.set_onupgradeneeded(Some(on_upgrade_needed.as_ref().unchecked_ref()));
         on_upgrade_needed.forget();
 
-        // Wait for the database to open
-        let db_promise = JsFuture::from(open_request);
-        let db_result = db_promise.await?;
+        // Wrap the IdbOpenDbRequest (which extends IdbRequest) as a Promise and await it.
+        let idb_request: IdbRequest = open_request.into();
+        let db_result = JsFuture::from(request_to_promise(idb_request)).await?;
         let db = db_result
             .dyn_into::<IdbDatabase>()
             .map_err(|_| JsValue::from_str("Failed to cast to IdbDatabase"))?;
 
-        Ok(Self {
-            db,
-            db_name: db_name.to_string(),
-        })
+        Ok(Self { db })
     }
 
     /// Get a value from IndexedDB
@@ -71,7 +102,7 @@ impl IndexedDBStore {
             .db
             .transaction_with_str("nodes")
             .map_err(|e| JsValue::from_str(&format!("Failed to create transaction: {:?}", e)))?;
-        
+
         let object_store = transaction
             .object_store("nodes")
             .map_err(|e| JsValue::from_str(&format!("Failed to get object store: {:?}", e)))?;
@@ -80,7 +111,7 @@ impl IndexedDBStore {
             .get(&JsValue::from_str(key))
             .map_err(|e| JsValue::from_str(&format!("Failed to get value: {:?}", e)))?;
 
-        let result = JsFuture::from(request).await?;
+        let result = JsFuture::from(request_to_promise(request)).await?;
 
         if result.is_null() || result.is_undefined() {
             return Ok(None);
@@ -117,7 +148,7 @@ impl IndexedDBStore {
             .put_with_key(&js_value, &JsValue::from_str(key))
             .map_err(|e| JsValue::from_str(&format!("Failed to put value: {:?}", e)))?;
 
-        JsFuture::from(request).await?;
+        JsFuture::from(request_to_promise(request)).await?;
 
         Ok(())
     }
@@ -137,7 +168,7 @@ impl IndexedDBStore {
             .delete(&JsValue::from_str(key))
             .map_err(|e| JsValue::from_str(&format!("Failed to delete value: {:?}", e)))?;
 
-        JsFuture::from(request).await?;
+        JsFuture::from(request_to_promise(request)).await?;
 
         Ok(())
     }
@@ -157,10 +188,9 @@ impl IndexedDBStore {
             .get_all_keys()
             .map_err(|e| JsValue::from_str(&format!("Failed to get all keys: {:?}", e)))?;
 
-        let result = JsFuture::from(request).await?;
+        let result = JsFuture::from(request_to_promise(request)).await?;
         let keys_array = js_sys::Array::from(&result);
 
-        // Use iterator methods for better performance
         let keys = (0..keys_array.length())
             .filter_map(|i| keys_array.get(i).as_string())
             .collect();
@@ -183,8 +213,9 @@ impl IndexedDBStore {
             .clear()
             .map_err(|e| JsValue::from_str(&format!("Failed to clear: {:?}", e)))?;
 
-        JsFuture::from(request).await?;
+        JsFuture::from(request_to_promise(request)).await?;
 
         Ok(())
     }
 }
+
