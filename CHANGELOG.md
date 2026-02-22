@@ -69,6 +69,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.11.0] - 2026-02-22
+
+### Added
+
+- auto-embedding on insert via pluggable EmbedText backend (fastembed, feature-gated) (#93)
+
+
 ## [1.10.0] - 2026-02-21
 
 ### Added
