@@ -355,7 +355,7 @@ server.start()?;
 // Client connects via shared memory
 ```
 
-See [Local-First Integration](docs/LOCAL_FIRST_INTEGRATION.md) for complete guides.
+See [Quick Start: Rust Bindings](docs/QUICK_START_RUST_BINDINGS.md) for complete guides.
 
 ## 🐚 Shell Integration
 
@@ -404,7 +404,7 @@ pluresdb_failed 5
 - **NixOS Integration** - Track `nixos-rebuild` and nix commands
 - **WSL Support** - Track commands across Windows and Linux
 
-See [Command Line Integration Guide](docs/COMMAND_LINE_INTEGRATION.md) for comprehensive documentation.
+See [Testing Guide](docs/TESTING.md) and [Sync Transport Documentation](docs/SYNC_TRANSPORT.md) for comprehensive documentation.
 
 ## 🗂️ Architecture
 
@@ -466,8 +466,12 @@ This executes TypeScript compilation and all Deno test suites (unit, integration
 ## 📚 Documentation
 
 - [Windows Getting Started Guide](docs/WINDOWS_GETTING_STARTED.md)
-- [Command Line Integration](docs/COMMAND_LINE_INTEGRATION.md)
-- [Local-First Integration](docs/LOCAL_FIRST_INTEGRATION.md)
+- [Quick Start: Rust Bindings](docs/QUICK_START_RUST_BINDINGS.md)
+- [Migration Guide v2](docs/MIGRATION_GUIDE_V2.md)
+- [P2P Sync](docs/HYPERSWARM_SYNC.md)
+- [Sync Transport](docs/SYNC_TRANSPORT.md)
+- [Durability](docs/DURABILITY.md)
+- [Design](docs/DESIGN.md)
 - [VSCode Extension Example](examples/vscode-extension-integration.ts)
 - [Contributing Guide](CONTRIBUTING.md)
 - [CHANGELOG](CHANGELOG.md)
