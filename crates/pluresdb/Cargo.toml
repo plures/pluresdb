@@ -23,4 +23,5 @@ optional = true
 [features]
 default = ["tokio"]
 async = ["tokio"]
-
+## Forward the embeddings feature to pluresdb-core.
+embeddings = ["pluresdb-core/embeddings"]

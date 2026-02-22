@@ -36,10 +36,13 @@
 
 // Re-export core types
 pub use pluresdb_core::{
-    ActorId, CrdtOperation, CrdtStore, Database, DatabaseOptions, DatabasePath, NodeData,
-    NodeId, NodeRecord, QueryResult, SqlValue, VectorClock, VectorIndex, VectorSearchResult,
-    DEFAULT_EMBEDDING_DIM,
+    ActorId, CrdtOperation, CrdtStore, Database, DatabaseOptions, DatabasePath, EmbedText,
+    NodeData, NodeId, NodeRecord, QueryResult, SqlValue, VectorClock, VectorIndex,
+    VectorSearchResult, DEFAULT_EMBEDDING_DIM,
 };
+
+#[cfg(feature = "embeddings")]
+pub use pluresdb_core::FastEmbedder;
 
 // Re-export storage types
 pub use pluresdb_storage::{

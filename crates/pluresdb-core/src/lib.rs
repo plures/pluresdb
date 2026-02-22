@@ -27,6 +27,26 @@ pub type NodeId = String;
 /// Logical actor identifier used when merging CRDT updates.
 pub type ActorId = String;
 
+// ---------------------------------------------------------------------------
+// Auto-embedding trait
+// ---------------------------------------------------------------------------
+
+/// Pluggable text-embedding backend.
+///
+/// Implement this trait to provide custom embedding logic and attach it to a
+/// [`CrdtStore`] via [`CrdtStore::with_embedder`].  The store will then call
+/// [`embed`][EmbedText::embed] automatically inside [`CrdtStore::put`]
+/// whenever text content can be extracted from the node data.
+pub trait EmbedText: Send + Sync + std::fmt::Debug {
+    /// Generate embeddings for a batch of text strings.
+    ///
+    /// The returned `Vec` must have exactly the same length as `texts`.
+    fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>>;
+
+    /// Dimensionality of the embeddings produced by this backend.
+    fn dimension(&self) -> usize;
+}
+
 /// A key-value map of logical clocks per actor.
 pub type VectorClock = HashMap<ActorId, u64>;
 
@@ -235,17 +255,80 @@ pub enum CrdtOperation {
 }
 
 /// A simple conflict-free replicated data store backed by a concurrent map.
-#[derive(Debug, Default)]
 pub struct CrdtStore {
     nodes: DashMap<NodeId, NodeRecord>,
     vector_index: Arc<VectorIndex>,
+    /// Optional text-embedding backend.  When set, [`put`][CrdtStore::put]
+    /// will automatically generate and index an embedding for each node whose
+    /// JSON data contains extractable text content.
+    embedder: Option<Arc<dyn EmbedText>>,
+}
+
+impl std::fmt::Debug for CrdtStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CrdtStore")
+            .field("nodes", &self.nodes.len())
+            .field("vector_index", &self.vector_index)
+            .field("embedder", &self.embedder.is_some())
+            .finish()
+    }
+}
+
+impl Default for CrdtStore {
+    fn default() -> Self {
+        Self {
+            nodes: DashMap::new(),
+            vector_index: Arc::new(VectorIndex::default()),
+            embedder: None,
+        }
+    }
 }
 
 impl CrdtStore {
+    /// Attach a text-embedding backend to this store.
+    ///
+    /// After calling this method, every subsequent call to [`put`][Self::put]
+    /// will automatically extract text from the node data and generate an
+    /// embedding via `embedder`.  The embedding is stored on the
+    /// [`NodeRecord`] and indexed in the HNSW graph for vector search.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use std::sync::Arc;
+    /// use pluresdb_core::{CrdtStore, FastEmbedder};
+    ///
+    /// let embedder = FastEmbedder::new("BAAI/bge-small-en-v1.5").unwrap();
+    /// let store = CrdtStore::default().with_embedder(Arc::new(embedder));
+    /// ```
+    pub fn with_embedder(mut self, embedder: Arc<dyn EmbedText>) -> Self {
+        self.embedder = Some(embedder);
+        self
+    }
+
     /// Inserts or updates a node using CRDT semantics.
+    ///
+    /// When an [`EmbedText`] backend has been attached via
+    /// [`with_embedder`][Self::with_embedder], this method will also
+    /// auto-generate an embedding for any text content found in `data` and
+    /// store it alongside the node (equivalent to calling
+    /// [`put_with_embedding`][Self::put_with_embedding] manually).
+    ///
+    /// Embedding failures are silently ignored so that the put always
+    /// succeeds — the node is stored without an embedding in that case.
     pub fn put(&self, id: impl Into<NodeId>, actor: impl Into<ActorId>, data: NodeData) -> NodeId {
         let id = id.into();
         let actor = actor.into();
+        // Auto-embed when an embedder is attached and the data contains text.
+        if let Some(embedder) = &self.embedder {
+            if let Some(text) = extract_text_from_data(&data) {
+                if let Ok(mut batch) = embedder.embed(&[text.as_str()]) {
+                    if let Some(embedding) = batch.pop() {
+                        return self.put_with_embedding(id, actor, data, embedding);
+                    }
+                }
+            }
+        }
         self.nodes
             .entry(id.clone())
             .and_modify(|record| record.merge_update(actor.clone(), data.clone()))
@@ -495,6 +578,9 @@ pub struct DatabaseOptions {
     pub apply_default_pragmas: bool,
     pub custom_pragmas: Vec<(String, String)>,
     pub busy_timeout: Option<Duration>,
+    /// HuggingFace model ID to use for automatic text embedding (e.g.
+    /// `"BAAI/bge-small-en-v1.5"`).  Requires the `embeddings` feature.
+    pub embedding_model: Option<String>,
 }
 
 impl Default for DatabaseOptions {
@@ -506,6 +592,7 @@ impl Default for DatabaseOptions {
             apply_default_pragmas: true,
             custom_pragmas: Vec::new(),
             busy_timeout: Some(Duration::from_millis(5_000)),
+            embedding_model: None,
         }
     }
 }
@@ -544,6 +631,26 @@ impl DatabaseOptions {
 
     pub fn busy_timeout(mut self, timeout: Option<Duration>) -> Self {
         self.busy_timeout = timeout;
+        self
+    }
+
+    /// Set the HuggingFace model ID to use for automatic text embedding.
+    ///
+    /// When set, a [`CrdtStore`] constructed from these options will
+    /// auto-embed text content on every [`put`][CrdtStore::put].  Requires
+    /// the `embeddings` cargo feature to take effect at runtime.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use pluresdb_core::DatabaseOptions;
+    ///
+    /// let opts = DatabaseOptions::default()
+    ///     .with_embedding_model("BAAI/bge-small-en-v1.5");
+    /// assert_eq!(opts.embedding_model.as_deref(), Some("BAAI/bge-small-en-v1.5"));
+    /// ```
+    pub fn with_embedding_model(mut self, model_id: impl Into<String>) -> Self {
+        self.embedding_model = Some(model_id.into());
         self
     }
 }
@@ -779,6 +886,153 @@ fn read_row(row: &rusqlite::Row<'_>, column_count: usize) -> Result<Vec<SqlValue
     Ok(values)
 }
 
+// ---------------------------------------------------------------------------
+// Text extraction helper
+// ---------------------------------------------------------------------------
+
+/// Extract a plain-text representation from a JSON node payload.
+///
+/// Priority order for extraction:
+/// 1. If the value is itself a string, return it directly.
+/// 2. If the value is an object, collect every string-valued leaf at the
+///    top level (all keys are considered) and concatenate them with spaces.
+///    An empty result is treated the same as `None`.
+///
+/// Returns `None` when no text could be extracted (e.g. numeric-only
+/// payloads or deeply-nested structures without top-level string fields).
+fn extract_text_from_data(data: &JsonValue) -> Option<String> {
+    match data {
+        JsonValue::String(s) => {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_owned())
+            }
+        }
+        JsonValue::Object(map) => {
+            let parts: Vec<&str> = map
+                .values()
+                .filter_map(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .collect();
+            if parts.is_empty() {
+                None
+            } else {
+                Some(parts.join(" "))
+            }
+        }
+        _ => None,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// FastEmbedder — fastembed-backed EmbedText implementation (feature-gated)
+// ---------------------------------------------------------------------------
+
+/// A text-embedding backend powered by
+/// [fastembed](https://crates.io/crates/fastembed).
+///
+/// This type is only available when the `embeddings` cargo feature is
+/// enabled.  It wraps an ONNX Runtime model and produces `f32` embedding
+/// vectors suitable for storage in the [`VectorIndex`].
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use std::sync::Arc;
+/// use pluresdb_core::{CrdtStore, FastEmbedder};
+///
+/// let embedder = FastEmbedder::new("BAAI/bge-small-en-v1.5")?;
+/// let store = CrdtStore::default().with_embedder(Arc::new(embedder));
+///
+/// // Auto-embeds "user prefers dark mode" on insert:
+/// store.put("memory-1", "actor", serde_json::json!({"content": "user prefers dark mode"}));
+/// ```
+#[cfg(feature = "embeddings")]
+#[derive(Debug)]
+pub struct FastEmbedder {
+    model: fastembed::TextEmbedding,
+    dimension: usize,
+    model_id: String,
+}
+
+#[cfg(feature = "embeddings")]
+impl FastEmbedder {
+    /// Initialize a new [`FastEmbedder`] from a HuggingFace model ID string.
+    ///
+    /// The model is downloaded from HuggingFace on first use and cached
+    /// locally by the underlying fastembed / ONNX Runtime runtime.
+    ///
+    /// # Supported models
+    ///
+    /// | Model ID                          | Dimension |
+    /// |-----------------------------------|-----------|
+    /// | `BAAI/bge-small-en-v1.5`          | 384       |
+    /// | `BAAI/bge-base-en-v1.5`           | 768       |
+    /// | `BAAI/bge-large-en-v1.5`          | 1024      |
+    /// | `sentence-transformers/all-MiniLM-L6-v2` | 384 |
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `model_id` is not recognised or if the model
+    /// fails to initialize (e.g. because it cannot be downloaded).
+    pub fn new(model_id: &str) -> anyhow::Result<Self> {
+        use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
+
+        let (embedding_model, dimension) = model_id_to_fastembed(model_id)?;
+        let model = TextEmbedding::try_new(InitOptions::new(embedding_model))?;
+        Ok(Self {
+            model,
+            dimension,
+            model_id: model_id.to_owned(),
+        })
+    }
+
+    /// Return the model ID this embedder was initialized with.
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+}
+
+#[cfg(feature = "embeddings")]
+impl EmbedText for FastEmbedder {
+    fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
+        let owned: Vec<String> = texts.iter().map(|t| t.to_string()).collect();
+        self.model.embed(owned, None).map_err(Into::into)
+    }
+
+    fn dimension(&self) -> usize {
+        self.dimension
+    }
+}
+
+/// Map a HuggingFace model ID string to a fastembed `EmbeddingModel` enum
+/// variant and the expected output dimension.
+///
+/// # Errors
+///
+/// Returns an error for model IDs that are not (yet) supported.
+#[cfg(feature = "embeddings")]
+fn model_id_to_fastembed(
+    model_id: &str,
+) -> anyhow::Result<(fastembed::EmbeddingModel, usize)> {
+    use fastembed::EmbeddingModel;
+    match model_id {
+        "BAAI/bge-small-en-v1.5" => Ok((EmbeddingModel::BGESmallENV15, 384)),
+        "BAAI/bge-base-en-v1.5" => Ok((EmbeddingModel::BGEBaseENV15, 768)),
+        "BAAI/bge-large-en-v1.5" => Ok((EmbeddingModel::BGELargeENV15, 1024)),
+        "sentence-transformers/all-MiniLM-L6-v2" => Ok((EmbeddingModel::AllMiniLML6V2, 384)),
+        other => anyhow::bail!(
+            "unsupported embedding model '{}'; supported models: \
+             BAAI/bge-small-en-v1.5, BAAI/bge-base-en-v1.5, \
+             BAAI/bge-large-en-v1.5, sentence-transformers/all-MiniLM-L6-v2",
+            other
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1003,6 +1257,138 @@ mod tests {
         let results = store.vector_search(&emb_v2, 3, 0.0);
         assert!(!results.is_empty());
         assert_eq!(results[0].record.id, "node");
+    }
+
+    // -----------------------------------------------------------------------
+    // extract_text_from_data tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn extract_text_from_string_value() {
+        let data = serde_json::json!("hello world");
+        assert_eq!(
+            extract_text_from_data(&data).as_deref(),
+            Some("hello world")
+        );
+    }
+
+    #[test]
+    fn extract_text_from_object_with_string_fields() {
+        let data = serde_json::json!({"content": "user prefers dark mode", "type": "memory"});
+        let text = extract_text_from_data(&data).expect("should extract text");
+        assert!(text.contains("user prefers dark mode"));
+        assert!(text.contains("memory"));
+    }
+
+    #[test]
+    fn extract_text_skips_numeric_only_object() {
+        let data = serde_json::json!({"count": 42, "value": 3.14});
+        assert!(extract_text_from_data(&data).is_none());
+    }
+
+    #[test]
+    fn extract_text_returns_none_for_empty_string() {
+        let data = serde_json::json!("   ");
+        assert!(extract_text_from_data(&data).is_none());
+    }
+
+    #[test]
+    fn extract_text_returns_none_for_number() {
+        let data = serde_json::json!(42);
+        assert!(extract_text_from_data(&data).is_none());
+    }
+
+    // -----------------------------------------------------------------------
+    // Auto-embedding via mock EmbedText
+    // -----------------------------------------------------------------------
+
+    /// Minimal test embedder: maps each text to a unit vector in R³ derived
+    /// from its length (so two identical strings produce the same vector).
+    #[derive(Debug)]
+    struct MockEmbedder;
+
+    impl EmbedText for MockEmbedder {
+        fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
+            Ok(texts
+                .iter()
+                .map(|t| {
+                    let n = (t.len() % 3) as f32;
+                    let mut v = vec![0.0_f32; 3];
+                    v[n as usize] = 1.0;
+                    v
+                })
+                .collect())
+        }
+
+        fn dimension(&self) -> usize {
+            3
+        }
+    }
+
+    #[test]
+    fn put_auto_embeds_when_embedder_attached() {
+        use std::sync::Arc;
+
+        let store = CrdtStore::default().with_embedder(Arc::new(MockEmbedder));
+
+        // Data with a string field — should be auto-embedded.
+        store.put("n1", "actor", serde_json::json!({"content": "hello"}));
+        let record = store.get("n1").expect("node should exist");
+        assert!(
+            record.embedding.is_some(),
+            "embedding should have been generated automatically"
+        );
+
+        // Verify the vector is searchable.
+        let emb = record.embedding.as_ref().unwrap();
+        let results = store.vector_search(emb, 5, 0.0);
+        assert!(!results.is_empty());
+        assert_eq!(results[0].record.id, "n1");
+    }
+
+    #[test]
+    fn put_without_embedder_stores_no_embedding() {
+        let store = CrdtStore::default(); // no embedder
+        store.put("n2", "actor", serde_json::json!({"content": "hello"}));
+        let record = store.get("n2").expect("node should exist");
+        assert!(
+            record.embedding.is_none(),
+            "no embedding should be stored without an embedder"
+        );
+    }
+
+    #[test]
+    fn put_skips_embedding_for_numeric_data() {
+        use std::sync::Arc;
+
+        let store = CrdtStore::default().with_embedder(Arc::new(MockEmbedder));
+        // Numeric-only payload — no text to embed.
+        store.put("n3", "actor", serde_json::json!({"value": 99}));
+        let record = store.get("n3").expect("node should exist");
+        assert!(
+            record.embedding.is_none(),
+            "embedding should not be generated for numeric-only payloads"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // DatabaseOptions::with_embedding_model
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn database_options_with_embedding_model() {
+        let opts = DatabaseOptions::default()
+            .with_embedding_model("BAAI/bge-small-en-v1.5");
+        assert_eq!(
+            opts.embedding_model.as_deref(),
+            Some("BAAI/bge-small-en-v1.5")
+        );
+    }
+
+    #[test]
+    fn database_options_embedding_model_none_by_default() {
+        let opts = DatabaseOptions::default();
+        assert!(opts.embedding_model.is_none());
     }
 }
 
