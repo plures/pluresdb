@@ -5,7 +5,7 @@
  * Node.js consumers should use the compiled entry at `pluresdb/node` instead.
  */
 
-export { GunDB } from "./core/database.ts";
+export { PluresDB, GunDB } from "./core/database.ts";
 export type { DatabaseOptions, ServeOptions } from "./core/database.ts";
 
 export { mergeNodes } from "./core/crdt.ts";

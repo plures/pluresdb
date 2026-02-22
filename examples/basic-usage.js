@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const database_ts_1 = require("../src/core/database.ts");
-const db = new database_ts_1.GunDB();
+const db = new database_ts_1.PluresDB();
 await db.ready();
 await db.put("user:alice", {
   name: "Alice",

@@ -1,4 +1,4 @@
-import { GunDB } from "../core/database.ts";
+import { PluresDB } from "../core/database.ts";
 import { loadConfig, saveConfig } from "../config.ts";
 
 export interface ApiServerHandle {
@@ -17,7 +17,7 @@ type AllowedDatasetId = typeof ALLOWED_DATASETS[number];
 
 // Example dataset generator
 async function loadExampleDataset(
-  db: GunDB,
+  db: PluresDB,
   datasetId: string,
 ): Promise<number> {
   // Validate datasetId against whitelist to prevent prototype pollution
@@ -120,7 +120,7 @@ function corsHeaders(extra?: Record<string, string>): Headers {
 }
 
 export function startApiServer(
-  opts: { port: number; db: GunDB },
+  opts: { port: number; db: PluresDB },
 ): ApiServerHandle {
   const { port, db } = opts;
 

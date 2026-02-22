@@ -1,4 +1,4 @@
-import { GunDB } from "./core/database.ts";
+import { PluresDB } from "./core/database.ts";
 import { debugLog as _debugLog } from "./util/debug.ts";
 import { startApiServer } from "./http/api-server.ts";
 import { loadConfig, saveConfig } from "./config.ts";
@@ -38,7 +38,7 @@ if (import.meta.main) {
         rest.filter((v) => v.startsWith("ws://") || v.startsWith("wss://")),
       );
 
-      const db = new GunDB();
+      const db = new PluresDB();
       await db.ready(kvPath);
       db.serve({ port });
       for (const p of peers) db.connect(p);
@@ -61,7 +61,7 @@ if (import.meta.main) {
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
-      const db = new GunDB();
+      const db = new PluresDB();
       await db.ready(kvPath);
       const obj = JSON.parse(json);
       await db.put(id, obj);
@@ -78,7 +78,7 @@ if (import.meta.main) {
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
-      const db = new GunDB();
+      const db = new PluresDB();
       await db.ready(kvPath);
       const val = await db.get<Record<string, unknown>>(id);
       console.log(JSON.stringify(val));
@@ -94,7 +94,7 @@ if (import.meta.main) {
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
-      const db = new GunDB();
+      const db = new PluresDB();
       await db.ready(kvPath);
       await db.delete(id);
       console.log("ok");
@@ -115,7 +115,7 @@ if (import.meta.main) {
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
-      const db = new GunDB();
+      const db = new PluresDB();
       await db.ready(kvPath);
       const results = await db.vectorSearch(query, k);
       console.log(
@@ -133,7 +133,7 @@ if (import.meta.main) {
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
-      const db = new GunDB();
+      const db = new PluresDB();
       await db.ready(kvPath);
       await db.setType(id, typeName);
       console.log("ok");
@@ -149,7 +149,7 @@ if (import.meta.main) {
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
-      const db = new GunDB();
+      const db = new PluresDB();
       await db.ready(kvPath);
       const rows = await db.instancesOf(typeName);
       console.log(
@@ -163,7 +163,7 @@ if (import.meta.main) {
       let kvPath: string | undefined;
       const ki = flags.indexOf("--kv");
       if (ki >= 0 && flags[ki + 1]) kvPath = flags[ki + 1];
-      const db = new GunDB();
+      const db = new PluresDB();
       await db.ready(kvPath);
       const nodes = await db.getAll();
       const out = nodes.map((node) => ({

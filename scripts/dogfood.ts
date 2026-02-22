@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run -A --unstable-kv
 
-import { GunDB } from "../legacy/core/database.ts";
+import { PluresDB } from "../legacy/core/database.ts";
 import { startApiServer } from "../legacy/http/api-server.ts";
 
 declare const Deno: any;
@@ -19,7 +19,7 @@ async function main() {
   const apiPort = wsPort + 1;
   const apiUrl = `http://localhost:${apiPort}`;
 
-  const db = new GunDB();
+  const db = new PluresDB();
   await db.ready(kvPath);
   db.serve({ port: wsPort });
   const api = startApiServer({ port: apiPort, db });

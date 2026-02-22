@@ -1,12 +1,12 @@
 // @ts-nocheck
 import { assertEquals } from "jsr:@std/assert@1.0.14";
-import { GunDB } from "../core/database.ts";
+import { PluresDB } from "../core/database.ts";
 import { mergeNodes } from "../core/crdt.ts";
 import type { NodeRecord } from "../types/index.ts";
 import type { Rule } from "../logic/rules.ts";
 
 Deno.test("put and get returns stored data", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -30,7 +30,7 @@ Deno.test(
     sanitizeResources: false,
   },
   async () => {
-    const db = new GunDB();
+    const db = new PluresDB();
     try {
       const kvPath = await Deno.makeTempFile({
         prefix: "kv_",
@@ -58,7 +58,7 @@ Deno.test(
 );
 
 Deno.test("vector search returns relevant notes", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -84,7 +84,7 @@ Deno.test(
     sanitizeResources: false,
   },
   async () => {
-    const db = new GunDB();
+    const db = new PluresDB();
     try {
       const kvPath = await Deno.makeTempFile({
         prefix: "kv_",
@@ -119,8 +119,8 @@ Deno.test(
     const port = randomPort();
     const serverUrl = `ws://localhost:${port}`;
 
-    const dbA = new GunDB();
-    const dbB = new GunDB();
+    const dbA = new PluresDB();
+    const dbB = new PluresDB();
     try {
       const kvA = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
       const kvB = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
@@ -159,12 +159,12 @@ Deno.test("persists across restarts", async () => {
   const kvPath = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
   const id = "persist:one";
 
-  const db1 = new GunDB();
+  const db1 = new PluresDB();
   await db1.ready(kvPath);
   await db1.put(id, { value: 123 });
   await db1.close();
 
-  const db2 = new GunDB();
+  const db2 = new PluresDB();
   await db2.ready(kvPath);
   const got = await db2.get<{ value: number }>(id);
   await db2.close();
@@ -176,7 +176,7 @@ Deno.test("persists across restarts", async () => {
 Deno.test("vector clock increments on local puts", async () => {
   const kvPath = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
   const id = "vc:counter";
-  const db = new GunDB();
+  const db = new PluresDB();
   await db.ready(kvPath);
   await db.put(id, { n: 1 });
   await db.put(id, { n: 2 });
@@ -260,7 +260,7 @@ Deno.test(
     sanitizeResources: false,
   },
   async () => {
-    const db = new GunDB();
+    const db = new PluresDB();
     try {
       const kvPath = await Deno.makeTempFile({
         prefix: "kv_",
@@ -284,7 +284,7 @@ Deno.test(
 );
 
 Deno.test("type system helpers: setType + instancesOf", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",

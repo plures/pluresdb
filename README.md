@@ -103,9 +103,9 @@ const rows = await db.all("SELECT ...");
 ### For Deno Applications
 
 ```typescript
-import { GunDB, startApiServer } from "jsr:@plures/pluresdb";
+import { PluresDB, startApiServer } from "jsr:@plures/pluresdb";
 
-const db = new GunDB();
+const db = new PluresDB();
 await db.ready();
 
 db.serve({ port: 34567 });
@@ -161,14 +161,14 @@ PluresDB supports **zero-configuration P2P synchronization** using Hyperswarm fo
 ### Quick Example
 
 ```javascript
-import { GunDB } from "pluresdb";
+import { PluresDB } from "pluresdb";
 
 // Device 1
-const db1 = new GunDB();
+const db1 = new PluresDB();
 await db1.ready();
 
 // Generate a shared sync key
-const syncKey = GunDB.generateSyncKey();
+const syncKey = PluresDB.generateSyncKey();
 console.log("Share this key securely:", syncKey);
 
 // Enable P2P sync
@@ -178,7 +178,7 @@ await db1.enableSync({ key: syncKey });
 await db1.put("user:alice", { name: "Alice", email: "alice@example.com" });
 
 // Device 2 (different network)
-const db2 = new GunDB();
+const db2 = new PluresDB();
 await db2.ready();
 await db2.enableSync({ key: syncKey }); // Same key!
 

@@ -13,7 +13,7 @@ deno add @plures/pluresdb
 After the dependency is added you can import the library using the JSR specifier:
 
 ```ts
-import { GunDB } from "jsr:@plures/pluresdb";
+import { PluresDB } from "jsr:@plures/pluresdb";
 ```
 
 ## CLI Usage

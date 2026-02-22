@@ -4,7 +4,7 @@
  * Run with: node tests/test-hyperswarm.js
  */
 
-const { GunDB } = require("../dist/core/database.js");
+const { PluresDB } = require("../dist/core/database.js");
 const { generateSyncKey } = require("../dist/network/hyperswarm-sync.js");
 const fs = require("fs").promises;
 const path = require("path");
@@ -59,14 +59,14 @@ async function runTests() {
     if (key1 === key2) throw new Error("Keys should be unique");
   });
 
-  await test("GunDB.generateSyncKey static method works", async () => {
-    const key = GunDB.generateSyncKey();
+  await test("PluresDB.generateSyncKey static method works", async () => {
+    const key = PluresDB.generateSyncKey();
     if (typeof key !== "string") throw new Error("Key is not a string");
     if (key.length !== 64) throw new Error(`Expected length 64, got ${key.length}`);
   });
 
-  await test("GunDB has sync methods", async () => {
-    const db = new GunDB();
+  await test("PluresDB has sync methods", async () => {
+    const db = new PluresDB();
     const kvPath = await createTempFile();
 
     try {
@@ -95,7 +95,7 @@ async function runTests() {
   });
 
   await test("enableSync rejects invalid keys", async () => {
-    const db = new GunDB();
+    const db = new PluresDB();
     const kvPath = await createTempFile();
 
     try {
@@ -125,7 +125,7 @@ async function runTests() {
   });
 
   await test("enableSync works with valid key", async () => {
-    const db = new GunDB();
+    const db = new PluresDB();
     const kvPath = await createTempFile();
 
     try {

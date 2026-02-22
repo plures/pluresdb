@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run -A
 
-import { GunDB } from "../core/database.ts";
+import { PluresDB } from "../core/database.ts";
 
 interface MemoryMetrics {
   operation: string;
@@ -90,7 +90,7 @@ class MemoryBenchmark {
 
 async function runMemoryBenchmarks() {
   const benchmark = new MemoryBenchmark();
-  const db = new GunDB();
+  const db = new PluresDB();
 
   try {
     const kvPath = await Deno.makeTempFile({
@@ -243,7 +243,7 @@ async function runMemoryLeakTests() {
   console.log("MEMORY LEAK TESTS");
   console.log("=".repeat(80));
 
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
