@@ -2703,6 +2703,7 @@ dependencies = [
  "pluresdb-core",
  "pluresdb-storage",
  "pluresdb-sync",
+ "serde_json",
  "tokio",
 ]
 

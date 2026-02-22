@@ -1390,5 +1390,234 @@ mod tests {
         let opts = DatabaseOptions::default();
         assert!(opts.embedding_model.is_none());
     }
+
+    // -----------------------------------------------------------------------
+    // CrdtStore::list and operation_for
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn crdt_store_list_returns_all_nodes() {
+        let store = CrdtStore::default();
+        assert_eq!(store.list().len(), 0, "empty store should have no nodes");
+
+        store.put("a", "actor", serde_json::json!({"x": 1}));
+        store.put("b", "actor", serde_json::json!({"x": 2}));
+        let nodes = store.list();
+        assert_eq!(nodes.len(), 2);
+        let ids: Vec<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+        assert!(ids.contains(&"a"));
+        assert!(ids.contains(&"b"));
+
+        store.delete("a").expect("delete a");
+        assert_eq!(store.list().len(), 1);
+    }
+
+    #[test]
+    fn crdt_store_operation_for_creates_valid_put() {
+        let store = CrdtStore::default();
+        let data = serde_json::json!({"msg": "hello"});
+        let (id, op) = store.operation_for("actor-x", data.clone());
+        assert!(!id.is_empty(), "generated id should be non-empty");
+        match op {
+            CrdtOperation::Put {
+                id: op_id,
+                actor,
+                data: op_data,
+            } => {
+                assert_eq!(op_id, id);
+                assert_eq!(actor, "actor-x");
+                assert_eq!(op_data, data);
+            }
+            _ => panic!("expected Put operation"),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // NodeRecord::merge_update
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn node_record_merge_update_increments_clock_and_updates_data() {
+        let mut record = NodeRecord::new("n1".to_string(), "actor-a", serde_json::json!({"v": 1}));
+        assert_eq!(record.clock.get("actor-a"), Some(&1));
+
+        record.merge_update("actor-a", serde_json::json!({"v": 2}));
+        assert_eq!(record.clock.get("actor-a"), Some(&2));
+        assert_eq!(record.data["v"], 2);
+
+        // A second actor merging should add its own clock entry.
+        record.merge_update("actor-b", serde_json::json!({"v": 3}));
+        assert_eq!(record.clock.get("actor-b"), Some(&1));
+    }
+
+    // -----------------------------------------------------------------------
+    // Vector search edge cases
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn vector_search_non_finite_query_returns_empty() {
+        let store = CrdtStore::default();
+        store.put_with_embedding("a", "actor", serde_json::json!({}), vec![1.0, 0.0, 0.0]);
+
+        // NaN and Inf embeddings should not panic and should return empty.
+        let results = store.vector_search(&[f32::NAN, 0.0, 0.0], 5, 0.0);
+        assert!(results.is_empty(), "NaN query should return empty");
+
+        let results = store.vector_search(&[f32::INFINITY, 0.0, 0.0], 5, 0.0);
+        assert!(results.is_empty(), "Inf query should return empty");
+    }
+
+    #[test]
+    fn vector_search_empty_query_returns_empty() {
+        let store = CrdtStore::default();
+        store.put_with_embedding("a", "actor", serde_json::json!({}), vec![1.0, 0.0, 0.0]);
+        let results = store.vector_search(&[], 5, 0.0);
+        assert!(results.is_empty(), "empty query vector should return empty");
+    }
+
+    #[test]
+    fn vector_search_negative_min_score_clamped_to_zero() {
+        let store = CrdtStore::default();
+        let emb: Vec<f32> = vec![1.0, 0.0, 0.0];
+        store.put_with_embedding("a", "actor", serde_json::json!({}), emb.clone());
+        // Negative min_score should behave like 0.0 and return the node.
+        let results = store.vector_search(&emb, 5, -1.0);
+        assert!(!results.is_empty(), "negative min_score should be treated as 0");
+    }
+
+    #[test]
+    fn vector_search_min_score_above_one_clamped_to_one() {
+        let store = CrdtStore::default();
+        let emb: Vec<f32> = vec![1.0, 0.0, 0.0];
+        store.put_with_embedding("a", "actor", serde_json::json!({}), emb.clone());
+        // min_score > 1.0 should be clamped to 1.0; only perfect matches survive.
+        let results = store.vector_search(&emb, 5, 2.0);
+        // Score of the identical vector is ~1.0, which equals the clamped threshold.
+        // The result may or may not appear depending on floating-point precision,
+        // but the call must not panic.
+        let _ = results;
+    }
+
+    // -----------------------------------------------------------------------
+    // SqlValue helpers
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn sql_value_accessors() {
+        assert_eq!(SqlValue::Integer(42).as_i64(), Some(42));
+        assert_eq!(SqlValue::Real(3.14).as_f64(), Some(3.14));
+        assert_eq!(SqlValue::Text("hi".into()).as_str(), Some("hi"));
+        assert_eq!(SqlValue::Blob(vec![1, 2]).as_blob(), Some([1_u8, 2].as_ref()));
+        assert_eq!(SqlValue::Null.as_i64(), None);
+    }
+
+    #[test]
+    fn query_result_rows_as_maps() {
+        let db = Database::open(DatabaseOptions::default()).expect("open database");
+        db.exec("CREATE TABLE kv (k TEXT, v INTEGER)").expect("create");
+        let insert = db.prepare("INSERT INTO kv VALUES (?1, ?2)").expect("prepare");
+        insert
+            .run(&[SqlValue::Text("foo".into()), SqlValue::Integer(99)])
+            .expect("insert");
+        let select = db.prepare("SELECT k, v FROM kv").expect("prepare select");
+        let result = select.all(&[]).expect("query");
+        let maps = result.rows_as_maps();
+        assert_eq!(maps.len(), 1);
+        assert_eq!(maps[0].get("k"), Some(&SqlValue::Text("foo".into())));
+        assert_eq!(maps[0].get("v"), Some(&SqlValue::Integer(99)));
+    }
+
+    #[test]
+    fn query_result_rows_as_json() {
+        let db = Database::open(DatabaseOptions::default()).expect("open database");
+        db.exec("CREATE TABLE nums (n INTEGER)").expect("create");
+        let insert = db.prepare("INSERT INTO nums VALUES (?1)").expect("prepare");
+        insert.run(&[SqlValue::Integer(7)]).expect("insert");
+        let select = db.prepare("SELECT n FROM nums").expect("prepare select");
+        let result = select.all(&[]).expect("query");
+        let json_rows = result.rows_as_json();
+        assert_eq!(json_rows.len(), 1);
+        assert_eq!(json_rows[0]["n"], serde_json::json!(7));
+    }
+
+    // -----------------------------------------------------------------------
+    // PluresDB class (CrdtStore) — constructor, CRUD, sync operations
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn crdt_store_full_lifecycle() {
+        // Constructor
+        let store = CrdtStore::default();
+        assert_eq!(store.list().len(), 0);
+
+        // Create (put)
+        let id = store.put("item-1", "user-a", serde_json::json!({"name": "Widget"}));
+        assert_eq!(id, "item-1");
+
+        // Read (get)
+        let record = store.get("item-1").expect("should exist");
+        assert_eq!(record.data["name"], "Widget");
+
+        // Update (put again — CRDT merge)
+        store.put("item-1", "user-a", serde_json::json!({"name": "Gadget"}));
+        let updated = store.get("item-1").expect("should still exist");
+        assert_eq!(updated.data["name"], "Gadget");
+        assert_eq!(
+            updated.clock.get("user-a"),
+            Some(&2),
+            "clock should have been incremented on update"
+        );
+
+        // List
+        store.put("item-2", "user-b", serde_json::json!({"name": "Doohickey"}));
+        assert_eq!(store.list().len(), 2);
+
+        // Delete
+        store.delete("item-1").expect("delete should succeed");
+        assert!(store.get("item-1").is_none());
+        assert_eq!(store.list().len(), 1);
+
+        // Delete non-existent should error
+        let err = store.delete("item-1").expect_err("should fail for missing node");
+        match err {
+            StoreError::NotFound(missing_id) => assert_eq!(missing_id, "item-1"),
+        }
+    }
+
+    #[test]
+    fn crdt_store_apply_put_and_delete() {
+        let store = CrdtStore::default();
+
+        // Apply Put via operation
+        let put_op = CrdtOperation::Put {
+            id: "x".into(),
+            actor: "a".into(),
+            data: serde_json::json!({"k": "v"}),
+        };
+        let node_id = store.apply(put_op).expect("apply put").expect("should have id");
+        assert_eq!(node_id, "x");
+        assert!(store.get("x").is_some());
+
+        // Apply Delete via operation
+        let del_op = CrdtOperation::Delete { id: "x".into() };
+        let result = store.apply(del_op).expect("apply delete");
+        assert_eq!(result, None);
+        assert!(store.get("x").is_none());
+    }
+
+    #[test]
+    fn crdt_store_multi_actor_sync_merge() {
+        // Simulate two actors updating the same node and verify clock merges
+        let store = CrdtStore::default();
+
+        store.put("shared", "actor-1", serde_json::json!({"by": "actor-1"}));
+        store.put("shared", "actor-2", serde_json::json!({"by": "actor-2"}));
+        store.put("shared", "actor-1", serde_json::json!({"by": "actor-1-v2"}));
+
+        let record = store.get("shared").expect("should exist");
+        // actor-1 has written twice, actor-2 once
+        assert_eq!(record.clock.get("actor-1"), Some(&2));
+        assert_eq!(record.clock.get("actor-2"), Some(&1));
+    }
 }
 

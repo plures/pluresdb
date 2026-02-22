@@ -93,5 +93,61 @@ mod tests {
     fn test_convenience_functions() {
         let (_store, _storage) = new_memory_database();
     }
+
+    // -----------------------------------------------------------------------
+    // PluresDB integration: constructor, CRUD, vector search
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn integration_crdt_store_crud() {
+        let (store, _storage) = new_memory_database();
+
+        // Create
+        let id = store.put("doc-1", "user-1", serde_json::json!({"title": "Hello"}));
+        assert_eq!(id, "doc-1");
+
+        // Read
+        let record = store.get("doc-1").expect("document should exist");
+        assert_eq!(record.data["title"], "Hello");
+        assert_eq!(record.clock.get("user-1"), Some(&1));
+
+        // Update
+        store.put("doc-1", "user-1", serde_json::json!({"title": "Updated"}));
+        let updated = store.get("doc-1").expect("document should still exist");
+        assert_eq!(updated.data["title"], "Updated");
+        assert_eq!(updated.clock.get("user-1"), Some(&2));
+
+        // List
+        store.put("doc-2", "user-2", serde_json::json!({"title": "Second"}));
+        assert_eq!(store.list().len(), 2);
+
+        // Delete
+        store.delete("doc-1").expect("delete should succeed");
+        assert!(store.get("doc-1").is_none());
+        assert_eq!(store.list().len(), 1);
+    }
+
+    #[test]
+    fn integration_vector_search() {
+        let (store, _storage) = new_memory_database();
+
+        let emb_a: Vec<f32> = vec![1.0, 0.0, 0.0];
+        let emb_b: Vec<f32> = vec![0.0, 1.0, 0.0];
+
+        store.put_with_embedding("v-a", "actor", serde_json::json!({"label": "a"}), emb_a.clone());
+        store.put_with_embedding("v-b", "actor", serde_json::json!({"label": "b"}), emb_b);
+
+        let results = store.vector_search(&emb_a, 2, 0.0);
+        assert!(!results.is_empty());
+        assert_eq!(results[0].record.id, "v-a");
+        assert!(results[0].score > 0.99);
+    }
+
+    #[test]
+    fn integration_sync_broadcaster_default() {
+        // Verify SyncBroadcaster can be constructed and subscribed to (no panics)
+        let broadcaster = SyncBroadcaster::default();
+        let _receiver = broadcaster.subscribe();
+    }
 }
 
