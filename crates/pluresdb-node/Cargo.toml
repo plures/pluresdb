@@ -11,6 +11,10 @@ keywords = ["database", "node", "bindings"]
 [lib]
 crate-type = ["cdylib"]
 
+[features]
+## Enable automatic text-embedding support (fastembed / ONNX Runtime backend).
+embeddings = ["pluresdb-core/embeddings"]
+
 [dependencies]
 napi = { version = "2.16", features = ["napi6", "serde-json"] }
 napi-derive = "2.16"

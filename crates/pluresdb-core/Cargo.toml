@@ -8,10 +8,19 @@ repository.workspace = true
 description = "Core CRDTs, data structures, and query primitives for PluresDB."
 keywords = ["database", "crdt", "local-first"]
 
+[features]
+## Enable automatic text-embedding support via fastembed (ONNX Runtime backend).
+##
+## When this feature is active the `FastEmbedder` type becomes available and
+## `CrdtStore::put()` will automatically embed text content when an embedder
+## has been attached via `CrdtStore::with_embedder()`.
+embeddings = ["dep:fastembed"]
+
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
 dashmap.workspace = true
+fastembed = { version = "5.11.0", optional = true }
 hnsw_rs.workspace = true
 parking_lot.workspace = true
 rusqlite.workspace = true

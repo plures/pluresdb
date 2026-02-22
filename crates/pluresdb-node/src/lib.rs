@@ -46,6 +46,54 @@ impl PluresDatabase {
         })
     }
 
+    /// Create a PluresDB instance with automatic text embedding.
+    ///
+    /// `model` is a HuggingFace model ID such as `"BAAI/bge-small-en-v1.5"`.
+    /// Every subsequent call to [`put`][PluresDatabase::put] will
+    /// automatically embed any text content found in the node data.
+    ///
+    /// Requires the crate to be compiled with the `embeddings` cargo feature.
+    /// If the feature is not enabled the method returns an error at runtime.
+    ///
+    /// ## JavaScript example
+    ///
+    /// ```js
+    /// const { PluresDatabase } = require('@plures/pluresdb');
+    ///
+    /// const db = PluresDatabase.newWithEmbeddings('BAAI/bge-small-en-v1.5');
+    /// db.put('memory-1', { content: 'user prefers dark mode' });
+    /// const results = db.vectorSearch([...queryEmbedding], 5, 0.3);
+    /// ```
+    #[napi(factory)]
+    pub fn new_with_embeddings(model: String, actor_id: Option<String>) -> Result<Self> {
+        let actor_id = actor_id.unwrap_or_else(|| "node-actor".to_string());
+
+        #[cfg(feature = "embeddings")]
+        {
+            use pluresdb_core::FastEmbedder;
+            let embedder = FastEmbedder::new(&model).map_err(|e| {
+                Error::from_reason(format!(
+                    "Failed to initialize embedding model '{}': {}",
+                    model, e
+                ))
+            })?;
+            let store = CrdtStore::default().with_embedder(Arc::new(embedder));
+            return Ok(Self {
+                store: Arc::new(Mutex::new(store)),
+                db: None,
+                broadcaster: Arc::new(SyncBroadcaster::default()),
+                actor_id,
+            });
+        }
+
+        #[cfg(not(feature = "embeddings"))]
+        Err(Error::from_reason(format!(
+            "auto-embedding is not available: model '{}' was requested but pluresdb-node \
+             was compiled without the 'embeddings' cargo feature",
+            model
+        )))
+    }
+
     /// Insert or update a node
     #[napi]
     pub fn put(&self, id: String, data: serde_json::Value) -> Result<String> {
