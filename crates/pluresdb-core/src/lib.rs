@@ -306,6 +306,11 @@ impl CrdtStore {
         self
     }
 
+    /// Returns a reference to the attached embedder, if any.
+    pub fn embedder(&self) -> Option<&dyn EmbedText> {
+        self.embedder.as_deref()
+    }
+
     /// Inserts or updates a node using CRDT semantics.
     ///
     /// When an [`EmbedText`] backend has been attached via

@@ -428,6 +428,31 @@ impl PluresDatabase {
         Ok("subscription-1".to_string())
     }
 
+    /// Embed text using the configured embedding model.
+    ///
+    /// Only available when the database was created via `newWithEmbeddings()`.
+    /// Returns a flat `Vec<f64>` suitable for passing to `vectorSearch()`.
+    #[napi]
+    pub fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f64>>> {
+        let store = self.store.lock();
+        let embedder = store.embedder()
+            .ok_or_else(|| Error::from_reason(
+                "embed() requires a database created with newWithEmbeddings()"
+            ))?;
+        let refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
+        let vecs = embedder.embed(&refs)
+            .map_err(|e| Error::from_reason(format!("embedding failed: {}", e)))?;
+        // Convert f32 → f64 for JS compatibility
+        Ok(vecs.into_iter().map(|v| v.into_iter().map(|x| x as f64).collect()).collect())
+    }
+
+    /// Get the embedding dimension, or null if no embedder is configured.
+    #[napi]
+    pub fn embedding_dimension(&self) -> Option<u32> {
+        let store = self.store.lock();
+        store.embedder().map(|e| e.dimension() as u32)
+    }
+
     /// Get the actor ID for this database instance
     #[napi]
     pub fn get_actor_id(&self) -> String {
