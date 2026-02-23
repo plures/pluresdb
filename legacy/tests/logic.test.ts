@@ -1,8 +1,8 @@
-import { GunDB } from "../core/database.ts";
+import { PluresDB } from "../core/database.ts";
 import type { Rule } from "../logic/rules.ts";
 
 Deno.test("rule engine classification: Person.age >= 18 -> adult = true", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",

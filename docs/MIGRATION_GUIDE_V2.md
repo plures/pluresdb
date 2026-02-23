@@ -39,9 +39,9 @@ The Rust bindings maintain 100% API compatibility. Your existing code should wor
 
 #### TypeScript (Before)
 ```typescript
-import { GunDB } from "@plures/pluresdb";
+import { PluresDB } from "@plures/pluresdb";
 
-const db = new GunDB();
+const db = new PluresDB();
 await db.ready("./data.db");
 
 // Put operation
@@ -281,7 +281,7 @@ Yes! You can install both packages side-by-side for gradual migration:
 
 ```javascript
 // Old code using TypeScript version
-const { GunDB } = require("@plures/pluresdb");
+const { PluresDB } = require("@plures/pluresdb");
 
 // New code using native version
 const { PluresDatabase } = require("@plures/pluresdb-native");
@@ -307,7 +307,7 @@ The underlying storage format (SQLite + Sled) is identical.
 ### Example: Hybrid Approach
 
 ```javascript
-const { GunDB } = require("@plures/pluresdb");
+const { PluresDB } = require("@plures/pluresdb");
 const { PluresDatabase } = require("@plures/pluresdb-native");
 
 class DatabaseService {
@@ -316,7 +316,7 @@ class DatabaseService {
     this.fastDb = new PluresDatabase("fast", "./fast.db");
     
     // Keep TypeScript for complex async workflows (temporary)
-    this.legacyDb = new GunDB();
+    this.legacyDb = new PluresDB();
   }
   
   // Migrate operations one at a time

@@ -4,12 +4,12 @@ import {
   assertExists,
   assertRejects,
 } from "jsr:@std/assert@1.0.14";
-import { GunDB } from "../../core/database.ts";
+import { PluresDB } from "../../core/database.ts";
 import { mergeNodes } from "../../core/crdt.ts";
 import type { NodeRecord } from "../../types/index.ts";
 
 Deno.test("Core Database - Basic CRUD Operations", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -41,7 +41,7 @@ Deno.test("Core Database - Basic CRUD Operations", async () => {
 });
 
 Deno.test("Core Database - Vector Clock Increments", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -71,7 +71,7 @@ Deno.test("Core Database - Vector Clock Increments", async () => {
 });
 
 Deno.test("Core Database - Type System", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -99,7 +99,7 @@ Deno.test("Core Database - Type System", async () => {
 });
 
 Deno.test("Core Database - Vector Search", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -187,7 +187,7 @@ Deno.test("CRDT Merge - LWW on Different Timestamps", () => {
 });
 
 Deno.test("Core Database - Error Handling", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
 
   // Test operations before ready
   await assertRejects(
@@ -209,13 +209,13 @@ Deno.test("Core Database - Persistence Across Restarts", async () => {
   const id = "persist:test";
 
   // First session
-  const db1 = new GunDB();
+  const db1 = new PluresDB();
   await db1.ready(kvPath);
   await db1.put(id, { value: 123, text: "persistent data" });
   await db1.close();
 
   // Second session
-  const db2 = new GunDB();
+  const db2 = new PluresDB();
   await db2.ready(kvPath);
   const got = await db2.get<{ value: number; text: string }>(id);
   await db2.close();

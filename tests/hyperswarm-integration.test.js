@@ -30,7 +30,7 @@ if (isCI) {
 }
 
 // Import from compiled dist
-const { GunDB } = require("../dist/core/database.js");
+const { PluresDB } = require("../dist/core/database.js");
 
 let testsPassed = 0;
 let testsFailed = 0;
@@ -87,13 +87,13 @@ async function runTests() {
   );
 
   await test("should enable sync with a generated key", async () => {
-    const db = new GunDB();
+    const db = new PluresDB();
     const kvPath = await createTempFile();
 
     try {
       await db.ready(kvPath);
 
-      const key = GunDB.generateSyncKey();
+      const key = PluresDB.generateSyncKey();
       assert.strictEqual(typeof key, "string");
       assert.strictEqual(key.length, 64);
 
@@ -119,8 +119,8 @@ async function runTests() {
   });
 
   await test("should discover and connect two peers with same sync key", async () => {
-    const dbA = new GunDB({ peerId: "peer-A" });
-    const dbB = new GunDB({ peerId: "peer-B" });
+    const dbA = new PluresDB({ peerId: "peer-A" });
+    const dbB = new PluresDB({ peerId: "peer-B" });
 
     const kvPathA = await createTempFile();
     const kvPathB = await createTempFile();
@@ -129,7 +129,7 @@ async function runTests() {
       await dbA.ready(kvPathA);
       await dbB.ready(kvPathB);
 
-      const sharedKey = GunDB.generateSyncKey();
+      const sharedKey = PluresDB.generateSyncKey();
 
       // Track peer connection events
       let peerAConnected = false;
@@ -171,8 +171,8 @@ async function runTests() {
   });
 
   await test("should sync data between two peers", async () => {
-    const dbA = new GunDB({ peerId: "peer-A" });
-    const dbB = new GunDB({ peerId: "peer-B" });
+    const dbA = new PluresDB({ peerId: "peer-A" });
+    const dbB = new PluresDB({ peerId: "peer-B" });
 
     const kvPathA = await createTempFile();
     const kvPathB = await createTempFile();
@@ -181,7 +181,7 @@ async function runTests() {
       await dbA.ready(kvPathA);
       await dbB.ready(kvPathB);
 
-      const sharedKey = GunDB.generateSyncKey();
+      const sharedKey = PluresDB.generateSyncKey();
 
       let dataReceivedOnB = false;
 
@@ -226,8 +226,8 @@ async function runTests() {
   });
 
   await test("should handle bidirectional sync", async () => {
-    const dbA = new GunDB({ peerId: "peer-A" });
-    const dbB = new GunDB({ peerId: "peer-B" });
+    const dbA = new PluresDB({ peerId: "peer-A" });
+    const dbB = new PluresDB({ peerId: "peer-B" });
 
     const kvPathA = await createTempFile();
     const kvPathB = await createTempFile();
@@ -236,7 +236,7 @@ async function runTests() {
       await dbA.ready(kvPathA);
       await dbB.ready(kvPathB);
 
-      const sharedKey = GunDB.generateSyncKey();
+      const sharedKey = PluresDB.generateSyncKey();
 
       let dataFromBReceivedOnA = false;
       let dataFromAReceivedOnB = false;
@@ -293,8 +293,8 @@ async function runTests() {
   });
 
   await test("should not connect peers with different keys", async () => {
-    const dbA = new GunDB({ peerId: "peer-A" });
-    const dbB = new GunDB({ peerId: "peer-B" });
+    const dbA = new PluresDB({ peerId: "peer-A" });
+    const dbB = new PluresDB({ peerId: "peer-B" });
 
     const kvPathA = await createTempFile();
     const kvPathB = await createTempFile();
@@ -303,8 +303,8 @@ async function runTests() {
       await dbA.ready(kvPathA);
       await dbB.ready(kvPathB);
 
-      const keyA = GunDB.generateSyncKey();
-      const keyB = GunDB.generateSyncKey();
+      const keyA = PluresDB.generateSyncKey();
+      const keyB = PluresDB.generateSyncKey();
 
       // Enable sync with different keys
       await dbA.enableSync({ key: keyA });

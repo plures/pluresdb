@@ -4,10 +4,10 @@ import {
   assertExists,
   assertRejects,
 } from "jsr:@std/assert@1.0.14";
-import { GunDB } from "../../core/database.ts";
+import { PluresDB } from "../../core/database.ts";
 
 Deno.test("Security - SQL Injection Prevention", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -42,7 +42,7 @@ Deno.test("Security - SQL Injection Prevention", async () => {
 });
 
 Deno.test("Security - XSS Prevention", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -76,7 +76,7 @@ Deno.test("Security - XSS Prevention", async () => {
 });
 
 Deno.test("Security - Path Traversal Prevention", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -110,7 +110,7 @@ Deno.test("Security - Path Traversal Prevention", async () => {
 });
 
 Deno.test("Security - Large Payload Prevention", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -136,7 +136,7 @@ Deno.test("Security - Large Payload Prevention", async () => {
 });
 
 Deno.test("Security - Malformed JSON Handling", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -167,7 +167,7 @@ Deno.test("Security - Malformed JSON Handling", async () => {
 });
 
 Deno.test("Security - Type Confusion Prevention", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -199,7 +199,7 @@ Deno.test("Security - Type Confusion Prevention", async () => {
 });
 
 Deno.test("Security - Vector Search Injection", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -227,7 +227,7 @@ Deno.test("Security - Vector Search Injection", async () => {
 });
 
 Deno.test("Security - Subscription Injection", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -257,7 +257,7 @@ Deno.test("Security - Subscription Injection", async () => {
 });
 
 Deno.test("Security - Memory Exhaustion Prevention", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",

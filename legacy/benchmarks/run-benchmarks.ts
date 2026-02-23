@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run -A
 
-import { GunDB } from "../core/database.ts";
+import { PluresDB } from "../core/database.ts";
 
 interface BenchmarkResult {
   name: string;
@@ -78,7 +78,7 @@ class BenchmarkRunner {
 
 async function runCoreBenchmarks() {
   const runner = new BenchmarkRunner();
-  const db = new GunDB();
+  const db = new PluresDB();
 
   try {
     const kvPath = await Deno.makeTempFile({
@@ -183,7 +183,7 @@ async function runNetworkBenchmarks() {
   console.log("Starting Network Benchmarks...\n");
 
   // Benchmark 1: WebSocket Connection Performance
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -197,7 +197,7 @@ async function runNetworkBenchmarks() {
     const serverUrl = `ws://localhost:${port}`;
 
     await runner.runBenchmark("WebSocket Connections", 10, async () => {
-      const clientDb = new GunDB();
+      const clientDb = new PluresDB();
       const clientKv = await Deno.makeTempFile({
         prefix: "kv_client_",
         suffix: ".sqlite",
@@ -226,7 +226,7 @@ async function runNetworkBenchmarks() {
 
 async function runMemoryBenchmarks() {
   const runner = new BenchmarkRunner();
-  const db = new GunDB();
+  const db = new PluresDB();
 
   try {
     const kvPath = await Deno.makeTempFile({

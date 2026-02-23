@@ -436,7 +436,7 @@ Create TypeScript wrappers that maintain the **exact same API** as the current T
 import { PluresDatabase } from "@plures/pluresdb-native";
 
 // Maintain exact same API as before
-export class GunDB {
+export class PluresDB {
   private db: PluresDatabase;
 
   constructor(options?: { dataDir?: string; port?: number }) {
@@ -473,7 +473,7 @@ export class GunDB {
 import { PluresDB } from "./crates/pluresdb-deno/mod.ts";
 
 // Maintain exact same API
-export class GunDB {
+export class PluresDB {
   private db: PluresDB;
 
   constructor(options?: { dataDir?: string }) {
@@ -487,7 +487,7 @@ export class GunDB {
   // ... same pattern
 }
 
-export { GunDB };
+export { PluresDB };
 ```
 
 ---
@@ -540,18 +540,18 @@ Create a checklist of all TypeScript features that need Rust equivalents:
 ```typescript
 // tests/migration.test.ts
 import { describe, it, assertEquals } from "@std/testing";
-import { GunDB } from "../mod.ts";
+import { PluresDB } from "../mod.ts";
 
 describe("Rust Migration Compatibility", () => {
   it("should maintain API compatibility", async () => {
-    const db = new GunDB();
+    const db = new PluresDB();
     await db.put("test", { name: "test" });
     const result = await db.get("test");
     assertEquals(result?.name, "test");
   });
 
   it("should handle vector search", async () => {
-    const db = new GunDB();
+    const db = new PluresDB();
     await db.put("doc1", { text: "machine learning" });
     const results = await db.vectorSearch("AI", 10);
     assertEquals(results.length, 1);
