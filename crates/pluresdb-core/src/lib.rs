@@ -951,11 +951,20 @@ fn extract_text_from_data(data: &JsonValue) -> Option<String> {
 /// store.put("memory-1", "actor", serde_json::json!({"content": "user prefers dark mode"}));
 /// ```
 #[cfg(feature = "embeddings")]
-#[derive(Debug)]
 pub struct FastEmbedder {
-    model: fastembed::TextEmbedding,
+    model: std::sync::Mutex<fastembed::TextEmbedding>,
     dimension: usize,
     model_id: String,
+}
+
+#[cfg(feature = "embeddings")]
+impl std::fmt::Debug for FastEmbedder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FastEmbedder")
+            .field("dimension", &self.dimension)
+            .field("model_id", &self.model_id)
+            .finish()
+    }
 }
 
 #[cfg(feature = "embeddings")]
@@ -979,12 +988,12 @@ impl FastEmbedder {
     /// Returns an error if `model_id` is not recognised or if the model
     /// fails to initialize (e.g. because it cannot be downloaded).
     pub fn new(model_id: &str) -> anyhow::Result<Self> {
-        use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
+        use fastembed::{InitOptions, TextEmbedding};
 
         let (embedding_model, dimension) = model_id_to_fastembed(model_id)?;
         let model = TextEmbedding::try_new(InitOptions::new(embedding_model))?;
         Ok(Self {
-            model,
+            model: std::sync::Mutex::new(model),
             dimension,
             model_id: model_id.to_owned(),
         })
@@ -1000,7 +1009,8 @@ impl FastEmbedder {
 impl EmbedText for FastEmbedder {
     fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
         let owned: Vec<String> = texts.iter().map(|t| t.to_string()).collect();
-        self.model.embed(owned, None).map_err(Into::into)
+        let mut model = self.model.lock().map_err(|e| anyhow::anyhow!("lock poisoned: {}", e))?;
+        model.embed(owned, None).map_err(Into::into)
     }
 
     fn dimension(&self) -> usize {
