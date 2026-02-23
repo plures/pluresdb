@@ -74,6 +74,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.12.1] - 2026-02-23
+
+### Documentation
+
+- comprehensive documentation overhaul — architecture, API reference, getting started (#99)
+
+
 ## [1.12.0] - 2026-02-23
 
 ### Added
