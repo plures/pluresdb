@@ -1,5 +1,7 @@
 # PluresDB Architecture
 
+> Reflects PluresDB v1.11.1 and later.
+
 This document describes how PluresDB works internally — from the Rust core to
 the TypeScript/Node.js layers and the P2P synchronization protocol.
 
