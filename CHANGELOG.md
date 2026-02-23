@@ -74,6 +74,17 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.11.1] - 2026-02-23
+
+### Fixed
+
+- resolve pluresdb-wasm IndexedDB web-sys API compatibility issues (#103)
+
+### Other
+
+- breaking: rename GunDB → PluresDB across the codebase (#95)
+
+
 ## [1.11.0] - 2026-02-22
 
 ### Added
