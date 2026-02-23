@@ -11,7 +11,6 @@ repository.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pluresdb-core = { path = "../pluresdb-core" }
 wasm-bindgen.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -30,6 +29,9 @@ web-sys = { workspace = true, features = [
     "IdbRequest",
     "IdbOpenDbRequest",
     "IdbVersionChangeEvent",
+    "Event",
+    "DomException",
+    "DomStringList",
 ] }
 js-sys = "0.3"
 
