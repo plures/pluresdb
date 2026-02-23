@@ -74,6 +74,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.12.0] - 2026-02-23
+
+### Added
+
+- make pluresdb-node NAPI bindings the primary Node.js interface (#105)
+
+
 ## [1.11.1] - 2026-02-23
 
 ### Fixed
