@@ -85,12 +85,12 @@ console.log(results); // [{ id, data, score }, ...]
 ### P2P sync (Node.js only)
 
 ```js
-const { GunDB } = require("@plures/pluresdb");
+const { PluresDB } = require("@plures/pluresdb");
 
-const db1 = new GunDB();
+const db1 = new PluresDB();
 await db1.ready();
 
-const key = GunDB.generateSyncKey();
+const key = PluresDB.generateSyncKey();
 console.log("Share this key:", key);
 
 await db1.enableSync({ key });
@@ -103,7 +103,7 @@ await db1.put("shared:note", { text: "Hello from device 1" });
 On device 2:
 
 ```js
-const db2 = new GunDB();
+const db2 = new PluresDB();
 await db2.ready();
 await db2.enableSync({ key }); // same key as device 1
 
@@ -129,9 +129,9 @@ deno add @plures/pluresdb
 ### Basic usage
 
 ```typescript
-import { GunDB } from "@plures/pluresdb";
+import { PluresDB } from "@plures/pluresdb";
 
-const db = new GunDB();
+const db = new PluresDB();
 await db.ready();
 
 await db.put("user:alice", { name: "Alice" });
@@ -143,9 +143,9 @@ console.log(user);
 ### With HTTP server
 
 ```typescript
-import { GunDB, startApiServer } from "@plures/pluresdb";
+import { PluresDB, startApiServer } from "@plures/pluresdb";
 
-const db = new GunDB();
+const db = new PluresDB();
 await db.ready();
 
 db.serve({ port: 34567 });          // P2P / WebSocket port

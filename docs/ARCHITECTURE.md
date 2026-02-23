@@ -80,7 +80,7 @@ the TypeScript/Node.js layers and the P2P synchronization protocol.
 The `legacy/` directory contains a TypeScript/Deno implementation that is
 **gradually being replaced** by the Rust crates above.  It is still used for:
 
-- The `GunDB` / `PluresNode` TypeScript class (Deno + Node.js)
+- The `PluresDB` TypeScript class (Deno + Node.js)
 - The `SQLiteCompatibleAPI` and `better-sqlite3` compatibility wrappers
 - Hyperswarm integration (`legacy/network/hyperswarm-sync.ts`)
 - The REST / WebSocket API server (`legacy/api/`)

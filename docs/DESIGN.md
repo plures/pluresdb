@@ -10,7 +10,7 @@ PluresDB is a **local-first graph database with SQLite compatibility**, designed
 ┌─ Language Bindings ─────────────────────────────────────┐
 │  TypeScript (Node/Deno)  │  Rust Native  │  WASM/Browser │
 ├─ API Layers ────────────────────────────────────────────┤
-│  SQLite Compatible  │  GunDB-style  │  REST  │  GraphQL │
+│  SQLite Compatible  │  PluresDB-style  │  REST  │  GraphQL │
 ├─ Core Features ─────────────────────────────────────────┤
 │  CRDT Merge  │  Vector Search  │  Graph Relations      │
 ├─ Storage Engines ───────────────────────────────────────┤
@@ -156,8 +156,8 @@ const db = new SQLiteCompatibleAPI({ dataDir: "./data" });
 
 **Deno Module**:
 ```typescript
-import { GunDB } from "jsr:@plures/pluresdb";
-const db = new GunDB();
+import { PluresDB } from "jsr:@plures/pluresdb";
+const db = new PluresDB();
 ```
 
 **Browser WASM** (via wasm-bindgen):

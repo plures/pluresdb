@@ -18,7 +18,7 @@ Complete reference for all public APIs across Rust, Node.js, Deno, CLI, and REST
    - [PluresDatabase](#pluresdatabase)
 4. [Deno / JSR API](#deno--jsr-api)
 5. [TypeScript / Legacy API](#typescript--legacy-api)
-   - [GunDB / PluresNode](#gundb--pluresnodeclass)
+   - [PluresDB class](#pluresdatabase-typescript-class)
    - [SQLiteCompatibleAPI](#sqlitecompatibleapi)
    - [better-sqlite3 compat](#better-sqlite3-compat)
 6. [REST API](#rest-api)
@@ -504,7 +504,7 @@ The Deno package re-exports the TypeScript legacy API.  Key exports:
 
 ```typescript
 import {
-  GunDB,          // Main database class
+  PluresDB,       // Main database class
   PluresNode,     // Higher-level wrapper
   startApiServer, // Express/Oak REST server factory
   SQLiteCompatibleAPI,
@@ -519,12 +519,12 @@ See [TypeScript / Legacy API](#typescript--legacy-api) below for method details.
 
 Available in both Node.js (`npm install pluresdb`) and Deno (`jsr:@plures/pluresdb`).
 
-### GunDB / PluresNode class
+### PluresDB (TypeScript class) {#pluresdatabase-typescript-class}
 
 ```typescript
-import { GunDB } from "pluresdb";
+import { PluresDB } from "pluresdb";
 
-const db = new GunDB();
+const db = new PluresDB();
 await db.ready();
 ```
 
@@ -561,11 +561,11 @@ const users = await db.list("user:");
 Enables Hyperswarm P2P synchronisation.
 
 ```typescript
-const key = GunDB.generateSyncKey();
+const key = PluresDB.generateSyncKey();
 await db.enableSync({ key });
 ```
 
-#### `GunDB.generateSyncKey()` → `string` _(static)_
+#### `PluresDB.generateSyncKey()` → `string` _(static)_
 
 Generates a cryptographically random 64-hex-character sync key.
 

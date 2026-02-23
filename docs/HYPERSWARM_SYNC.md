@@ -39,21 +39,21 @@ PluresDB's Hyperswarm sync transport provides:
 
 ```javascript
 // Node.js
-const { GunDB } = require("@plures/pluresdb");
-const syncKey = GunDB.generateSyncKey();
+const { PluresDB } = require("@plures/pluresdb");
+const syncKey = PluresDB.generateSyncKey();
 console.log(syncKey); // 64-char hex string
 ```
 
 ```typescript
 // Deno
-import { GunDB } from "https://deno.land/x/pluresdb/mod.ts";
-const syncKey = GunDB.generateSyncKey();
+import { PluresDB } from "https://deno.land/x/pluresdb/mod.ts";
+const syncKey = PluresDB.generateSyncKey();
 ```
 
 ### Enable Sync
 
 ```javascript
-const db = new GunDB();
+const db = new PluresDB();
 await db.ready("/path/to/db");
 
 // Enable P2P sync with a shared key
@@ -96,12 +96,12 @@ await db.disableSync();
 
 ### Static Methods
 
-#### `GunDB.generateSyncKey()`
+#### `PluresDB.generateSyncKey()`
 
 Generates a new random sync key (32 bytes as 64-character hex string).
 
 ```javascript
-const key = GunDB.generateSyncKey();
+const key = PluresDB.generateSyncKey();
 // Returns: "a1b2c3d4e5f6..."
 ```
 
@@ -234,9 +234,9 @@ db.on("sync:complete", (stats: SyncStats) => {
 
 ```javascript
 // Agent 1 on Machine A
-const agent1Memory = new GunDB({ peerId: "agent-1" });
+const agent1Memory = new PluresDB({ peerId: "agent-1" });
 await agent1Memory.ready();
-const sharedKey = GunDB.generateSyncKey();
+const sharedKey = PluresDB.generateSyncKey();
 await agent1Memory.enableSync({ key: sharedKey });
 
 // Store experiences
@@ -247,7 +247,7 @@ await agent1Memory.put("memory:task-1", {
 });
 
 // Agent 2 on Machine B (different network)
-const agent2Memory = new GunDB({ peerId: "agent-2" });
+const agent2Memory = new PluresDB({ peerId: "agent-2" });
 await agent2Memory.ready();
 await agent2Memory.enableSync({ key: sharedKey }); // Same key!
 
@@ -258,7 +258,7 @@ const experience = await agent2Memory.get("memory:task-1");
 ### 2. Decentralized Commerce (OASIS)
 
 ```javascript
-const merchantDb = new GunDB({ peerId: "merchant-alice" });
+const merchantDb = new PluresDB({ peerId: "merchant-alice" });
 await merchantDb.enableSync({ key: marketplaceKey });
 
 // List a product
@@ -269,7 +269,7 @@ await merchantDb.put("product:widget", {
 });
 
 // Buyer's database automatically syncs the product catalog
-const buyerDb = new GunDB({ peerId: "buyer-bob" });
+const buyerDb = new PluresDB({ peerId: "buyer-bob" });
 await buyerDb.enableSync({ key: marketplaceKey });
 
 // Search for products
@@ -279,15 +279,15 @@ const widget = await buyerDb.get("product:widget");
 ### 3. Team Collaboration
 
 ```javascript
-const teamSyncKey = GunDB.generateSyncKey();
+const teamSyncKey = PluresDB.generateSyncKey();
 
 // Share the key with team members via secure channel
 // Each member enables sync:
 
-const member1 = new GunDB({ peerId: "alice" });
+const member1 = new PluresDB({ peerId: "alice" });
 await member1.enableSync({ key: teamSyncKey });
 
-const member2 = new GunDB({ peerId: "bob" });
+const member2 = new PluresDB({ peerId: "bob" });
 await member2.enableSync({ key: teamSyncKey });
 
 // Collaborative editing

@@ -1,6 +1,6 @@
-import { GunDB } from "../src/core/database.ts";
+import { PluresDB } from "../src/core/database.ts";
 
-const db = new GunDB();
+const db = new PluresDB();
 await db.ready();
 
 await db.put("user:alice", {
