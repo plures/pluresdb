@@ -2,6 +2,11 @@
 
 A high-level summary of major milestones in PluresDB's development.
 
+## v2.1 — WASM & Rename (2025–2026)
+
+- **Renamed** GunDB → PluresDB across the entire codebase (#95)
+- **pluresdb-wasm**: resolved IndexedDB / web-sys API compatibility issues for browser targets (#103)
+
 ## v2.0 — Rust-Native Rewrite (2024–2025)
 
 - **Core engine rewritten in Rust** (`crates/pluresdb-core`) using RocksDB/Sled storage with CRDT conflict resolution via vector clocks
@@ -9,6 +14,7 @@ A high-level summary of major milestones in PluresDB's development.
 - **Deno bindings** (`crates/pluresdb-deno`) published to JSR as `@plures/pluresdb`
 - **P2P sync layer** (`crates/pluresdb-sync`) with Hyperswarm DHT transport, relay WebSocket fallback, and BLAKE2b topic derivation
 - **Vector search** integrated into the core store using HNSW indexing (hnsw_rs) with cosine similarity
+- **Auto-embedding on insert** via pluggable `EmbedText` backend (FastEmbedder with fastembed/ONNX, feature-gated) (#93)
 - **Web UI** (Svelte, 24-tab management interface) bundled into the CLI server
 - **CLI** (`crates/pluresdb-cli`) with `serve`, `import`, `export`, and `migrate` subcommands
 - **Windows packaging**: MSI installer and winget manifest published to the Windows Package Manager Community Repository
