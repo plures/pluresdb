@@ -74,6 +74,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.13.0] - 2026-02-23
+
+### Added
+
+- expose embed() and embeddingDimension() via NAPI bindings
+
+
 ## [1.12.3] - 2026-02-23
 
 ### Fixed
