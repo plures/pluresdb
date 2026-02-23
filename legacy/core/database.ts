@@ -73,7 +73,7 @@ export interface DatabaseOptions {
   peerId?: string;
 }
 
-export class GunDB {
+export class PluresDB {
   private readonly storage: KvStorage;
   private readonly listeners: Map<
     string,
@@ -657,3 +657,6 @@ function cosineSimilarity(a: number[], b: number[]): number {
   const denom = Math.sqrt(na) * Math.sqrt(nb) || 1;
   return dot / denom;
 }
+
+/** @deprecated Use PluresDB instead. Will be removed in v2.0. */
+export const GunDB = PluresDB;

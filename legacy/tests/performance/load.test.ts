@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { assertEquals, assertExists } from "jsr:@std/assert@1.0.14";
-import { GunDB } from "../../core/database.ts";
+import { PluresDB } from "../../core/database.ts";
 
 interface PerformanceMetrics {
   operation: string;
@@ -37,7 +37,7 @@ function measureOperation(
 }
 
 Deno.test("Performance - Bulk Insert Operations", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -71,7 +71,7 @@ Deno.test("Performance - Bulk Insert Operations", async () => {
 });
 
 Deno.test("Performance - Bulk Read Operations", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -106,7 +106,7 @@ Deno.test("Performance - Bulk Read Operations", async () => {
 });
 
 Deno.test("Performance - Vector Search Operations", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -152,7 +152,7 @@ Deno.test("Performance - Vector Search Operations", async () => {
 });
 
 Deno.test("Performance - Concurrent Operations", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -201,7 +201,7 @@ Deno.test("Performance - Concurrent Operations", async () => {
 });
 
 Deno.test("Performance - Memory Usage", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -240,7 +240,7 @@ Deno.test("Performance - Memory Usage", async () => {
 });
 
 Deno.test("Performance - Subscription Performance", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",

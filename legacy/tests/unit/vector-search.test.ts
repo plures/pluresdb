@@ -1,9 +1,9 @@
 // @ts-nocheck
 import { assertEquals, assertExists } from "jsr:@std/assert@1.0.14";
-import { GunDB } from "../../core/database.ts";
+import { PluresDB } from "../../core/database.ts";
 
 Deno.test("Vector Search - Basic Functionality", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -47,7 +47,7 @@ Deno.test("Vector Search - Basic Functionality", async () => {
 });
 
 Deno.test("Vector Search - Similarity Scoring", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -77,7 +77,7 @@ Deno.test("Vector Search - Similarity Scoring", async () => {
 });
 
 Deno.test("Vector Search - Limit Parameter", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -107,7 +107,7 @@ Deno.test("Vector Search - Limit Parameter", async () => {
 });
 
 Deno.test("Vector Search - Empty Results", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -124,7 +124,7 @@ Deno.test("Vector Search - Empty Results", async () => {
 });
 
 Deno.test("Vector Search - Custom Vector Input", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -150,7 +150,7 @@ Deno.test("Vector Search - Custom Vector Input", async () => {
 });
 
 Deno.test("Vector Search - No Text Content", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",

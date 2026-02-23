@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { assertEquals, assertExists } from "jsr:@std/assert@1.0.14";
-import { GunDB } from "../../core/database.ts";
+import { PluresDB } from "../../core/database.ts";
 
 // Check if we should run mesh network tests
 // Skip in CI by default unless explicitly enabled with RUN_MESH_TESTS=true
@@ -70,8 +70,8 @@ meshTest("Mesh Network - Basic Connection and Sync", async () => {
   const port = randomPort();
   const serverUrl = `ws://localhost:${port}`;
 
-  const dbA = new GunDB();
-  const dbB = new GunDB();
+  const dbA = new PluresDB();
+  const dbB = new PluresDB();
 
   try {
     const kvA = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
@@ -118,8 +118,8 @@ meshTest("Mesh Network - Bidirectional Sync", async () => {
   const port = randomPort();
   const serverUrl = `ws://localhost:${port}`;
 
-  const dbA = new GunDB();
-  const dbB = new GunDB();
+  const dbA = new PluresDB();
+  const dbB = new PluresDB();
 
   try {
     const kvA = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
@@ -184,8 +184,8 @@ meshTest("Mesh Network - Conflict Resolution", async () => {
   const port = randomPort();
   const serverUrl = `ws://localhost:${port}`;
 
-  const dbA = new GunDB();
-  const dbB = new GunDB();
+  const dbA = new PluresDB();
+  const dbB = new PluresDB();
 
   try {
     const kvA = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
@@ -236,9 +236,9 @@ meshTest("Mesh Network - Multiple Clients", async () => {
   const port = randomPort();
   const serverUrl = `ws://localhost:${port}`;
 
-  const dbA = new GunDB(); // Server
-  const dbB = new GunDB(); // Client 1
-  const dbC = new GunDB(); // Client 2
+  const dbA = new PluresDB(); // Server
+  const dbB = new PluresDB(); // Client 1
+  const dbC = new PluresDB(); // Client 2
 
   try {
     const kvA = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
@@ -295,7 +295,7 @@ meshTest("Mesh Network - Multiple Clients", async () => {
 });
 
 meshTest("Mesh Network - Connection Error Handling", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
 
   try {
     const kvPath = await Deno.makeTempFile({

@@ -1,9 +1,9 @@
-import { GunDB } from "../src/core/database.ts";
+import { PluresDB } from "../src/core/database.ts";
 
 const serverUrl = Deno.env.get("SERVER_URL") ?? "ws://localhost:34567";
 
-const clientA = new GunDB();
-const clientB = new GunDB();
+const clientA = new PluresDB();
+const clientB = new PluresDB();
 
 const kvA = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });
 const kvB = await Deno.makeTempFile({ prefix: "kv_", suffix: ".sqlite" });

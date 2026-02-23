@@ -13,17 +13,17 @@
  */
 
 // Import PluresDB (Node.js)
-const { GunDB } = require("@plures/pluresdb");
+const { PluresDB } = require("@plures/pluresdb");
 
 // For Deno:
-// import { GunDB } from "https://deno.land/x/pluresdb/mod.ts";
+// import { PluresDB } from "https://deno.land/x/pluresdb/mod.ts";
 
 async function example1_basicP2PSync() {
   console.log("\n=== Example 1: Basic P2P Sync ===\n");
 
   // Create two database instances (simulating two devices)
-  const dbA = new GunDB({ peerId: "device-A" });
-  const dbB = new GunDB({ peerId: "device-B" });
+  const dbA = new PluresDB({ peerId: "device-A" });
+  const dbB = new PluresDB({ peerId: "device-B" });
 
   // Initialize databases with temporary storage
   await dbA.ready("/tmp/device-a.db");
@@ -31,7 +31,7 @@ async function example1_basicP2PSync() {
 
   // Generate a shared sync key
   // This key should be kept secret and shared only between trusted devices
-  const syncKey = GunDB.generateSyncKey();
+  const syncKey = PluresDB.generateSyncKey();
   console.log("Generated sync key:", syncKey.slice(0, 16) + "...");
 
   // Enable P2P sync on both databases with the same key
@@ -76,7 +76,7 @@ async function example1_basicP2PSync() {
 async function example2_syncEvents() {
   console.log("\n=== Example 2: Sync Events ===\n");
 
-  const db = new GunDB();
+  const db = new PluresDB();
   await db.ready("/tmp/events-example.db");
 
   // Listen for peer connection events
@@ -98,7 +98,7 @@ async function example2_syncEvents() {
   });
 
   // Enable sync with a generated key
-  const key = GunDB.generateSyncKey();
+  const key = PluresDB.generateSyncKey();
   await db.enableSync({ key });
 
   console.log("Waiting for peer connections...");
@@ -113,9 +113,9 @@ async function example3_multipleDevices() {
 
   // Create three devices
   const devices = [
-    new GunDB({ peerId: "laptop" }),
-    new GunDB({ peerId: "phone" }),
-    new GunDB({ peerId: "desktop" }),
+    new PluresDB({ peerId: "laptop" }),
+    new PluresDB({ peerId: "phone" }),
+    new PluresDB({ peerId: "desktop" }),
   ];
 
   // Initialize all devices
@@ -124,7 +124,7 @@ async function example3_multipleDevices() {
   );
 
   // Use the same sync key for all devices
-  const syncKey = GunDB.generateSyncKey();
+  const syncKey = PluresDB.generateSyncKey();
 
   // Enable sync on all devices
   console.log("Connecting all devices to the mesh network...");
@@ -163,13 +163,13 @@ async function example3_multipleDevices() {
 async function example4_conflictResolution() {
   console.log("\n=== Example 4: CRDT Conflict Resolution ===\n");
 
-  const dbA = new GunDB({ peerId: "device-A" });
-  const dbB = new GunDB({ peerId: "device-B" });
+  const dbA = new PluresDB({ peerId: "device-A" });
+  const dbB = new PluresDB({ peerId: "device-B" });
 
   await dbA.ready("/tmp/conflict-a.db");
   await dbB.ready("/tmp/conflict-b.db");
 
-  const syncKey = GunDB.generateSyncKey();
+  const syncKey = PluresDB.generateSyncKey();
 
   // Both devices modify the same data before syncing
   await dbA.put("doc:1", { title: "Document", version: 1, editedBy: "A" });
@@ -208,12 +208,12 @@ async function example5_selectiveSync() {
   console.log("\n=== Example 5: Using Sync Key for Private Channels ===\n");
 
   // Create different sync keys for different groups
-  const teamAKey = GunDB.generateSyncKey();
-  const teamBKey = GunDB.generateSyncKey();
+  const teamAKey = PluresDB.generateSyncKey();
+  const teamBKey = PluresDB.generateSyncKey();
 
-  const teamA1 = new GunDB({ peerId: "team-a-member-1" });
-  const teamA2 = new GunDB({ peerId: "team-a-member-2" });
-  const teamB1 = new GunDB({ peerId: "team-b-member-1" });
+  const teamA1 = new PluresDB({ peerId: "team-a-member-1" });
+  const teamA2 = new PluresDB({ peerId: "team-a-member-2" });
+  const teamB1 = new PluresDB({ peerId: "team-b-member-1" });
 
   await teamA1.ready("/tmp/team-a-1.db");
   await teamA2.ready("/tmp/team-a-2.db");

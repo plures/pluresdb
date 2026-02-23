@@ -1,9 +1,9 @@
 // @ts-nocheck
 import { assertEquals, assertThrows } from "jsr:@std/assert@1.0.14";
-import { GunDB } from "../../core/database.ts";
+import { PluresDB } from "../../core/database.ts";
 
 Deno.test("Subscriptions - Basic Update Events", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -43,7 +43,7 @@ Deno.test("Subscriptions - Basic Update Events", async () => {
 });
 
 Deno.test("Subscriptions - Delete Events", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -72,7 +72,7 @@ Deno.test("Subscriptions - Delete Events", async () => {
 });
 
 Deno.test("Subscriptions - Multiple Subscribers", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
@@ -101,14 +101,14 @@ Deno.test("Subscriptions - Multiple Subscribers", async () => {
 });
 
 Deno.test("Subscriptions - Error Handling", () => {
-  const db = new GunDB();
+  const db = new PluresDB();
 
   // Test subscription before ready
   assertThrows(() => db.on("test", () => {}), Error, "Database not ready");
 });
 
 Deno.test("Subscriptions - Off Method", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   try {
     const kvPath = await Deno.makeTempFile({
       prefix: "kv_",
