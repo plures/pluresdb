@@ -74,6 +74,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.12.3] - 2026-02-23
+
+### Fixed
+
+- FastEmbedder compile errors — Mutex for interior mutability, manual Debug impl
+
+
 ## [1.12.2] - 2026-02-23
 
 ### Developer Experience
