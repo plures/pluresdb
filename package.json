@@ -2,10 +2,15 @@
   "name": "@plures/pluresdb",
   "version": "1.11.1",
   "description": "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications",
-  "main": "dist/node-index.js",
-  "types": "dist/node-index.d.ts",
+  "main": "dist/napi/index.js",
+  "types": "dist/napi/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/napi/index.d.ts",
+      "require": "./dist/napi/index.js",
+      "default": "./dist/napi/index.js"
+    },
+    "./legacy": {
       "types": "./dist/node-index.d.ts",
       "require": "./dist/node-index.js",
       "default": "./dist/node-index.js"

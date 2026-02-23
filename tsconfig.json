@@ -25,6 +25,7 @@
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
   "include": [
+    "legacy/napi/index.ts",
     "legacy/better-sqlite3.ts",
     "legacy/better-sqlite3-shared.ts",
     "legacy/better-sqlite3-worker.ts",
