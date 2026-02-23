@@ -111,7 +111,7 @@ Example:
 
 ```typescript
 Deno.test("Core Database - Basic CRUD Operations", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   // ... test implementation
 });
 ```
@@ -189,8 +189,8 @@ Example:
 
 ```typescript
 Deno.test("Mesh Network - Basic Connection and Sync", async () => {
-  const dbA = new GunDB();
-  const dbB = new GunDB();
+  const dbA = new PluresDB();
+  const dbB = new PluresDB();
   // ... test mesh networking
 });
 ```
@@ -341,7 +341,7 @@ Tests run on multiple configurations:
 ```typescript
 Deno.test("Test Name", async () => {
   // Arrange
-  const db = new GunDB();
+  const db = new PluresDB();
   await db.ready(kvPath);
 
   // Act

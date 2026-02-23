@@ -15,7 +15,7 @@
 
 import { assertEquals, assertExists, assertMatch } from "jsr:@std/assert@1.0.14";
 import { generateSyncKey } from "../../network/hyperswarm-sync.ts";
-import { GunDB } from "../../core/database.ts";
+import { PluresDB } from "../../core/database.ts";
 
 // Detect CI environment - skip network-dependent tests in CI
 const isCI = Deno.env.get("CI") === "true";
@@ -41,15 +41,15 @@ Deno.test("generateSyncKey - generates unique keys", () => {
   }
 });
 
-Deno.test("GunDB.generateSyncKey - static method works", () => {
-  const key = GunDB.generateSyncKey();
+Deno.test("PluresDB.generateSyncKey - static method works", () => {
+  const key = PluresDB.generateSyncKey();
   assertExists(key);
   assertEquals(key.length, 64);
   assertMatch(key, /^[0-9a-f]{64}$/i);
 });
 
-Deno.test("GunDB sync methods - available on instance", async () => {
-  const db = new GunDB();
+Deno.test("PluresDB sync methods - available on instance", async () => {
+  const db = new PluresDB();
   const kvPath = await Deno.makeTempFile({ prefix: "sync_test_", suffix: ".sqlite" });
 
   try {
@@ -78,8 +78,8 @@ Deno.test("GunDB sync methods - available on instance", async () => {
   }
 });
 
-Deno.test("GunDB.enableSync - rejects invalid keys", async () => {
-  const db = new GunDB();
+Deno.test("PluresDB.enableSync - rejects invalid keys", async () => {
+  const db = new PluresDB();
   const kvPath = await Deno.makeTempFile({ prefix: "sync_test_", suffix: ".sqlite" });
 
   try {
@@ -124,8 +124,8 @@ Deno.test("GunDB.enableSync - rejects invalid keys", async () => {
   }
 });
 
-Deno.test("GunDB.enableSync - requires database to be ready", async () => {
-  const db = new GunDB();
+Deno.test("PluresDB.enableSync - requires database to be ready", async () => {
+  const db = new PluresDB();
   const key = generateSyncKey();
 
   let errorThrown = false;
@@ -149,10 +149,10 @@ Deno.test("GunDB.enableSync - requires database to be ready", async () => {
 // In CI: Skipped to avoid udx-native native module errors
 // Locally: Can run to verify the error message (though will still fail in Deno runtime)
 Deno.test({
-  name: "GunDB.enableSync - throws error in Deno environment",
+  name: "PluresDB.enableSync - throws error in Deno environment",
   ignore: isCI, // Skip in CI to avoid udx-native native module errors
   async fn() {
-    const db = new GunDB();
+    const db = new PluresDB();
     const kvPath = await Deno.makeTempFile({ prefix: "sync_test_", suffix: ".sqlite" });
 
     try {

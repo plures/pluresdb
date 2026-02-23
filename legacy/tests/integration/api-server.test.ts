@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { assertEquals, assertExists } from "jsr:@std/assert@1.0.14";
-import { GunDB } from "../../core/database.ts";
+import { PluresDB } from "../../core/database.ts";
 import { type ApiServerHandle, startApiServer } from "../../http/api-server.ts";
 
 function randomPort(): number {
@@ -8,7 +8,7 @@ function randomPort(): number {
 }
 
 Deno.test("API Server - HTTP Endpoints", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   let api: ApiServerHandle | null = null;
   try {
     const kvPath = await Deno.makeTempFile({
@@ -58,7 +58,7 @@ Deno.test("API Server - HTTP Endpoints", async () => {
 });
 
 Deno.test("API Server - Vector Search Endpoint", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   let api: ApiServerHandle | null = null;
   try {
     const kvPath = await Deno.makeTempFile({
@@ -99,7 +99,7 @@ Deno.test("API Server - Vector Search Endpoint", async () => {
 });
 
 Deno.test("API Server - WebSocket Connection", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   let api: ApiServerHandle | null = null;
   try {
     const kvPath = await Deno.makeTempFile({
@@ -163,7 +163,7 @@ Deno.test("API Server - WebSocket Connection", async () => {
 });
 
 Deno.test("API Server - Error Handling", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   let api: ApiServerHandle | null = null;
   try {
     const kvPath = await Deno.makeTempFile({
@@ -199,7 +199,7 @@ Deno.test("API Server - Error Handling", async () => {
 });
 
 Deno.test("API Server - CORS Headers", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   let api: ApiServerHandle | null = null;
   try {
     const kvPath = await Deno.makeTempFile({
@@ -235,7 +235,7 @@ Deno.test("API Server - CORS Headers", async () => {
 });
 
 Deno.test("API Server - P2P API Endpoints", async () => {
-  const db = new GunDB();
+  const db = new PluresDB();
   let api: ApiServerHandle | null = null;
   try {
     const kvPath = await Deno.makeTempFile({

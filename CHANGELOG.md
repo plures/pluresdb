@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- ⚠️ **Renamed `GunDB` class to `PluresDB`** - The primary database class in `legacy/core/database.ts` has been renamed from `GunDB` to `PluresDB`. Consumers must update their imports: `import { PluresDB } from "pluresdb"`. A deprecated `GunDB` re-export is available for one major version to ease migration.
+- Renamed `demo/gun-comparison.html` to `demo/benchmark-comparison.html`.
+
 ### Added
 
 - ✅ **Complete implementation of pluresdb-node** - Full Node.js bindings with N-API
@@ -629,7 +634,7 @@
 ### Changed
 
 - Added payload sanitization before persistence to strip prototype pollution vectors and coerce injected functions into safe string placeholders.
-- Hardened `GunDB#get` responses with sanitized clones, ensuring consumer code receives benign `toString` implementations and no inherited attacker-controlled state.
+- Hardened `PluresDB#get` responses with sanitized clones, ensuring consumer code receives benign `toString` implementations and no inherited attacker-controlled state.
 - Expanded the security regression suite so the type-confusion prevention scenario now exercises the sanitization path and passes under `npm run verify` (51 tests green).
 
 ## [Unreleased] - Phase 1 UI Completion ✅
