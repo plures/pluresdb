@@ -74,6 +74,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.12.2] - 2026-02-23
+
+### Developer Experience
+
+- remove transient progress/completion markdown from root and docs/ (#97)
+
+
 ## [1.12.1] - 2026-02-23
 
 ### Documentation
