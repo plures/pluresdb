@@ -78,50 +78,54 @@ Deno.test("GunDB sync methods - available on instance", async () => {
   }
 });
 
-Deno.test("GunDB.enableSync - rejects invalid keys", async () => {
-  const db = new GunDB();
-  const kvPath = await Deno.makeTempFile({ prefix: "sync_test_", suffix: ".sqlite" });
+Deno.test({
+  name: "GunDB.enableSync - rejects invalid keys",
+  ignore: isCI, // Skip in CI: enableSync code path triggers udx-native in Deno 2.x
+  async fn() {
+    const db = new GunDB();
+    const kvPath = await Deno.makeTempFile({ prefix: "sync_test_", suffix: ".sqlite" });
 
-  try {
-    await db.ready(kvPath);
-
-    // Test with invalid key formats
-    const invalidKeys = [
-      "short",
-      "not-hex-characters-here!@#$%^&*()",
-      "0".repeat(63), // 63 chars instead of 64
-      "0".repeat(65), // 65 chars instead of 64
-      "",
-    ];
-
-    for (const invalidKey of invalidKeys) {
-      let errorThrown = false;
-      try {
-        await db.enableSync({ key: invalidKey });
-      } catch (error) {
-        errorThrown = true;
-        assertExists(error);
-        assertMatch(
-          (error as Error).message,
-          /Sync key must be a 64-character hex string/i,
-        );
-      }
-
-      if (!errorThrown) {
-        throw new Error(`Should have thrown error for invalid key: ${invalidKey}`);
-      }
-    }
-
-    // Sync should still be disabled
-    assertEquals(db.isSyncEnabled(), false);
-  } finally {
-    await db.close();
     try {
-      await Deno.remove(kvPath);
-    } catch {
-      /* ignore */
+      await db.ready(kvPath);
+
+      // Test with invalid key formats
+      const invalidKeys = [
+        "short",
+        "not-hex-characters-here!@#$%^&*()",
+        "0".repeat(63), // 63 chars instead of 64
+        "0".repeat(65), // 65 chars instead of 64
+        "",
+      ];
+
+      for (const invalidKey of invalidKeys) {
+        let errorThrown = false;
+        try {
+          await db.enableSync({ key: invalidKey });
+        } catch (error) {
+          errorThrown = true;
+          assertExists(error);
+          assertMatch(
+            (error as Error).message,
+            /Sync key must be a 64-character hex string/i,
+          );
+        }
+
+        if (!errorThrown) {
+          throw new Error(`Should have thrown error for invalid key: ${invalidKey}`);
+        }
+      }
+
+      // Sync should still be disabled
+      assertEquals(db.isSyncEnabled(), false);
+    } finally {
+      await db.close();
+      try {
+        await Deno.remove(kvPath);
+      } catch {
+        /* ignore */
+      }
     }
-  }
+  },
 });
 
 Deno.test("GunDB.enableSync - requires database to be ready", async () => {
