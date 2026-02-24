@@ -202,3 +202,17 @@ fn parse_invalid_dsl_returns_error() {
     assert!(parse_query("filter()").is_err());
     assert!(parse_query("|> limit(5)").is_err());
 }
+
+#[test]
+fn parse_filter_with_negative_integer() {
+    let steps = parse_query("filter(score == -5)").unwrap();
+    assert_eq!(steps.len(), 1);
+    assert!(matches!(steps[0], Step::Filter { .. }));
+}
+
+#[test]
+fn parse_filter_with_negative_float() {
+    let steps = parse_query("filter(score >= -0.75)").unwrap();
+    assert_eq!(steps.len(), 1);
+    assert!(matches!(steps[0], Step::Filter { .. }));
+}
