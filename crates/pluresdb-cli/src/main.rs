@@ -1188,9 +1188,24 @@ async fn handle_migrate_from_sqlite(source: PathBuf, target: PathBuf) -> Result<
         };
         let embedding: Option<Vec<f32>> = match row.get(2) {
             Some(SqlValue::Blob(blob)) if blob.len() >= 4 && blob.len() % 4 == 0 => {
-                Some(blob.chunks_exact(4)
-                    .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
-                    .collect())
+                let mut values = Vec::with_capacity(blob.len() / 4);
+                let mut has_invalid = false;
+                for chunk in blob.chunks_exact(4) {
+                    let val = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                    if !val.is_finite() {
+                        has_invalid = true;
+                    }
+                    values.push(val);
+                }
+                if has_invalid || values.is_empty() {
+                    warn!(
+                        "migrate-from-sqlite: dropping embedding for node '{}' — contains non-finite or empty embedding",
+                        id
+                    );
+                    None
+                } else {
+                    Some(values)
+                }
             }
             _ => None,
         };
