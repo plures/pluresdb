@@ -168,13 +168,74 @@ fn parse_cmp_op(pair: Pair<Rule>) -> Result<CmpOp, ParseError> {
     })
 }
 
+fn unescape_string_content(s: &str) -> Result<String, String> {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars();
+
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            result.push(c);
+            continue;
+        }
+
+        let escaped = match chars.next() {
+            Some(ch) => ch,
+            None => {
+                return Err("incomplete escape sequence at end of string".to_string());
+            }
+        };
+
+        match escaped {
+            '\\' => result.push('\\'),
+            '"' => result.push('"'),
+            'n' => result.push('\n'),
+            'r' => result.push('\r'),
+            't' => result.push('\t'),
+            'b' => result.push('\u{0008}'),
+            'f' => result.push('\u{000C}'),
+            'u' => {
+                let mut hex = String::with_capacity(4);
+                for _ in 0..4 {
+                    match chars.next() {
+                        Some(h) if h.is_ascii_hexdigit() => hex.push(h),
+                        _ => {
+                            return Err("invalid unicode escape sequence".to_string());
+                        }
+                    }
+                }
+                let code_point = u32::from_str_radix(&hex, 16)
+                    .map_err(|_| "invalid unicode escape sequence".to_string())?;
+                match std::char::from_u32(code_point) {
+                    Some(ch) => result.push(ch),
+                    None => {
+                        return Err("invalid unicode scalar value in escape sequence".to_string());
+                    }
+                }
+            }
+            other => {
+                // For any other escaped character, just include it literally.
+                result.push(other);
+            }
+        }
+    }
+
+    Ok(result)
+}
+
 fn parse_value(pair: Pair<Rule>) -> Result<IrValue, ParseError> {
     let inner = pair.into_inner().next().expect("value child");
     Ok(match inner.as_rule() {
         Rule::string => {
             let s = inner.as_str();
-            // Strip surrounding quotes
-            IrValue::String(s[1..s.len() - 1].to_string())
+            // Strip surrounding quotes and unescape escape sequences inside.
+            let content = &s[1..s.len() - 1];
+            let unescaped = unescape_string_content(content).map_err(|msg| {
+                ParseError(pest::error::Error::new_from_span(
+                    pest::error::ErrorVariant::CustomError { message: msg },
+                    inner.as_span(),
+                ))
+            })?;
+            IrValue::String(unescaped)
         }
         Rule::float => {
             let n: f64 = inner.as_str().parse().map_err(|_| {
