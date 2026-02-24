@@ -15,17 +15,10 @@ crate-type = ["cdylib"]
 ## Enable automatic text-embedding support (fastembed / ONNX Runtime backend).
 embeddings = ["pluresdb-core/embeddings"]
 
-## Enable the legacy SQLite compatibility layer.
-##
-## When this feature is active, the `query()` and `exec()` N-API methods are
-## available and the database accepts SQL via the bundled SQLite engine.
-sqlite-compat = ["pluresdb-core/sqlite-compat"]
-
 [dependencies]
 napi = { version = "2.16", features = ["napi6", "serde-json"] }
 napi-derive = "2.16"
 pluresdb-core = { path = "../pluresdb-core" }
-pluresdb-storage = { path = "../pluresdb-storage" }
 pluresdb-sync = { path = "../pluresdb-sync" }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -1,51 +1,5 @@
 # Changelog
 
-## [2.0.0] - 2026-02-24
-
-### BREAKING CHANGES
-
-- **`CrdtStore::with_persistence` now accepts `Arc<dyn StorageEngine>`** instead
-  of `Arc<Database>`.  The method now returns `Self` (infallible) instead of
-  `Result<Self, DatabaseError>`.
-- **`rusqlite` is no longer a default dependency** of `pluresdb-core`.  The
-  `Database`, `SqlValue`, `QueryResult`, `ExecutionResult`, `DatabasePath`,
-  `DatabaseOptions`, and `DatabaseError` types are only available when the
-  `sqlite-compat` cargo feature is enabled.
-- **`pluresdb-node`**: `query()` and `exec()` methods return an error at runtime
-  unless the crate is compiled with the `sqlite-compat` feature.  The
-  constructor now opens a sled store instead of a SQLite file when `db_path`
-  is provided.
-- **Version bumped from 1.15.0 → 2.0.0**.
-
-### Added
-
-- `sqlite-compat` feature flag in `pluresdb-core`, `pluresdb-node`,
-  `pluresdb-cli`, and `pluresdb` umbrella crate.
-- `pluresdb migrate-from-sqlite --source <path> --target <dir>` CLI command
-  (requires `sqlite-compat` feature) to migrate v1.x SQLite databases to sled.
-- New tests in `pluresdb-core` covering storage-engine-backed persistence
-  (`MemoryStorage`) without requiring SQLite.
-- `MIGRATION.md` upgrade guide for v1.x → v2.0 consumers.
-
-### Changed
-
-- `CrdtStore` persistence layer now uses `pluresdb-storage::StorageEngine`
-  (sled-backed) instead of a SQLite `Database`.
-- `MemoryStorage` now uses `parking_lot::RwLock` for synchronous interior
-  access, eliminating the tokio runtime dependency from storage reads/writes.
-- `SledStorage` now uses synchronous `sled::Db::flush()` instead of
-  `flush_async()`.
-- README updated: removed "SQLite Compatibility" from tagline; updated
-  architecture table and quick-start example.
-- Workspace and crate descriptions updated to remove "SQLite Compatibility".
-
-### Removed
-
-- `SQLITE_ACTOR` constant from `pluresdb-core` (no longer needed — full
-  `NodeRecord` is serialised and deserialised from storage).
-
----
-
 ## [Unreleased]
 
 ### Breaking Changes

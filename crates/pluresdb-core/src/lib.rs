@@ -5,31 +5,22 @@
 //! any future host integrations.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use futures::executor::block_on;
 use hnsw_rs::prelude::*;
 use parking_lot::Mutex;
-use pluresdb_storage::{StorageEngine, StoredNode};
+use rusqlite::types::{Value as SqliteValue, ValueRef};
+use rusqlite::{params_from_iter, Connection, OpenFlags, Transaction};
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
-#[cfg(feature = "sqlite-compat")]
-use serde_json::json;
+use serde_json::{json, Value as JsonValue};
 use thiserror::Error;
 use tracing::debug;
 use uuid::Uuid;
-
-#[cfg(feature = "sqlite-compat")]
-use std::path::PathBuf;
-#[cfg(feature = "sqlite-compat")]
-use std::time::Duration;
-#[cfg(feature = "sqlite-compat")]
-use rusqlite::types::{Value as SqliteValue, ValueRef};
-#[cfg(feature = "sqlite-compat")]
-use rusqlite::{params_from_iter, Connection, OpenFlags, Transaction};
 
 /// Unique identifier for a stored node.
 pub type NodeId = String;
@@ -252,6 +243,12 @@ impl Default for VectorIndex {
     }
 }
 
+/// Actor name stamped on [`NodeRecord`]s that are materialised directly from
+/// SQLite without going through the in-memory write path.  Used by
+/// [`CrdtStore::get`], [`CrdtStore::list`], and [`CrdtStore::vector_search`]
+/// when falling back to the persistence layer.
+const SQLITE_ACTOR: &str = "sqlite";
+
 /// Errors that can be produced by the CRDT store.
 #[derive(Debug, Error)]
 pub enum StoreError {
@@ -280,12 +277,12 @@ pub struct CrdtStore {
     /// will automatically generate and index an embedding for each node whose
     /// JSON data contains extractable text content.
     embedder: Option<Arc<dyn EmbedText>>,
-    /// Optional storage engine persistence layer.  When set, every `put`,
-    /// `put_with_embedding`, and `delete` will write-through to the engine.
-    /// Read operations (`get`, `list`) query the engine directly rather than
+    /// Optional SQLite persistence layer.  When set, every `put`,
+    /// `put_with_embedding`, and `delete` will write-through to SQLite.
+    /// Read operations (`get`, `list`) query SQLite directly rather than
     /// keeping all records in the in-memory map.
-    persistence: Option<Arc<dyn StorageEngine>>,
-    /// Tracks whether the HNSW vector index has been populated from storage.
+    persistence: Option<Arc<Database>>,
+    /// Tracks whether the HNSW vector index has been populated from SQLite.
     /// Starts as `false` when a persistence layer is attached; the first call
     /// to [`vector_search`][CrdtStore::vector_search] will build the index
     /// lazily and set this to `true`.
@@ -374,116 +371,195 @@ impl CrdtStore {
         indexed
     }
 
-    /// Populate the HNSW vector index from embeddings stored in the persistence layer.
+    /// Populate the HNSW vector index from embeddings stored in SQLite.
     ///
-    /// Node records are fully loaded and deserialized from storage, but only their
-    /// embedding field is used for indexing. This is called lazily by
-    /// [`vector_search`][Self::vector_search] on the first search after startup.
+    /// Only embedding blobs are read — the full node data is *not* loaded into
+    /// memory.  This is called lazily by [`vector_search`][Self::vector_search]
+    /// on the first search after startup.
     fn build_vector_index_from_persistence(&self) {
-        let storage = match &self.persistence {
-            Some(s) => s,
+        let db = match &self.persistence {
+            Some(db) => db,
             None => return,
         };
         let expected_dim = self.embedder.as_ref().map(|e| e.dimension());
-        let nodes = match block_on(storage.list()) {
-            Ok(nodes) => nodes,
+        let rows = match db.query(
+            "SELECT id, embedding FROM crdt_nodes WHERE embedding IS NOT NULL",
+            &[],
+        ) {
+            Ok(r) => r,
             Err(e) => {
-                tracing::error!("[CrdtStore] build_vector_index_from_persistence failed: {}", e);
+                eprintln!("[CrdtStore] build_vector_index_from_persistence failed: {}", e);
                 return;
             }
         };
         let mut indexed = 0usize;
-        for stored in nodes {
-            let record = match serde_json::from_value::<NodeRecord>(stored.payload) {
-                Ok(r) => r,
-                Err(_) => continue,
+        for row in &rows.rows {
+            let id = match row.get(0) {
+                Some(SqlValue::Text(s)) => s.clone(),
+                _ => continue,
             };
-            if let Some(emb) = &record.embedding {
-                if let Some(dim) = expected_dim {
-                    if emb.len() != dim {
+            let floats = match row.get(1) {
+                Some(SqlValue::Blob(blob)) if blob.len() >= 4 && blob.len() % 4 == 0 => {
+                    let floats: Vec<f32> = blob
+                        .chunks_exact(4)
+                        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+                        .collect();
+                    if let Some(dim) = expected_dim {
+                        if floats.len() != dim {
+                            continue;
+                        }
+                    }
+                    if floats.is_empty()
+                        || !floats.iter().all(|v| v.is_finite())
+                        || !floats.iter().any(|v| *v != 0.0)
+                    {
                         continue;
                     }
+                    floats
                 }
-                if emb.is_empty()
-                    || !emb.iter().all(|v| v.is_finite())
-                    || !emb.iter().any(|v| *v != 0.0)
-                {
-                    continue;
-                }
-                self.vector_index.insert(&record.id, emb);
-                indexed += 1;
-            }
+                _ => continue,
+            };
+            self.vector_index.insert(&id, &floats);
+            indexed += 1;
         }
-        tracing::debug!("[CrdtStore] Loaded {} embeddings from storage into vector index", indexed);
+        eprintln!("[CrdtStore] Loaded {} embeddings from SQLite into vector index", indexed);
     }
 
-    /// Attach a storage engine persistence layer.
+    /// Attach a SQLite persistence layer.
     ///
-    /// The store will write-through on every `put`, `put_with_embedding`,
-    /// and `delete`.
+    /// The store will:
+    /// 1. Create the `crdt_nodes` table if it doesn't exist.
+    /// 2. Perform a one-time migration of any legacy `memories` table.
+    /// 3. Write-through on every `put`, `put_with_embedding`, and `delete`.
     ///
     /// **No records are loaded into memory at startup.**  Read operations
-    /// (`get`, `list`) query the engine directly, and the HNSW vector index
-    /// is built lazily on the first call to
-    /// [`vector_search`][Self::vector_search].
-    pub fn with_persistence(mut self, storage: Arc<dyn StorageEngine>) -> Self {
-        self.persistence = Some(storage);
+    /// (`get`, `list`) query SQLite directly, and the HNSW vector index is
+    /// built lazily on the first call to [`vector_search`][Self::vector_search].
+    pub fn with_persistence(mut self, db: Arc<Database>) -> Result<Self, DatabaseError> {
+        // Create table
+        db.exec(
+            "CREATE TABLE IF NOT EXISTS crdt_nodes (
+                id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                embedding BLOB,
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+            )"
+        )?;
+        db.exec("CREATE INDEX IF NOT EXISTS idx_crdt_nodes_updated ON crdt_nodes(updated_at)")?;
+
+        // Migrate legacy `memories` table if it exists and `crdt_nodes` is empty
+        let crdt_count: i64 = db.query("SELECT COUNT(*) FROM crdt_nodes", &[])
+            .ok()
+            .and_then(|r| r.rows.first().and_then(|row| row.first().and_then(|v| v.as_i64())))
+            .unwrap_or(0);
+        if crdt_count == 0 {
+            // Check if legacy memories table exists
+            let has_legacy = db.query(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='memories'",
+                &[],
+            ).ok()
+                .and_then(|r| r.rows.first().and_then(|row| row.first().and_then(|v| v.as_i64())))
+                .unwrap_or(0) > 0;
+
+            if has_legacy {
+                let legacy_count: i64 = db.query("SELECT COUNT(*) FROM memories", &[])
+                    .ok()
+                    .and_then(|r| r.rows.first().and_then(|row| row.first().and_then(|v| v.as_i64())))
+                    .unwrap_or(0);
+                if legacy_count > 0 {
+                    eprintln!("[CrdtStore] Migrating {} records from legacy `memories` table to `crdt_nodes`...", legacy_count);
+                    let migrate_sql = r#"
+                        INSERT OR IGNORE INTO crdt_nodes (id, data, embedding, updated_at)
+                        SELECT
+                            'memory:' || id,
+                            json_object(
+                                'content', content,
+                                'created_at', created_at,
+                                'source', COALESCE(source, ''),
+                                'tags', tags,
+                                'category', COALESCE(category, 'other'),
+                                'priority', COALESCE(priority, 'normal'),
+                                'last_accessed_at', last_accessed_at,
+                                'merge_count', COALESCE(merge_count, 0),
+                                'importance_score', COALESCE(importance_score, 1.0)
+                            ),
+                            embedding,
+                            COALESCE(created_at / 1000, strftime('%s','now'))
+                        FROM memories
+                    "#;
+                    match db.exec(migrate_sql) {
+                        Ok(result) => eprintln!("[CrdtStore] Migrated {} records from legacy table", result.changes),
+                        Err(e) => eprintln!("[CrdtStore] Legacy migration failed: {}", e),
+                    }
+                }
+            }
+        }
+
+        self.persistence = Some(db);
         // Mark the HNSW index as needing a lazy build on the next vector_search.
         self.vector_index_ready.store(false, Ordering::Release);
-        self
+        Ok(self)
     }
 
-    /// Write a node to the persistence layer (if attached).
-    fn persist_node(&self, record: &NodeRecord) {
-        if let Some(storage) = &self.persistence {
-            let payload = match serde_json::to_value(record) {
-                Ok(v) => v,
-                Err(e) => {
-                    tracing::error!(
-                        "[CrdtStore] persist skipped for '{}': serialization failed: {}",
-                        record.id,
-                        e
-                    );
-                    return;
-                }
+    /// Write a node to the SQLite persistence layer (if attached).
+    fn persist_node(&self, id: &str, data: &NodeData, embedding: Option<&[f32]>) {
+        if let Some(db) = &self.persistence {
+            let data_json = serde_json::to_string(data).unwrap_or_default();
+            let emb_blob: Option<Vec<u8>> = embedding.map(|e| {
+                e.iter().flat_map(|f| f.to_le_bytes()).collect()
+            });
+            let sql = if emb_blob.is_some() {
+                "INSERT OR REPLACE INTO crdt_nodes (id, data, embedding, updated_at) VALUES (?1, ?2, ?3, strftime('%s','now'))"
+            } else {
+                "INSERT OR REPLACE INTO crdt_nodes (id, data, updated_at) VALUES (?1, ?2, strftime('%s','now'))"
             };
-            let stored = StoredNode {
-                id: record.id.clone(),
-                payload,
+            let params: Vec<SqlValue> = if let Some(blob) = emb_blob {
+                vec![
+                    SqlValue::Text(id.to_string()),
+                    SqlValue::Text(data_json),
+                    SqlValue::Blob(blob),
+                ]
+            } else {
+                vec![
+                    SqlValue::Text(id.to_string()),
+                    SqlValue::Text(data_json),
+                ]
             };
-            if let Err(e) = block_on(storage.put(stored)) {
-                tracing::error!("[CrdtStore] persist failed for {}: {}", record.id, e);
+            if let Err(e) = db.query(sql, &params) {
+                eprintln!("[CrdtStore] persist failed for {}: {}", id, e);
             }
         }
     }
 
-    /// Delete a node from the persistence layer (if attached).
+    /// Delete a node from the SQLite persistence layer (if attached).
     ///
-    /// Returns `true` if the node was found and deleted from storage.
+    /// Returns `true` if the node was found and deleted from SQLite.
     fn unpersist_node(&self, id: &str) -> bool {
-        if let Some(storage) = &self.persistence {
-            let exists = block_on(storage.get(id))
-                .ok()
-                .flatten()
-                .is_some();
-            if exists {
-                if let Err(e) = block_on(storage.delete(id)) {
-                    tracing::error!("[CrdtStore] unpersist failed for {}: {}", id, e);
+        if let Some(db) = &self.persistence {
+            let params = vec![SqlValue::Text(id.to_string())];
+            match db.query("DELETE FROM crdt_nodes WHERE id = ?1", &params) {
+                Ok(result) => result.changes > 0,
+                Err(e) => {
+                    eprintln!("[CrdtStore] unpersist failed for {}: {}", id, e);
+                    false
                 }
-                true
-            } else {
-                false
             }
         } else {
             false
         }
     }
 
-    /// Fetch a single node's data from the persistence layer by ID.
+    /// Fetch a single node's data from SQLite by ID without caching it in memory.
     fn get_from_persistence(&self, id: &str) -> Option<NodeRecord> {
-        let storage = self.persistence.as_ref()?;
-        let stored = block_on(storage.get(id)).ok()??;
-        serde_json::from_value::<NodeRecord>(stored.payload).ok()
+        let db = self.persistence.as_ref()?;
+        let params = vec![SqlValue::Text(id.to_string())];
+        let rows = db.query("SELECT data FROM crdt_nodes WHERE id = ?1", &params).ok()?;
+        let row = rows.rows.into_iter().next()?;
+        let data_str = row.into_iter().next().and_then(|v| {
+            if let SqlValue::Text(s) = v { Some(s) } else { None }
+        })?;
+        let data = serde_json::from_str::<NodeData>(&data_str).ok()?;
+        Some(NodeRecord::new(id.to_string(), SQLITE_ACTOR, data))
     }
 
     /// Inserts or updates a node using CRDT semantics.
@@ -513,9 +589,7 @@ impl CrdtStore {
             .entry(id.clone())
             .and_modify(|record| record.merge_update(actor.clone(), data.clone()))
             .or_insert_with(|| NodeRecord::new(id.clone(), actor, data.clone()));
-        if let Some(entry) = self.nodes.get(&id) {
-            self.persist_node(entry.value());
-        }
+        self.persist_node(&id, &data, None);
         id
     }
 
@@ -551,9 +625,7 @@ impl CrdtStore {
         if emb_valid {
             self.vector_index.insert(&id, &emb_clone);
         }
-        if let Some(entry) = self.nodes.get(&id) {
-            self.persist_node(entry.value());
-        }
+        self.persist_node(&id, &data, Some(&emb_clone));
         id
     }
 
@@ -584,25 +656,28 @@ impl CrdtStore {
     /// Lists all nodes currently stored.
     ///
     /// When a persistence layer is attached, the list is fetched directly from
-    /// the storage engine rather than from the in-memory map.  In-memory
-    /// entries (nodes written in the current session) shadow their stored
-    /// counterparts so callers always see the most recent data.
+    /// SQLite rather than from the in-memory map.  In-memory entries (nodes
+    /// written in the current session) shadow their SQLite counterparts so
+    /// callers always see the most recent data.
     pub fn list(&self) -> Vec<NodeRecord> {
-        if let Some(storage) = &self.persistence {
-            match block_on(storage.list()) {
-                Ok(nodes) => {
-                    return nodes.into_iter().filter_map(|stored| {
-                        let record = serde_json::from_value::<NodeRecord>(stored.payload).ok()?;
+        if let Some(db) = &self.persistence {
+            match db.query("SELECT id, data FROM crdt_nodes", &[]) {
+                Ok(rows) => {
+                    return rows.rows.iter().filter_map(|row| {
+                        let id = row.get(0)?.as_str()?.to_string();
+                        let data_str = row.get(1)?.as_str()?;
+                        let data: NodeData = serde_json::from_str(data_str).ok()?;
                         // Prefer the in-memory version which may have newer data.
-                        if let Some(entry) = self.nodes.get(&record.id) {
+                        // DashMap::get is O(1) amortised so this loop is O(n) overall.
+                        if let Some(entry) = self.nodes.get(&id) {
                             Some(entry.value().clone())
                         } else {
-                            Some(record)
+                            Some(NodeRecord::new(id, SQLITE_ACTOR, data))
                         }
                     }).collect();
                 }
                 Err(e) => {
-                    tracing::error!("[CrdtStore] list from storage failed: {}", e);
+                    eprintln!("[CrdtStore] list from SQLite failed: {}", e);
                 }
             }
         }
@@ -710,12 +785,7 @@ impl CrdtStore {
     }
 }
 
-// ---------------------------------------------------------------------------
-// SQLite compatibility layer (feature-gated)
-// ---------------------------------------------------------------------------
-
 /// Primitive SQLite values returned by the native engine.
-#[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum SqlValue {
     Null,
@@ -725,7 +795,6 @@ pub enum SqlValue {
     Blob(Vec<u8>),
 }
 
-#[cfg(feature = "sqlite-compat")]
 impl SqlValue {
     pub fn as_i64(&self) -> Option<i64> {
         if let Self::Integer(value) = self {
@@ -770,7 +839,6 @@ impl SqlValue {
     }
 }
 
-#[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone, PartialEq)]
 pub struct QueryResult {
     pub columns: Vec<String>,
@@ -779,7 +847,6 @@ pub struct QueryResult {
     pub last_insert_rowid: i64,
 }
 
-#[cfg(feature = "sqlite-compat")]
 impl QueryResult {
     pub fn rows_as_maps(&self) -> Vec<HashMap<String, SqlValue>> {
         self.rows
@@ -810,21 +877,18 @@ impl QueryResult {
     }
 }
 
-#[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExecutionResult {
     pub changes: u64,
     pub last_insert_rowid: i64,
 }
 
-#[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum DatabasePath {
     InMemory,
     File(PathBuf),
 }
 
-#[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone)]
 pub struct DatabaseOptions {
     pub path: DatabasePath,
@@ -838,7 +902,6 @@ pub struct DatabaseOptions {
     pub embedding_model: Option<String>,
 }
 
-#[cfg(feature = "sqlite-compat")]
 impl Default for DatabaseOptions {
     fn default() -> Self {
         Self {
@@ -853,7 +916,6 @@ impl Default for DatabaseOptions {
     }
 }
 
-#[cfg(feature = "sqlite-compat")]
 impl DatabaseOptions {
     pub fn in_memory() -> Self {
         Self::default()
@@ -900,14 +962,11 @@ impl DatabaseOptions {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(feature = "sqlite-compat")]
     /// use pluresdb_core::DatabaseOptions;
     ///
-    /// # #[cfg(feature = "sqlite-compat")] {
     /// let opts = DatabaseOptions::default()
     ///     .with_embedding_model("BAAI/bge-small-en-v1.5");
     /// assert_eq!(opts.embedding_model.as_deref(), Some("BAAI/bge-small-en-v1.5"));
-    /// # }
     /// ```
     pub fn with_embedding_model(mut self, model_id: impl Into<String>) -> Self {
         self.embedding_model = Some(model_id.into());
@@ -915,24 +974,20 @@ impl DatabaseOptions {
     }
 }
 
-#[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone)]
 pub struct Database {
     conn: Arc<Mutex<Connection>>,
     path: DatabasePath,
 }
 
-#[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Error)]
 pub enum DatabaseError {
     #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 }
 
-#[cfg(feature = "sqlite-compat")]
 pub type DbResult<T> = Result<T, DatabaseError>;
 
-#[cfg(feature = "sqlite-compat")]
 const DEFAULT_PRAGMAS: &[(&str, &str)] = &[
     ("journal_mode", "WAL"),
     ("synchronous", "NORMAL"),
@@ -942,7 +997,6 @@ const DEFAULT_PRAGMAS: &[(&str, &str)] = &[
     ("cache_size", "-64000"),
 ];
 
-#[cfg(feature = "sqlite-compat")]
 impl Database {
     pub fn open(options: DatabaseOptions) -> DbResult<Self> {
         let connection = match &options.path {
@@ -1034,14 +1088,12 @@ impl Database {
     }
 }
 
-#[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone)]
 pub struct Statement {
     database: Database,
     sql: String,
 }
 
-#[cfg(feature = "sqlite-compat")]
 impl Statement {
     pub fn sql(&self) -> &str {
         &self.sql
@@ -1104,7 +1156,6 @@ impl Statement {
     }
 }
 
-#[cfg(feature = "sqlite-compat")]
 fn build_open_flags(options: &DatabaseOptions) -> OpenFlags {
     let mut flags = OpenFlags::SQLITE_OPEN_URI | OpenFlags::SQLITE_OPEN_NO_MUTEX;
     if options.read_only {
@@ -1118,7 +1169,6 @@ fn build_open_flags(options: &DatabaseOptions) -> OpenFlags {
     flags
 }
 
-#[cfg(feature = "sqlite-compat")]
 fn apply_pragmas(connection: &Connection, pragmas: &[(&str, &str)]) {
     for (name, value) in pragmas {
         if let Err(error) = connection.pragma_update(None, name, value) {
@@ -1127,7 +1177,6 @@ fn apply_pragmas(connection: &Connection, pragmas: &[(&str, &str)]) {
     }
 }
 
-#[cfg(feature = "sqlite-compat")]
 fn params_to_values(params: &[SqlValue]) -> Vec<SqliteValue> {
     params
         .iter()
@@ -1141,7 +1190,6 @@ fn params_to_values(params: &[SqlValue]) -> Vec<SqliteValue> {
         .collect()
 }
 
-#[cfg(feature = "sqlite-compat")]
 fn read_row(row: &rusqlite::Row<'_>, column_count: usize) -> Result<Vec<SqlValue>, rusqlite::Error> {
     let mut values = Vec::with_capacity(column_count);
     for index in 0..column_count {
@@ -1317,7 +1365,7 @@ fn model_id_to_fastembed(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pluresdb_storage::MemoryStorage;
+    use rusqlite::ErrorCode;
 
     #[test]
     fn put_and_get_round_trip() {
@@ -1353,6 +1401,112 @@ mod tests {
         let result = store.apply(delete).expect("delete succeeds");
         assert_eq!(result, None);
         assert!(store.get("node-3").is_none());
+    }
+
+    #[test]
+    fn database_exec_and_query() {
+        let db = Database::open(DatabaseOptions::default()).expect("open database");
+        db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
+            .expect("create table");
+
+        let insert = db
+            .prepare("INSERT INTO users (name) VALUES (?1)")
+            .expect("prepare insert");
+        insert
+            .run(&[SqlValue::Text("Alice".to_string())])
+            .expect("insert row");
+
+        let query = db
+            .prepare("SELECT id, name FROM users ORDER BY id")
+            .expect("prepare select");
+        let result = query.all(&[]).expect("query rows");
+        assert_eq!(result.columns, vec!["id".to_string(), "name".to_string()]);
+        assert_eq!(result.rows.len(), 1);
+        match &result.rows[0][1] {
+            SqlValue::Text(value) => assert_eq!(value, "Alice"),
+            other => panic!("unexpected value: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn database_default_pragmas_applied() {
+        let temp = tempfile::NamedTempFile::new().expect("create temp file");
+        let db = Database::open(DatabaseOptions::with_file(temp.path()))
+            .expect("open database");
+        let result = db.pragma("journal_mode").expect("run pragma");
+        assert!(!result.rows.is_empty());
+        match &result.rows[0][0] {
+            SqlValue::Text(mode) => assert_eq!(mode.to_lowercase(), "wal"),
+            other => panic!("unexpected pragma value: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn statement_get_returns_none_when_no_rows() {
+        let db = Database::open(DatabaseOptions::default()).expect("open database");
+        db.exec("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)")
+            .expect("create table");
+
+        let select = db
+            .prepare("SELECT name FROM items WHERE id = ?1")
+            .expect("prepare select");
+        let result = select
+            .get(&[SqlValue::Integer(42)])
+            .expect("query should succeed");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn statement_run_propagates_sql_errors() {
+        let db = Database::open(DatabaseOptions::default()).expect("open database");
+        db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT UNIQUE NOT NULL)")
+            .expect("create table");
+
+        let insert = db
+            .prepare("INSERT INTO users (email) VALUES (?1)")
+            .expect("prepare insert");
+        insert
+            .run(&[SqlValue::Text("alice@example.com".into())])
+            .expect("first insert succeeds");
+
+        let err = insert
+            .run(&[SqlValue::Text("alice@example.com".into())])
+            .expect_err("second insert should fail");
+        match err {
+            DatabaseError::Sqlite(inner) => {
+                assert_eq!(inner.sqlite_error_code(), Some(ErrorCode::ConstraintViolation));
+            }
+        }
+    }
+
+    #[test]
+    fn statement_handles_blob_parameters_and_columns() {
+        let db = Database::open(DatabaseOptions::default()).expect("open database");
+        db.exec("CREATE TABLE files (id INTEGER PRIMARY KEY, data BLOB NOT NULL)")
+            .expect("create table");
+
+        let blob = vec![0_u8, 1, 2, 3];
+        let insert = db
+            .prepare("INSERT INTO files (id, data) VALUES (?1, ?2)")
+            .expect("prepare insert");
+        insert
+            .run(&[SqlValue::Integer(1), SqlValue::Blob(blob.clone())])
+            .expect("insert blob row");
+
+        let select = db
+            .prepare("SELECT id, data FROM files WHERE id = ?1")
+            .expect("prepare select");
+        let columns = select.columns().expect("inspect columns");
+        assert_eq!(columns, vec!["id".to_string(), "data".to_string()]);
+
+        let result = select
+            .all(&[SqlValue::Integer(1)])
+            .expect("query single row");
+        assert_eq!(result.rows.len(), 1);
+        match &result.rows[0][1] {
+            SqlValue::Blob(value) => assert_eq!(value, &blob),
+            other => panic!("unexpected value: {:?}", other),
+        }
     }
 
     #[test]
@@ -1547,107 +1701,144 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // Storage engine persistence tests (no SQLite required)
+    // DatabaseOptions::with_embedding_model
     // -----------------------------------------------------------------------
 
-    /// Helper: create a CrdtStore backed by an in-memory storage engine.
-    fn make_storage_store() -> (CrdtStore, Arc<MemoryStorage>) {
-        let storage = Arc::new(MemoryStorage::default());
-        let store = CrdtStore::default()
-            .with_persistence(storage.clone() as Arc<dyn StorageEngine>);
-        (store, storage)
+    #[test]
+    fn database_options_with_embedding_model() {
+        let opts = DatabaseOptions::default()
+            .with_embedding_model("BAAI/bge-small-en-v1.5");
+        assert_eq!(
+            opts.embedding_model.as_deref(),
+            Some("BAAI/bge-small-en-v1.5")
+        );
     }
 
     #[test]
-    fn with_storage_does_not_hydrate_into_memory() {
-        let storage = Arc::new(MemoryStorage::default());
+    fn database_options_embedding_model_none_by_default() {
+        let opts = DatabaseOptions::default();
+        assert!(opts.embedding_model.is_none());
+    }
 
-        // Pre-populate storage with a record.
-        let pre_record = NodeRecord::new(
-            "node-pre".to_string(),
-            "actor",
-            serde_json::json!({"hello": "from-storage"}),
-        );
-        block_on(storage.put(StoredNode {
-            id: "node-pre".to_string(),
-            payload: serde_json::to_value(&pre_record).unwrap(),
-        })).expect("pre-populate storage");
+    // -----------------------------------------------------------------------
+    // No-hydration / SQLite-direct read tests
+    // -----------------------------------------------------------------------
+
+    /// Helper: open an in-memory SQLite database and attach it as persistence.
+    fn make_persisted_store() -> CrdtStore {
+        let db = Arc::new(Database::open(DatabaseOptions::default()).expect("open db"));
+        CrdtStore::default()
+            .with_persistence(db)
+            .expect("with_persistence")
+    }
+
+    #[test]
+    fn with_persistence_does_not_hydrate_into_memory() {
+        // Pre-populate the database with a row the old-fashioned way.
+        let db = Arc::new(Database::open(DatabaseOptions::default()).expect("open db"));
+        db.exec(
+            "CREATE TABLE IF NOT EXISTS crdt_nodes (
+                id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                embedding BLOB,
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+            )",
+        ).expect("create table");
+        db.query(
+            "INSERT INTO crdt_nodes (id, data) VALUES (?1, ?2)",
+            &[
+                SqlValue::Text("node-pre".to_string()),
+                SqlValue::Text(r#"{"hello":"from-sqlite"}"#.to_string()),
+            ],
+        ).expect("insert pre-existing row");
 
         // Attaching persistence must NOT load the row into self.nodes.
         let store = CrdtStore::default()
-            .with_persistence(storage.clone() as Arc<dyn StorageEngine>);
+            .with_persistence(Arc::clone(&db))
+            .expect("with_persistence");
 
+        // In-memory map must be empty — no hydration occurred.
         assert!(
             store.nodes.is_empty(),
             "in-memory map should be empty after with_persistence (no hydration)"
         );
 
-        // But get() must still find the node via storage.
-        let record = store.get("node-pre").expect("get should fall back to storage");
-        assert_eq!(record.data["hello"], "from-storage");
+        // But get() must still find the node via SQLite.
+        let record = store.get("node-pre").expect("get should fall back to SQLite");
+        assert_eq!(record.data["hello"], "from-sqlite");
     }
 
     #[test]
-    fn get_falls_back_to_storage_for_persisted_node() {
-        let (store, storage) = make_storage_store();
+    fn get_falls_back_to_sqlite_for_persisted_node() {
+        let store = make_persisted_store();
 
-        // Write a node — this goes into memory AND storage.
+        // Write a node — this goes into memory AND SQLite.
         store.put("p1", "actor", serde_json::json!({"v": 1}));
 
-        // Simulate a "restart" by creating a new store on the same storage.
+        // Simulate a "restart" by creating a new store on the same SQLite db.
+        let db = store.persistence.clone().expect("has persistence");
         let store2 = CrdtStore::default()
-            .with_persistence(storage as Arc<dyn StorageEngine>);
+            .with_persistence(db)
+            .expect("with_persistence");
 
+        // The node should not be in the in-memory map of the new store.
         assert!(store2.nodes.is_empty(), "new store must have empty in-memory map");
 
-        let record = store2.get("p1").expect("should find node via storage");
+        // But get() must retrieve it from SQLite.
+        let record = store2.get("p1").expect("should find node via SQLite");
         assert_eq!(record.data["v"], 1);
     }
 
     #[test]
-    fn list_queries_storage_directly() {
-        let (store, storage) = make_storage_store();
+    fn list_queries_sqlite_directly() {
+        let store = make_persisted_store();
 
         store.put("list-a", "actor", serde_json::json!({"n": "a"}));
         store.put("list-b", "actor", serde_json::json!({"n": "b"}));
 
         // Simulate a "restart".
+        let db = store.persistence.clone().expect("has persistence");
         let store2 = CrdtStore::default()
-            .with_persistence(storage as Arc<dyn StorageEngine>);
+            .with_persistence(db)
+            .expect("with_persistence");
 
         let records = store2.list();
-        assert_eq!(records.len(), 2, "list() should return all storage records");
+        assert_eq!(records.len(), 2, "list() should return all SQLite records");
         let ids: Vec<&str> = records.iter().map(|r| r.id.as_str()).collect();
         assert!(ids.contains(&"list-a"));
         assert!(ids.contains(&"list-b"));
     }
 
     #[test]
-    fn delete_works_for_storage_only_node() {
-        let (store, storage) = make_storage_store();
+    fn delete_works_for_sqlite_only_node() {
+        let store = make_persisted_store();
         store.put("del-node", "actor", serde_json::json!({"x": 1}));
 
         // Simulate a "restart".
+        let db = store.persistence.clone().expect("has persistence");
         let store2 = CrdtStore::default()
-            .with_persistence(storage as Arc<dyn StorageEngine>);
+            .with_persistence(db)
+            .expect("with_persistence");
 
+        // Node is in SQLite but NOT in the in-memory map of the new store.
         assert!(store2.nodes.is_empty());
-        assert!(store2.get("del-node").is_some(), "node should be in storage");
+        assert!(store2.get("del-node").is_some(), "node should be in SQLite");
 
-        store2.delete("del-node").expect("delete should succeed for storage-only node");
+        // delete() must succeed even though the node is not in memory.
+        store2.delete("del-node").expect("delete should succeed for SQLite-only node");
         assert!(store2.get("del-node").is_none(), "node should be gone after delete");
     }
 
     #[test]
-    fn delete_returns_not_found_for_nonexistent_with_storage() {
-        let (store, _storage) = make_storage_store();
+    fn delete_returns_not_found_for_nonexistent_node_with_persistence() {
+        let store = make_persisted_store();
         let err = store.delete("ghost-node").expect_err("should error for missing node");
         assert!(matches!(err, StoreError::NotFound(_)));
     }
 
     #[test]
-    fn vector_search_builds_index_lazily_from_storage() {
-        let (store, storage) = make_storage_store();
+    fn vector_search_builds_index_lazily_from_sqlite() {
+        let store = make_persisted_store();
 
         let emb_a: Vec<f32> = vec![1.0, 0.0, 0.0];
         let emb_b: Vec<f32> = vec![0.0, 1.0, 0.0];
@@ -1656,148 +1847,18 @@ mod tests {
         store.put_with_embedding("vs-b", "actor", serde_json::json!({"label":"b"}), emb_b);
 
         // Simulate a "restart" — new store with no in-memory data.
+        let db = store.persistence.clone().expect("has persistence");
         let store2 = CrdtStore::default()
-            .with_persistence(storage as Arc<dyn StorageEngine>);
+            .with_persistence(db)
+            .expect("with_persistence");
 
         assert!(store2.nodes.is_empty(), "new store must have empty in-memory map");
 
-        // vector_search must build the index lazily and return results from storage.
+        // vector_search must build the index lazily and return results from SQLite.
         let results = store2.vector_search(&emb_a, 3, 0.0);
         assert!(!results.is_empty(), "vector_search should return results after lazy build");
         assert_eq!(results[0].record.id, "vs-a");
         assert!(results[0].score > 0.99, "identical vector should score ~1.0");
-    }
-
-    // -----------------------------------------------------------------------
-    // SQLite compatibility tests (require sqlite-compat feature)
-    // -----------------------------------------------------------------------
-
-    #[cfg(feature = "sqlite-compat")]
-    mod sqlite_compat_tests {
-        use super::*;
-
-        #[test]
-        fn database_exec_and_query() {
-            let db = Database::open(DatabaseOptions::default()).expect("open database");
-            db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)")
-                .expect("create table");
-
-            let insert = db
-                .prepare("INSERT INTO users (name) VALUES (?1)")
-                .expect("prepare insert");
-            insert
-                .run(&[SqlValue::Text("Alice".to_string())])
-                .expect("insert row");
-
-            let query = db
-                .prepare("SELECT id, name FROM users ORDER BY id")
-                .expect("prepare select");
-            let result = query.all(&[]).expect("query rows");
-            assert_eq!(result.columns, vec!["id".to_string(), "name".to_string()]);
-            assert_eq!(result.rows.len(), 1);
-            match &result.rows[0][1] {
-                SqlValue::Text(value) => assert_eq!(value, "Alice"),
-                other => panic!("unexpected value: {:?}", other),
-            }
-        }
-
-        #[test]
-        fn database_default_pragmas_applied() {
-            let temp = tempfile::NamedTempFile::new().expect("create temp file");
-            let db = Database::open(DatabaseOptions::with_file(temp.path()))
-                .expect("open database");
-            let result = db.pragma("journal_mode").expect("run pragma");
-            assert!(!result.rows.is_empty());
-            match &result.rows[0][0] {
-                SqlValue::Text(mode) => assert_eq!(mode.to_lowercase(), "wal"),
-                other => panic!("unexpected pragma value: {:?}", other),
-            }
-        }
-
-        #[test]
-        fn statement_get_returns_none_when_no_rows() {
-            let db = Database::open(DatabaseOptions::default()).expect("open database");
-            db.exec("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)")
-                .expect("create table");
-
-            let select = db
-                .prepare("SELECT name FROM items WHERE id = ?1")
-                .expect("prepare select");
-            let result = select
-                .get(&[SqlValue::Integer(42)])
-                .expect("query should succeed");
-            assert!(result.is_none());
-        }
-
-        #[test]
-        fn statement_run_propagates_sql_errors() {
-            use rusqlite::ErrorCode;
-            let db = Database::open(DatabaseOptions::default()).expect("open database");
-            db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT UNIQUE NOT NULL)")
-                .expect("create table");
-
-            let insert = db
-                .prepare("INSERT INTO users (email) VALUES (?1)")
-                .expect("prepare insert");
-            insert
-                .run(&[SqlValue::Text("alice@example.com".into())])
-                .expect("first insert succeeds");
-
-            let err = insert
-                .run(&[SqlValue::Text("alice@example.com".into())])
-                .expect_err("second insert should fail");
-            match err {
-                DatabaseError::Sqlite(inner) => {
-                    assert_eq!(inner.sqlite_error_code(), Some(ErrorCode::ConstraintViolation));
-                }
-            }
-        }
-
-        #[test]
-        fn statement_handles_blob_parameters_and_columns() {
-            let db = Database::open(DatabaseOptions::default()).expect("open database");
-            db.exec("CREATE TABLE files (id INTEGER PRIMARY KEY, data BLOB NOT NULL)")
-                .expect("create table");
-
-            let blob = vec![0_u8, 1, 2, 3];
-            let insert = db
-                .prepare("INSERT INTO files (id, data) VALUES (?1, ?2)")
-                .expect("prepare insert");
-            insert
-                .run(&[SqlValue::Integer(1), SqlValue::Blob(blob.clone())])
-                .expect("insert blob row");
-
-            let select = db
-                .prepare("SELECT id, data FROM files WHERE id = ?1")
-                .expect("prepare select");
-            let columns = select.columns().expect("inspect columns");
-            assert_eq!(columns, vec!["id".to_string(), "data".to_string()]);
-
-            let result = select
-                .all(&[SqlValue::Integer(1)])
-                .expect("query single row");
-            assert_eq!(result.rows.len(), 1);
-            match &result.rows[0][1] {
-                SqlValue::Blob(value) => assert_eq!(value, &blob),
-                other => panic!("unexpected value: {:?}", other),
-            }
-        }
-
-        #[test]
-        fn database_options_with_embedding_model() {
-            let opts = DatabaseOptions::default()
-                .with_embedding_model("BAAI/bge-small-en-v1.5");
-            assert_eq!(
-                opts.embedding_model.as_deref(),
-                Some("BAAI/bge-small-en-v1.5")
-            );
-        }
-
-        #[test]
-        fn database_options_embedding_model_none_by_default() {
-            let opts = DatabaseOptions::default();
-            assert!(opts.embedding_model.is_none());
-        }
     }
 }
 

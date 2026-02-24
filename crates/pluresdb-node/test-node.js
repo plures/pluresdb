@@ -2,6 +2,14 @@
 // Run with: node test-node.js (after building)
 
 const { PluresDatabase } = require('./index.js');
+const fs = require('fs');
+const path = require('path');
+
+// Clean up test database
+const testDbPath = path.join(__dirname, 'test.db');
+if (fs.existsSync(testDbPath)) {
+  fs.unlinkSync(testDbPath);
+}
 
 async function test() {
   console.log('=== PluresDB Node.js Bindings Test Suite ===\n');
@@ -86,6 +94,7 @@ async function test() {
   
   // Test 4: Vector search
   console.log('Test 4: Vector search');
+  const dim = 4;
   const embRust = [1.0, 0.0, 0.0, 0.0];
   const embJs   = [0.0, 1.0, 0.0, 0.0];
   const embPy   = [0.0, 0.0, 1.0, 0.0];
@@ -105,8 +114,40 @@ async function test() {
   console.log('  ✓ Top result:', vectorResults[0].id, 'score:', vectorResults[0].score);
   console.log('');
   
-  // Test 5: Statistics
-  console.log('Test 5: Database statistics');
+  // Test 5: SQL queries (requires database)
+  console.log('Test 5: SQL queries');
+  const dbWithSql = new PluresDatabase('test-actor', testDbPath);
+  
+  // Create table
+  dbWithSql.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE
+    )
+  `);
+  console.log('  ✓ Created table');
+  
+  // Insert data
+  dbWithSql.exec(`INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com')`);
+  dbWithSql.exec(`INSERT INTO users (name, email) VALUES ('Bob', 'bob@example.com')`);
+  console.log('  ✓ Inserted data');
+  
+  // Query data
+  const queryResult = dbWithSql.query('SELECT * FROM users WHERE name = ?', ['Alice']);
+  console.log('  ✓ Query result:', JSON.stringify(queryResult, null, 2));
+  if (queryResult.rows.length !== 1 || queryResult.rows[0].name !== 'Alice') {
+    throw new Error('Query failed: incorrect results');
+  }
+  
+  // Clean up
+  if (fs.existsSync(testDbPath)) {
+    fs.unlinkSync(testDbPath);
+  }
+  console.log('');
+  
+  // Test 6: Statistics
+  console.log('Test 6: Database statistics');
   const stats = db.stats();
   console.log('  ✓ Stats:', JSON.stringify(stats, null, 2));
   if (stats.totalNodes < 5) {
@@ -114,8 +155,8 @@ async function test() {
   }
   console.log('');
   
-  // Test 6: Subscriptions
-  console.log('Test 6: Subscriptions');
+  // Test 7: Subscriptions
+  console.log('Test 7: Subscriptions');
   const subId = db.subscribe();
   console.log('  ✓ Subscribe:', subId);
   console.log('');
