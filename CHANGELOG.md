@@ -2,6 +2,13 @@
 
 ## [2.0.0] - 2026-02-24
 
+### Other
+
+- feat!: Remove SQLite dependency — wire CrdtStore to pluresdb-storage (v2.0.0) (#109)
+
+
+## [2.0.0] - 2026-02-24
+
 ### BREAKING CHANGES
 
 - **`CrdtStore::with_persistence` now accepts `Arc<dyn StorageEngine>`** instead
