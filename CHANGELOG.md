@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1] - 2026-02-24
+
+### Other
+
+- cargo fix --lib -p pluresdb-storage
+
+
 ## [2.1.0] - 2026-02-24
 
 ### Added
