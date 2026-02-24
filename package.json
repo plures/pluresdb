@@ -1,6 +1,6 @@
 {
   "name": "@plures/pluresdb",
-  "version": "1.14.0",
+  "version": "1.14.1",
   "description": "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications",
   "main": "dist/napi/index.js",
   "types": "dist/napi/index.d.ts",
@@ -26,6 +26,7 @@
       "default": "./dist/better-sqlite3.js"
     },
     "./embedded": {
+      "types": "./embedded.d.ts",
       "require": "./embedded.js",
       "default": "./embedded.js"
     },
@@ -48,11 +49,6 @@
       "types": "./dist/local-first/unified-api.d.ts",
       "require": "./dist/local-first/unified-api.js",
       "default": "./dist/local-first/unified-api.js"
-    },
-    "./embedded": {
-      "types": "./embedded.d.ts",
-      "require": "./embedded.js",
-      "default": "./embedded.js"
     },
     "./package.json": "./package.json"
   },
