@@ -5,11 +5,8 @@
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use pluresdb_core::{
-    CrdtStore, Database, DatabaseOptions, NodeRecord, SqlValue,
-};
-use pluresdb_procedures::engine::ProcedureEngine;
 use pluresdb_core::{CrdtStore, NodeRecord};
+use pluresdb_procedures::engine::ProcedureEngine;
 use pluresdb_storage::{SledStorage, StorageEngine};
 use pluresdb_sync::{SyncBroadcaster, SyncEvent};
 use std::collections::HashMap;
