@@ -13,9 +13,7 @@ use axum::{
     Router,
 };
 use clap::{Parser, Subcommand};
-use pluresdb_core::{
-    CrdtOperation, CrdtStore, Database, DatabaseOptions, SqlValue,
-};
+use pluresdb_core::CrdtStore;
 use pluresdb_storage::{MemoryStorage, SledStorage, StorageEngine, StoredNode};
 use pluresdb_sync::SyncBroadcaster;
 use serde::Deserialize;
@@ -27,6 +25,9 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tracing::{error, info, warn};
 use tracing_subscriber::{fmt, EnvFilter};
+
+#[cfg(feature = "sqlite-compat")]
+use pluresdb_core::{Database, DatabaseOptions, SqlValue};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -212,6 +213,21 @@ enum Commands {
     /// Maintenance commands
     #[command(subcommand)]
     Maintenance(MaintenanceCommands),
+
+    /// Migrate data from a legacy SQLite database to sled storage
+    ///
+    /// Reads CRDT nodes from an existing SQLite `crdt_nodes` table and writes
+    /// them to a sled store.  Both source and target paths are required.
+    /// Requires the `sqlite-compat` cargo feature.
+    MigrateFromSqlite {
+        /// Path to the source SQLite database file
+        #[arg(long)]
+        source: PathBuf,
+
+        /// Target sled data directory (will be created if it doesn't exist)
+        #[arg(long)]
+        target: PathBuf,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -348,6 +364,7 @@ enum MaintenanceCommands {
 struct AppState {
     storage: Arc<dyn StorageEngine>,
     store: Arc<CrdtStore>,
+    #[cfg(feature = "sqlite-compat")]
     db: Option<Arc<Database>>,
     broadcaster: Arc<SyncBroadcaster>,
 }
@@ -386,6 +403,7 @@ fn create_storage(data_dir: Option<&PathBuf>) -> Result<Arc<dyn StorageEngine>> 
     }
 }
 
+#[cfg(feature = "sqlite-compat")]
 fn create_database(data_dir: Option<&PathBuf>) -> Result<Option<Arc<Database>>> {
     if let Some(dir) = data_dir {
         let db_path = dir.join("pluresdb.db");
@@ -438,12 +456,7 @@ async fn handle_put(
         let emb_f32: Vec<f32> = emb_values.iter().map(|&v| v as f32).collect();
         store.put_with_embedding(id.clone(), actor.clone(), payload.clone(), emb_f32);
     } else {
-        let op = CrdtOperation::Put {
-            id: id.clone(),
-            actor: actor.clone(),
-            data: payload.clone(),
-        };
-        store.apply(op)?;
+        store.put(id.clone(), actor.clone(), payload.clone());
     }
 
     storage
@@ -571,6 +584,8 @@ async fn handle_list(
     Ok(())
 }
 
+/// Execute SQL query (requires `sqlite-compat` feature).
+#[cfg(feature = "sqlite-compat")]
 async fn handle_query(
     db: Option<Arc<Database>>,
     query: String,
@@ -1011,6 +1026,8 @@ async fn handle_restore(
     Ok(())
 }
 
+/// Vacuum the SQLite database (requires `sqlite-compat` feature).
+#[cfg(feature = "sqlite-compat")]
 async fn handle_vacuum(db: Option<Arc<Database>>, stats: bool) -> Result<()> {
     let db = db.context("Vacuum requires a persistent database (use --data-dir)")?;
 
@@ -1036,6 +1053,8 @@ async fn handle_vacuum(db: Option<Arc<Database>>, stats: bool) -> Result<()> {
     Ok(())
 }
 
+/// Run schema migrations via SQLite (requires `sqlite-compat` feature).
+#[cfg(feature = "sqlite-compat")]
 async fn handle_migrate(db: Option<Arc<Database>>, version: Option<u32>) -> Result<()> {
     let db = db.context("Migrations require a persistent database (use --data-dir)")?;
 
@@ -1061,7 +1080,6 @@ async fn handle_migrate(db: Option<Arc<Database>>, version: Option<u32>) -> Resu
 
 async fn handle_stats(
     storage: Arc<dyn StorageEngine>,
-    db: Option<Arc<Database>>,
     detailed: bool,
 ) -> Result<()> {
     let nodes = storage.list().await?;
@@ -1082,16 +1100,123 @@ async fn handle_stats(
                 println!("  {}: {}", t, count);
             }
         }
-
-        if let Some(db) = db {
-            let page_count = db.pragma("page_count")?;
-            let page_size = db.pragma("page_size")?;
-            println!("\nDatabase size:");
-            println!("  Pages: {:?}", page_count.rows_as_json());
-            println!("  Page size: {:?}", page_size.rows_as_json());
-        }
     }
 
+    Ok(())
+}
+
+/// Migrate data from a legacy SQLite `crdt_nodes` table to a sled storage directory.
+///
+/// Reads all rows from `crdt_nodes` in the source SQLite file and writes them
+/// into the target sled store.  Embeddings are preserved as part of each
+/// `NodeRecord`'s payload.  Requires the `sqlite-compat` cargo feature.
+#[cfg(feature = "sqlite-compat")]
+async fn handle_migrate_from_sqlite(source: PathBuf, target: PathBuf) -> Result<()> {
+    use pluresdb_core::{DatabaseOptions, Database, SqlValue, NodeRecord};
+
+    info!("Migrating from SQLite: {:?} → {:?}", source, target);
+
+    // Open source SQLite database.
+    let options = DatabaseOptions::with_file(&source).read_only(true);
+    let src_db = Database::open(options)
+        .with_context(|| format!("Failed to open source SQLite database at {:?}", source))?;
+
+    // Check the crdt_nodes table exists.
+    let table_check = src_db.query(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='crdt_nodes'",
+        &[],
+    )?;
+    let has_table = table_check.rows.first()
+        .and_then(|row| row.first())
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0) > 0;
+
+    if !has_table {
+        anyhow::bail!("Source database does not contain a 'crdt_nodes' table");
+    }
+
+    // Open (or create) target sled storage.
+    fs::create_dir_all(&target)
+        .with_context(|| format!("Failed to create target directory {:?}", target))?;
+    let sled_db_path = target.join("db");
+    let storage = SledStorage::open(&sled_db_path)
+        .with_context(|| format!("Failed to open target sled store at {:?}", sled_db_path))?;
+
+    // Read all rows.
+    let rows = src_db.query(
+        "SELECT id, data, embedding FROM crdt_nodes",
+        &[],
+    ).context("Failed to query crdt_nodes")?;
+
+    let total = rows.rows.len();
+    let mut migrated = 0usize;
+    let mut skipped = 0usize;
+
+    for row in &rows.rows {
+        let id = match row.get(0) {
+            Some(SqlValue::Text(s)) => s.clone(),
+            _ => {
+                warn!("migrate-from-sqlite: skipping row with non-text ID");
+                skipped += 1;
+                continue;
+            }
+        };
+        let data: serde_json::Value = match row.get(1) {
+            Some(SqlValue::Text(s)) => match serde_json::from_str(s) {
+                Ok(v) => v,
+                Err(e) => {
+                    warn!("migrate-from-sqlite: skipping node '{}' — invalid JSON in data column: {}", id, e);
+                    skipped += 1;
+                    continue;
+                }
+            },
+            _ => {
+                warn!("migrate-from-sqlite: skipping node '{}' — missing or non-text data column", id);
+                skipped += 1;
+                continue;
+            }
+        };
+        let embedding: Option<Vec<f32>> = match row.get(2) {
+            Some(SqlValue::Blob(blob)) if blob.len() >= 4 && blob.len() % 4 == 0 => {
+                let mut values = Vec::with_capacity(blob.len() / 4);
+                let mut has_invalid = false;
+                for chunk in blob.chunks_exact(4) {
+                    let val = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                    if !val.is_finite() {
+                        has_invalid = true;
+                    }
+                    values.push(val);
+                }
+                if has_invalid || values.is_empty() {
+                    warn!(
+                        "migrate-from-sqlite: dropping embedding for node '{}' — contains non-finite or empty embedding",
+                        id
+                    );
+                    None
+                } else {
+                    Some(values)
+                }
+            }
+            _ => None,
+        };
+
+        let mut record = NodeRecord::new(id.clone(), "migrated", data);
+        record.embedding = embedding;
+
+        let stored = StoredNode {
+            id: id.clone(),
+            payload: serde_json::to_value(&record)
+                .with_context(|| format!("Failed to serialize node '{}'", id))?,
+        };
+        storage.put(stored).await
+            .with_context(|| format!("Failed to write node '{}' to sled", id))?;
+        migrated += 1;
+    }
+
+    println!("Migration complete: {} migrated, {} skipped, {} total rows", migrated, skipped, total);
+    if migrated > 0 {
+        println!("Target sled store: {:?}", sled_db_path);
+    }
     Ok(())
 }
 
@@ -1340,12 +1465,14 @@ fn main() -> Result<()> {
     rt.block_on(async move {
         let storage = create_storage(cli.data_dir.as_ref())?;
         let store = Arc::new(CrdtStore::default());
+        #[cfg(feature = "sqlite-compat")]
         let db = create_database(cli.data_dir.as_ref())?;
         let broadcaster = Arc::new(SyncBroadcaster::default());
 
         let state = AppState {
             storage: storage.clone(),
             store: store.clone(),
+            #[cfg(feature = "sqlite-compat")]
             db: db.clone(),
             broadcaster: broadcaster.clone(),
         };
@@ -1428,7 +1555,15 @@ fn main() -> Result<()> {
             } => handle_list(storage, node_type, tag, limit, format).await,
 
             Commands::Query { query, format, params } => {
-                handle_query(db, query, format, params).await
+                #[cfg(feature = "sqlite-compat")]
+                return handle_query(db, query, format, params).await;
+
+                #[cfg(not(feature = "sqlite-compat"))]
+                {
+                    let _ = (query, format, params);
+                    eprintln!("SQL queries require the 'sqlite-compat' feature. Recompile with --features sqlite-compat");
+                    std::process::exit(1);
+                }
             }
 
             Commands::Search { query, limit } => handle_search(storage, query, limit).await,
@@ -1487,12 +1622,47 @@ fn main() -> Result<()> {
                 MaintenanceCommands::Restore { path, force } => {
                     handle_restore(storage, path, force).await
                 }
-                MaintenanceCommands::Vacuum { stats } => handle_vacuum(db, stats).await,
-                MaintenanceCommands::Migrate { version } => handle_migrate(db, version).await,
+                MaintenanceCommands::Vacuum { stats } => {
+                    #[cfg(feature = "sqlite-compat")]
+                    return handle_vacuum(db, stats).await;
+
+                    #[cfg(not(feature = "sqlite-compat"))]
+                    {
+                        let _ = stats;
+                        eprintln!("Vacuum requires the 'sqlite-compat' feature. Recompile with --features sqlite-compat");
+                        std::process::exit(1);
+                    }
+                }
+                MaintenanceCommands::Migrate { version } => {
+                    #[cfg(feature = "sqlite-compat")]
+                    return handle_migrate(db, version).await;
+
+                    #[cfg(not(feature = "sqlite-compat"))]
+                    {
+                        let _ = version;
+                        eprintln!("Migrations require the 'sqlite-compat' feature. Recompile with --features sqlite-compat");
+                        std::process::exit(1);
+                    }
+                }
                 MaintenanceCommands::Stats { detailed } => {
-                    handle_stats(storage, db, detailed).await
+                    handle_stats(storage, detailed).await
                 }
             },
+
+            Commands::MigrateFromSqlite { source, target } => {
+                #[cfg(feature = "sqlite-compat")]
+                return handle_migrate_from_sqlite(source, target).await;
+
+                #[cfg(not(feature = "sqlite-compat"))]
+                {
+                    let _ = (source, target);
+                    eprintln!(
+                        "migrate-from-sqlite requires the 'sqlite-compat' feature.\n\
+                         Recompile with: cargo build --features sqlite-compat"
+                    );
+                    std::process::exit(1);
+                }
+            }
         }
     })
 }

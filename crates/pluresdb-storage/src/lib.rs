@@ -14,9 +14,9 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use sled::IVec;
-use tokio::sync::RwLock;
 use tracing::{info, instrument};
 
 pub use encryption::{EncryptionConfig, EncryptionMetadata};
@@ -47,21 +47,21 @@ pub struct MemoryStorage {
 impl StorageEngine for MemoryStorage {
     #[instrument(skip(self, node))]
     async fn put(&self, node: StoredNode) -> Result<()> {
-        self.inner.write().await.insert(node.id.clone(), node);
+        self.inner.write().insert(node.id.clone(), node);
         Ok(())
     }
 
     async fn get(&self, id: &str) -> Result<Option<StoredNode>> {
-        Ok(self.inner.read().await.get(id).cloned())
+        Ok(self.inner.read().get(id).cloned())
     }
 
     async fn delete(&self, id: &str) -> Result<()> {
-        self.inner.write().await.remove(id);
+        self.inner.write().remove(id);
         Ok(())
     }
 
     async fn list(&self) -> Result<Vec<StoredNode>> {
-        Ok(self.inner.read().await.values().cloned().collect())
+        Ok(self.inner.read().values().cloned().collect())
     }
 }
 
@@ -92,7 +92,7 @@ impl StorageEngine for SledStorage {
     async fn put(&self, node: StoredNode) -> Result<()> {
         let bytes = Self::serialize(&node)?;
         self.db.insert(node.id.as_bytes(), bytes)?;
-        self.db.flush_async().await?;
+        self.db.flush()?;
         Ok(())
     }
 
@@ -105,7 +105,7 @@ impl StorageEngine for SledStorage {
 
     async fn delete(&self, id: &str) -> Result<()> {
         self.db.remove(id.as_bytes())?;
-        self.db.flush_async().await?;
+        self.db.flush()?;
         Ok(())
     }
 

@@ -5,18 +5,25 @@
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use pluresdb_core::{
-    CrdtStore, Database, DatabaseOptions, NodeRecord, SqlValue,
-};
+use pluresdb_core::{CrdtStore, NodeRecord};
+use pluresdb_storage::{SledStorage, StorageEngine};
 use pluresdb_sync::{SyncBroadcaster, SyncEvent};
 use std::collections::HashMap;
 use std::sync::Arc;
 use parking_lot::Mutex;
 
+#[cfg(feature = "sqlite-compat")]
+use pluresdb_core::{Database, DatabaseOptions, SqlValue};
+
 /// PluresDB database instance for Node.js
 #[napi]
 pub struct PluresDatabase {
     store: Arc<Mutex<CrdtStore>>,
+    /// Storage engine for persistence (SledStorage when `db_path` is provided,
+    /// or `None` when no persistence is attached).
+    #[allow(dead_code)]
+    storage: Option<Arc<dyn StorageEngine>>,
+    #[cfg(feature = "sqlite-compat")]
     db: Option<Arc<Database>>,
     broadcaster: Arc<SyncBroadcaster>,
     actor_id: String,
@@ -28,6 +35,20 @@ impl PluresDatabase {
     #[napi(constructor)]
     pub fn new(actor_id: Option<String>, db_path: Option<String>) -> Result<Self> {
         let actor_id = actor_id.unwrap_or_else(|| "node-actor".to_string());
+
+        let (store, storage) = if let Some(path) = &db_path {
+            let sled_storage = Arc::new(
+                SledStorage::open(path)
+                    .map_err(|e| Error::from_reason(format!("Failed to open storage: {}", e)))?,
+            );
+            let store = CrdtStore::default()
+                .with_persistence(sled_storage.clone() as Arc<dyn StorageEngine>);
+            (store, Some(sled_storage as Arc<dyn StorageEngine>))
+        } else {
+            (CrdtStore::default(), None)
+        };
+
+        #[cfg(feature = "sqlite-compat")]
         let db = if let Some(path) = db_path {
             let options = DatabaseOptions::with_file(path).create_if_missing(true);
             Some(Arc::new(
@@ -39,7 +60,9 @@ impl PluresDatabase {
         };
 
         Ok(Self {
-            store: Arc::new(Mutex::new(CrdtStore::default())),
+            store: Arc::new(Mutex::new(store)),
+            storage,
+            #[cfg(feature = "sqlite-compat")]
             db,
             broadcaster: Arc::new(SyncBroadcaster::default()),
             actor_id,
@@ -79,21 +102,33 @@ impl PluresDatabase {
             })?;
             let mut store = CrdtStore::default().with_embedder(Arc::new(embedder));
 
-            // Open SQLite persistence if db_path provided
-            let db = if let Some(path) = db_path {
-                let options = DatabaseOptions::with_file(&path).create_if_missing(true);
-                let database = Database::open(options)
-                    .map_err(|e| Error::from_reason(format!("Failed to open database: {}", e)))?;
-                let db_arc = Arc::new(database);
-                store = store.with_persistence(db_arc.clone())
-                    .map_err(|e| Error::from_reason(format!("Failed to attach persistence: {}", e)))?;
-                Some(db_arc)
+            // Open persistent storage if db_path provided.
+            let storage: Option<Arc<dyn StorageEngine>> = if let Some(ref path) = db_path {
+                let sled_storage = Arc::new(
+                    SledStorage::open(path)
+                        .map_err(|e| Error::from_reason(format!("Failed to open storage: {}", e)))?
+                );
+                store = store.with_persistence(sled_storage.clone() as Arc<dyn StorageEngine>);
+                Some(sled_storage as Arc<dyn StorageEngine>)
+            } else {
+                None
+            };
+
+            #[cfg(feature = "sqlite-compat")]
+            let db = if let Some(ref path) = db_path {
+                let options = DatabaseOptions::with_file(path).create_if_missing(true);
+                Some(Arc::new(
+                    Database::open(options)
+                        .map_err(|e| Error::from_reason(format!("Failed to open database: {}", e)))?
+                ))
             } else {
                 None
             };
 
             return Ok(Self {
                 store: Arc::new(Mutex::new(store)),
+                storage,
+                #[cfg(feature = "sqlite-compat")]
                 db,
                 broadcaster: Arc::new(SyncBroadcaster::default()),
                 actor_id,
@@ -101,11 +136,13 @@ impl PluresDatabase {
         }
 
         #[cfg(not(feature = "embeddings"))]
-        Err(Error::from_reason(format!(
-            "auto-embedding is not available: model '{}' was requested but pluresdb-node \
-             was compiled without the 'embeddings' cargo feature",
-            model
-        )))
+        {
+            let _ = (model, db_path, actor_id);
+            Err(Error::from_reason(
+                "auto-embedding is not available: pluresdb-node was compiled without \
+                 the 'embeddings' cargo feature".to_string()
+            ))
+        }
     }
 
     /// Insert or update a node
@@ -243,60 +280,86 @@ impl PluresDatabase {
     }
 
     /// Execute SQL query
+    ///
+    /// Requires the `sqlite-compat` cargo feature to be enabled.
     #[napi]
     pub fn query(&self, sql: String, params: Option<Vec<serde_json::Value>>) -> Result<serde_json::Value> {
-        let db = self.db.as_ref()
-            .ok_or_else(|| Error::from_reason("SQL queries require a database (provide db_path in constructor)".to_string()))?;
-        
-        let sql_params: Vec<SqlValue> = if let Some(p) = params {
-            p.into_iter()
-                .map(|v| -> Result<SqlValue> {
-                    Ok(match v {
-                        serde_json::Value::Null => SqlValue::Null,
-                        serde_json::Value::Number(n) => {
-                            if n.is_i64() {
-                                SqlValue::Integer(n.as_i64().unwrap())
-                            } else {
-                                SqlValue::Real(n.as_f64().unwrap())
+        #[cfg(feature = "sqlite-compat")]
+        {
+            let db = self.db.as_ref()
+                .ok_or_else(|| Error::from_reason("SQL queries require a database (provide db_path in constructor)".to_string()))?;
+
+            let sql_params: Vec<SqlValue> = if let Some(p) = params {
+                p.into_iter()
+                    .map(|v| -> Result<SqlValue> {
+                        Ok(match v {
+                            serde_json::Value::Null => SqlValue::Null,
+                            serde_json::Value::Number(n) => {
+                                if n.is_i64() {
+                                    SqlValue::Integer(n.as_i64().unwrap())
+                                } else {
+                                    SqlValue::Real(n.as_f64().unwrap())
+                                }
                             }
-                        }
-                        serde_json::Value::String(s) => SqlValue::Text(s),
-                        serde_json::Value::Bool(b) => SqlValue::Integer(if b { 1 } else { 0 }),
-                        serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
-                            SqlValue::Text(serde_json::to_string(&v)
-                                .map_err(|e| Error::from_reason(format!("Failed to serialize param: {}", e)))?)
-                        }
+                            serde_json::Value::String(s) => SqlValue::Text(s),
+                            serde_json::Value::Bool(b) => SqlValue::Integer(if b { 1 } else { 0 }),
+                            serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                                SqlValue::Text(serde_json::to_string(&v)
+                                    .map_err(|e| Error::from_reason(format!("Failed to serialize param: {}", e)))?)
+                            }
+                        })
                     })
-                })
-                .collect::<Result<Vec<_>>>()?
-        } else {
-            vec![]
-        };
-        
-        let result = db.query(&sql, &sql_params)
-            .map_err(|e| Error::from_reason(format!("Query error: {}", e)))?;
-        
-        Ok(serde_json::json!({
-            "columns": result.columns,
-            "rows": result.rows_as_json(),
-            "changes": result.changes,
-            "lastInsertRowid": result.last_insert_rowid
-        }))
+                    .collect::<Result<Vec<_>>>()?
+            } else {
+                vec![]
+            };
+
+            let result = db.query(&sql, &sql_params)
+                .map_err(|e| Error::from_reason(format!("Query error: {}", e)))?;
+
+            return Ok(serde_json::json!({
+                "columns": result.columns,
+                "rows": result.rows_as_json(),
+                "changes": result.changes,
+                "lastInsertRowid": result.last_insert_rowid
+            }));
+        }
+
+        #[cfg(not(feature = "sqlite-compat"))]
+        {
+            let _ = (sql, params);
+            Err(Error::from_reason(
+                "SQL queries require the 'sqlite-compat' cargo feature to be enabled".to_string()
+            ))
+        }
     }
 
     /// Execute SQL statement (INSERT, UPDATE, DELETE)
+    ///
+    /// Requires the `sqlite-compat` cargo feature to be enabled.
     #[napi]
     pub fn exec(&self, sql: String) -> Result<serde_json::Value> {
-        let db = self.db.as_ref()
-            .ok_or_else(|| Error::from_reason("SQL execution requires a database (provide db_path in constructor)".to_string()))?;
-        
-        let result = db.exec(&sql)
-            .map_err(|e| Error::from_reason(format!("Execution error: {}", e)))?;
-        
-        Ok(serde_json::json!({
-            "changes": result.changes,
-            "lastInsertRowid": result.last_insert_rowid
-        }))
+        #[cfg(feature = "sqlite-compat")]
+        {
+            let db = self.db.as_ref()
+                .ok_or_else(|| Error::from_reason("SQL execution requires a database (provide db_path in constructor)".to_string()))?;
+
+            let result = db.exec(&sql)
+                .map_err(|e| Error::from_reason(format!("Execution error: {}", e)))?;
+
+            return Ok(serde_json::json!({
+                "changes": result.changes,
+                "lastInsertRowid": result.last_insert_rowid
+            }));
+        }
+
+        #[cfg(not(feature = "sqlite-compat"))]
+        {
+            let _ = sql;
+            Err(Error::from_reason(
+                "SQL execution requires the 'sqlite-compat' cargo feature to be enabled".to_string()
+            ))
+        }
     }
 
     /// Search nodes by text content
