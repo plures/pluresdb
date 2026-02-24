@@ -51,6 +51,9 @@ fn parse_step(pair: Pair<Rule>) -> Result<Step, ParseError> {
         Rule::project_step => parse_project(inner),
         Rule::mutate_step => parse_mutate(inner),
         Rule::aggregate_step => parse_aggregate(inner),
+        Rule::graph_neighbors_step => parse_graph_neighbors(inner),
+        Rule::graph_links_step => parse_graph_links(inner),
+        Rule::auto_link_step => parse_auto_link(inner),
         r => unreachable!("unexpected rule: {:?}", r),
     }
 }
@@ -455,6 +458,135 @@ fn parse_aggregate(pair: Pair<Rule>) -> Result<Step, ParseError> {
     Ok(Step::Aggregate { func, field })
 }
 
+// ---- graph_neighbors ----
+
+fn parse_graph_neighbors(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let mut inner = pair.into_inner();
+
+    // First child is always the root string.
+    let root_raw = inner.next().expect("root string").as_str();
+    let root = root_raw[1..root_raw.len() - 1].to_string();
+
+    let mut depth: usize = 1;
+    let mut min_strength: Option<f64> = None;
+    let mut link_type: Option<String> = None;
+    let mut bidirectional = false;
+
+    for kv in inner {
+        // kv is a graph_step_kv: ident ":" value
+        let mut kv_inner = kv.into_inner();
+        let key = kv_inner.next().expect("key ident").as_str();
+        let val = parse_value(kv_inner.next().expect("value"))?;
+        match key {
+            "depth" => {
+                if let IrValue::Number(n) = val {
+                    depth = n as usize;
+                }
+            }
+            "min_strength" => {
+                if let IrValue::Number(n) = val {
+                    min_strength = Some(n);
+                }
+            }
+            "type" => {
+                if let IrValue::String(s) = val {
+                    link_type = Some(s);
+                }
+            }
+            "bidirectional" => {
+                if let IrValue::Bool(b) = val {
+                    bidirectional = b;
+                }
+            }
+            _ => {
+                // Unknown keys are silently ignored, consistent with the mutate
+                // step parser, to allow forward compatibility with future params.
+            }
+        }
+    }
+
+    Ok(Step::GraphNeighbors { root, depth, min_strength, link_type, bidirectional })
+}
+
+// ---- graph_links ----
+
+fn parse_graph_links(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let mut from: Option<String> = None;
+    let mut to: Option<String> = None;
+    let mut min_strength: Option<f64> = None;
+    let mut link_type: Option<String> = None;
+
+    for kv in pair.into_inner() {
+        // kv is a graph_step_kv: ident ":" value
+        let mut kv_inner = kv.into_inner();
+        let key = kv_inner.next().expect("key ident").as_str();
+        let val = parse_value(kv_inner.next().expect("value"))?;
+        match key {
+            "from" => {
+                if let IrValue::String(s) = val {
+                    from = Some(s);
+                }
+            }
+            "to" => {
+                if let IrValue::String(s) = val {
+                    to = Some(s);
+                }
+            }
+            "min_strength" => {
+                if let IrValue::Number(n) = val {
+                    min_strength = Some(n);
+                }
+            }
+            "type" => {
+                if let IrValue::String(s) = val {
+                    link_type = Some(s);
+                }
+            }
+            _ => {
+                // Unknown keys are silently ignored for forward compatibility.
+            }
+        }
+    }
+
+    Ok(Step::GraphLinks { from, to, min_strength, link_type })
+}
+
+// ---- auto_link ----
+
+fn parse_auto_link(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let mut algorithms: Vec<String> = Vec::new();
+    let mut min_strength: Option<f64> = None;
+
+    for kv in pair.into_inner() {
+        // kv is an auto_link_kv: either auto_link_alg_kv or auto_link_other_kv
+        let inner = kv.into_inner().next().expect("auto_link_kv child");
+        match inner.as_rule() {
+            Rule::auto_link_alg_kv => {
+                // auto_link_alg_kv: "algorithms" ":" field_array
+                let arr = inner.into_inner().next().expect("field_array");
+                for p in arr.into_inner() {
+                    let s = p.as_str();
+                    algorithms.push(s[1..s.len() - 1].to_string());
+                }
+            }
+            Rule::auto_link_other_kv => {
+                // auto_link_other_kv: ident ":" value
+                let mut kv_inner = inner.into_inner();
+                let key = kv_inner.next().expect("key ident").as_str();
+                let val = parse_value(kv_inner.next().expect("value"))?;
+                if key == "min_strength" {
+                    if let IrValue::Number(n) = val {
+                        min_strength = Some(n);
+                    }
+                }
+            }
+            r => unreachable!("unexpected auto_link_kv child: {:?}", r),
+        }
+    }
+
+    Ok(Step::AutoLink { algorithms, min_strength })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -599,5 +731,146 @@ mod tests {
         {
             assert_eq!(*cmp, CmpOp::Contains);
         }
+    }
+
+    // ── Graph operation parser tests ──────────────────────────────────────────
+
+    #[test]
+    fn parse_graph_neighbors_minimal() {
+        let steps = parse_query(r#"graph_neighbors("memory:123", depth: 2)"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        if let Step::GraphNeighbors { root, depth, min_strength, link_type, bidirectional } =
+            &steps[0]
+        {
+            assert_eq!(root, "memory:123");
+            assert_eq!(*depth, 2);
+            assert!(min_strength.is_none());
+            assert!(link_type.is_none());
+            assert!(!bidirectional);
+        } else {
+            panic!("expected GraphNeighbors");
+        }
+    }
+
+    #[test]
+    fn parse_graph_neighbors_all_params() {
+        let steps = parse_query(
+            r#"graph_neighbors("memory:123", depth: 3, min_strength: 0.8, type: "related", bidirectional: true)"#,
+        )
+        .unwrap();
+        if let Step::GraphNeighbors { root, depth, min_strength, link_type, bidirectional } =
+            &steps[0]
+        {
+            assert_eq!(root, "memory:123");
+            assert_eq!(*depth, 3);
+            assert_eq!(*min_strength, Some(0.8));
+            assert_eq!(link_type.as_deref(), Some("related"));
+            assert!(*bidirectional);
+        } else {
+            panic!("expected GraphNeighbors");
+        }
+    }
+
+    #[test]
+    fn parse_graph_links_from_only() {
+        let steps = parse_query(r#"graph_links(from: "memory:123")"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        if let Step::GraphLinks { from, to, min_strength, link_type } = &steps[0] {
+            assert_eq!(from.as_deref(), Some("memory:123"));
+            assert!(to.is_none());
+            assert!(min_strength.is_none());
+            assert!(link_type.is_none());
+        } else {
+            panic!("expected GraphLinks");
+        }
+    }
+
+    #[test]
+    fn parse_graph_links_all_params() {
+        let steps = parse_query(
+            r#"graph_links(from: "n1", to: "n2", min_strength: 0.5, type: "semantic")"#,
+        )
+        .unwrap();
+        if let Step::GraphLinks { from, to, min_strength, link_type } = &steps[0] {
+            assert_eq!(from.as_deref(), Some("n1"));
+            assert_eq!(to.as_deref(), Some("n2"));
+            assert_eq!(*min_strength, Some(0.5));
+            assert_eq!(link_type.as_deref(), Some("semantic"));
+        } else {
+            panic!("expected GraphLinks");
+        }
+    }
+
+    #[test]
+    fn parse_graph_links_empty() {
+        let steps = parse_query("graph_links()").unwrap();
+        assert_eq!(steps.len(), 1);
+        if let Step::GraphLinks { from, to, min_strength, link_type } = &steps[0] {
+            assert!(from.is_none());
+            assert!(to.is_none());
+            assert!(min_strength.is_none());
+            assert!(link_type.is_none());
+        } else {
+            panic!("expected GraphLinks");
+        }
+    }
+
+    #[test]
+    fn parse_auto_link_empty() {
+        let steps = parse_query("auto_link()").unwrap();
+        assert_eq!(steps.len(), 1);
+        if let Step::AutoLink { algorithms, min_strength } = &steps[0] {
+            assert!(algorithms.is_empty());
+            assert!(min_strength.is_none());
+        } else {
+            panic!("expected AutoLink");
+        }
+    }
+
+    #[test]
+    fn parse_auto_link_with_algorithms() {
+        let steps =
+            parse_query(r#"auto_link(algorithms: ["semantic", "category"])"#).unwrap();
+        if let Step::AutoLink { algorithms, .. } = &steps[0] {
+            assert_eq!(algorithms, &["semantic", "category"]);
+        } else {
+            panic!("expected AutoLink");
+        }
+    }
+
+    #[test]
+    fn parse_auto_link_with_min_strength() {
+        let steps = parse_query(r#"auto_link(algorithms: ["temporal"], min_strength: 0.6)"#)
+            .unwrap();
+        if let Step::AutoLink { algorithms, min_strength } = &steps[0] {
+            assert_eq!(algorithms, &["temporal"]);
+            assert_eq!(*min_strength, Some(0.6));
+        } else {
+            panic!("expected AutoLink");
+        }
+    }
+
+    #[test]
+    fn parse_graph_pipeline_complex() {
+        let input = r#"filter(category == "development") |> auto_link() |> graph_neighbors("memory:1", depth: 2)"#;
+        let steps = parse_query(input).unwrap();
+        assert_eq!(steps.len(), 3);
+        assert!(matches!(steps[0], Step::Filter { .. }));
+        assert!(matches!(steps[1], Step::AutoLink { .. }));
+        assert!(matches!(steps[2], Step::GraphNeighbors { .. }));
+    }
+
+    #[test]
+    fn parse_graph_neighbors_in_pipeline() {
+        let input = r#"graph_neighbors("memory:123", depth: 2) |> filter(category == "dev") |> limit(10)"#;
+        let steps = parse_query(input).unwrap();
+        assert_eq!(steps.len(), 3);
+    }
+
+    #[test]
+    fn parse_graph_links_then_sort() {
+        let input = r#"graph_links(min_strength: 0.8) |> sort(by: "strength", dir: "desc")"#;
+        let steps = parse_query(input).unwrap();
+        assert_eq!(steps.len(), 2);
     }
 }

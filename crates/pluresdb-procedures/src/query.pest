@@ -11,7 +11,8 @@ WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
 // Entry point
 query = { SOI ~ step ~ ("|>" ~ step)* ~ EOI }
 
-step = { filter_step | sort_step | limit_step | project_step | mutate_step | aggregate_step }
+step = { filter_step | sort_step | limit_step | project_step | mutate_step | aggregate_step
+       | graph_neighbors_step | graph_links_step | auto_link_step }
 
 // ----------------------------------------------------------------
 // Filter
@@ -84,3 +85,31 @@ mutate_kv   = { ident ~ ":" ~ value }
 aggregate_step = { "aggregate" ~ "(" ~ agg_fn ~ ("," ~ agg_field_kv)? ~ ")" }
 agg_fn         = { "count" | "sum" | "avg" | "min" | "max" | "distinct" | "collect" }
 agg_field_kv   = { "field" ~ ":" ~ string }
+
+// ----------------------------------------------------------------
+// Graph operations
+// ----------------------------------------------------------------
+
+// graph_neighbors("root-id", depth: 2, min_strength: 0.8, type: "related", bidirectional: true)
+graph_neighbors_step = {
+    "graph_neighbors" ~ "(" ~ string ~ ("," ~ graph_step_kv)* ~ ")"
+}
+
+// graph_links(from: "n1", to: "n2", min_strength: 0.5, type: "related")
+graph_links_step = {
+    "graph_links" ~ "(" ~ (graph_step_kv ~ ("," ~ graph_step_kv)*)? ~ ")"
+}
+
+// auto_link() or auto_link(algorithms: ["semantic", "category"], min_strength: 0.5)
+auto_link_step = {
+    "auto_link" ~ "(" ~ (auto_link_kv ~ ("," ~ auto_link_kv)*)? ~ ")"
+}
+
+// Generic key-value pair used by graph_neighbors and graph_links
+// (depth, from, to, min_strength, type, bidirectional)
+graph_step_kv = { ident ~ ":" ~ value }
+
+// Key-value pair used by auto_link; algorithms takes a string array
+auto_link_alg_kv   = { "algorithms" ~ ":" ~ field_array }
+auto_link_other_kv = { ident        ~ ":" ~ value        }
+auto_link_kv       = { auto_link_alg_kv | auto_link_other_kv }

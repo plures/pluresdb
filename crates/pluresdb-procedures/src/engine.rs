@@ -112,6 +112,36 @@ impl<'a> ProcedureEngine<'a> {
                         mutated: None,
                     });
                 }
+                Step::GraphNeighbors { root, depth, min_strength, link_type, bidirectional } => {
+                    nodes = crate::ops::graph::graph_neighbors(
+                        self.store,
+                        root.as_str(),
+                        *depth,
+                        *min_strength,
+                        link_type.as_deref(),
+                        *bidirectional,
+                    );
+                }
+                Step::GraphLinks { from, to, min_strength, link_type } => {
+                    nodes = crate::ops::graph::graph_links(
+                        self.store,
+                        from.as_deref(),
+                        to.as_deref(),
+                        *min_strength,
+                        link_type.as_deref(),
+                    );
+                }
+                Step::AutoLink { algorithms, min_strength } => {
+                    let alg_refs: Vec<&str> = algorithms.iter().map(|s| s.as_str()).collect();
+                    let strength = min_strength.unwrap_or(0.5);
+                    nodes = crate::ops::graph::auto_link(
+                        self.store,
+                        &self.actor,
+                        &nodes,
+                        &alg_refs,
+                        strength,
+                    );
+                }
             }
         }
 
