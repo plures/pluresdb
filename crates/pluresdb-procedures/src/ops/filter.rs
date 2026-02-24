@@ -88,7 +88,10 @@ fn compare_string(
 }
 
 fn compare_regex(field_val: Option<&serde_json::Value>, rhs: &IrValue) -> bool {
-    // Simple substring match as a fallback (no regex crate dependency for Phase 1).
+    // Phase 1: `matches` is implemented as a case-sensitive substring search.
+    // Full regular-expression support (via the `regex` crate) is deferred to a
+    // future phase to avoid the additional compile-time dependency and to keep
+    // the grammar surface small for Phase 1 consumers.
     if let (Some(serde_json::Value::String(s)), IrValue::String(pattern)) = (field_val, rhs) {
         return s.contains(pattern.as_str());
     }

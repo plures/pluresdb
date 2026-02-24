@@ -225,6 +225,11 @@ pub enum MutateOp {
     Delete {
         id: String,
     },
+    /// Merge `patch` into an existing node's data using a **shallow** strategy:
+    /// top-level fields from `patch` overwrite the corresponding fields in the
+    /// stored document.  Nested objects are replaced entirely rather than merged
+    /// recursively.  If you need deep-merge semantics, read the node first,
+    /// merge client-side, then use `Put`.
     Merge {
         id: String,
         patch: serde_json::Value,

@@ -87,6 +87,10 @@ pub fn apply_mutate(
 }
 
 /// Merge two JSON objects (shallow patch: `patch` fields overwrite `base`).
+///
+/// Only the top-level keys of `patch` are merged; nested objects inside
+/// `patch` are inserted as-is, replacing any existing nested object at the
+/// same key rather than being merged recursively.
 fn merge_json(base: serde_json::Value, patch: serde_json::Value) -> serde_json::Value {
     match (base, patch) {
         (serde_json::Value::Object(mut b), serde_json::Value::Object(p)) => {

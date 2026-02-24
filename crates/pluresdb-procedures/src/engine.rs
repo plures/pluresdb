@@ -7,6 +7,21 @@ use crate::ops::{aggregate, filter, mutate, project, sort};
 
 /// Executes query pipelines (sequences of [`Step`]s) against a [`CrdtStore`].
 ///
+/// # Performance note
+///
+/// The engine bootstraps each pipeline by calling [`CrdtStore::list`], which
+/// returns all nodes currently in the store.  For stores backed by SQLite this
+/// is a full table scan; for large databases you should apply selective
+/// `filter` steps early in the pipeline to keep the working set small.
+///
+/// A lightweight optimisation is applied automatically: when the pipeline
+/// contains a `Limit` step with **no preceding `Filter`** the initial list is
+/// pre-truncated to that limit so that sort/project do not operate on more
+/// nodes than necessary.
+///
+/// Push-down filtering to the storage layer (e.g. SQL `WHERE` clauses) is
+/// planned for a future phase.
+///
 /// # Example
 ///
 /// ```rust
@@ -46,10 +61,19 @@ impl<'a> ProcedureEngine<'a> {
     /// passes the (unchanged) node set through.  An `aggregate` step is
     /// terminal — the engine stops there and returns an `AggResult`.
     pub fn exec(&self, steps: &[Step]) -> anyhow::Result<ProcedureResult> {
-        // Bootstrap with all nodes from the store.
-        let mut nodes: Vec<NodeRecord> = self.store.list();
+        // Optimisation: if the pipeline has a Limit before any Filter we can
+        // truncate the initial list right away and avoid sorting/projecting
+        // more nodes than the caller will ever see.
+        let pre_limit = leading_limit_without_filter(steps);
+
+        let mut nodes: Vec<NodeRecord> = {
+            let mut all = self.store.list();
+            if let Some(n) = pre_limit {
+                all.truncate(n);
+            }
+            all
+        };
         let mut pending_limit: Option<usize> = None;
-        let mut pending_after: Option<String> = None;
 
         for step in steps {
             match step {
@@ -62,9 +86,8 @@ impl<'a> ProcedureEngine<'a> {
                         by.as_str(),
                         dir,
                         pending_limit.take(),
-                        after.as_deref().or(pending_after.as_deref()),
+                        after.as_deref(),
                     );
-                    pending_after = None;
                 }
                 Step::Limit { n } => {
                     pending_limit = Some(*n);
@@ -130,6 +153,29 @@ impl<'a> ProcedureEngine<'a> {
             .map_err(|e| anyhow::anyhow!("IR deserialisation error: {}", e))?;
         self.exec(&steps)
     }
+}
+
+/// Return the minimum `Limit` value that appears before any `Filter` step in
+/// the pipeline, or `None` if no such limit exists.
+///
+/// This is used by [`ProcedureEngine::exec`] to pre-truncate the initial node
+/// list when the query has no filter steps at all (e.g. `sort |> limit`),
+/// avoiding unnecessary work on the full node set.
+fn leading_limit_without_filter(steps: &[Step]) -> Option<usize> {
+    let mut min_limit: Option<usize> = None;
+    for step in steps {
+        match step {
+            Step::Filter { .. } => break, // filter found — optimisation doesn't apply
+            Step::Limit { n } => {
+                min_limit = Some(match min_limit {
+                    Some(prev) => prev.min(*n),
+                    None => *n,
+                });
+            }
+            _ => {}
+        }
+    }
+    min_limit
 }
 
 #[cfg(test)]

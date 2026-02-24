@@ -49,8 +49,11 @@ pub fn apply_aggregate(nodes: &[NodeRecord], func: &AggFn, field: Option<&str>) 
         }
         AggFn::Distinct => {
             let values = extract_values(nodes, field);
-            // Use JSON string serialisation for deduplication since
-            // serde_json::Value does not implement Hash.
+            // `serde_json::Value` does not implement `Hash`, so we serialise
+            // each value to a canonical JSON string and use a `HashSet<String>`
+            // for O(n) deduplication.  For deeply nested or very large values
+            // the serialisation cost per element may be noticeable; a future
+            // optimisation could use a custom hash wrapper.
             let mut seen_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
             let mut unique: Vec<serde_json::Value> = Vec::new();
             for v in values {
