@@ -3,7 +3,7 @@
 //! This module provides tools to rebuild database state from WAL operations,
 //! including CRDT state reconstruction and index rebuilding.
 
-use crate::wal::{WalEntry, WalOperation, WriteAheadLog};
+use crate::wal::{WalOperation, WriteAheadLog};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::path::Path;
