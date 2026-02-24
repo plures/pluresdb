@@ -65,7 +65,7 @@ impl PluresDatabase {
     /// const results = db.vectorSearch([...queryEmbedding], 5, 0.3);
     /// ```
     #[napi(factory)]
-    pub fn new_with_embeddings(model: String, actor_id: Option<String>) -> Result<Self> {
+    pub fn new_with_embeddings(model: String, actor_id: Option<String>, db_path: Option<String>) -> Result<Self> {
         let actor_id = actor_id.unwrap_or_else(|| "node-actor".to_string());
 
         #[cfg(feature = "embeddings")]
@@ -77,10 +77,24 @@ impl PluresDatabase {
                     model, e
                 ))
             })?;
-            let store = CrdtStore::default().with_embedder(Arc::new(embedder));
+            let mut store = CrdtStore::default().with_embedder(Arc::new(embedder));
+
+            // Open SQLite persistence if db_path provided
+            let db = if let Some(path) = db_path {
+                let options = DatabaseOptions::with_file(&path).create_if_missing(true);
+                let database = Database::open(options)
+                    .map_err(|e| Error::from_reason(format!("Failed to open database: {}", e)))?;
+                let db_arc = Arc::new(database);
+                store = store.with_persistence(db_arc.clone())
+                    .map_err(|e| Error::from_reason(format!("Failed to attach persistence: {}", e)))?;
+                Some(db_arc)
+            } else {
+                None
+            };
+
             return Ok(Self {
                 store: Arc::new(Mutex::new(store)),
-                db: None,
+                db,
                 broadcaster: Arc::new(SyncBroadcaster::default()),
                 actor_id,
             });
@@ -457,6 +471,14 @@ impl PluresDatabase {
     #[napi]
     pub fn get_actor_id(&self) -> String {
         self.actor_id.clone()
+    }
+
+    /// Build the HNSW vector index from hydrated embeddings.
+    /// Call after init to enable vector search without blocking startup.
+    #[napi]
+    pub fn build_vector_index(&self) -> u32 {
+        let store = self.store.lock();
+        store.build_vector_index() as u32
     }
 
     /// Get database statistics

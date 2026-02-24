@@ -184,7 +184,15 @@ impl VectorIndex {
         };
         self.id_to_idx.insert(id.to_string(), idx);
         self.idx_to_id.insert(idx, id.to_string());
-        self.hnsw.insert((embedding, idx));
+        // HNSW can panic on degenerate vectors; catch and skip.
+        let emb_owned: Vec<f32> = embedding.to_vec();
+        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.hnsw.insert((&emb_owned, idx));
+        })).is_err() {
+            eprintln!("[VectorIndex] HNSW insert panicked for '{}'; skipping", id);
+            self.id_to_idx.remove(id);
+            self.idx_to_id.remove(&idx);
+        }
     }
 
     /// Returns up to `limit` node IDs with their cosine similarity scores,
@@ -262,6 +270,10 @@ pub struct CrdtStore {
     /// will automatically generate and index an embedding for each node whose
     /// JSON data contains extractable text content.
     embedder: Option<Arc<dyn EmbedText>>,
+    /// Optional SQLite persistence layer.  When set, every `put`,
+    /// `put_with_embedding`, and `delete` will write-through to SQLite,
+    /// and the store is hydrated from SQLite on construction.
+    persistence: Option<Arc<Database>>,
 }
 
 impl std::fmt::Debug for CrdtStore {
@@ -280,6 +292,7 @@ impl Default for CrdtStore {
             nodes: DashMap::new(),
             vector_index: Arc::new(VectorIndex::default()),
             embedder: None,
+            persistence: None,
         }
     }
 }
@@ -311,6 +324,203 @@ impl CrdtStore {
         self.embedder.as_deref()
     }
 
+    /// Build the HNSW vector index from all nodes that have embeddings.
+    /// Call this after hydration to populate search without blocking init.
+    pub fn build_vector_index(&self) -> usize {
+        let expected_dim = self.embedder.as_ref().map(|e| e.dimension());
+        let mut indexed = 0usize;
+        for entry in self.nodes.iter() {
+            if let Some(emb) = &entry.value().embedding {
+                // Check dimension match
+                if let Some(dim) = expected_dim {
+                    if emb.len() != dim { continue; }
+                }
+                // Validate
+                if emb.is_empty() || !emb.iter().all(|v| v.is_finite()) || !emb.iter().any(|v| *v != 0.0) {
+                    continue;
+                }
+                self.vector_index.insert(entry.key(), emb);
+                indexed += 1;
+            }
+        }
+        eprintln!("[CrdtStore] Built vector index: {} entries", indexed);
+        indexed
+    }
+
+    /// Attach a SQLite persistence layer.
+    ///
+    /// The store will:
+    /// 1. Create the `crdt_nodes` table if it doesn't exist.
+    /// 2. Hydrate the in-memory store from existing rows.
+    /// 3. Write-through on every `put`, `put_with_embedding`, and `delete`.
+    pub fn with_persistence(mut self, db: Arc<Database>) -> Result<Self, DatabaseError> {
+        // Create table
+        db.exec(
+            "CREATE TABLE IF NOT EXISTS crdt_nodes (
+                id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                embedding BLOB,
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+            )"
+        )?;
+        db.exec("CREATE INDEX IF NOT EXISTS idx_crdt_nodes_updated ON crdt_nodes(updated_at)")?;
+
+        // Migrate legacy `memories` table if it exists and `crdt_nodes` is empty
+        let crdt_count: i64 = db.query("SELECT COUNT(*) FROM crdt_nodes", &[])
+            .ok()
+            .and_then(|r| r.rows.first().and_then(|row| row.first().and_then(|v| v.as_i64())))
+            .unwrap_or(0);
+        if crdt_count == 0 {
+            // Check if legacy memories table exists
+            let has_legacy = db.query(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='memories'",
+                &[],
+            ).ok()
+                .and_then(|r| r.rows.first().and_then(|row| row.first().and_then(|v| v.as_i64())))
+                .unwrap_or(0) > 0;
+
+            if has_legacy {
+                let legacy_count: i64 = db.query("SELECT COUNT(*) FROM memories", &[])
+                    .ok()
+                    .and_then(|r| r.rows.first().and_then(|row| row.first().and_then(|v| v.as_i64())))
+                    .unwrap_or(0);
+                if legacy_count > 0 {
+                    eprintln!("[CrdtStore] Migrating {} records from legacy `memories` table to `crdt_nodes`...", legacy_count);
+                    let migrate_sql = r#"
+                        INSERT OR IGNORE INTO crdt_nodes (id, data, embedding, updated_at)
+                        SELECT
+                            'memory:' || id,
+                            json_object(
+                                'content', content,
+                                'created_at', created_at,
+                                'source', COALESCE(source, ''),
+                                'tags', tags,
+                                'category', COALESCE(category, 'other'),
+                                'priority', COALESCE(priority, 'normal'),
+                                'last_accessed_at', last_accessed_at,
+                                'merge_count', COALESCE(merge_count, 0),
+                                'importance_score', COALESCE(importance_score, 1.0)
+                            ),
+                            embedding,
+                            COALESCE(created_at / 1000, strftime('%s','now'))
+                        FROM memories
+                    "#;
+                    match db.exec(migrate_sql) {
+                        Ok(result) => eprintln!("[CrdtStore] Migrated {} records from legacy table", result.changes),
+                        Err(e) => eprintln!("[CrdtStore] Legacy migration failed: {}", e),
+                    }
+                }
+            }
+        }
+
+        // Hydrate — columns: id(0), data(1), embedding(2)
+        let rows = db.query(
+            "SELECT id, data, embedding FROM crdt_nodes",
+            &[],
+        )?;
+        let mut hydrated = 0usize;
+        for row in &rows.rows {
+            let id = match row.get(0) {
+                Some(SqlValue::Text(s)) => s.clone(),
+                _ => continue,
+            };
+            let data_str = match row.get(1) {
+                Some(SqlValue::Text(s)) => s.clone(),
+                _ => continue,
+            };
+            let data: NodeData = match serde_json::from_str(&data_str) {
+                Ok(d) => d,
+                Err(_) => continue,
+            };
+            // Check for embedding blob; filter by expected dimension if embedder is attached
+            let expected_dim = self.embedder.as_ref().map(|e| e.dimension());
+            let embedding: Option<Vec<f32>> = row.get(2).and_then(|v| {
+                if let SqlValue::Blob(blob) = v {
+                    if blob.len() >= 4 && blob.len() % 4 == 0 {
+                        let floats: Vec<f32> = blob
+                            .chunks_exact(4)
+                            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+                            .collect();
+                        // Skip if dimension doesn't match the embedder
+                        if let Some(dim) = expected_dim {
+                            if floats.len() != dim {
+                                return None;
+                            }
+                        }
+                        Some(floats)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            });
+
+            let actor = "hydrated".to_string();
+            if let Some(emb) = embedding {
+                // Store data + embedding in memory but DON'T index into HNSW
+                // during hydration — avoids blocking the event loop on startup.
+                // New writes will index normally; search uses fallback until then.
+                self.nodes
+                    .entry(id.clone())
+                    .or_insert_with(|| {
+                        let mut r = NodeRecord::new(id.clone(), actor.clone(), data.clone());
+                        r.embedding = Some(emb);
+                        r
+                    });
+            } else {
+                self.nodes
+                    .entry(id.clone())
+                    .or_insert_with(|| NodeRecord::new(id.clone(), actor.clone(), data.clone()));
+            }
+            hydrated += 1;
+        }
+        eprintln!("[CrdtStore] Hydrated {} records from SQLite", hydrated);
+
+        self.persistence = Some(db);
+        Ok(self)
+    }
+
+    /// Write a node to the SQLite persistence layer (if attached).
+    fn persist_node(&self, id: &str, data: &NodeData, embedding: Option<&[f32]>) {
+        if let Some(db) = &self.persistence {
+            let data_json = serde_json::to_string(data).unwrap_or_default();
+            let emb_blob: Option<Vec<u8>> = embedding.map(|e| {
+                e.iter().flat_map(|f| f.to_le_bytes()).collect()
+            });
+            let sql = if emb_blob.is_some() {
+                "INSERT OR REPLACE INTO crdt_nodes (id, data, embedding, updated_at) VALUES (?1, ?2, ?3, strftime('%s','now'))"
+            } else {
+                "INSERT OR REPLACE INTO crdt_nodes (id, data, updated_at) VALUES (?1, ?2, strftime('%s','now'))"
+            };
+            let params: Vec<SqlValue> = if let Some(blob) = emb_blob {
+                vec![
+                    SqlValue::Text(id.to_string()),
+                    SqlValue::Text(data_json),
+                    SqlValue::Blob(blob),
+                ]
+            } else {
+                vec![
+                    SqlValue::Text(id.to_string()),
+                    SqlValue::Text(data_json),
+                ]
+            };
+            if let Err(e) = db.query(sql, &params) {
+                eprintln!("[CrdtStore] persist failed for {}: {}", id, e);
+            }
+        }
+    }
+
+    /// Delete a node from the SQLite persistence layer (if attached).
+    fn unpersist_node(&self, id: &str) {
+        if let Some(db) = &self.persistence {
+            let params = vec![SqlValue::Text(id.to_string())];
+            if let Err(e) = db.query("DELETE FROM crdt_nodes WHERE id = ?1", &params) {
+                eprintln!("[CrdtStore] unpersist failed for {}: {}", id, e);
+            }
+        }
+    }
+
     /// Inserts or updates a node using CRDT semantics.
     ///
     /// When an [`EmbedText`] backend has been attached via
@@ -337,7 +547,8 @@ impl CrdtStore {
         self.nodes
             .entry(id.clone())
             .and_modify(|record| record.merge_update(actor.clone(), data.clone()))
-            .or_insert_with(|| NodeRecord::new(id.clone(), actor, data));
+            .or_insert_with(|| NodeRecord::new(id.clone(), actor, data.clone()));
+        self.persist_node(&id, &data, None);
         id
     }
 
@@ -354,6 +565,10 @@ impl CrdtStore {
     ) -> NodeId {
         let id = id.into();
         let actor = actor.into();
+        // Validate embedding before HNSW insertion
+        let emb_valid = !embedding.is_empty()
+            && embedding.iter().all(|v| v.is_finite())
+            && embedding.iter().any(|v| *v != 0.0);
         let emb_clone = embedding.clone();
         self.nodes
             .entry(id.clone())
@@ -362,20 +577,25 @@ impl CrdtStore {
                 record.embedding = Some(embedding.clone());
             })
             .or_insert_with(|| {
-                let mut r = NodeRecord::new(id.clone(), actor, data);
+                let mut r = NodeRecord::new(id.clone(), actor, data.clone());
                 r.embedding = Some(embedding);
                 r
             });
-        self.vector_index.insert(&id, &emb_clone);
+        if emb_valid {
+            self.vector_index.insert(&id, &emb_clone);
+        }
+        self.persist_node(&id, &data, Some(&emb_clone));
         id
     }
 
     /// Removes a node from the store.
     pub fn delete(&self, id: impl AsRef<str>) -> Result<(), StoreError> {
+        let id_ref = id.as_ref();
+        self.unpersist_node(id_ref);
         self.nodes
-            .remove(id.as_ref())
+            .remove(id_ref)
             .map(|_| ())
-            .ok_or_else(|| StoreError::NotFound(id.as_ref().to_owned()))
+            .ok_or_else(|| StoreError::NotFound(id_ref.to_owned()))
     }
 
     /// Fetches a node by identifier.
