@@ -19,8 +19,8 @@ use pluresdb_core::{Database, DatabaseOptions, SqlValue};
 #[napi]
 pub struct PluresDatabase {
     store: Arc<Mutex<CrdtStore>>,
-    /// Storage engine for persistence (SledStorage when db_path is provided,
-    /// MemoryStorage otherwise).
+    /// Storage engine for persistence (SledStorage when `db_path` is provided,
+    /// or `None` when no persistence is attached).
     #[allow(dead_code)]
     storage: Option<Arc<dyn StorageEngine>>,
     #[cfg(feature = "sqlite-compat")]
