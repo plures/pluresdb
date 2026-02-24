@@ -138,6 +138,5 @@ fn roundtrip_5_step_chain() {
 fn error_on_empty_string() {
     // Empty input should fail to parse (no steps)
     let result = parse_query("");
-    // Either a parse error or an empty step list is acceptable
-    assert!(result.map(|v| v.is_empty()).unwrap_or(true));
+    assert!(result.is_err());
 }
