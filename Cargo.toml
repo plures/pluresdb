@@ -9,6 +9,8 @@ members = [
     "crates/pluresdb-cli",
     "crates/pluresdb-wasm",
     # "crates/pluresdb-ipc",  # Temporarily excluded - Send trait bounds issue with shared_memory
+    "crates/pluresdb-procedures-macros",
+    "crates/pluresdb-procedures",
 ]
 resolver = "2"
 

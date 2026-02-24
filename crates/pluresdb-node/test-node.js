@@ -119,7 +119,64 @@ async function test() {
   const subId = db.subscribe();
   console.log('  ✓ Subscribe:', subId);
   console.log('');
-  
+
+  // Test 7: DSL query engine (execDsl / execIr)
+  console.log('Test 7: DSL query engine');
+
+  // Seed a fresh database for predictable results
+  const qdb = new PluresDatabase('query-actor');
+  qdb.put('q1', { category: 'decision', score: 0.9, label: 'A' });
+  qdb.put('q2', { category: 'decision', score: 0.5, label: 'B' });
+  qdb.put('q3', { category: 'note',     score: 0.7, label: 'C' });
+  qdb.put('q4', { category: 'decision', score: 0.8, label: 'D' });
+
+  // 7a: filter + sort + limit via DSL string
+  const dslResult = qdb.execDsl('filter(category == "decision") |> sort(by: "score", dir: "desc") |> limit(2)');
+  if (!dslResult || !Array.isArray(dslResult.nodes)) {
+    throw new Error('execDsl failed: expected { nodes: [...] }, got ' + JSON.stringify(dslResult));
+  }
+  if (dslResult.nodes.length !== 2) {
+    throw new Error('execDsl filter+sort+limit: expected 2 nodes, got ' + dslResult.nodes.length);
+  }
+  console.log('  ✓ execDsl filter+sort+limit:', dslResult.nodes.length, 'nodes');
+
+  // 7b: aggregate count via DSL string
+  const aggResult = qdb.execDsl('aggregate(count)');
+  if (!aggResult || aggResult.aggregate === undefined) {
+    throw new Error('execDsl aggregate failed: ' + JSON.stringify(aggResult));
+  }
+  if (aggResult.aggregate !== 4) {
+    throw new Error('execDsl aggregate count: expected 4, got ' + aggResult.aggregate);
+  }
+  console.log('  ✓ execDsl aggregate count:', aggResult.aggregate);
+
+  // 7c: execIr with JSON IR payload
+  const irSteps = [
+    { op: 'filter', predicate: { field: 'category', cmp: '==', value: 'decision' } },
+    { op: 'limit', n: 1 }
+  ];
+  const irResult = qdb.execIr(irSteps);
+  if (!irResult || !Array.isArray(irResult.nodes)) {
+    throw new Error('execIr failed: expected { nodes: [...] }, got ' + JSON.stringify(irResult));
+  }
+  if (irResult.nodes.length !== 1) {
+    throw new Error('execIr filter+limit: expected 1 node, got ' + irResult.nodes.length);
+  }
+  console.log('  ✓ execIr filter+limit:', irResult.nodes.length, 'node');
+
+  // 7d: execDsl with invalid query should throw
+  let threw = false;
+  try {
+    qdb.execDsl('not a valid query!!!');
+  } catch (_e) {
+    threw = true;
+  }
+  if (!threw) {
+    throw new Error('execDsl invalid query: expected an error to be thrown');
+  }
+  console.log('  ✓ execDsl invalid query throws');
+  console.log('');
+
   console.log('=== All tests passed! ===');
 }
 
