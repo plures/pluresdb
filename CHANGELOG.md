@@ -74,6 +74,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.15.0] - 2026-02-24
+
+### Added
+
+- eliminate startup hydration — query SQLite directly from CrdtStore (#107)
+
+
 ## [1.14.1] - 2026-02-24
 
 ### Fixed
