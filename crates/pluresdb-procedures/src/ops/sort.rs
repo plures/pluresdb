@@ -16,14 +16,19 @@ pub fn apply_sort(
     limit: Option<usize>,
     after: Option<&str>,
 ) -> Vec<NodeRecord> {
+    // Stable sort with secondary key (node ID) ensures deterministic ordering
+    // when two nodes have equal values for `by`, which is critical for
+    // consistent cursor-based pagination across multiple requests.
     nodes.sort_by(|a, b| {
         let va = get_nested(&a.data, by);
         let vb = get_nested(&b.data, by);
         let ord = compare_json_values(va, vb);
-        match dir {
+        let ord = match dir {
             SortDir::Asc => ord,
             SortDir::Desc => ord.reverse(),
-        }
+        };
+        // Break ties by node ID to guarantee a stable, deterministic order.
+        ord.then_with(|| a.id.cmp(&b.id))
     });
 
     // Cursor pagination: skip everything up to and including the `after` node.

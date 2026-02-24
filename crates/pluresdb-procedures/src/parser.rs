@@ -314,11 +314,13 @@ fn parse_sort(pair: Pair<Rule>) -> Result<Step, ParseError> {
 
 fn parse_limit(pair: Pair<Rule>) -> Result<Step, ParseError> {
     let span = pair.as_span();
+    // Grammar guarantees pos_integer (ASCII digits only), so parse cannot fail
+    // for values that fit in usize.  We keep the error path to handle overflow.
     let n_str = pair.into_inner().next().expect("limit integer").as_str();
     let n: usize = n_str.parse().map_err(|_| {
         ParseError(pest::error::Error::new_from_span(
             pest::error::ErrorVariant::CustomError {
-                message: "invalid limit value".to_string(),
+                message: format!("limit value '{}' is too large (overflow)", n_str),
             },
             span,
         ))

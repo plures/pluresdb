@@ -46,9 +46,11 @@ bool_false = { "false" }
 null_val   = { "null" }
 string        = @{ "\"" ~ string_inner ~ "\"" }
 string_inner  = @{ (string_escape | (!"\\" ~ !"\"" ~ ANY))* }
-string_escape = @{ "\\" ~ ( "\"" | "\\" | "n" | "t" | "r" ) }
+string_escape = @{ "\\" ~ ( "\"" | "\\" | "n" | "t" | "r" | "b" | "f" | ("u" ~ ASCII_HEX_DIGIT{4}) ) }
 float      = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 integer    = @{ "-"? ~ ASCII_DIGIT+ }
+// Unsigned integer — used where negative values are not meaningful (e.g. limit).
+pos_integer = @{ ASCII_DIGIT+ }
 
 // ----------------------------------------------------------------
 // Sort
@@ -61,7 +63,7 @@ sort_after_kv = { "after" ~ ":" ~ string }
 // ----------------------------------------------------------------
 // Limit
 // ----------------------------------------------------------------
-limit_step = { "limit" ~ "(" ~ integer ~ ")" }
+limit_step = { "limit" ~ "(" ~ pos_integer ~ ")" }
 
 // ----------------------------------------------------------------
 // Project

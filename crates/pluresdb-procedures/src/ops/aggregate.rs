@@ -28,24 +28,26 @@ pub fn apply_aggregate(nodes: &[NodeRecord], func: &AggFn, field: Option<&str>) 
         AggFn::Avg => {
             let nums = extract_numbers(nodes, field);
             if nums.is_empty() {
-                AggResult::Number(0.0)
+                AggResult::Null
             } else {
                 AggResult::Number(nums.iter().copied().sum::<f64>() / nums.len() as f64)
             }
         }
         AggFn::Min => {
-            let min = extract_numbers(nodes, field)
-                .iter()
-                .copied()
-                .fold(f64::INFINITY, f64::min);
-            AggResult::Number(if min.is_infinite() { 0.0 } else { min })
+            let nums = extract_numbers(nodes, field);
+            if nums.is_empty() {
+                AggResult::Null
+            } else {
+                AggResult::Number(nums.iter().copied().fold(f64::INFINITY, f64::min))
+            }
         }
         AggFn::Max => {
-            let max = extract_numbers(nodes, field)
-                .iter()
-                .copied()
-                .fold(f64::NEG_INFINITY, f64::max);
-            AggResult::Number(if max.is_infinite() { 0.0 } else { max })
+            let nums = extract_numbers(nodes, field);
+            if nums.is_empty() {
+                AggResult::Null
+            } else {
+                AggResult::Number(nums.iter().copied().fold(f64::NEG_INFINITY, f64::max))
+            }
         }
         AggFn::Distinct => {
             let values = extract_values(nodes, field);
@@ -182,5 +184,21 @@ mod tests {
         } else {
             panic!("expected Values");
         }
+    }
+
+    #[test]
+    fn aggregate_min_max_avg_empty_returns_null() {
+        let nodes: Vec<NodeRecord> = vec![];
+        assert_eq!(apply_aggregate(&nodes, &AggFn::Min, Some("n")), AggResult::Null);
+        assert_eq!(apply_aggregate(&nodes, &AggFn::Max, Some("n")), AggResult::Null);
+        assert_eq!(apply_aggregate(&nodes, &AggFn::Avg, Some("n")), AggResult::Null);
+    }
+
+    #[test]
+    fn aggregate_min_max_missing_field_returns_null() {
+        // Field "n" absent on all nodes → empty numeric set → Null
+        let nodes = vec![make_node("a", serde_json::json!({"other": 5.0}))];
+        assert_eq!(apply_aggregate(&nodes, &AggFn::Min, Some("n")), AggResult::Null);
+        assert_eq!(apply_aggregate(&nodes, &AggFn::Max, Some("n")), AggResult::Null);
     }
 }

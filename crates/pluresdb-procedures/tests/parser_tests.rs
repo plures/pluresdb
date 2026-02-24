@@ -216,3 +216,54 @@ fn parse_filter_with_negative_float() {
     assert_eq!(steps.len(), 1);
     assert!(matches!(steps[0], Step::Filter { .. }));
 }
+
+// ---- String escape sequence tests (comment 2845353870) ----
+
+#[test]
+fn parse_string_with_backslash_and_quote_escapes() {
+    // Basic escapes already in the grammar: \" and \\
+    let steps = parse_query(r#"filter(path == "a\\b\"c")"#).unwrap();
+    if let Step::Filter { predicate: Predicate::Comparison { value, .. } } = &steps[0] {
+        assert_eq!(*value, IrValue::String(r#"a\b"c"#.to_string()));
+    } else {
+        panic!("expected Comparison");
+    }
+}
+
+#[test]
+fn parse_string_with_newline_and_tab_escapes() {
+    let steps = parse_query("filter(msg == \"line1\\nline2\\ttab\")").unwrap();
+    if let Step::Filter { predicate: Predicate::Comparison { value, .. } } = &steps[0] {
+        assert_eq!(*value, IrValue::String("line1\nline2\ttab".to_string()));
+    } else {
+        panic!("expected Comparison");
+    }
+}
+
+#[test]
+fn parse_string_with_backspace_and_formfeed_escapes() {
+    // \b and \f are in the grammar since the escape-sequence update
+    let steps = parse_query("filter(x == \"\\b\\f\")").unwrap();
+    if let Step::Filter { predicate: Predicate::Comparison { value, .. } } = &steps[0] {
+        assert_eq!(*value, IrValue::String("\u{0008}\u{000C}".to_string()));
+    } else {
+        panic!("expected Comparison");
+    }
+}
+
+#[test]
+fn parse_string_with_unicode_escape() {
+    // \uXXXX Unicode escape
+    let steps = parse_query(r#"filter(icon == "\u2665")"#).unwrap();
+    if let Step::Filter { predicate: Predicate::Comparison { value, .. } } = &steps[0] {
+        assert_eq!(*value, IrValue::String("♥".to_string()));
+    } else {
+        panic!("expected Comparison");
+    }
+}
+
+#[test]
+fn limit_negative_is_parse_error() {
+    // Grammar uses pos_integer for limit, so negative values must be rejected.
+    assert!(parse_query("limit(-1)").is_err());
+}

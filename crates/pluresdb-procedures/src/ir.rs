@@ -330,12 +330,19 @@ pub enum Step {
 // ---------------------------------------------------------------------------
 
 /// Outcome of an `aggregate` step.
+///
+/// `Null` is returned by numeric aggregations (`min`, `max`, `avg`) when the
+/// input set is empty or contains no values for the requested field — to
+/// distinguish "no data" from a legitimate zero result (matching SQL `NULL`
+/// semantics for `MIN`/`MAX`/`AVG` over empty sets).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AggResult {
     Count(u64),
     Number(f64),
     Values(Vec<serde_json::Value>),
+    /// No numeric values were found (empty input or field absent on all nodes).
+    Null,
 }
 
 // ---------------------------------------------------------------------------

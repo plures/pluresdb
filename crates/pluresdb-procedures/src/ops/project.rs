@@ -19,6 +19,11 @@ pub fn apply_project(nodes: Vec<NodeRecord>, specs: &[FieldSpec]) -> Vec<NodeRec
 }
 
 /// Extract the specified fields from a single JSON document.
+///
+/// When two specs produce the same output key (e.g. `["data.score", "user.score"]`
+/// both map to `"score"`), the **last** writer wins — earlier values are
+/// silently overwritten.  Callers that need to avoid collisions should ensure
+/// all output names are unique, or use explicit aliases.
 pub fn project_data(data: &serde_json::Value, specs: &[FieldSpec]) -> serde_json::Value {
     let mut out = serde_json::Map::new();
     for spec in specs {
