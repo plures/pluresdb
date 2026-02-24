@@ -222,9 +222,10 @@ fn parse_sort(pair: Pair<Rule>) -> Result<Step, ParseError> {
     for kv in inner {
         match kv.as_rule() {
             Rule::sort_dir_kv => {
-                let val_raw_str = kv.into_inner().next().expect("dir string").as_str().to_string();
-                let val = val_raw_str[1..val_raw_str.len() - 1].to_string();
-                dir = match val.as_str() {
+                let dir_pair = kv.into_inner().next().expect("dir string");
+                let val_raw = dir_pair.as_str();
+                let val = &val_raw[1..val_raw.len() - 1];
+                dir = match val {
                     "asc" => SortDir::Asc,
                     "desc" => SortDir::Desc,
                     other => {
@@ -232,7 +233,7 @@ fn parse_sort(pair: Pair<Rule>) -> Result<Step, ParseError> {
                             pest::error::ErrorVariant::CustomError {
                                 message: format!("unknown sort direction: {}", other),
                             },
-                            pest::Span::new("", 0, 0).unwrap(),
+                            dir_pair.as_span(),
                         )))
                     }
                 };

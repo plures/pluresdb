@@ -49,13 +49,17 @@ pub fn apply_aggregate(nodes: &[NodeRecord], func: &AggFn, field: Option<&str>) 
         }
         AggFn::Distinct => {
             let values = extract_values(nodes, field);
-            let mut seen: Vec<serde_json::Value> = Vec::new();
+            // Use JSON string serialisation for deduplication since
+            // serde_json::Value does not implement Hash.
+            let mut seen_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
+            let mut unique: Vec<serde_json::Value> = Vec::new();
             for v in values {
-                if !seen.contains(&v) {
-                    seen.push(v);
+                let key = serde_json::to_string(&v).unwrap_or_default();
+                if seen_keys.insert(key) {
+                    unique.push(v);
                 }
             }
-            AggResult::Values(seen)
+            AggResult::Values(unique)
         }
         AggFn::Collect => AggResult::Values(extract_values(nodes, field)),
     }
