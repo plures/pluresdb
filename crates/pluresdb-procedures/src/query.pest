@@ -44,7 +44,9 @@ value     = { string | float | integer | bool_true | bool_false | null_val }
 bool_true  = { "true" }
 bool_false = { "false" }
 null_val   = { "null" }
-string     = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+string        = @{ "\"" ~ string_inner ~ "\"" }
+string_inner  = @{ (string_escape | (!"\\" ~ !"\"" ~ ANY))* }
+string_escape = @{ "\\" ~ ( "\"" | "\\" | "n" | "t" | "r" ) }
 float      = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 integer    = @{ "-"? ~ ASCII_DIGIT+ }
 
