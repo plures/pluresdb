@@ -19,6 +19,7 @@ embeddings = ["pluresdb-core/embeddings"]
 napi = { version = "2.16", features = ["napi6", "serde-json"] }
 napi-derive = "2.16"
 pluresdb-core = { path = "../pluresdb-core" }
+pluresdb-procedures = { path = "../pluresdb-procedures" }
 pluresdb-sync = { path = "../pluresdb-sync" }
 serde = { workspace = true }
 serde_json = { workspace = true }

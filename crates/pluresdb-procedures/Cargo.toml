@@ -1,0 +1,22 @@
+[package]
+name = "pluresdb-procedures"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Cross-language query DSL, procedure engine, and core operations for PluresDB."
+keywords = ["database", "query", "dsl", "crdt"]
+
+[dependencies]
+pluresdb-core = { path = "../pluresdb-core" }
+pluresdb-procedures-macros = { path = "../pluresdb-procedures-macros" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+pest = "2.8"
+pest_derive = "2.8"
+uuid.workspace = true
+
+[dev-dependencies]

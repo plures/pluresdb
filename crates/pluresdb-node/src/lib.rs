@@ -8,6 +8,7 @@ use napi_derive::napi;
 use pluresdb_core::{
     CrdtStore, Database, DatabaseOptions, NodeRecord, SqlValue,
 };
+use pluresdb_procedures::engine::ProcedureEngine;
 use pluresdb_sync::{SyncBroadcaster, SyncEvent};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -471,6 +472,52 @@ impl PluresDatabase {
     #[napi]
     pub fn get_actor_id(&self) -> String {
         self.actor_id.clone()
+    }
+
+    /// Execute a DSL query string against the CRDT store.
+    ///
+    /// Returns the procedure result as a JSON object with `nodes`, and
+    /// optionally `aggregate` or `mutated` fields.
+    ///
+    /// # Example (JavaScript)
+    ///
+    /// ```js
+    /// const result = db.execDsl('filter(category == "decision") |> sort(by: "score", dir: "desc") |> limit(10)');
+    /// console.log(result.nodes);
+    /// ```
+    #[napi]
+    pub fn exec_dsl(&self, query: String) -> Result<serde_json::Value> {
+        let store = self.store.lock();
+        let engine = ProcedureEngine::new(&*store, self.actor_id.as_str());
+        let result = engine
+            .exec_dsl(&query)
+            .map_err(|e| Error::from_reason(format!("exec_dsl error: {}", e)))?;
+        serde_json::to_value(&result)
+            .map_err(|e| Error::from_reason(format!("serialisation error: {}", e)))
+    }
+
+    /// Execute a JSON IR query against the CRDT store.
+    ///
+    /// `steps` must be a JSON array of step objects as produced by the
+    /// pluresdb-procedures builder or parser.
+    ///
+    /// # Example (JavaScript)
+    ///
+    /// ```js
+    /// const result = db.execIr([
+    ///   { op: "filter", predicate: { field: "category", cmp: "==", value: "decision" } },
+    ///   { op: "limit", n: 5 }
+    /// ]);
+    /// ```
+    #[napi]
+    pub fn exec_ir(&self, steps: serde_json::Value) -> Result<serde_json::Value> {
+        let store = self.store.lock();
+        let engine = ProcedureEngine::new(&*store, self.actor_id.as_str());
+        let result = engine
+            .exec_ir(&steps)
+            .map_err(|e| Error::from_reason(format!("exec_ir error: {}", e)))?;
+        serde_json::to_value(&result)
+            .map_err(|e| Error::from_reason(format!("serialisation error: {}", e)))
     }
 
     /// Build the HNSW vector index from hydrated embeddings.
