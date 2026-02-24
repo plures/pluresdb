@@ -51,6 +51,10 @@ fn parse_step(pair: Pair<Rule>) -> Result<Step, ParseError> {
         Rule::project_step => parse_project(inner),
         Rule::mutate_step => parse_mutate(inner),
         Rule::aggregate_step => parse_aggregate(inner),
+        Rule::graph_clusters_step => parse_graph_clusters(inner),
+        Rule::graph_path_step => parse_graph_path(inner),
+        Rule::graph_pagerank_step => parse_graph_pagerank(inner),
+        Rule::graph_stats_step => Ok(Step::GraphStats),
         r => unreachable!("unexpected rule: {:?}", r),
     }
 }
@@ -455,6 +459,92 @@ fn parse_aggregate(pair: Pair<Rule>) -> Result<Step, ParseError> {
     Ok(Step::Aggregate { func, field })
 }
 
+// ---- graph_clusters ----
+
+fn parse_graph_clusters(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    // graph_clusters_step → graph_clusters_params
+    //   graph_algorithm_kv, graph_min_size_kv?, graph_min_strength_kv?
+    let params = pair.into_inner().next().expect("graph_clusters_params");
+    let mut algorithm = "louvain".to_string();
+    let mut min_size: Option<usize> = None;
+    let mut min_strength: Option<f64> = None;
+
+    for kv in params.into_inner() {
+        match kv.as_rule() {
+            Rule::graph_algorithm_kv => {
+                let raw = kv.into_inner().next().expect("algorithm string").as_str();
+                algorithm = raw[1..raw.len() - 1].to_string();
+            }
+            Rule::graph_min_size_kv => {
+                let raw = kv.into_inner().next().expect("min_size integer").as_str();
+                min_size = raw.parse().ok();
+            }
+            Rule::graph_min_strength_kv => {
+                let raw = kv.into_inner().next().expect("min_strength float").as_str();
+                min_strength = raw.parse().ok();
+            }
+            _ => {}
+        }
+    }
+
+    Ok(Step::GraphClusters { algorithm, min_size, min_strength })
+}
+
+// ---- graph_path ----
+
+fn parse_graph_path(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let params = pair.into_inner().next().expect("graph_path_params");
+    let mut from = String::new();
+    let mut to = String::new();
+    let mut max_hops: Option<usize> = None;
+
+    for kv in params.into_inner() {
+        match kv.as_rule() {
+            Rule::graph_from_kv => {
+                let raw = kv.into_inner().next().expect("from string").as_str();
+                from = raw[1..raw.len() - 1].to_string();
+            }
+            Rule::graph_to_kv => {
+                let raw = kv.into_inner().next().expect("to string").as_str();
+                to = raw[1..raw.len() - 1].to_string();
+            }
+            Rule::graph_max_hops_kv => {
+                let raw = kv.into_inner().next().expect("max_hops integer").as_str();
+                max_hops = raw.parse().ok();
+            }
+            _ => {}
+        }
+    }
+
+    Ok(Step::GraphPath { from, to, max_hops })
+}
+
+// ---- graph_pagerank ----
+
+fn parse_graph_pagerank(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let mut dampening: Option<f64> = None;
+    let mut iterations: Option<usize> = None;
+
+    // params are optional (the whole group may be absent)
+    if let Some(params) = pair.into_inner().next() {
+        for kv in params.into_inner() {
+            match kv.as_rule() {
+                Rule::graph_dampening_kv => {
+                    let raw = kv.into_inner().next().expect("dampening float").as_str();
+                    dampening = raw.parse().ok();
+                }
+                Rule::graph_iterations_kv => {
+                    let raw = kv.into_inner().next().expect("iterations integer").as_str();
+                    iterations = raw.parse().ok();
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Ok(Step::GraphPagerank { dampening, iterations })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -599,5 +689,96 @@ mod tests {
         {
             assert_eq!(*cmp, CmpOp::Contains);
         }
+    }
+
+    #[test]
+    fn parse_graph_clusters_full() {
+        let input = r#"graph_clusters(algorithm: "louvain", min_size: 3, min_strength: 0.5)"#;
+        let steps = parse_query(input).unwrap();
+        assert_eq!(steps.len(), 1);
+        if let Step::GraphClusters { algorithm, min_size, min_strength } = &steps[0] {
+            assert_eq!(algorithm, "louvain");
+            assert_eq!(*min_size, Some(3));
+            assert!((min_strength.unwrap() - 0.5).abs() < 1e-9);
+        } else {
+            panic!("expected GraphClusters step");
+        }
+    }
+
+    #[test]
+    fn parse_graph_clusters_minimal() {
+        let input = r#"graph_clusters(algorithm: "semantic")"#;
+        let steps = parse_query(input).unwrap();
+        if let Step::GraphClusters { algorithm, min_size, min_strength } = &steps[0] {
+            assert_eq!(algorithm, "semantic");
+            assert!(min_size.is_none());
+            assert!(min_strength.is_none());
+        } else {
+            panic!("expected GraphClusters step");
+        }
+    }
+
+    #[test]
+    fn parse_graph_path_full() {
+        let input = r#"graph_path(from: "memory:123", to: "memory:456", max_hops: 5)"#;
+        let steps = parse_query(input).unwrap();
+        if let Step::GraphPath { from, to, max_hops } = &steps[0] {
+            assert_eq!(from, "memory:123");
+            assert_eq!(to, "memory:456");
+            assert_eq!(*max_hops, Some(5));
+        } else {
+            panic!("expected GraphPath step");
+        }
+    }
+
+    #[test]
+    fn parse_graph_path_no_max_hops() {
+        let input = r#"graph_path(from: "a", to: "b")"#;
+        let steps = parse_query(input).unwrap();
+        if let Step::GraphPath { max_hops, .. } = &steps[0] {
+            assert!(max_hops.is_none());
+        } else {
+            panic!("expected GraphPath step");
+        }
+    }
+
+    #[test]
+    fn parse_graph_pagerank_full() {
+        let input = "graph_pagerank(dampening: 0.85, iterations: 50)";
+        let steps = parse_query(input).unwrap();
+        if let Step::GraphPagerank { dampening, iterations } = &steps[0] {
+            assert!((dampening.unwrap() - 0.85).abs() < 1e-9);
+            assert_eq!(*iterations, Some(50));
+        } else {
+            panic!("expected GraphPagerank step");
+        }
+    }
+
+    #[test]
+    fn parse_graph_pagerank_empty() {
+        let input = "graph_pagerank()";
+        let steps = parse_query(input).unwrap();
+        if let Step::GraphPagerank { dampening, iterations } = &steps[0] {
+            assert!(dampening.is_none());
+            assert!(iterations.is_none());
+        } else {
+            panic!("expected GraphPagerank step");
+        }
+    }
+
+    #[test]
+    fn parse_graph_stats() {
+        let steps = parse_query("graph_stats()").unwrap();
+        assert_eq!(steps.len(), 1);
+        assert_eq!(steps[0], Step::GraphStats);
+    }
+
+    #[test]
+    fn parse_graph_pagerank_pipe_chain() {
+        let input = r#"graph_pagerank(dampening: 0.85) |> limit(10)"#;
+        let steps = parse_query(input).unwrap();
+        assert_eq!(steps.len(), 2);
+        assert!(matches!(steps[0], Step::GraphPagerank { .. }));
+        assert_eq!(steps[1], Step::Limit { n: 10 });
     }
 }

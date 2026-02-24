@@ -323,6 +323,41 @@ pub enum Step {
         #[serde(skip_serializing_if = "Option::is_none")]
         field: Option<String>,
     },
+    /// Detect communities / clusters in the graph formed by edge nodes.
+    GraphClusters {
+        /// Clustering algorithm: `"louvain"`, `"semantic"`, or `"temporal"`.
+        #[serde(default = "default_cluster_algorithm")]
+        algorithm: String,
+        /// Minimum number of members required for a cluster to be returned.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        min_size: Option<usize>,
+        /// Minimum edge strength (weight) to include in the graph.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        min_strength: Option<f64>,
+    },
+    /// Find the shortest path between two nodes (BFS over edges).
+    GraphPath {
+        from: String,
+        to: String,
+        /// Maximum path length in hops (default: 10).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        max_hops: Option<usize>,
+    },
+    /// Compute PageRank scores for all nodes in the graph.
+    GraphPagerank {
+        /// Damping factor (default: 0.85).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        dampening: Option<f64>,
+        /// Maximum iterations (default: 100).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        iterations: Option<usize>,
+    },
+    /// Compute summary statistics for the entire graph.
+    GraphStats,
+}
+
+fn default_cluster_algorithm() -> String {
+    "louvain".to_string()
 }
 
 // ---------------------------------------------------------------------------

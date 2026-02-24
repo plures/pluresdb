@@ -6,6 +6,7 @@
 
 pub mod aggregate;
 pub mod filter;
+pub mod graph;
 pub mod mutate;
 pub mod project;
 pub mod sort;

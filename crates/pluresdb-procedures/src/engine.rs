@@ -3,7 +3,7 @@
 use pluresdb_core::{CrdtStore, NodeRecord};
 
 use crate::ir::{ProcedureResult, Step};
-use crate::ops::{aggregate, filter, mutate, project, sort};
+use crate::ops::{aggregate, filter, graph, mutate, project, sort};
 
 /// Executes query pipelines (sequences of [`Step`]s) against a [`CrdtStore`].
 ///
@@ -111,6 +111,46 @@ impl<'a> ProcedureEngine<'a> {
                         aggregate: Some(result),
                         mutated: None,
                     });
+                }
+                Step::GraphClusters { algorithm, min_size, min_strength } => {
+                    // Graph steps produce new node sets; downstream steps operate on them.
+                    let cluster_nodes =
+                        graph::graph_clusters(self.store, algorithm, *min_size, *min_strength)?;
+                    // Convert to NodeRecord-like JSON objects already, then continue
+                    // pipeline as raw JSON so downstream project/sort/limit work.
+                    // We flush the result immediately — graph steps are always terminal
+                    // when the pipeline starts with them, but we allow chaining by
+                    // converting to a temporary JSON-based node set.
+                    if let Some(n) = pending_limit {
+                        let mut r = cluster_nodes;
+                        r.truncate(n);
+                        return Ok(ProcedureResult::from_nodes(r));
+                    }
+                    return Ok(ProcedureResult::from_nodes(cluster_nodes));
+                }
+                Step::GraphPath { from, to, max_hops } => {
+                    let path_nodes =
+                        graph::graph_path(self.store, from, to, *max_hops)?;
+                    if let Some(n) = pending_limit {
+                        let mut r = path_nodes;
+                        r.truncate(n);
+                        return Ok(ProcedureResult::from_nodes(r));
+                    }
+                    return Ok(ProcedureResult::from_nodes(path_nodes));
+                }
+                Step::GraphPagerank { dampening, iterations } => {
+                    let ranked =
+                        graph::graph_pagerank(self.store, *dampening, *iterations)?;
+                    if let Some(n) = pending_limit {
+                        let mut r = ranked;
+                        r.truncate(n);
+                        return Ok(ProcedureResult::from_nodes(r));
+                    }
+                    return Ok(ProcedureResult::from_nodes(ranked));
+                }
+                Step::GraphStats => {
+                    let stats = graph::graph_stats(self.store)?;
+                    return Ok(ProcedureResult::from_nodes(stats));
                 }
             }
         }

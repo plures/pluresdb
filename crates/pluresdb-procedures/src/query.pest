@@ -11,7 +11,7 @@ WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
 // Entry point
 query = { SOI ~ step ~ ("|>" ~ step)* ~ EOI }
 
-step = { filter_step | sort_step | limit_step | project_step | mutate_step | aggregate_step }
+step = { filter_step | sort_step | limit_step | project_step | mutate_step | aggregate_step | graph_clusters_step | graph_path_step | graph_pagerank_step | graph_stats_step }
 
 // ----------------------------------------------------------------
 // Filter
@@ -84,3 +84,40 @@ mutate_kv   = { ident ~ ":" ~ value }
 aggregate_step = { "aggregate" ~ "(" ~ agg_fn ~ ("," ~ agg_field_kv)? ~ ")" }
 agg_fn         = { "count" | "sum" | "avg" | "min" | "max" | "distinct" | "collect" }
 agg_field_kv   = { "field" ~ ":" ~ string }
+
+// ----------------------------------------------------------------
+// Graph operations
+// ----------------------------------------------------------------
+
+// graph_clusters(algorithm: "louvain", min_size: 2, min_strength: 0.5)
+graph_clusters_step = { "graph_clusters" ~ "(" ~ graph_clusters_params ~ ")" }
+graph_clusters_params = {
+    graph_algorithm_kv ~
+    ("," ~ graph_min_size_kv)? ~
+    ("," ~ graph_min_strength_kv)?
+}
+graph_algorithm_kv    = { "algorithm" ~ ":" ~ string }
+graph_min_size_kv     = { "min_size" ~ ":" ~ pos_integer }
+graph_min_strength_kv = { "min_strength" ~ ":" ~ float }
+
+// graph_path(from: "n1", to: "n2", max_hops: 5)
+graph_path_step = { "graph_path" ~ "(" ~ graph_path_params ~ ")" }
+graph_path_params = {
+    graph_from_kv ~ "," ~ graph_to_kv ~
+    ("," ~ graph_max_hops_kv)?
+}
+graph_from_kv     = { "from" ~ ":" ~ string }
+graph_to_kv       = { "to" ~ ":" ~ string }
+graph_max_hops_kv = { "max_hops" ~ ":" ~ pos_integer }
+
+// graph_pagerank(dampening: 0.85, iterations: 100)
+graph_pagerank_step = { "graph_pagerank" ~ "(" ~ graph_pagerank_params? ~ ")" }
+graph_pagerank_params = {
+    (graph_dampening_kv ~ ("," ~ graph_iterations_kv)?) |
+    graph_iterations_kv
+}
+graph_dampening_kv  = { "dampening" ~ ":" ~ float }
+graph_iterations_kv = { "iterations" ~ ":" ~ pos_integer }
+
+// graph_stats()
+graph_stats_step = { "graph_stats" ~ "(" ~ ")" }
