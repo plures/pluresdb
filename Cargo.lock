@@ -2717,7 +2717,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb"
-version = "1.13.0"
+version = "1.15.0"
 dependencies = [
  "anyhow",
  "pluresdb-core",
@@ -2728,7 +2728,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-cli"
-version = "1.13.0"
+version = "1.15.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2748,7 +2748,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-core"
-version = "1.13.0"
+version = "1.15.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2768,7 +2768,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-node"
-version = "1.13.0"
+version = "1.15.0"
 dependencies = [
  "napi",
  "napi-build",
@@ -2782,7 +2782,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-storage"
-version = "1.13.0"
+version = "1.15.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2804,7 +2804,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sync"
-version = "1.13.0"
+version = "1.15.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2818,7 +2818,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-wasm"
-version = "1.13.0"
+version = "1.15.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
