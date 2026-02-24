@@ -17,6 +17,5 @@ serde_json.workspace = true
 thiserror.workspace = true
 pest = "2.8"
 pest_derive = "2.8"
-uuid.workspace = true
 
 [dev-dependencies]
