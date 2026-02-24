@@ -37,7 +37,11 @@ pluresdb-core = "0.1"
 
 ### CrdtStore
 
-An in-memory, conflict-free replicated store backed by a concurrent `DashMap`.
+A conflict-free replicated store backed by a concurrent `DashMap` for in-session
+writes, with optional SQLite persistence for durable storage.  When persistence
+is attached via `with_persistence`, read operations (`get`, `list`) query SQLite
+directly — no records are loaded into memory at startup, enabling zero-cost
+initialisation regardless of database size.
 
 ```rust
 use pluresdb_core::CrdtStore;

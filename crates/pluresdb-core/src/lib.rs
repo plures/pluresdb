@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -242,6 +243,12 @@ impl Default for VectorIndex {
     }
 }
 
+/// Actor name stamped on [`NodeRecord`]s that are materialised directly from
+/// SQLite without going through the in-memory write path.  Used by
+/// [`CrdtStore::get`], [`CrdtStore::list`], and [`CrdtStore::vector_search`]
+/// when falling back to the persistence layer.
+const SQLITE_ACTOR: &str = "sqlite";
+
 /// Errors that can be produced by the CRDT store.
 #[derive(Debug, Error)]
 pub enum StoreError {
@@ -271,9 +278,15 @@ pub struct CrdtStore {
     /// JSON data contains extractable text content.
     embedder: Option<Arc<dyn EmbedText>>,
     /// Optional SQLite persistence layer.  When set, every `put`,
-    /// `put_with_embedding`, and `delete` will write-through to SQLite,
-    /// and the store is hydrated from SQLite on construction.
+    /// `put_with_embedding`, and `delete` will write-through to SQLite.
+    /// Read operations (`get`, `list`) query SQLite directly rather than
+    /// keeping all records in the in-memory map.
     persistence: Option<Arc<Database>>,
+    /// Tracks whether the HNSW vector index has been populated from SQLite.
+    /// Starts as `false` when a persistence layer is attached; the first call
+    /// to [`vector_search`][CrdtStore::vector_search] will build the index
+    /// lazily and set this to `true`.
+    vector_index_ready: AtomicBool,
 }
 
 impl std::fmt::Debug for CrdtStore {
@@ -293,6 +306,8 @@ impl Default for CrdtStore {
             vector_index: Arc::new(VectorIndex::default()),
             embedder: None,
             persistence: None,
+            // No persistence to load from, so the index is trivially ready.
+            vector_index_ready: AtomicBool::new(true),
         }
     }
 }
@@ -325,7 +340,11 @@ impl CrdtStore {
     }
 
     /// Build the HNSW vector index from all nodes that have embeddings.
-    /// Call this after hydration to populate search without blocking init.
+    ///
+    /// When a persistence layer is attached this also loads embeddings from
+    /// SQLite so that vector search works after a restart (without hydrating
+    /// the full node data).  The index is otherwise populated incrementally by
+    /// every [`put_with_embedding`][Self::put_with_embedding] call.
     pub fn build_vector_index(&self) -> usize {
         let expected_dim = self.embedder.as_ref().map(|e| e.dimension());
         let mut indexed = 0usize;
@@ -343,16 +362,79 @@ impl CrdtStore {
                 indexed += 1;
             }
         }
+        // Also load embeddings from SQLite for historical records.
+        if self.persistence.is_some() {
+            self.build_vector_index_from_persistence();
+        }
+        self.vector_index_ready.store(true, Ordering::Release);
         eprintln!("[CrdtStore] Built vector index: {} entries", indexed);
         indexed
+    }
+
+    /// Populate the HNSW vector index from embeddings stored in SQLite.
+    ///
+    /// Only embedding blobs are read — the full node data is *not* loaded into
+    /// memory.  This is called lazily by [`vector_search`][Self::vector_search]
+    /// on the first search after startup.
+    fn build_vector_index_from_persistence(&self) {
+        let db = match &self.persistence {
+            Some(db) => db,
+            None => return,
+        };
+        let expected_dim = self.embedder.as_ref().map(|e| e.dimension());
+        let rows = match db.query(
+            "SELECT id, embedding FROM crdt_nodes WHERE embedding IS NOT NULL",
+            &[],
+        ) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("[CrdtStore] build_vector_index_from_persistence failed: {}", e);
+                return;
+            }
+        };
+        let mut indexed = 0usize;
+        for row in &rows.rows {
+            let id = match row.get(0) {
+                Some(SqlValue::Text(s)) => s.clone(),
+                _ => continue,
+            };
+            let floats = match row.get(1) {
+                Some(SqlValue::Blob(blob)) if blob.len() >= 4 && blob.len() % 4 == 0 => {
+                    let floats: Vec<f32> = blob
+                        .chunks_exact(4)
+                        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+                        .collect();
+                    if let Some(dim) = expected_dim {
+                        if floats.len() != dim {
+                            continue;
+                        }
+                    }
+                    if floats.is_empty()
+                        || !floats.iter().all(|v| v.is_finite())
+                        || !floats.iter().any(|v| *v != 0.0)
+                    {
+                        continue;
+                    }
+                    floats
+                }
+                _ => continue,
+            };
+            self.vector_index.insert(&id, &floats);
+            indexed += 1;
+        }
+        eprintln!("[CrdtStore] Loaded {} embeddings from SQLite into vector index", indexed);
     }
 
     /// Attach a SQLite persistence layer.
     ///
     /// The store will:
     /// 1. Create the `crdt_nodes` table if it doesn't exist.
-    /// 2. Hydrate the in-memory store from existing rows.
+    /// 2. Perform a one-time migration of any legacy `memories` table.
     /// 3. Write-through on every `put`, `put_with_embedding`, and `delete`.
+    ///
+    /// **No records are loaded into memory at startup.**  Read operations
+    /// (`get`, `list`) query SQLite directly, and the HNSW vector index is
+    /// built lazily on the first call to [`vector_search`][Self::vector_search].
     pub fn with_persistence(mut self, db: Arc<Database>) -> Result<Self, DatabaseError> {
         // Create table
         db.exec(
@@ -413,71 +495,9 @@ impl CrdtStore {
             }
         }
 
-        // Hydrate — columns: id(0), data(1), embedding(2)
-        let rows = db.query(
-            "SELECT id, data, embedding FROM crdt_nodes",
-            &[],
-        )?;
-        let mut hydrated = 0usize;
-        for row in &rows.rows {
-            let id = match row.get(0) {
-                Some(SqlValue::Text(s)) => s.clone(),
-                _ => continue,
-            };
-            let data_str = match row.get(1) {
-                Some(SqlValue::Text(s)) => s.clone(),
-                _ => continue,
-            };
-            let data: NodeData = match serde_json::from_str(&data_str) {
-                Ok(d) => d,
-                Err(_) => continue,
-            };
-            // Check for embedding blob; filter by expected dimension if embedder is attached
-            let expected_dim = self.embedder.as_ref().map(|e| e.dimension());
-            let embedding: Option<Vec<f32>> = row.get(2).and_then(|v| {
-                if let SqlValue::Blob(blob) = v {
-                    if blob.len() >= 4 && blob.len() % 4 == 0 {
-                        let floats: Vec<f32> = blob
-                            .chunks_exact(4)
-                            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
-                            .collect();
-                        // Skip if dimension doesn't match the embedder
-                        if let Some(dim) = expected_dim {
-                            if floats.len() != dim {
-                                return None;
-                            }
-                        }
-                        Some(floats)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            });
-
-            let actor = "hydrated".to_string();
-            if let Some(emb) = embedding {
-                // Store data + embedding in memory but DON'T index into HNSW
-                // during hydration — avoids blocking the event loop on startup.
-                // New writes will index normally; search uses fallback until then.
-                self.nodes
-                    .entry(id.clone())
-                    .or_insert_with(|| {
-                        let mut r = NodeRecord::new(id.clone(), actor.clone(), data.clone());
-                        r.embedding = Some(emb);
-                        r
-                    });
-            } else {
-                self.nodes
-                    .entry(id.clone())
-                    .or_insert_with(|| NodeRecord::new(id.clone(), actor.clone(), data.clone()));
-            }
-            hydrated += 1;
-        }
-        eprintln!("[CrdtStore] Hydrated {} records from SQLite", hydrated);
-
         self.persistence = Some(db);
+        // Mark the HNSW index as needing a lazy build on the next vector_search.
+        self.vector_index_ready.store(false, Ordering::Release);
         Ok(self)
     }
 
@@ -512,13 +532,34 @@ impl CrdtStore {
     }
 
     /// Delete a node from the SQLite persistence layer (if attached).
-    fn unpersist_node(&self, id: &str) {
+    ///
+    /// Returns `true` if the node was found and deleted from SQLite.
+    fn unpersist_node(&self, id: &str) -> bool {
         if let Some(db) = &self.persistence {
             let params = vec![SqlValue::Text(id.to_string())];
-            if let Err(e) = db.query("DELETE FROM crdt_nodes WHERE id = ?1", &params) {
-                eprintln!("[CrdtStore] unpersist failed for {}: {}", id, e);
+            match db.query("DELETE FROM crdt_nodes WHERE id = ?1", &params) {
+                Ok(result) => result.changes > 0,
+                Err(e) => {
+                    eprintln!("[CrdtStore] unpersist failed for {}: {}", id, e);
+                    false
+                }
             }
+        } else {
+            false
         }
+    }
+
+    /// Fetch a single node's data from SQLite by ID without caching it in memory.
+    fn get_from_persistence(&self, id: &str) -> Option<NodeRecord> {
+        let db = self.persistence.as_ref()?;
+        let params = vec![SqlValue::Text(id.to_string())];
+        let rows = db.query("SELECT data FROM crdt_nodes WHERE id = ?1", &params).ok()?;
+        let row = rows.rows.into_iter().next()?;
+        let data_str = row.into_iter().next().and_then(|v| {
+            if let SqlValue::Text(s) = v { Some(s) } else { None }
+        })?;
+        let data = serde_json::from_str::<NodeData>(&data_str).ok()?;
+        Some(NodeRecord::new(id.to_string(), SQLITE_ACTOR, data))
     }
 
     /// Inserts or updates a node using CRDT semantics.
@@ -591,26 +632,56 @@ impl CrdtStore {
     /// Removes a node from the store.
     pub fn delete(&self, id: impl AsRef<str>) -> Result<(), StoreError> {
         let id_ref = id.as_ref();
-        self.unpersist_node(id_ref);
-        self.nodes
-            .remove(id_ref)
-            .map(|_| ())
-            .ok_or_else(|| StoreError::NotFound(id_ref.to_owned()))
+        let in_sqlite = self.unpersist_node(id_ref);
+        let in_memory = self.nodes.remove(id_ref).is_some();
+        if in_memory || in_sqlite {
+            Ok(())
+        } else {
+            Err(StoreError::NotFound(id_ref.to_owned()))
+        }
     }
 
     /// Fetches a node by identifier.
+    ///
+    /// When a persistence layer is attached, nodes that are not in the
+    /// in-memory cache are looked up directly from SQLite.
     pub fn get(&self, id: impl AsRef<str>) -> Option<NodeRecord> {
-        self.nodes
-            .get(id.as_ref())
-            .map(|entry| entry.value().clone())
+        let id = id.as_ref();
+        if let Some(entry) = self.nodes.get(id) {
+            return Some(entry.value().clone());
+        }
+        self.get_from_persistence(id)
     }
 
     /// Lists all nodes currently stored.
+    ///
+    /// When a persistence layer is attached, the list is fetched directly from
+    /// SQLite rather than from the in-memory map.  In-memory entries (nodes
+    /// written in the current session) shadow their SQLite counterparts so
+    /// callers always see the most recent data.
     pub fn list(&self) -> Vec<NodeRecord> {
-        self.nodes
-            .iter()
-            .map(|entry| entry.value().clone())
-            .collect()
+        if let Some(db) = &self.persistence {
+            match db.query("SELECT id, data FROM crdt_nodes", &[]) {
+                Ok(rows) => {
+                    return rows.rows.iter().filter_map(|row| {
+                        let id = row.get(0)?.as_str()?.to_string();
+                        let data_str = row.get(1)?.as_str()?;
+                        let data: NodeData = serde_json::from_str(data_str).ok()?;
+                        // Prefer the in-memory version which may have newer data.
+                        // DashMap::get is O(1) amortised so this loop is O(n) overall.
+                        if let Some(entry) = self.nodes.get(&id) {
+                            Some(entry.value().clone())
+                        } else {
+                            Some(NodeRecord::new(id, SQLITE_ACTOR, data))
+                        }
+                    }).collect();
+                }
+                Err(e) => {
+                    eprintln!("[CrdtStore] list from SQLite failed: {}", e);
+                }
+            }
+        }
+        self.nodes.iter().map(|entry| entry.value().clone()).collect()
     }
 
     /// Applies a CRDT operation, returning the resulting node identifier when relevant.
@@ -649,6 +720,10 @@ impl CrdtStore {
     ///   included in the results.
     ///
     /// Returns results ordered from highest to lowest similarity score.
+    ///
+    /// On the first call after startup the HNSW index is built lazily from the
+    /// SQLite `embedding` blobs, so this call may be slightly slower than
+    /// subsequent ones.
     pub fn vector_search(
         &self,
         query_embedding: &[f32],
@@ -672,6 +747,22 @@ impl CrdtStore {
         } else if min_score > 1.0 {
             min_score = 1.0;
         }
+
+        // Lazily populate the HNSW index from SQLite on the first search call
+        // after startup.  This avoids blocking startup while still allowing
+        // vector search after a restart.
+        //
+        // Two concurrent callers can both observe `vector_index_ready = false`
+        // and both invoke `build_vector_index_from_persistence`.  This is safe:
+        // `VectorIndex::insert` is idempotent for the same (id, vector) pair,
+        // and the stale-slot filter in `VectorIndex::search` discards any
+        // duplicate HNSW entries.  The redundant work is bounded to the very
+        // first batch of concurrent calls on a freshly started store.
+        if !self.vector_index_ready.load(Ordering::Acquire) {
+            self.build_vector_index_from_persistence();
+            self.vector_index_ready.store(true, Ordering::Release);
+        }
+
         let candidates = self.vector_index.search(query_embedding, limit);
         let mut results: Vec<VectorSearchResult> = candidates
             .into_iter()
@@ -679,10 +770,13 @@ impl CrdtStore {
                 if score < min_score {
                     return None;
                 }
-                self.nodes.get(&id).map(|entry| VectorSearchResult {
-                    record: entry.value().clone(),
-                    score,
-                })
+                // Resolve node data: prefer in-memory (current session) then SQLite.
+                let record = if let Some(entry) = self.nodes.get(&id) {
+                    entry.value().clone()
+                } else {
+                    self.get_from_persistence(&id)?
+                };
+                Some(VectorSearchResult { record, score })
             })
             .collect();
         // Ensure ordering from highest to lowest similarity.
@@ -1624,6 +1718,147 @@ mod tests {
     fn database_options_embedding_model_none_by_default() {
         let opts = DatabaseOptions::default();
         assert!(opts.embedding_model.is_none());
+    }
+
+    // -----------------------------------------------------------------------
+    // No-hydration / SQLite-direct read tests
+    // -----------------------------------------------------------------------
+
+    /// Helper: open an in-memory SQLite database and attach it as persistence.
+    fn make_persisted_store() -> CrdtStore {
+        let db = Arc::new(Database::open(DatabaseOptions::default()).expect("open db"));
+        CrdtStore::default()
+            .with_persistence(db)
+            .expect("with_persistence")
+    }
+
+    #[test]
+    fn with_persistence_does_not_hydrate_into_memory() {
+        // Pre-populate the database with a row the old-fashioned way.
+        let db = Arc::new(Database::open(DatabaseOptions::default()).expect("open db"));
+        db.exec(
+            "CREATE TABLE IF NOT EXISTS crdt_nodes (
+                id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                embedding BLOB,
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+            )",
+        ).expect("create table");
+        db.query(
+            "INSERT INTO crdt_nodes (id, data) VALUES (?1, ?2)",
+            &[
+                SqlValue::Text("node-pre".to_string()),
+                SqlValue::Text(r#"{"hello":"from-sqlite"}"#.to_string()),
+            ],
+        ).expect("insert pre-existing row");
+
+        // Attaching persistence must NOT load the row into self.nodes.
+        let store = CrdtStore::default()
+            .with_persistence(Arc::clone(&db))
+            .expect("with_persistence");
+
+        // In-memory map must be empty — no hydration occurred.
+        assert!(
+            store.nodes.is_empty(),
+            "in-memory map should be empty after with_persistence (no hydration)"
+        );
+
+        // But get() must still find the node via SQLite.
+        let record = store.get("node-pre").expect("get should fall back to SQLite");
+        assert_eq!(record.data["hello"], "from-sqlite");
+    }
+
+    #[test]
+    fn get_falls_back_to_sqlite_for_persisted_node() {
+        let store = make_persisted_store();
+
+        // Write a node — this goes into memory AND SQLite.
+        store.put("p1", "actor", serde_json::json!({"v": 1}));
+
+        // Simulate a "restart" by creating a new store on the same SQLite db.
+        let db = store.persistence.clone().expect("has persistence");
+        let store2 = CrdtStore::default()
+            .with_persistence(db)
+            .expect("with_persistence");
+
+        // The node should not be in the in-memory map of the new store.
+        assert!(store2.nodes.is_empty(), "new store must have empty in-memory map");
+
+        // But get() must retrieve it from SQLite.
+        let record = store2.get("p1").expect("should find node via SQLite");
+        assert_eq!(record.data["v"], 1);
+    }
+
+    #[test]
+    fn list_queries_sqlite_directly() {
+        let store = make_persisted_store();
+
+        store.put("list-a", "actor", serde_json::json!({"n": "a"}));
+        store.put("list-b", "actor", serde_json::json!({"n": "b"}));
+
+        // Simulate a "restart".
+        let db = store.persistence.clone().expect("has persistence");
+        let store2 = CrdtStore::default()
+            .with_persistence(db)
+            .expect("with_persistence");
+
+        let records = store2.list();
+        assert_eq!(records.len(), 2, "list() should return all SQLite records");
+        let ids: Vec<&str> = records.iter().map(|r| r.id.as_str()).collect();
+        assert!(ids.contains(&"list-a"));
+        assert!(ids.contains(&"list-b"));
+    }
+
+    #[test]
+    fn delete_works_for_sqlite_only_node() {
+        let store = make_persisted_store();
+        store.put("del-node", "actor", serde_json::json!({"x": 1}));
+
+        // Simulate a "restart".
+        let db = store.persistence.clone().expect("has persistence");
+        let store2 = CrdtStore::default()
+            .with_persistence(db)
+            .expect("with_persistence");
+
+        // Node is in SQLite but NOT in the in-memory map of the new store.
+        assert!(store2.nodes.is_empty());
+        assert!(store2.get("del-node").is_some(), "node should be in SQLite");
+
+        // delete() must succeed even though the node is not in memory.
+        store2.delete("del-node").expect("delete should succeed for SQLite-only node");
+        assert!(store2.get("del-node").is_none(), "node should be gone after delete");
+    }
+
+    #[test]
+    fn delete_returns_not_found_for_nonexistent_node_with_persistence() {
+        let store = make_persisted_store();
+        let err = store.delete("ghost-node").expect_err("should error for missing node");
+        assert!(matches!(err, StoreError::NotFound(_)));
+    }
+
+    #[test]
+    fn vector_search_builds_index_lazily_from_sqlite() {
+        let store = make_persisted_store();
+
+        let emb_a: Vec<f32> = vec![1.0, 0.0, 0.0];
+        let emb_b: Vec<f32> = vec![0.0, 1.0, 0.0];
+
+        store.put_with_embedding("vs-a", "actor", serde_json::json!({"label":"a"}), emb_a.clone());
+        store.put_with_embedding("vs-b", "actor", serde_json::json!({"label":"b"}), emb_b);
+
+        // Simulate a "restart" — new store with no in-memory data.
+        let db = store.persistence.clone().expect("has persistence");
+        let store2 = CrdtStore::default()
+            .with_persistence(db)
+            .expect("with_persistence");
+
+        assert!(store2.nodes.is_empty(), "new store must have empty in-memory map");
+
+        // vector_search must build the index lazily and return results from SQLite.
+        let results = store2.vector_search(&emb_a, 3, 0.0);
+        assert!(!results.is_empty(), "vector_search should return results after lazy build");
+        assert_eq!(results[0].record.id, "vs-a");
+        assert!(results[0].score > 0.99, "identical vector should score ~1.0");
     }
 }
 
