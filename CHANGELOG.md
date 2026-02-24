@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0] - 2026-02-24
+
+### Added
+
+- implement pluresdb-procedures crate — Phase 1 (DSL parser + core ops) (#111)
+
+
 ## [2.0.0] - 2026-02-24
 
 ### Other
