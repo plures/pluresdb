@@ -25,6 +25,10 @@
       "require": "./dist/better-sqlite3.js",
       "default": "./dist/better-sqlite3.js"
     },
+    "./embedded": {
+      "require": "./embedded.js",
+      "default": "./embedded.js"
+    },
     "./vscode": {
       "types": "./dist/vscode/extension.d.ts",
       "require": "./dist/vscode/extension.js",
