@@ -36,10 +36,13 @@
 
 // Re-export core types
 pub use pluresdb_core::{
-    ActorId, CrdtOperation, CrdtStore, Database, DatabaseOptions, DatabasePath, EmbedText,
-    NodeData, NodeId, NodeRecord, QueryResult, SqlValue, VectorClock, VectorIndex,
+    ActorId, CrdtOperation, CrdtStore, EmbedText,
+    NodeData, NodeId, NodeRecord, VectorClock, VectorIndex,
     VectorSearchResult, DEFAULT_EMBEDDING_DIM,
 };
+
+#[cfg(feature = "sqlite-compat")]
+pub use pluresdb_core::{Database, DatabaseOptions, DatabasePath, QueryResult, SqlValue};
 
 #[cfg(feature = "embeddings")]
 pub use pluresdb_core::FastEmbedder;
@@ -55,6 +58,7 @@ pub use pluresdb_sync::{SyncBroadcaster, SyncEvent};
 
 // Re-export commonly used error types
 pub use pluresdb_core::StoreError as CoreError;
+#[cfg(feature = "sqlite-compat")]
 pub use pluresdb_core::DatabaseError;
 
 // Re-export storage replay utilities

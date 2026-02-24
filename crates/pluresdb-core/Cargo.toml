@@ -16,14 +16,24 @@ keywords = ["database", "crdt", "local-first"]
 ## has been attached via `CrdtStore::with_embedder()`.
 embeddings = ["dep:fastembed"]
 
+## Enable legacy SQLite compatibility layer.
+##
+## When this feature is active, the `Database`, `SqlValue`, `QueryResult`,
+## `ExecutionResult`, `DatabasePath`, `DatabaseOptions`, and `DatabaseError`
+## types are available.  The `rusqlite` C library is only compiled when this
+## feature is enabled.
+sqlite-compat = ["dep:rusqlite"]
+
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
 dashmap.workspace = true
 fastembed = { version = "5.11.0", optional = true }
+futures = { workspace = true }
 hnsw_rs.workspace = true
 parking_lot.workspace = true
-rusqlite.workspace = true
+pluresdb-storage = { path = "../pluresdb-storage" }
+rusqlite = { version = "0.32", features = ["bundled", "chrono"], optional = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
