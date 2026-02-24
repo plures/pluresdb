@@ -74,6 +74,13 @@
 - Add error checking for binary compilation failures
 - Fix compilation error in pluresdb-cli (Result type in closure)
 
+## [1.14.0] - 2026-02-24
+
+### Added
+
+- add SQLite persistence to CrdtStore
+
+
 ## [1.13.0] - 2026-02-23
 
 ### Added
