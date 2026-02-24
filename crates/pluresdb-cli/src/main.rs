@@ -27,7 +27,7 @@ use tracing::{error, info, warn};
 use tracing_subscriber::{fmt, EnvFilter};
 
 #[cfg(feature = "sqlite-compat")]
-use pluresdb_core::{CrdtOperation, Database, DatabaseOptions, SqlValue};
+use pluresdb_core::{Database, DatabaseOptions, SqlValue};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -456,16 +456,6 @@ async fn handle_put(
         let emb_f32: Vec<f32> = emb_values.iter().map(|&v| v as f32).collect();
         store.put_with_embedding(id.clone(), actor.clone(), payload.clone(), emb_f32);
     } else {
-        #[cfg(feature = "sqlite-compat")]
-        {
-            let op = CrdtOperation::Put {
-                id: id.clone(),
-                actor: actor.clone(),
-                data: payload.clone(),
-            };
-            store.apply(op)?;
-        }
-        #[cfg(not(feature = "sqlite-compat"))]
         store.put(id.clone(), actor.clone(), payload.clone());
     }
 

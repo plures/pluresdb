@@ -376,7 +376,8 @@ impl CrdtStore {
 
     /// Populate the HNSW vector index from embeddings stored in the persistence layer.
     ///
-    /// Only embedding data is read — this is called lazily by
+    /// Node records are fully loaded and deserialized from storage, but only their
+    /// embedding field is used for indexing. This is called lazily by
     /// [`vector_search`][Self::vector_search] on the first search after startup.
     fn build_vector_index_from_persistence(&self) {
         let storage = match &self.persistence {
@@ -435,9 +436,20 @@ impl CrdtStore {
     /// Write a node to the persistence layer (if attached).
     fn persist_node(&self, record: &NodeRecord) {
         if let Some(storage) = &self.persistence {
+            let payload = match serde_json::to_value(record) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::error!(
+                        "[CrdtStore] persist skipped for '{}': serialization failed: {}",
+                        record.id,
+                        e
+                    );
+                    return;
+                }
+            };
             let stored = StoredNode {
                 id: record.id.clone(),
-                payload: serde_json::to_value(record).unwrap_or_default(),
+                payload,
             };
             if let Err(e) = block_on(storage.put(stored)) {
                 tracing::error!("[CrdtStore] persist failed for {}: {}", record.id, e);
