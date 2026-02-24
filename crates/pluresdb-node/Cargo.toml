@@ -12,6 +12,8 @@ keywords = ["database", "node", "bindings"]
 crate-type = ["cdylib"]
 
 [features]
+default = ["embeddings"]
+
 ## Enable automatic text-embedding support (fastembed / ONNX Runtime backend).
 embeddings = ["pluresdb-core/embeddings"]
 
