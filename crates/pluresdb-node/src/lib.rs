@@ -9,7 +9,6 @@ use pluresdb_core::{CrdtStore, NodeRecord};
 use pluresdb_procedures::engine::ProcedureEngine;
 use pluresdb_storage::{SledStorage, StorageEngine};
 use pluresdb_sync::{SyncBroadcaster, SyncEvent};
-use std::collections::HashMap;
 use std::sync::Arc;
 use parking_lot::Mutex;
 
