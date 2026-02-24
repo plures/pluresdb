@@ -9,21 +9,25 @@ use crate::ops::filter::get_nested;
 ///
 /// Returns an [`AggResult`] whose variant corresponds to `func`:
 ///
-/// | `func`     | returns                                     |
-/// |------------|---------------------------------------------|
-/// | `count`    | `AggResult::Count(n)`                       |
-/// | `sum`      | `AggResult::Number(sum)`                    |
-/// | `avg`      | `AggResult::Number(mean)`                   |
-/// | `min`      | `AggResult::Number(min)`                    |
-/// | `max`      | `AggResult::Number(max)`                    |
-/// | `distinct` | `AggResult::Values(unique_values)`          |
-/// | `collect`  | `AggResult::Values(all_field_values)`       |
+/// | `func`     | returns                                                      |
+/// |------------|--------------------------------------------------------------|
+/// | `count`    | `AggResult::Count(n)`                                        |
+/// | `sum`      | `AggResult::Number(sum)` or `AggResult::Null` (empty set)    |
+/// | `avg`      | `AggResult::Number(mean)` or `AggResult::Null` (empty set)   |
+/// | `min`      | `AggResult::Number(min)` or `AggResult::Null` (empty set)    |
+/// | `max`      | `AggResult::Number(max)` or `AggResult::Null` (empty set)    |
+/// | `distinct` | `AggResult::Values(unique_values)`                           |
+/// | `collect`  | `AggResult::Values(all_field_values)`                        |
 pub fn apply_aggregate(nodes: &[NodeRecord], func: &AggFn, field: Option<&str>) -> AggResult {
     match func {
         AggFn::Count => AggResult::Count(nodes.len() as u64),
         AggFn::Sum => {
-            let sum: f64 = extract_numbers(nodes, field).iter().copied().sum();
-            AggResult::Number(sum)
+            let nums = extract_numbers(nodes, field);
+            if nums.is_empty() {
+                AggResult::Null
+            } else {
+                AggResult::Number(nums.iter().copied().sum::<f64>())
+            }
         }
         AggFn::Avg => {
             let nums = extract_numbers(nodes, field);
@@ -192,6 +196,7 @@ mod tests {
         assert_eq!(apply_aggregate(&nodes, &AggFn::Min, Some("n")), AggResult::Null);
         assert_eq!(apply_aggregate(&nodes, &AggFn::Max, Some("n")), AggResult::Null);
         assert_eq!(apply_aggregate(&nodes, &AggFn::Avg, Some("n")), AggResult::Null);
+        assert_eq!(apply_aggregate(&nodes, &AggFn::Sum, Some("n")), AggResult::Null);
     }
 
     #[test]
@@ -200,5 +205,6 @@ mod tests {
         let nodes = vec![make_node("a", serde_json::json!({"other": 5.0}))];
         assert_eq!(apply_aggregate(&nodes, &AggFn::Min, Some("n")), AggResult::Null);
         assert_eq!(apply_aggregate(&nodes, &AggFn::Max, Some("n")), AggResult::Null);
+        assert_eq!(apply_aggregate(&nodes, &AggFn::Sum, Some("n")), AggResult::Null);
     }
 }
