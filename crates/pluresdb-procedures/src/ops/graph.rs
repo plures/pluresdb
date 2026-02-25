@@ -133,7 +133,11 @@ pub fn graph_neighbors(
     // Remove root from the set – we return *neighbours*, not the root itself.
     visited.remove(root);
 
-    store.list().into_iter().filter(|n| visited.contains(&n.id)).collect()
+    store
+        .list()
+        .into_iter()
+        .filter(|n| visited.contains(&n.id) && !is_edge(n))
+        .collect()
 }
 
 /// Automatically create links between the nodes in `input` using the
