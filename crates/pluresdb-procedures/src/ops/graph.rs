@@ -163,24 +163,32 @@ pub fn auto_link(
     min_strength: f64,
 ) -> Vec<NodeRecord> {
     let mut created: Vec<NodeRecord> = Vec::new();
+
+    // Filter out edge nodes from the input to avoid creating links between edges.
+    let filtered_input: Vec<NodeRecord> = input
+        .iter()
+        .filter(|node| !is_edge(node))
+        .cloned()
+        .collect();
+
     for alg in algorithms {
         match *alg {
             "semantic" => {
-                for (from, to, strength) in semantic_pairs(input, min_strength) {
+                for (from, to, strength) in semantic_pairs(&filtered_input, min_strength) {
                     if let Some(rec) = put_edge(store, actor, &from, &to, "semantic", strength) {
                         created.push(rec);
                     }
                 }
             }
             "category" => {
-                for (from, to) in category_pairs(input) {
+                for (from, to) in category_pairs(&filtered_input) {
                     if let Some(rec) = put_edge(store, actor, &from, &to, "category", 1.0) {
                         created.push(rec);
                     }
                 }
             }
             "temporal" => {
-                for (from, to, strength) in temporal_pairs(input, min_strength) {
+                for (from, to, strength) in temporal_pairs(&filtered_input, min_strength) {
                     if let Some(rec) = put_edge(store, actor, &from, &to, "temporal", strength) {
                         created.push(rec);
                     }
