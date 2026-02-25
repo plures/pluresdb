@@ -502,7 +502,17 @@ fn parse_graph_neighbors(pair: Pair<Rule>) -> Result<Step, ParseError> {
                             key_pair.as_span(),
                         )));
                     }
-                    depth = n as usize;
+                    // Avoid casting negative or excessively large floating point values
+                    // directly to usize, which can wrap or overflow. Treat non-positive
+                    // depths as 0, clamp very large values, and explicitly floor
+                    // fractional depths before conversion.
+                    if n <= 0.0 {
+                        depth = 0;
+                    } else if n >= (usize::MAX as f64) {
+                        depth = usize::MAX;
+                    } else {
+                        depth = n.floor() as usize;
+                    }
                 }
             }
             "min_strength" => {
