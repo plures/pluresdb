@@ -253,16 +253,6 @@ fn temporal_communities(store: &CrdtStore, nodes: &[String]) -> Vec<usize> {
 // graph_clusters public function
 // ---------------------------------------------------------------------------
 
-/// Result of a clustering operation.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ClusterResult {
-    pub cluster_id: String,
-    pub algorithm: String,
-    pub member_ids: Vec<String>,
-    pub size: usize,
-    pub coherence_score: f64,
-}
-
 /// Detect communities in the graph stored in `store`.
 pub fn graph_clusters(
     store: &CrdtStore,
