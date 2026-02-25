@@ -565,8 +565,12 @@ fn parse_auto_link(pair: Pair<Rule>) -> Result<Step, ParseError> {
                 // auto_link_alg_kv: "algorithms" ":" field_array
                 let arr = inner.into_inner().next().expect("field_array");
                 for p in arr.into_inner() {
-                    let s = p.as_str();
-                    algorithms.push(s[1..s.len() - 1].to_string());
+                    let val = parse_value(p)?;
+                    if let IrValue::String(s) = val {
+                        algorithms.push(s);
+                    } else {
+                        unreachable!("expected string in algorithms array");
+                    }
                 }
             }
             Rule::auto_link_other_kv => {
