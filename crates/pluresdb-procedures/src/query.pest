@@ -116,7 +116,7 @@ graph_pagerank_params = {
     (graph_dampening_kv ~ ("," ~ graph_iterations_kv)?) |
     graph_iterations_kv
 }
-graph_dampening_kv  = { "dampening" ~ ":" ~ float }
+graph_dampening_kv  = { "damping" ~ ":" ~ float }
 graph_iterations_kv = { "iterations" ~ ":" ~ pos_integer }
 
 // graph_stats()

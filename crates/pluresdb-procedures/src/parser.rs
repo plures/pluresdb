@@ -522,7 +522,7 @@ fn parse_graph_path(pair: Pair<Rule>) -> Result<Step, ParseError> {
 // ---- graph_pagerank ----
 
 fn parse_graph_pagerank(pair: Pair<Rule>) -> Result<Step, ParseError> {
-    let mut dampening: Option<f64> = None;
+    let mut damping: Option<f64> = None;
     let mut iterations: Option<usize> = None;
 
     // params are optional (the whole group may be absent)
@@ -530,8 +530,8 @@ fn parse_graph_pagerank(pair: Pair<Rule>) -> Result<Step, ParseError> {
         for kv in params.into_inner() {
             match kv.as_rule() {
                 Rule::graph_dampening_kv => {
-                    let raw = kv.into_inner().next().expect("dampening float").as_str();
-                    dampening = raw.parse().ok();
+                    let raw = kv.into_inner().next().expect("damping float").as_str();
+                    damping = raw.parse().ok();
                 }
                 Rule::graph_iterations_kv => {
                     let raw = kv.into_inner().next().expect("iterations integer").as_str();
@@ -542,7 +542,7 @@ fn parse_graph_pagerank(pair: Pair<Rule>) -> Result<Step, ParseError> {
         }
     }
 
-    Ok(Step::GraphPagerank { dampening, iterations })
+    Ok(Step::GraphPagerank { damping, iterations })
 }
 
 #[cfg(test)]
@@ -744,10 +744,10 @@ mod tests {
 
     #[test]
     fn parse_graph_pagerank_full() {
-        let input = "graph_pagerank(dampening: 0.85, iterations: 50)";
+        let input = "graph_pagerank(damping: 0.85, iterations: 50)";
         let steps = parse_query(input).unwrap();
-        if let Step::GraphPagerank { dampening, iterations } = &steps[0] {
-            assert!((dampening.unwrap() - 0.85).abs() < 1e-9);
+        if let Step::GraphPagerank { damping, iterations } = &steps[0] {
+            assert!((damping.unwrap() - 0.85).abs() < 1e-9);
             assert_eq!(*iterations, Some(50));
         } else {
             panic!("expected GraphPagerank step");
@@ -758,8 +758,8 @@ mod tests {
     fn parse_graph_pagerank_empty() {
         let input = "graph_pagerank()";
         let steps = parse_query(input).unwrap();
-        if let Step::GraphPagerank { dampening, iterations } = &steps[0] {
-            assert!(dampening.is_none());
+        if let Step::GraphPagerank { damping, iterations } = &steps[0] {
+            assert!(damping.is_none());
             assert!(iterations.is_none());
         } else {
             panic!("expected GraphPagerank step");
@@ -775,7 +775,7 @@ mod tests {
 
     #[test]
     fn parse_graph_pagerank_pipe_chain() {
-        let input = r#"graph_pagerank(dampening: 0.85) |> limit(10)"#;
+        let input = r#"graph_pagerank(damping: 0.85) |> limit(10)"#;
         let steps = parse_query(input).unwrap();
         assert_eq!(steps.len(), 2);
         assert!(matches!(steps[0], Step::GraphPagerank { .. }));

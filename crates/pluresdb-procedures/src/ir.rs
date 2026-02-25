@@ -345,9 +345,10 @@ pub enum Step {
     },
     /// Compute PageRank scores for all nodes in the graph.
     GraphPagerank {
-        /// Damping factor (default: 0.85).
-        #[serde(skip_serializing_if = "Option::is_none")]
-        dampening: Option<f64>,
+        /// Damping factor in `(0, 1)` (default: 0.85).
+        /// The alias `"dampening"` is accepted for backward compatibility.
+        #[serde(skip_serializing_if = "Option::is_none", alias = "dampening")]
+        damping: Option<f64>,
         /// Maximum iterations (default: 100).
         #[serde(skip_serializing_if = "Option::is_none")]
         iterations: Option<usize>,

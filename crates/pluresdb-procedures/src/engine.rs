@@ -112,45 +112,21 @@ impl<'a> ProcedureEngine<'a> {
                         mutated: None,
                     });
                 }
+                // Graph steps replace the working node set and continue through the
+                // pipeline, enabling downstream sort / filter / limit / project steps.
                 Step::GraphClusters { algorithm, min_size, min_strength } => {
-                    // Graph steps produce new node sets; downstream steps operate on them.
-                    let cluster_nodes =
-                        graph::graph_clusters(self.store, algorithm, *min_size, *min_strength)?;
-                    // Convert to NodeRecord-like JSON objects already, then continue
-                    // pipeline as raw JSON so downstream project/sort/limit work.
-                    // We flush the result immediately — graph steps are always terminal
-                    // when the pipeline starts with them, but we allow chaining by
-                    // converting to a temporary JSON-based node set.
-                    if let Some(n) = pending_limit {
-                        let mut r = cluster_nodes;
-                        r.truncate(n);
-                        return Ok(ProcedureResult::from_nodes(r));
-                    }
-                    return Ok(ProcedureResult::from_nodes(cluster_nodes));
+                    nodes = graph::graph_clusters(
+                        self.store, algorithm, *min_size, *min_strength,
+                    )?;
                 }
                 Step::GraphPath { from, to, max_hops } => {
-                    let path_nodes =
-                        graph::graph_path(self.store, from, to, *max_hops)?;
-                    if let Some(n) = pending_limit {
-                        let mut r = path_nodes;
-                        r.truncate(n);
-                        return Ok(ProcedureResult::from_nodes(r));
-                    }
-                    return Ok(ProcedureResult::from_nodes(path_nodes));
+                    nodes = graph::graph_path(self.store, from, to, *max_hops)?;
                 }
-                Step::GraphPagerank { dampening, iterations } => {
-                    let ranked =
-                        graph::graph_pagerank(self.store, *dampening, *iterations)?;
-                    if let Some(n) = pending_limit {
-                        let mut r = ranked;
-                        r.truncate(n);
-                        return Ok(ProcedureResult::from_nodes(r));
-                    }
-                    return Ok(ProcedureResult::from_nodes(ranked));
+                Step::GraphPagerank { damping, iterations } => {
+                    nodes = graph::graph_pagerank(self.store, *damping, *iterations)?;
                 }
                 Step::GraphStats => {
-                    let stats = graph::graph_stats(self.store)?;
-                    return Ok(ProcedureResult::from_nodes(stats));
+                    nodes = graph::graph_stats(self.store)?;
                 }
             }
         }
@@ -206,6 +182,12 @@ fn leading_limit_without_filter(steps: &[Step]) -> Option<usize> {
     for step in steps {
         match step {
             Step::Filter { .. } => break, // filter found — optimisation doesn't apply
+            // Graph steps replace the initial node set entirely, so pre-truncating
+            // the initial list offers no benefit.
+            Step::GraphClusters { .. }
+            | Step::GraphPath { .. }
+            | Step::GraphPagerank { .. }
+            | Step::GraphStats => break,
             Step::Limit { n } => {
                 min_limit = Some(match min_limit {
                     Some(prev) => prev.min(*n),

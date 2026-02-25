@@ -251,8 +251,9 @@ fn dsl_graph_stats() {
     let engine = ProcedureEngine::new(&store, "test");
     let result = engine.exec_dsl("graph_stats()").unwrap();
     assert_eq!(result.nodes.len(), 1);
-    assert_eq!(result.nodes[0]["node_count"].as_u64().unwrap(), 4);
-    assert_eq!(result.nodes[0]["edge_count"].as_u64().unwrap(), 4);
+    // Fields are stored inside "data" so downstream pipeline steps can access them.
+    assert_eq!(result.nodes[0]["data"]["node_count"].as_u64().unwrap(), 4);
+    assert_eq!(result.nodes[0]["data"]["edge_count"].as_u64().unwrap(), 4);
 }
 
 #[test]
@@ -262,7 +263,8 @@ fn dsl_graph_pagerank() {
     let result = engine.exec_dsl("graph_pagerank()").unwrap();
     assert_eq!(result.nodes.len(), 4);
     for node in &result.nodes {
-        assert!(node.get("pagerank_score").is_some());
+        // pagerank_score is inside "data".
+        assert!(node["data"].get("pagerank_score").is_some());
     }
 }
 
@@ -270,7 +272,7 @@ fn dsl_graph_pagerank() {
 fn dsl_graph_pagerank_with_params() {
     let store = make_graph_store();
     let engine = ProcedureEngine::new(&store, "test");
-    let result = engine.exec_dsl("graph_pagerank(dampening: 0.85, iterations: 50)").unwrap();
+    let result = engine.exec_dsl("graph_pagerank(damping: 0.85, iterations: 50)").unwrap();
     assert_eq!(result.nodes.len(), 4);
 }
 
@@ -283,7 +285,7 @@ fn dsl_graph_clusters_louvain() {
         .unwrap();
     assert!(!result.nodes.is_empty());
     for node in &result.nodes {
-        assert_eq!(node["algorithm"], "louvain");
+        assert_eq!(node["data"]["algorithm"], "louvain");
     }
 }
 
@@ -309,4 +311,59 @@ fn dsl_graph_path_limit() {
         .exec_dsl(r#"graph_path(from: "n1", to: "n4", max_hops: 1)"#)
         .unwrap();
     assert!(result.nodes.is_empty());
+}
+
+// ── Pipeline composition: graph step followed by sort / limit / project ─────
+
+#[test]
+fn dsl_graph_pagerank_sort_limit_pipeline() {
+    let store = make_graph_store();
+    let engine = ProcedureEngine::new(&store, "test");
+    // PageRank results contain pagerank_score in data; sort and limit should work.
+    let result = engine
+        .exec_dsl(r#"graph_pagerank(damping: 0.85) |> sort(by: "pagerank_score", dir: "desc") |> limit(2)"#)
+        .unwrap();
+    assert_eq!(result.nodes.len(), 2);
+    // Verify scores are descending.
+    let s0 = result.nodes[0]["data"]["pagerank_score"].as_f64().unwrap();
+    let s1 = result.nodes[1]["data"]["pagerank_score"].as_f64().unwrap();
+    assert!(s0 >= s1, "expected descending order: {} >= {}", s0, s1);
+}
+
+#[test]
+fn dsl_graph_pagerank_project_pipeline() {
+    let store = make_graph_store();
+    let engine = ProcedureEngine::new(&store, "test");
+    let result = engine
+        .exec_dsl(r#"graph_pagerank() |> project(["pagerank_score"])"#)
+        .unwrap();
+    assert_eq!(result.nodes.len(), 4);
+    for node in &result.nodes {
+        assert!(node["data"].get("pagerank_score").is_some());
+        // Other data fields should have been projected away.
+        assert!(node["data"].get("label").is_none());
+    }
+}
+
+#[test]
+fn dsl_graph_clusters_limit_pipeline() {
+    let store = make_graph_store();
+    let engine = ProcedureEngine::new(&store, "test");
+    let result = engine
+        .exec_dsl(r#"graph_clusters(algorithm: "louvain", min_size: 2) |> limit(1)"#)
+        .unwrap();
+    assert!(result.nodes.len() <= 1);
+}
+
+#[test]
+fn dsl_graph_stats_project_pipeline() {
+    let store = make_graph_store();
+    let engine = ProcedureEngine::new(&store, "test");
+    let result = engine
+        .exec_dsl(r#"graph_stats() |> project(["node_count", "edge_count"])"#)
+        .unwrap();
+    assert_eq!(result.nodes.len(), 1);
+    assert!(result.nodes[0]["data"].get("node_count").is_some());
+    assert!(result.nodes[0]["data"].get("edge_count").is_some());
+    assert!(result.nodes[0]["data"].get("density").is_none());
 }

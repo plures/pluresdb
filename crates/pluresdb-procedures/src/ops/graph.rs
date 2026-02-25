@@ -3,10 +3,24 @@
 //! Edges are stored as CRDT nodes with `_edge: true`, `from`, and `to` fields.
 //! All graph algorithms operate by reading these edge nodes from the store and
 //! building an in-memory adjacency representation.
+//!
+//! All public functions return `Vec<NodeRecord>` so that their results can flow
+//! through the rest of the query pipeline (filter, sort, limit, project).
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use pluresdb_core::{CrdtStore, NodeRecord};
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/// Maximum Louvain iterations as a safety limit against infinite loops.
+const MAX_LOUVAIN_ITERS: usize = 100;
+
+/// Warn when more than this many edges are loaded; operations on very large
+/// graphs may consume significant memory and CPU.
+const EDGE_WARN_THRESHOLD: usize = 10_000;
 
 // ---------------------------------------------------------------------------
 // Edge extraction helpers
@@ -22,23 +36,43 @@ struct Edge {
 }
 
 /// Read all edge nodes from the store and return them as `Edge` values.
+///
+/// Emits a `tracing::warn!` when the edge count exceeds
+/// [`EDGE_WARN_THRESHOLD`] to alert callers of potential resource consumption.
 fn read_edges(store: &CrdtStore) -> Vec<Edge> {
-    store
-        .list()
-        .into_iter()
-        .filter(|n| n.data.get("_edge").and_then(|v| v.as_bool()).unwrap_or(false))
-        .filter_map(|n| {
-            let from = n.data.get("from")?.as_str()?.to_string();
-            let to = n.data.get("to")?.as_str()?.to_string();
-            let weight = n
-                .data
-                .get("weight")
-                .or_else(|| n.data.get("strength"))
-                .and_then(|v| v.as_f64())
-                .unwrap_or(1.0);
-            Some(Edge { from, to, weight })
-        })
-        .collect()
+    let all = store.list();
+    let mut edges: Vec<Edge> = Vec::new();
+
+    for n in all {
+        if !n.data.get("_edge").and_then(|v| v.as_bool()).unwrap_or(false) {
+            continue;
+        }
+        let from = match n.data.get("from").and_then(|v| v.as_str()) {
+            Some(v) => v.to_string(),
+            None => continue,
+        };
+        let to = match n.data.get("to").and_then(|v| v.as_str()) {
+            Some(v) => v.to_string(),
+            None => continue,
+        };
+        let weight = n
+            .data
+            .get("weight")
+            .or_else(|| n.data.get("strength"))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(1.0);
+        edges.push(Edge { from, to, weight });
+    }
+
+    if edges.len() > EDGE_WARN_THRESHOLD {
+        tracing::warn!(
+            "graph: loaded {} edges into memory; graph algorithms on large \
+             graphs may consume significant memory and CPU",
+            edges.len()
+        );
+    }
+
+    edges
 }
 
 /// Build a weighted adjacency list (undirected: both directions stored).
@@ -51,7 +85,6 @@ fn build_adjacency(
 ) -> (Vec<Vec<(usize, f64)>>, Vec<String>) {
     let min_w = min_strength.unwrap_or(0.0);
 
-    // Collect unique node IDs in insertion order.
     let mut node_index: HashMap<String, usize> = HashMap::new();
     let mut nodes: Vec<String> = Vec::new();
 
@@ -65,7 +98,6 @@ fn build_adjacency(
         idx
     };
 
-    // Pre-pass to register all nodes.
     for e in edges {
         if e.weight >= min_w {
             get_or_insert(&e.from);
@@ -95,6 +127,9 @@ fn build_adjacency(
 
 /// Simplified Louvain-style modularity optimization.
 ///
+/// Maintains incremental community strength sums for O(n) per pass instead of
+/// O(n²).  Bounded to [`MAX_LOUVAIN_ITERS`] iterations as a safety limit.
+///
 /// Returns a mapping `community[i] = community_id` for each node.
 fn louvain_communities(adj: &[Vec<(usize, f64)>]) -> Vec<usize> {
     let n = adj.len();
@@ -102,36 +137,42 @@ fn louvain_communities(adj: &[Vec<(usize, f64)>]) -> Vec<usize> {
         return Vec::new();
     }
 
-    let total_weight: f64 = adj.iter().flat_map(|row| row.iter().map(|(_, w)| w)).sum::<f64>()
-        / 2.0; // each edge counted twice
+    let total_weight: f64 =
+        adj.iter().flat_map(|row| row.iter().map(|(_, w)| w)).sum::<f64>() / 2.0;
 
     // Start: every node in its own community.
     let mut community: Vec<usize> = (0..n).collect();
 
     // Node strength (sum of incident edge weights).
-    let strength: Vec<f64> = adj.iter().map(|row| row.iter().map(|(_, w)| w).sum()).collect();
+    let strength: Vec<f64> =
+        adj.iter().map(|row| row.iter().map(|(_, w)| w).sum()).collect();
+
+    // Maintain total strength per community for O(1) lookup; updated
+    // incrementally when nodes change communities.
+    let mut community_sum: HashMap<usize, f64> = HashMap::new();
+    for (i, &c) in community.iter().enumerate() {
+        *community_sum.entry(c).or_insert(0.0) += strength[i];
+    }
 
     let mut improved = true;
-    while improved {
+    let mut iter_count = 0;
+    while improved && iter_count < MAX_LOUVAIN_ITERS {
         improved = false;
+        iter_count += 1;
+
         for i in 0..n {
-            // Count weights to each neighbouring community.
+            let current_c = community[i];
+            let ki = strength[i];
+
+            // Weights from node i to each neighbouring community.
             let mut community_weights: HashMap<usize, f64> = HashMap::new();
             for &(j, w) in &adj[i] {
                 *community_weights.entry(community[j]).or_insert(0.0) += w;
             }
 
-            let current_c = community[i];
-            let ki = strength[i];
+            // Effective strength of the current community excluding i.
+            let sum_c = community_sum.get(&current_c).copied().unwrap_or(0.0) - ki;
 
-            // Sum of strengths in current community (excluding i itself).
-            let sum_c: f64 = (0..n)
-                .filter(|&j| j != i && community[j] == current_c)
-                .map(|j| strength[j])
-                .sum();
-
-            // Modularity gain for moving to neighbour community c:
-            // ΔQ ∝ (k_i_in_c - k_i * sum_c / (2m))
             let mut best_gain = 0.0;
             let mut best_c = current_c;
 
@@ -139,10 +180,7 @@ fn louvain_communities(adj: &[Vec<(usize, f64)>]) -> Vec<usize> {
                 if c == current_c {
                     continue;
                 }
-                let sum_c_new: f64 = (0..n)
-                    .filter(|&j| j != i && community[j] == c)
-                    .map(|j| strength[j])
-                    .sum();
+                let sum_c_new = community_sum.get(&c).copied().unwrap_or(0.0);
                 let gain = k_i_in_c / total_weight.max(1e-10)
                     - ki * sum_c_new / (2.0 * total_weight.max(1e-10).powi(2));
                 let loss = community_weights.get(&current_c).copied().unwrap_or(0.0)
@@ -155,6 +193,9 @@ fn louvain_communities(adj: &[Vec<(usize, f64)>]) -> Vec<usize> {
             }
 
             if best_c != current_c {
+                // Update community sums incrementally.
+                *community_sum.entry(current_c).or_insert(0.0) -= ki;
+                *community_sum.entry(best_c).or_insert(0.0) += ki;
                 community[i] = best_c;
                 improved = true;
             }
@@ -208,9 +249,12 @@ fn semantic_communities(store: &CrdtStore, nodes: &[String]) -> Vec<usize> {
 // ---------------------------------------------------------------------------
 
 /// Group nodes into hourly buckets based on their `created_at` timestamp
-/// (milliseconds since epoch).  Falls back to the record's `timestamp` field.
+/// (milliseconds since epoch). Falls back to the record's `timestamp` field.
 fn temporal_communities(store: &CrdtStore, nodes: &[String]) -> Vec<usize> {
     const BUCKET_MS: i64 = 3_600_000; // 1 hour
+
+    let mut bucket_to_id: HashMap<i64, usize> = HashMap::new();
+    let mut next_id = 0usize;
 
     nodes
         .iter()
@@ -221,32 +265,27 @@ fn temporal_communities(store: &CrdtStore, nodes: &[String]) -> Vec<usize> {
                     n.data
                         .get("created_at")
                         .and_then(|v| v.as_i64())
-                        .or_else(|| {
-                            // Use the record timestamp converted to ms.
-                            Some(n.timestamp.timestamp_millis())
-                        })
+                        .or_else(|| Some(n.timestamp.timestamp_millis()))
                 })
                 .unwrap_or(0);
             let bucket = ts_ms.div_euclid(BUCKET_MS);
-            // Map negative buckets away from usize by shifting.
-            (bucket + i64::MAX / 2) as usize
+            *bucket_to_id.entry(bucket).or_insert_with(|| {
+                let id = next_id;
+                next_id += 1;
+                id
+            })
         })
-        .collect::<Vec<_>>()
-        .into_iter()
-        .enumerate()
-        .fold(
-            (HashMap::<usize, usize>::new(), 0usize, Vec::new()),
-            |(mut map, mut next, mut out), (_, raw)| {
-                let id = *map.entry(raw).or_insert_with(|| {
-                    let id = next;
-                    next += 1;
-                    id
-                });
-                out.push(id);
-                (map, next, out)
-            },
-        )
-        .2
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
+// Helper: fetch a node or synthesize a minimal one
+// ---------------------------------------------------------------------------
+
+fn get_or_synthetic(store: &CrdtStore, id: &str) -> NodeRecord {
+    store
+        .get(id)
+        .unwrap_or_else(|| NodeRecord::new(id.to_string(), "system", serde_json::json!({})))
 }
 
 // ---------------------------------------------------------------------------
@@ -254,13 +293,25 @@ fn temporal_communities(store: &CrdtStore, nodes: &[String]) -> Vec<usize> {
 // ---------------------------------------------------------------------------
 
 /// Detect communities in the graph stored in `store`.
+///
+/// Returns a `Vec<NodeRecord>` where each record represents one cluster.
+/// Graph-specific fields (`cluster_id`, `algorithm`, `member_ids`, `size`,
+/// `coherence_score`) are stored inside the record's `data` map so that
+/// downstream pipeline steps (filter, sort, project) can operate on them.
 pub fn graph_clusters(
     store: &CrdtStore,
     algorithm: &str,
     min_size: Option<usize>,
     min_strength: Option<f64>,
-) -> anyhow::Result<Vec<serde_json::Value>> {
+) -> anyhow::Result<Vec<NodeRecord>> {
     let min_size = min_size.unwrap_or(2);
+
+    if let Some(ms) = min_strength {
+        if ms < 0.0 {
+            return Err(anyhow::anyhow!("min_strength must be >= 0.0, got {}", ms));
+        }
+    }
+
     let edges = read_edges(store);
     let (adj, nodes) = build_adjacency(&edges, min_strength);
 
@@ -271,40 +322,49 @@ pub fn graph_clusters(
         other => return Err(anyhow::anyhow!("unknown clustering algorithm: '{}'", other)),
     };
 
-    // Group nodes by community id.
+    // Group node indices by community id.
     let mut groups: HashMap<usize, Vec<String>> = HashMap::new();
     for (i, &c) in communities.iter().enumerate() {
         groups.entry(c).or_default().push(nodes[i].clone());
     }
 
-    // Compute per-cluster coherence as average internal edge weight / max possible.
-    let total_edge_weight: f64 = edges.iter().map(|e| e.weight).sum::<f64>().max(1.0);
-
-    let mut results: Vec<serde_json::Value> = groups
+    let mut results: Vec<NodeRecord> = groups
         .into_iter()
         .filter(|(_, members)| members.len() >= min_size)
         .enumerate()
         .map(|(cluster_idx, (_, members))| {
+            // Coherence: fraction of cluster-incident edge weight that is internal.
             let internal_weight: f64 = edges
                 .iter()
                 .filter(|e| members.contains(&e.from) && members.contains(&e.to))
                 .map(|e| e.weight)
                 .sum();
-            let coherence = (internal_weight / total_edge_weight).min(1.0);
-            serde_json::json!({
-                "id": format!("cluster:{}-{:03}", algorithm, cluster_idx),
-                "cluster_id": format!("{}-{:03}", algorithm, cluster_idx),
-                "algorithm": algorithm,
-                "member_ids": members,
-                "size": members.len(),
-                "coherence_score": coherence,
-            })
+            let total_member_edge_weight: f64 = edges
+                .iter()
+                .filter(|e| members.contains(&e.from) || members.contains(&e.to))
+                .map(|e| e.weight)
+                .sum::<f64>()
+                .max(1.0);
+            let coherence = (internal_weight / total_member_edge_weight).min(1.0);
+
+            let cluster_id = format!("{}-{:03}", algorithm, cluster_idx);
+            NodeRecord::new(
+                format!("cluster:{}", cluster_id),
+                "system",
+                serde_json::json!({
+                    "cluster_id": cluster_id,
+                    "algorithm": algorithm,
+                    "member_ids": &members,
+                    "size": members.len(),
+                    "coherence_score": coherence,
+                }),
+            )
         })
         .collect();
 
     results.sort_by(|a, b| {
-        let sa = a["size"].as_u64().unwrap_or(0);
-        let sb = b["size"].as_u64().unwrap_or(0);
+        let sa = a.data.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
+        let sb = b.data.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
         sb.cmp(&sa)
     });
 
@@ -317,18 +377,18 @@ pub fn graph_clusters(
 
 /// Find the shortest path between two node IDs using BFS over edges.
 ///
-/// Returns the sequence of node IDs on the path (inclusive of `from` and `to`),
-/// or an empty `Vec` if no path exists within `max_hops`.
+/// Returns a `Vec<NodeRecord>` for each node on the path (inclusive of `from`
+/// and `to`), or an empty `Vec` if no path exists within `max_hops`.
 pub fn graph_path(
     store: &CrdtStore,
     from: &str,
     to: &str,
     max_hops: Option<usize>,
-) -> anyhow::Result<Vec<serde_json::Value>> {
+) -> anyhow::Result<Vec<NodeRecord>> {
     let max_hops = max_hops.unwrap_or(10);
     let edges = read_edges(store);
 
-    // Build directed + undirected neighbour list (string-keyed for convenience).
+    // Build undirected neighbour list.
     let mut neighbours: HashMap<String, Vec<String>> = HashMap::new();
     for e in &edges {
         neighbours.entry(e.from.clone()).or_default().push(e.to.clone());
@@ -336,9 +396,7 @@ pub fn graph_path(
     }
 
     if from == to {
-        // Trivial path.
-        let node_val = node_to_json(store, from);
-        return Ok(vec![node_val]);
+        return Ok(vec![get_or_synthetic(store, from)]);
     }
 
     // BFS.
@@ -349,7 +407,6 @@ pub fn graph_path(
 
     while let Some((current, path)) = queue.pop_front() {
         if path.len() >= max_hops + 1 {
-            // Already at the hop limit; don't expand further.
             continue;
         }
         if let Some(nbrs) = neighbours.get(&current) {
@@ -360,7 +417,10 @@ pub fn graph_path(
                 let mut new_path = path.clone();
                 new_path.push(next.clone());
                 if next == to {
-                    return Ok(new_path.iter().map(|id| node_to_json(store, id)).collect());
+                    return Ok(new_path
+                        .iter()
+                        .map(|id| get_or_synthetic(store, id))
+                        .collect());
                 }
                 visited.insert(next.clone());
                 queue.push_back((next.clone(), new_path));
@@ -368,44 +428,36 @@ pub fn graph_path(
         }
     }
 
-    // No path found — return empty vec.
     Ok(vec![])
-}
-
-fn node_to_json(store: &CrdtStore, id: &str) -> serde_json::Value {
-    match store.get(id) {
-        Some(n) => serde_json::json!({
-            "id": n.id,
-            "data": n.data,
-            "timestamp": n.timestamp.to_rfc3339(),
-        }),
-        None => serde_json::json!({ "id": id }),
-    }
 }
 
 // ---------------------------------------------------------------------------
 // graph_pagerank
 // ---------------------------------------------------------------------------
 
-/// Compute PageRank for all non-edge nodes and return them sorted by score.
+/// Compute PageRank for all non-edge nodes and return them sorted by score (desc).
+///
+/// The `pagerank_score` field is injected into each node's `data` map so that
+/// downstream pipeline steps (`sort`, `filter`, `project`) can operate on it.
 pub fn graph_pagerank(
     store: &CrdtStore,
-    dampening: Option<f64>,
+    damping: Option<f64>,
     iterations: Option<usize>,
-) -> anyhow::Result<Vec<serde_json::Value>> {
-    let d = dampening.unwrap_or(0.85);
+) -> anyhow::Result<Vec<NodeRecord>> {
+    let d = damping.unwrap_or(0.85);
+    if !(d > 0.0 && d < 1.0) {
+        return Err(anyhow::anyhow!("damping must be in (0, 1), got {}", d));
+    }
     let iters = iterations.unwrap_or(100);
 
     let edges = read_edges(store);
 
-    // Collect all unique non-edge node IDs referenced by edges.
+    // Collect all unique non-edge node IDs (connected + orphans).
     let mut node_set: HashSet<String> = HashSet::new();
     for e in &edges {
         node_set.insert(e.from.clone());
         node_set.insert(e.to.clone());
     }
-
-    // Also include all non-edge nodes from the store (orphans get base PR).
     for n in store.list() {
         if !n.data.get("_edge").and_then(|v| v.as_bool()).unwrap_or(false) {
             node_set.insert(n.id.clone());
@@ -428,7 +480,9 @@ pub fn graph_pagerank(
     // Build directed adjacency: outgoing links.
     let mut out_links: Vec<Vec<usize>> = vec![Vec::new(); n];
     for e in &edges {
-        if let (Some(&i), Some(&j)) = (node_index.get(e.from.as_str()), node_index.get(e.to.as_str())) {
+        if let (Some(&i), Some(&j)) =
+            (node_index.get(e.from.as_str()), node_index.get(e.to.as_str()))
+        {
             out_links[i].push(j);
         }
     }
@@ -466,27 +520,28 @@ pub fn graph_pagerank(
         scores = new_scores;
     }
 
-    // Build result nodes with pagerank_score attached.
-    let mut results: Vec<(f64, serde_json::Value)> = nodes
+    // Attach pagerank_score into each node's data map.
+    let mut results: Vec<(f64, NodeRecord)> = nodes
         .iter()
         .enumerate()
         .map(|(i, id)| {
             let score = scores[i];
-            let mut val = node_to_json(store, id);
-            if let Some(obj) = val.as_object_mut() {
+            let mut record = get_or_synthetic(store, id);
+            if let Some(obj) = record.data.as_object_mut() {
                 obj.insert(
                     "pagerank_score".to_string(),
                     serde_json::Value::Number(
-                        serde_json::Number::from_f64(score).unwrap_or(serde_json::Number::from(0)),
+                        serde_json::Number::from_f64(score)
+                            .unwrap_or(serde_json::Number::from(0)),
                     ),
                 );
             }
-            (score, val)
+            (score, record)
         })
         .collect();
 
     results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-    Ok(results.into_iter().map(|(_, v)| v).collect())
+    Ok(results.into_iter().map(|(_, r)| r).collect())
 }
 
 // ---------------------------------------------------------------------------
@@ -494,7 +549,11 @@ pub fn graph_pagerank(
 // ---------------------------------------------------------------------------
 
 /// Compute summary network statistics.
-pub fn graph_stats(store: &CrdtStore) -> anyhow::Result<Vec<serde_json::Value>> {
+///
+/// Returns a single `NodeRecord` with all statistics stored in its `data` map
+/// so that downstream pipeline steps (filter, sort, project) can operate on
+/// them.
+pub fn graph_stats(store: &CrdtStore) -> anyhow::Result<Vec<NodeRecord>> {
     let all_nodes: Vec<NodeRecord> = store.list();
     let edges: Vec<&NodeRecord> = all_nodes
         .iter()
@@ -520,13 +579,17 @@ pub fn graph_stats(store: &CrdtStore) -> anyhow::Result<Vec<serde_json::Value>> 
         }
     }
 
-    let degrees: Vec<f64> = degree.values().map(|&d| d as f64).collect();
-    let avg_degree = if degrees.is_empty() {
+    // Average degree over all data nodes (including orphans with degree 0).
+    let avg_degree = if node_count == 0 {
         0.0
     } else {
-        degrees.iter().sum::<f64>() / degrees.len() as f64
+        let total: f64 = data_nodes
+            .iter()
+            .map(|n| *degree.get(&n.id).unwrap_or(&0) as f64)
+            .sum();
+        total / node_count as f64
     };
-    let max_degree = degrees.iter().cloned().fold(0.0_f64, f64::max) as usize;
+    let max_degree = degree.values().copied().max().unwrap_or(0);
 
     // Orphan nodes: data nodes with no edges.
     let orphan_count = data_nodes
@@ -541,17 +604,20 @@ pub fn graph_stats(store: &CrdtStore) -> anyhow::Result<Vec<serde_json::Value>> 
         edge_count as f64 / (node_count as f64 * (node_count as f64 - 1.0) / 2.0)
     };
 
-    let stats = serde_json::json!({
-        "id": "graph_stats",
-        "node_count": node_count,
-        "edge_count": edge_count,
-        "avg_degree": avg_degree,
-        "max_degree": max_degree,
-        "orphan_count": orphan_count,
-        "density": density,
-    });
+    let record = NodeRecord::new(
+        "graph_stats".to_string(),
+        "system",
+        serde_json::json!({
+            "node_count": node_count,
+            "edge_count": edge_count,
+            "avg_degree": avg_degree,
+            "max_degree": max_degree,
+            "orphan_count": orphan_count,
+            "density": density,
+        }),
+    );
 
-    Ok(vec![stats])
+    Ok(vec![record])
 }
 
 // ---------------------------------------------------------------------------
@@ -565,7 +631,7 @@ mod tests {
 
     fn make_graph() -> CrdtStore {
         let store = CrdtStore::default();
-        // Three interconnected nodes forming a triangle + one isolated node.
+        // Three interconnected nodes forming a triangle + one node connected by a tail.
         store.put("n1", "a", serde_json::json!({"category": "decision", "label": "Alpha"}));
         store.put("n2", "a", serde_json::json!({"category": "decision", "label": "Beta"}));
         store.put("n3", "a", serde_json::json!({"category": "note",     "label": "Gamma"}));
@@ -582,23 +648,21 @@ mod tests {
     fn graph_clusters_louvain_returns_clusters() {
         let store = make_graph();
         let clusters = graph_clusters(&store, "louvain", Some(2), None).unwrap();
-        // Should find at least one cluster with ≥ 2 members.
         assert!(!clusters.is_empty());
         for c in &clusters {
-            let size = c["size"].as_u64().unwrap();
+            let size = c.data["size"].as_u64().unwrap();
             assert!(size >= 2, "min_size=2 must be respected; got {}", size);
-            assert_eq!(c["algorithm"], "louvain");
+            assert_eq!(c.data["algorithm"], "louvain");
         }
     }
 
     #[test]
     fn graph_clusters_semantic() {
         let store = make_graph();
-        // semantic groups by category
         let clusters = graph_clusters(&store, "semantic", Some(2), None).unwrap();
         assert!(!clusters.is_empty());
         for c in &clusters {
-            assert_eq!(c["algorithm"], "semantic");
+            assert_eq!(c.data["algorithm"], "semantic");
         }
     }
 
@@ -620,8 +684,23 @@ mod tests {
         let store = make_graph();
         // With very high min_strength, no edges pass → no clusters formed.
         let clusters = graph_clusters(&store, "louvain", Some(2), Some(0.99)).unwrap();
-        // high threshold keeps only weight >= 0.99 (none in our test data).
         assert!(clusters.is_empty());
+    }
+
+    #[test]
+    fn graph_clusters_negative_min_strength_errors() {
+        let store = make_graph();
+        assert!(graph_clusters(&store, "louvain", None, Some(-0.1)).is_err());
+    }
+
+    #[test]
+    fn graph_clusters_coherence_score_in_bounds() {
+        let store = make_graph();
+        let clusters = graph_clusters(&store, "louvain", Some(2), None).unwrap();
+        for c in &clusters {
+            let score = c.data["coherence_score"].as_f64().unwrap();
+            assert!((0.0..=1.0).contains(&score), "coherence out of [0,1]: {}", score);
+        }
     }
 
     #[test]
@@ -629,19 +708,17 @@ mod tests {
         let store = make_graph();
         let path = graph_path(&store, "n1", "n2", None).unwrap();
         assert!(!path.is_empty(), "should find n1->n2");
-        assert_eq!(path[0]["id"], "n1");
-        let last = path.last().unwrap();
-        assert_eq!(last["id"], "n2");
+        assert_eq!(path[0].id, "n1");
+        assert_eq!(path.last().unwrap().id, "n2");
     }
 
     #[test]
     fn graph_path_finds_indirect() {
         let store = make_graph();
-        // n1 can reach n4 via n3
         let path = graph_path(&store, "n1", "n4", None).unwrap();
         assert!(!path.is_empty());
-        assert_eq!(path.first().unwrap()["id"], "n1");
-        assert_eq!(path.last().unwrap()["id"], "n4");
+        assert_eq!(path.first().unwrap().id, "n1");
+        assert_eq!(path.last().unwrap().id, "n4");
     }
 
     #[test]
@@ -649,7 +726,6 @@ mod tests {
         let store = CrdtStore::default();
         store.put("a", "x", serde_json::json!({}));
         store.put("b", "x", serde_json::json!({}));
-        // No edges between a and b.
         let path = graph_path(&store, "a", "b", None).unwrap();
         assert!(path.is_empty());
     }
@@ -659,7 +735,7 @@ mod tests {
         let store = make_graph();
         let path = graph_path(&store, "n1", "n1", None).unwrap();
         assert_eq!(path.len(), 1);
-        assert_eq!(path[0]["id"], "n1");
+        assert_eq!(path[0].id, "n1");
     }
 
     #[test]
@@ -674,15 +750,17 @@ mod tests {
     fn graph_pagerank_returns_all_nodes() {
         let store = make_graph();
         let ranked = graph_pagerank(&store, None, None).unwrap();
-        // Should have exactly 4 data nodes.
         assert_eq!(ranked.len(), 4);
         for node in &ranked {
-            assert!(node.get("pagerank_score").is_some());
-            let score = node["pagerank_score"].as_f64().unwrap();
+            assert!(node.data.get("pagerank_score").is_some());
+            let score = node.data["pagerank_score"].as_f64().unwrap();
             assert!(score >= 0.0 && score <= 1.0);
         }
         // Scores should be ordered descending.
-        let scores: Vec<f64> = ranked.iter().map(|v| v["pagerank_score"].as_f64().unwrap()).collect();
+        let scores: Vec<f64> = ranked
+            .iter()
+            .map(|r| r.data["pagerank_score"].as_f64().unwrap())
+            .collect();
         for pair in scores.windows(2) {
             assert!(pair[0] >= pair[1]);
         }
@@ -696,16 +774,25 @@ mod tests {
     }
 
     #[test]
+    fn graph_pagerank_invalid_damping_errors() {
+        let store = make_graph();
+        assert!(graph_pagerank(&store, Some(0.0), None).is_err());
+        assert!(graph_pagerank(&store, Some(1.0), None).is_err());
+        assert!(graph_pagerank(&store, Some(-0.5), None).is_err());
+        assert!(graph_pagerank(&store, Some(1.5), None).is_err());
+    }
+
+    #[test]
     fn graph_stats_basic() {
         let store = make_graph();
         let stats = graph_stats(&store).unwrap();
         assert_eq!(stats.len(), 1);
         let s = &stats[0];
-        assert_eq!(s["node_count"].as_u64().unwrap(), 4);
-        assert_eq!(s["edge_count"].as_u64().unwrap(), 4);
-        // n4 is connected, so 0 orphans; all nodes have edges.
-        assert_eq!(s["orphan_count"].as_u64().unwrap(), 0);
-        assert!(s["avg_degree"].as_f64().unwrap() > 0.0);
+        assert_eq!(s.data["node_count"].as_u64().unwrap(), 4);
+        assert_eq!(s.data["edge_count"].as_u64().unwrap(), 4);
+        // All nodes have edges, so orphan_count = 0.
+        assert_eq!(s.data["orphan_count"].as_u64().unwrap(), 0);
+        assert!(s.data["avg_degree"].as_f64().unwrap() > 0.0);
     }
 
     #[test]
@@ -715,7 +802,19 @@ mod tests {
         store.put("n2", "a", serde_json::json!({"label": "orphan"}));
         store.put("edge:n1:n1", "a", serde_json::json!({"_edge": true, "from": "n1", "to": "n1"}));
         let stats = graph_stats(&store).unwrap();
-        // n2 has no edges.
-        assert_eq!(stats[0]["orphan_count"].as_u64().unwrap(), 1);
+        assert_eq!(stats[0].data["orphan_count"].as_u64().unwrap(), 1);
+    }
+
+    #[test]
+    fn graph_stats_avg_degree_includes_orphans() {
+        let store = CrdtStore::default();
+        // n1 connected to itself (degree 2 in undirected), n2 orphan (degree 0).
+        store.put("n1", "a", serde_json::json!({}));
+        store.put("n2", "a", serde_json::json!({}));
+        store.put("edge:n1:n1", "a", serde_json::json!({"_edge": true, "from": "n1", "to": "n1"}));
+        let stats = graph_stats(&store).unwrap();
+        let avg = stats[0].data["avg_degree"].as_f64().unwrap();
+        // n1 has degree 2, n2 has degree 0 → avg = (2+0)/2 = 1.0
+        assert!((avg - 1.0).abs() < 1e-9, "expected avg_degree=1.0 got {}", avg);
     }
 }
