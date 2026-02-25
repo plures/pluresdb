@@ -3,7 +3,7 @@
 use pluresdb_core::{CrdtStore, NodeRecord};
 
 use crate::ir::{ProcedureResult, Step};
-use crate::ops::{aggregate, filter, mutate, project, sort};
+use crate::ops::{aggregate, filter, graph, mutate, project, sort};
 
 /// Executes query pipelines (sequences of [`Step`]s) against a [`CrdtStore`].
 ///
@@ -112,6 +112,22 @@ impl<'a> ProcedureEngine<'a> {
                         mutated: None,
                     });
                 }
+                // Graph steps replace the working node set and continue through the
+                // pipeline, enabling downstream sort / filter / limit / project steps.
+                Step::GraphClusters { algorithm, min_size, min_strength } => {
+                    nodes = graph::graph_clusters(
+                        self.store, algorithm, *min_size, *min_strength,
+                    )?;
+                }
+                Step::GraphPath { from, to, max_hops } => {
+                    nodes = graph::graph_path(self.store, from, to, *max_hops)?;
+                }
+                Step::GraphPagerank { damping, iterations } => {
+                    nodes = graph::graph_pagerank(self.store, *damping, *iterations)?;
+                }
+                Step::GraphStats => {
+                    nodes = graph::graph_stats(self.store)?;
+                }
                 Step::GraphNeighbors { root, depth, min_strength, link_type, bidirectional } => {
                     nodes = crate::ops::graph::graph_neighbors(
                         self.store,
@@ -209,6 +225,12 @@ fn leading_limit_without_filter(steps: &[Step]) -> Option<usize> {
     for step in steps {
         match step {
             Step::Filter { .. } => break, // filter found — optimisation doesn't apply
+            // Graph steps replace the initial node set entirely, so pre-truncating
+            // the initial list offers no benefit.
+            Step::GraphClusters { .. }
+            | Step::GraphPath { .. }
+            | Step::GraphPagerank { .. }
+            | Step::GraphStats => break,
             Step::Limit { n } => {
                 min_limit = Some(match min_limit {
                     Some(prev) => prev.min(*n),

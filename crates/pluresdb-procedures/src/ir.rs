@@ -327,6 +327,38 @@ pub enum Step {
         #[serde(skip_serializing_if = "Option::is_none")]
         field: Option<String>,
     },
+    /// Detect communities / clusters in the graph formed by edge nodes.
+    GraphClusters {
+        /// Clustering algorithm: `"louvain"`, `"semantic"`, or `"temporal"`.
+        #[serde(default = "default_cluster_algorithm")]
+        algorithm: String,
+        /// Minimum number of members required for a cluster to be returned.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        min_size: Option<usize>,
+        /// Minimum edge strength (weight) to include in the graph.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        min_strength: Option<f64>,
+    },
+    /// Find the shortest path between two nodes (BFS over edges).
+    GraphPath {
+        from: String,
+        to: String,
+        /// Maximum path length in hops (default: 10).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        max_hops: Option<usize>,
+    },
+    /// Compute PageRank scores for all nodes in the graph.
+    GraphPagerank {
+        /// Damping factor in `(0, 1)` (default: 0.85).
+        /// The alias `"dampening"` is accepted for backward compatibility.
+        #[serde(skip_serializing_if = "Option::is_none", alias = "dampening")]
+        damping: Option<f64>,
+        /// Maximum iterations (default: 100).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        iterations: Option<usize>,
+    },
+    /// Compute summary statistics for the entire graph.
+    GraphStats,
     /// Traverse the graph from `root` using BFS up to `depth` hops.
     ///
     /// Returns the [`NodeRecord`]s of all reachable nodes (excluding the root).
@@ -364,6 +396,10 @@ pub enum Step {
         #[serde(skip_serializing_if = "Option::is_none")]
         min_strength: Option<f64>,
     },
+}
+
+fn default_cluster_algorithm() -> String {
+    "louvain".to_string()
 }
 
 // ---------------------------------------------------------------------------
