@@ -55,12 +55,17 @@ jobs:
               printf 'Types: deb\nURIs: http://ports.ubuntu.com/ubuntu-ports/\nSuites: %s %s-updates %s-security\nComponents: main restricted universe multiverse\nArchitectures: arm64\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n' \
                 "$CODENAME" "$CODENAME" "$CODENAME" | sudo tee /etc/apt/sources.list.d/ubuntu-arm64.sources
               sudo apt-get update
-              sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libssl-dev:arm64 pkg-config
+              # Install amd64 OpenSSL (for host build scripts) AND arm64 OpenSSL (for cross-compiled target)
+              sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu pkg-config libssl-dev libssl-dev:arm64
               cd crates/pluresdb-node
               npm install
               export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
               export PKG_CONFIG_ALLOW_CROSS=1
-              export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+              # Do NOT set PKG_CONFIG_PATH globally — that adds arm64 lib dirs to HOST build script
+              # link steps (e.g. ort-sys build script), causing architecture incompatibility errors.
+              # Instead, use openssl-sys target-specific env vars so only the TARGET build finds arm64 OpenSSL.
+              export OPENSSL_LIB_DIR_aarch64_unknown_linux_gnu=/usr/lib/aarch64-linux-gnu
+              export OPENSSL_INCLUDE_DIR_aarch64_unknown_linux_gnu=/usr/include
               export ORT_STRATEGY=download
               rustup target add aarch64-unknown-linux-gnu
               npx napi build --platform --release --target aarch64-unknown-linux-gnu
