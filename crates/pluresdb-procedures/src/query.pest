@@ -12,9 +12,19 @@ WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
 query = { SOI ~ step ~ ("|>" ~ step)* ~ EOI }
 
 step = {
-    filter_step | sort_step | limit_step | project_step | mutate_step | aggregate_step
-  | graph_clusters_step | graph_path_step | graph_pagerank_step | graph_stats_step
-  | graph_neighbors_step | graph_links_step | auto_link_step
+  filter_step
+  | sort_step
+  | limit_step
+  | project_step
+  | mutate_step
+  | aggregate_step
+  | graph_clusters_step
+  | graph_path_step
+  | graph_pagerank_step
+  | graph_stats_step
+  | graph_neighbors_step
+  | graph_links_step
+  | auto_link_step
 }
 
 // ----------------------------------------------------------------
