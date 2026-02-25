@@ -363,6 +363,7 @@ pub enum Step {
 
 fn default_cluster_algorithm() -> String {
     "louvain".to_string()
+}
     /// Traverse the graph from `root` using BFS up to `depth` hops.
     ///
     /// Returns the [`NodeRecord`]s of all reachable nodes (excluding the root).
