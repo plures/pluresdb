@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0] - 2026-02-25
+
+### Added
+
+- Implement Phase 2B — graph clustering, path finding, PageRank, and stats (#117)
+
+
 ## [2.1.3] - 2026-02-25
 
 ### Other
