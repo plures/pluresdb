@@ -504,12 +504,26 @@ fn parse_graph_path(pair: Pair<Rule>) -> Result<Step, ParseError> {
     for kv in params.into_inner() {
         match kv.as_rule() {
             Rule::graph_from_kv => {
-                let raw = kv.into_inner().next().expect("from string").as_str();
-                from = raw[1..raw.len() - 1].to_string();
+                let string_pair = kv.into_inner().next().expect("from string");
+                let raw = string_pair.as_str();
+                let content = &raw[1..raw.len() - 1];
+                from = unescape_string_content(content).map_err(|msg| {
+                    ParseError(pest::error::Error::new_from_span(
+                        pest::error::ErrorVariant::CustomError { message: msg },
+                        string_pair.as_span(),
+                    ))
+                })?;
             }
             Rule::graph_to_kv => {
-                let raw = kv.into_inner().next().expect("to string").as_str();
-                to = raw[1..raw.len() - 1].to_string();
+                let string_pair = kv.into_inner().next().expect("to string");
+                let raw = string_pair.as_str();
+                let content = &raw[1..raw.len() - 1];
+                to = unescape_string_content(content).map_err(|msg| {
+                    ParseError(pest::error::Error::new_from_span(
+                        pest::error::ErrorVariant::CustomError { message: msg },
+                        string_pair.as_span(),
+                    ))
+                })?;
             }
             Rule::graph_max_hops_kv => {
                 let raw = kv.into_inner().next().expect("max_hops integer").as_str();
@@ -547,6 +561,7 @@ fn parse_graph_pagerank(pair: Pair<Rule>) -> Result<Step, ParseError> {
 
     Ok(Step::GraphPagerank { damping, iterations })
 }
+
 // ---- graph_neighbors ----
 
 fn parse_graph_neighbors(pair: Pair<Rule>) -> Result<Step, ParseError> {
@@ -875,6 +890,9 @@ mod tests {
             assert!((min_strength.unwrap() - 0.5).abs() < 1e-9);
         } else {
             panic!("expected GraphClusters step");
+        }
+    }
+
     // ── Graph operation parser tests ──────────────────────────────────────────
 
     #[test]
@@ -904,6 +922,10 @@ mod tests {
             assert!(min_strength.is_none());
         } else {
             panic!("expected GraphClusters step");
+        }
+    }
+
+    #[test]
     fn parse_graph_neighbors_all_params() {
         let steps = parse_query(
             r#"graph_neighbors("memory:123", depth: 3, min_strength: 0.8, type: "related", bidirectional: true)"#,
@@ -946,6 +968,10 @@ mod tests {
             assert_eq!(*max_hops, Some(5));
         } else {
             panic!("expected GraphPath step");
+        }
+    }
+
+    #[test]
     fn parse_graph_links_all_params() {
         let steps = parse_query(
             r#"graph_links(from: "n1", to: "n2", min_strength: 0.5, type: "semantic")"#,
@@ -969,6 +995,10 @@ mod tests {
             assert!(max_hops.is_none());
         } else {
             panic!("expected GraphPath step");
+        }
+    }
+
+    #[test]
     fn parse_graph_links_empty() {
         let steps = parse_query("graph_links()").unwrap();
         assert_eq!(steps.len(), 1);
@@ -991,6 +1021,10 @@ mod tests {
             assert_eq!(*iterations, Some(50));
         } else {
             panic!("expected GraphPagerank step");
+        }
+    }
+
+    #[test]
     fn parse_auto_link_empty() {
         let steps = parse_query("auto_link()").unwrap();
         assert_eq!(steps.len(), 1);
@@ -1011,6 +1045,10 @@ mod tests {
             assert!(iterations.is_none());
         } else {
             panic!("expected GraphPagerank step");
+        }
+    }
+
+    #[test]
     fn parse_auto_link_with_algorithms() {
         let steps =
             parse_query(r#"auto_link(algorithms: ["semantic", "category"])"#).unwrap();
@@ -1035,6 +1073,9 @@ mod tests {
         assert_eq!(steps.len(), 2);
         assert!(matches!(steps[0], Step::GraphPagerank { .. }));
         assert_eq!(steps[1], Step::Limit { n: 10 });
+    }
+
+    #[test]
     fn parse_auto_link_with_min_strength() {
         let steps = parse_query(r#"auto_link(algorithms: ["temporal"], min_strength: 0.6)"#)
             .unwrap();

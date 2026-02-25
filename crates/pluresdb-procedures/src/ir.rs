@@ -359,10 +359,6 @@ pub enum Step {
     },
     /// Compute summary statistics for the entire graph.
     GraphStats,
-}
-
-fn default_cluster_algorithm() -> String {
-    "louvain".to_string()
     /// Traverse the graph from `root` using BFS up to `depth` hops.
     ///
     /// Returns the [`NodeRecord`]s of all reachable nodes (excluding the root).
@@ -400,6 +396,10 @@ fn default_cluster_algorithm() -> String {
         #[serde(skip_serializing_if = "Option::is_none")]
         min_strength: Option<f64>,
     },
+}
+
+fn default_cluster_algorithm() -> String {
+    "louvain".to_string()
 }
 
 // ---------------------------------------------------------------------------

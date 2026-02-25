@@ -8,20 +8,6 @@
 //! through the rest of the query pipeline (filter, sort, limit, project).
 
 use std::collections::{HashMap, HashSet, VecDeque};
-//! Graph operations — neighbor traversal, link querying, and auto-linking.
-//!
-//! Edges are stored as regular nodes with an `_edge: true` marker and a key
-//! of the form `"edge::{from}::{to}"` (double-colon separator, produced by
-//! [`auto_link`]).  Edges created via `mutate(put_edge, ...)` use the legacy
-//! single-colon format `"edge:{from}:{to}"` defined in `ops/mutate.rs`.
-//! The double-colon separator in auto-linked edges prevents ambiguity when
-//! node IDs themselves contain colons (e.g. `"memory:abc"`).
-//!
-//! An optional `strength` field (f64 in \[0, 1\]) is written by [`auto_link`];
-//! manually created edges (via `mutate(put_edge, ...)`) default to strength
-//! `1.0` when absent.
-
-use std::collections::{HashSet, VecDeque};
 
 use pluresdb_core::{CrdtStore, NodeRecord};
 
@@ -833,6 +819,10 @@ mod tests {
         let avg = stats[0].data["avg_degree"].as_f64().unwrap();
         // n1 has degree 2, n2 has degree 0 → avg = (2+0)/2 = 1.0
         assert!((avg - 1.0).abs() < 1e-9, "expected avg_degree=1.0 got {}", avg);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -1180,7 +1170,7 @@ fn put_edge(
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-mod tests {
+mod tests_phase2a {
     use super::*;
     use pluresdb_core::CrdtStore;
 

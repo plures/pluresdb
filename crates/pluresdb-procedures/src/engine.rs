@@ -127,6 +127,7 @@ impl<'a> ProcedureEngine<'a> {
                 }
                 Step::GraphStats => {
                     nodes = graph::graph_stats(self.store)?;
+                }
                 Step::GraphNeighbors { root, depth, min_strength, link_type, bidirectional } => {
                     nodes = crate::ops::graph::graph_neighbors(
                         self.store,
