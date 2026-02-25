@@ -180,7 +180,7 @@ fn louvain_communities(adj: &[Vec<(usize, f64)>]) -> Vec<usize> {
 // Semantic clustering (content-overlap based)
 // ---------------------------------------------------------------------------
 
-/// Group nodes by their `category` field, or fall back to timestamp buckets.
+/// Group nodes by their `category` field, defaulting to `"unknown"` for nodes without a category.
 fn semantic_communities(store: &CrdtStore, nodes: &[String]) -> Vec<usize> {
     let mut cat_index: HashMap<String, usize> = HashMap::new();
     let mut next_id = 0usize;
