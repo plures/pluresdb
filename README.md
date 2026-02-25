@@ -104,6 +104,48 @@ PluresDB is a Rust-first monorepo:
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full description with
 data-flow diagrams.
 
+## PluresDB Procedures (v2.1+)
+
+PluresDB v2.1 introduces a powerful query DSL for advanced data operations:
+
+```javascript
+// Aggregate queries
+db.execDsl('aggregate(count)')  // → { aggregate: 42 }
+
+// Filtering and sorting  
+db.execDsl('filter(category == "decision") |> sort(by: "score", dir: "desc") |> limit(10)')
+
+// Complex queries
+db.execDsl('filter(created_at > 1640995200000) |> project(["id", "category", "content"])')
+```
+
+**JSON IR format** is also supported for programmatic query building:
+```javascript
+db.execIr([
+  { op: 'filter', predicate: { field: 'category', cmp: '==', value: 'decision' } },
+  { op: 'limit', n: 5 }
+])
+```
+
+See the [procedures documentation](docs/PROCEDURES.md) for complete syntax and examples.
+
+## Build Setup
+
+**Automatic build with embeddings:**
+```bash
+./setup-build-env.sh  # Install Rust + dependencies
+cd crates/pluresdb-node
+npm run build         # Now includes embeddings by default
+```
+
+**Manual build:**
+```bash
+cargo build --release --features embeddings  # Rust binary
+npm run build                                 # Node.js bindings
+```
+
+The NAPI bindings now include embeddings support by default for full PluresLM compatibility.
+
 ## Testing
 
 ```bash
