@@ -505,11 +505,11 @@ fn parse_graph_path(pair: Pair<Rule>) -> Result<Step, ParseError> {
         match kv.as_rule() {
             Rule::graph_from_kv => {
                 let raw = kv.into_inner().next().expect("from string").as_str();
-                from = raw[1..raw.len() - 1].to_string();
+                from = unescape_string_content(raw)?;
             }
             Rule::graph_to_kv => {
                 let raw = kv.into_inner().next().expect("to string").as_str();
-                to = raw[1..raw.len() - 1].to_string();
+                to = unescape_string_content(raw)?;
             }
             Rule::graph_max_hops_kv => {
                 let raw = kv.into_inner().next().expect("max_hops integer").as_str();
