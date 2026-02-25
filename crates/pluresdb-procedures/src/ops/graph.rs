@@ -167,6 +167,26 @@ pub fn graph_neighbors(
 /// * `"temporal"` – Links pairs of nodes whose timestamps are within 24 h of
 ///   each other.  Strength decays linearly from `1.0` (same instant) to
 ///   `min_strength` (exactly 24 h apart).
+///
+/// # Complexity
+///
+/// All three algorithms have **O(n²)** time and space complexity with respect
+/// to the number of nodes in `input` (after edge-node filtering).  For *n*
+/// nodes the number of edges produced can be as large as *n × (n − 1) / 2*.
+///
+/// | nodes | max edges |
+/// |------:|----------:|
+/// |    10 |        45 |
+/// |   100 |     4,950 |
+/// |   500 |   124,750 |
+/// | 1,000 |   499,500 |
+///
+/// Pre-filter the dataset with a `filter` step before calling `auto_link` to
+/// keep the working set to the smallest meaningful subset.  For example:
+///
+/// ```text
+/// filter(category == "development") |> auto_link(algorithms: ["category"])
+/// ```
 pub fn auto_link(
     store: &CrdtStore,
     actor: &str,
