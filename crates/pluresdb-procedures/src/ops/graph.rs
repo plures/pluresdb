@@ -1,9 +1,15 @@
 //! Graph operations — neighbor traversal, link querying, and auto-linking.
 //!
 //! Edges are stored as regular nodes with an `_edge: true` marker and a key
-//! of the form `"edge:{from}:{to}"`.  An optional `strength` field (f64 in
-//! \[0, 1\]) is written by [`auto_link`]; manually created edges (via
-//! `mutate(put_edge, ...)`) default to strength `1.0` when absent.
+//! of the form `"edge::{from}::{to}"` (double-colon separator, produced by
+//! [`auto_link`]).  Edges created via `mutate(put_edge, ...)` use the legacy
+//! single-colon format `"edge:{from}:{to}"` defined in `ops/mutate.rs`.
+//! The double-colon separator in auto-linked edges prevents ambiguity when
+//! node IDs themselves contain colons (e.g. `"memory:abc"`).
+//!
+//! An optional `strength` field (f64 in \[0, 1\]) is written by [`auto_link`];
+//! manually created edges (via `mutate(put_edge, ...)`) default to strength
+//! `1.0` when absent.
 
 use std::collections::{HashSet, VecDeque};
 
@@ -302,6 +308,10 @@ fn temporal_pairs(nodes: &[NodeRecord], min_strength: f64) -> Vec<(String, Strin
 
 /// Write an edge to the store and return the resulting [`NodeRecord`], or
 /// `None` if the edge data could not be constructed.
+///
+/// Uses a double-colon separator (`edge::{from}::{to}`) to avoid ambiguity
+/// when node IDs contain colons (e.g. `"memory:abc"`), which would otherwise
+/// produce an indistinguishable key under a single-colon scheme.
 fn put_edge(
     store: &CrdtStore,
     actor: &str,
@@ -310,7 +320,7 @@ fn put_edge(
     label: &str,
     strength: f64,
 ) -> Option<NodeRecord> {
-    let edge_id = format!("edge:{}:{}", from, to);
+    let edge_id = format!("edge::{}::{}", from, to);
     let data = serde_json::json!({
         "_edge": true,
         "from": from,
@@ -631,10 +641,10 @@ mod tests {
         store.put("b", "actor", serde_json::json!({"category": "eng"}));
         let input: Vec<NodeRecord> = store.list().into_iter().filter(|n| !is_edge(n)).collect();
         auto_link(&store, "actor", &input, &["category"], 0.5);
-        // The edge is stored as edge:{from}:{to} where order depends on list() ordering.
+        // Auto-linked edges use the double-colon format edge::{from}::{to}.
         let has_edge =
-            store.get("edge:a:b").is_some() || store.get("edge:b:a").is_some();
-        assert!(has_edge, "expected either edge:a:b or edge:b:a to exist");
+            store.get("edge::a::b").is_some() || store.get("edge::b::a").is_some();
+        assert!(has_edge, "expected either edge::a::b or edge::b::a to exist");
     }
 
     // ── performance / larger dataset ─────────────────────────────────────────
