@@ -120,8 +120,14 @@ pub fn graph_neighbors(
             continue;
         }
         for edge in &all_edges {
-            let edge_from = edge.data.get("from").and_then(|v| v.as_str()).unwrap_or("");
-            let edge_to = edge.data.get("to").and_then(|v| v.as_str()).unwrap_or("");
+            let edge_from = match edge.data.get("from").and_then(|v| v.as_str()) {
+                Some(s) if !s.is_empty() => s,
+                _ => continue, // skip malformed edges missing a non-empty "from"
+            };
+            let edge_to = match edge.data.get("to").and_then(|v| v.as_str()) {
+                Some(s) if !s.is_empty() => s,
+                _ => continue, // skip malformed edges missing a non-empty "to"
+            };
 
             // Outgoing edge: current → neighbour
             if edge_from == current && !visited.contains(edge_to) {
@@ -689,5 +695,37 @@ mod tests {
         }
         let strong = graph_links(&store, None, None, Some(0.8), None);
         assert_eq!(strong.len(), 50); // even-indexed edges
+    }
+
+    // ── Regression / correctness tests for fixes in review round 2 ───────────
+
+    #[test]
+    fn graph_neighbors_skips_malformed_edges_missing_to() {
+        let store = CrdtStore::default();
+        store.put("a", "actor", serde_json::json!({}));
+        store.put("b", "actor", serde_json::json!({}));
+        // Malformed edge: has `from` but no `to`
+        store.put("edge:a:x", "actor", serde_json::json!({"_edge": true, "from": "a"}));
+        // Valid edge: a → b
+        store.put("edge:a:b", "actor", serde_json::json!({"_edge": true, "from": "a", "to": "b", "strength": 1.0}));
+        let neighbors = graph_neighbors(&store, "a", 1, None, None, false);
+        // Only b should be reachable; the malformed edge must not enqueue an empty id
+        let ids: Vec<&str> = neighbors.iter().map(|n| n.id.as_str()).collect();
+        assert_eq!(ids, vec!["b"]);
+    }
+
+    #[test]
+    fn graph_neighbors_skips_malformed_edges_empty_from() {
+        let store = CrdtStore::default();
+        store.put("a", "actor", serde_json::json!({}));
+        store.put("b", "actor", serde_json::json!({}));
+        // Malformed edge: `from` is empty string, `to` is "a"
+        store.put("bad_edge", "actor", serde_json::json!({"_edge": true, "from": "", "to": "a"}));
+        // Valid edge: a → b
+        store.put("edge:a:b", "actor", serde_json::json!({"_edge": true, "from": "a", "to": "b"}));
+        // BFS from a should only reach b, not enqueue ""
+        let neighbors = graph_neighbors(&store, "a", 1, None, None, false);
+        let ids: Vec<&str> = neighbors.iter().map(|n| n.id.as_str()).collect();
+        assert_eq!(ids, vec!["b"]);
     }
 }

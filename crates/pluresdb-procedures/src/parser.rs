@@ -463,9 +463,17 @@ fn parse_aggregate(pair: Pair<Rule>) -> Result<Step, ParseError> {
 fn parse_graph_neighbors(pair: Pair<Rule>) -> Result<Step, ParseError> {
     let mut inner = pair.into_inner();
 
-    // First child is always the root string.
-    let root_raw = inner.next().expect("root string").as_str();
-    let root = root_raw[1..root_raw.len() - 1].to_string();
+    // First child is always the root string.  Use the full unescape pipeline so
+    // that IDs like `"memory:abc\u0031"` are decoded correctly.
+    let root_pair = inner.next().expect("root string");
+    let root_raw = root_pair.as_str();
+    let root_content = &root_raw[1..root_raw.len() - 1];
+    let root = unescape_string_content(root_content).map_err(|msg| {
+        ParseError(pest::error::Error::new_from_span(
+            pest::error::ErrorVariant::CustomError { message: msg },
+            root_pair.as_span(),
+        ))
+    })?;
 
     let mut depth: usize = 1;
     let mut min_strength: Option<f64> = None;
@@ -475,11 +483,25 @@ fn parse_graph_neighbors(pair: Pair<Rule>) -> Result<Step, ParseError> {
     for kv in inner {
         // kv is a graph_step_kv: ident ":" value
         let mut kv_inner = kv.into_inner();
-        let key = kv_inner.next().expect("key ident").as_str();
+        let key_pair = kv_inner.next().expect("key ident");
+        let key = key_pair.as_str();
         let val = parse_value(kv_inner.next().expect("value"))?;
         match key {
             "depth" => {
                 if let IrValue::Number(n) = val {
+                    // Reject non-integer or negative values to prevent silent
+                    // truncation or wrapping to a huge usize.
+                    if n < 0.0 || n.fract() != 0.0 || n > usize::MAX as f64 {
+                        return Err(ParseError(pest::error::Error::new_from_span(
+                            pest::error::ErrorVariant::CustomError {
+                                message: format!(
+                                    "depth must be a non-negative integer, got {}",
+                                    n
+                                ),
+                            },
+                            key_pair.as_span(),
+                        )));
+                    }
                     depth = n as usize;
                 }
             }
@@ -563,14 +585,20 @@ fn parse_auto_link(pair: Pair<Rule>) -> Result<Step, ParseError> {
         match inner.as_rule() {
             Rule::auto_link_alg_kv => {
                 // auto_link_alg_kv: "algorithms" ":" field_array
+                // Each element of field_array is a `string` atomic rule; use
+                // unescape_string_content directly (the same logic parse_value
+                // applies for Rule::string) to correctly handle escape sequences.
                 let arr = inner.into_inner().next().expect("field_array");
                 for p in arr.into_inner() {
-                    let val = parse_value(p)?;
-                    if let IrValue::String(s) = val {
-                        algorithms.push(s);
-                    } else {
-                        unreachable!("expected string in algorithms array");
-                    }
+                    let s = p.as_str();
+                    let content = &s[1..s.len() - 1]; // strip surrounding quotes
+                    let unescaped = unescape_string_content(content).map_err(|msg| {
+                        ParseError(pest::error::Error::new_from_span(
+                            pest::error::ErrorVariant::CustomError { message: msg },
+                            p.as_span(),
+                        ))
+                    })?;
+                    algorithms.push(unescaped);
                 }
             }
             Rule::auto_link_other_kv => {
@@ -876,5 +904,56 @@ mod tests {
         let input = r#"graph_links(min_strength: 0.8) |> sort(by: "strength", dir: "desc")"#;
         let steps = parse_query(input).unwrap();
         assert_eq!(steps.len(), 2);
+    }
+
+    // ── Regression / correctness tests for fixes in review round 2 ───────────
+
+    #[test]
+    fn parse_graph_neighbors_depth_negative_is_error() {
+        assert!(
+            parse_query(r#"graph_neighbors("n1", depth: -1)"#).is_err(),
+            "negative depth must be rejected"
+        );
+    }
+
+    #[test]
+    fn parse_graph_neighbors_depth_float_is_error() {
+        assert!(
+            parse_query(r#"graph_neighbors("n1", depth: 2.5)"#).is_err(),
+            "non-integer depth must be rejected"
+        );
+    }
+
+    #[test]
+    fn parse_graph_neighbors_depth_zero_is_ok() {
+        let steps = parse_query(r#"graph_neighbors("n1", depth: 0)"#).unwrap();
+        if let Step::GraphNeighbors { depth, .. } = &steps[0] {
+            assert_eq!(*depth, 0);
+        } else {
+            panic!("expected GraphNeighbors");
+        }
+    }
+
+    #[test]
+    fn parse_graph_neighbors_root_escape_sequences() {
+        // Root IDs with escape sequences must be unescaped.
+        let steps = parse_query(r#"graph_neighbors("memory:abc\u0031", depth: 1)"#).unwrap();
+        if let Step::GraphNeighbors { root, .. } = &steps[0] {
+            assert_eq!(root, "memory:abc1"); // \u0031 = '1'
+        } else {
+            panic!("expected GraphNeighbors");
+        }
+    }
+
+    #[test]
+    fn parse_auto_link_algorithm_escape_sequences() {
+        // Algorithm strings with escape sequences must be unescaped.
+        let steps =
+            parse_query(r#"auto_link(algorithms: ["sem\u0061ntic"])"#).unwrap();
+        if let Step::AutoLink { algorithms, .. } = &steps[0] {
+            assert_eq!(algorithms, &["semantic"]); // \u0061 = 'a'
+        } else {
+            panic!("expected AutoLink");
+        }
     }
 }
