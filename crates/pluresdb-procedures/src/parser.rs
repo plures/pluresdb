@@ -546,6 +546,7 @@ fn parse_graph_pagerank(pair: Pair<Rule>) -> Result<Step, ParseError> {
     }
 
     Ok(Step::GraphPagerank { damping, iterations })
+}
 // ---- graph_neighbors ----
 
 fn parse_graph_neighbors(pair: Pair<Rule>) -> Result<Step, ParseError> {
