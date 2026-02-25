@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.3] - 2026-02-25
+
+### Other
+
+- Add Phase 2A graph operations and comprehensive test coverage (#115)
+
+
+## [2.1.2] - 2026-02-25
+
+### Fixed
+
+- NAPI binary build with embeddings support (#113)
+
+
 ## [2.1.1] - 2026-02-24
 
 ### Other
