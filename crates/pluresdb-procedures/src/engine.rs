@@ -112,6 +112,49 @@ impl<'a> ProcedureEngine<'a> {
                         mutated: None,
                     });
                 }
+                Step::GraphNeighbors { root, depth, min_strength, link_type, bidirectional } => {
+                    nodes = crate::ops::graph::graph_neighbors(
+                        self.store,
+                        root.as_str(),
+                        *depth,
+                        *min_strength,
+                        link_type.as_deref(),
+                        *bidirectional,
+                    );
+                }
+                Step::GraphLinks { from, to, min_strength, link_type } => {
+                    nodes = crate::ops::graph::graph_links(
+                        self.store,
+                        from.as_deref(),
+                        to.as_deref(),
+                        *min_strength,
+                        link_type.as_deref(),
+                    );
+                }
+                Step::AutoLink { algorithms, min_strength } => {
+                    // When no algorithms are specified default to all three so
+                    // that `auto_link()` is a useful no-arg shorthand.
+                    let defaults: Vec<String>;
+                    let effective: &[String] = if algorithms.is_empty() {
+                        defaults = vec![
+                            "semantic".to_string(),
+                            "category".to_string(),
+                            "temporal".to_string(),
+                        ];
+                        &defaults
+                    } else {
+                        algorithms
+                    };
+                    let alg_refs: Vec<&str> = effective.iter().map(|s| s.as_str()).collect();
+                    let strength = min_strength.unwrap_or(0.5);
+                    nodes = crate::ops::graph::auto_link(
+                        self.store,
+                        &self.actor,
+                        &nodes,
+                        &alg_refs,
+                        strength,
+                    );
+                }
             }
         }
 
@@ -350,5 +393,19 @@ mod tests {
         let steps = vec![Step::Limit { n: 2 }];
         let result = engine.exec(&steps).unwrap();
         assert_eq!(result.nodes.len(), 2);
+    }
+
+    #[test]
+    fn auto_link_empty_algorithms_defaults_to_all_three() {
+        // auto_link() with no algorithms should default to semantic+category+temporal
+        // and create edges (all 5 nodes were created moments apart → temporal links).
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+        let result = engine
+            .exec(&[Step::AutoLink { algorithms: vec![], min_strength: None }])
+            .unwrap();
+        // With all three algorithms, some edges must be created (temporal at minimum).
+        assert!(!result.nodes.is_empty(), "expected edges from default algorithms");
     }
 }

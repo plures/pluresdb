@@ -288,6 +288,10 @@ impl FieldSpec {
 // Query step (the JSON IR)
 // ---------------------------------------------------------------------------
 
+fn default_graph_depth() -> usize {
+    1
+}
+
 /// A single step in a query pipeline.
 ///
 /// Steps are tagged with `"op"` in JSON:
@@ -322,6 +326,43 @@ pub enum Step {
         func: AggFn,
         #[serde(skip_serializing_if = "Option::is_none")]
         field: Option<String>,
+    },
+    /// Traverse the graph from `root` using BFS up to `depth` hops.
+    ///
+    /// Returns the [`NodeRecord`]s of all reachable nodes (excluding the root).
+    GraphNeighbors {
+        root: String,
+        #[serde(default = "default_graph_depth")]
+        depth: usize,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        min_strength: Option<f64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        link_type: Option<String>,
+        #[serde(default)]
+        bidirectional: bool,
+    },
+    /// Query existing links (edges) stored in the graph.
+    ///
+    /// Returns edge [`NodeRecord`]s matching all provided filters.
+    GraphLinks {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        from: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        to: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        min_strength: Option<f64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        link_type: Option<String>,
+    },
+    /// Automatically create links between nodes in the current set.
+    ///
+    /// Supported `algorithms`: `"semantic"`, `"category"`, `"temporal"`.
+    /// Returns the newly created edge [`NodeRecord`]s.
+    AutoLink {
+        #[serde(default)]
+        algorithms: Vec<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        min_strength: Option<f64>,
     },
 }
 
@@ -448,5 +489,66 @@ mod tests {
     fn ir_value_null_roundtrip() {
         let v: IrValue = serde_json::from_str("null").unwrap();
         assert_eq!(v, IrValue::Null);
+    }
+
+    #[test]
+    fn step_graph_neighbors_roundtrip() {
+        let step = Step::GraphNeighbors {
+            root: "memory:123".to_string(),
+            depth: 2,
+            min_strength: Some(0.6),
+            link_type: Some("related".to_string()),
+            bidirectional: true,
+        };
+        let json = serde_json::to_string(&step).unwrap();
+        let back: Step = serde_json::from_str(&json).unwrap();
+        assert_eq!(step, back);
+    }
+
+    #[test]
+    fn step_graph_neighbors_defaults() {
+        // Deserialise with only required fields; depth and bidirectional should use defaults.
+        let json = r#"{"op":"graph_neighbors","root":"n1"}"#;
+        let step: Step = serde_json::from_str(json).unwrap();
+        if let Step::GraphNeighbors { depth, bidirectional, min_strength, link_type, .. } = step {
+            assert_eq!(depth, 1);
+            assert!(!bidirectional);
+            assert!(min_strength.is_none());
+            assert!(link_type.is_none());
+        } else {
+            panic!("expected GraphNeighbors");
+        }
+    }
+
+    #[test]
+    fn step_graph_links_roundtrip() {
+        let step = Step::GraphLinks {
+            from: Some("n1".to_string()),
+            to: None,
+            min_strength: Some(0.8),
+            link_type: Some("semantic".to_string()),
+        };
+        let json = serde_json::to_string(&step).unwrap();
+        let back: Step = serde_json::from_str(&json).unwrap();
+        assert_eq!(step, back);
+    }
+
+    #[test]
+    fn step_auto_link_roundtrip() {
+        let step = Step::AutoLink {
+            algorithms: vec!["semantic".to_string(), "category".to_string()],
+            min_strength: Some(0.5),
+        };
+        let json = serde_json::to_string(&step).unwrap();
+        let back: Step = serde_json::from_str(&json).unwrap();
+        assert_eq!(step, back);
+    }
+
+    #[test]
+    fn step_auto_link_empty_algorithms_roundtrip() {
+        let step = Step::AutoLink { algorithms: vec![], min_strength: None };
+        let json = serde_json::to_string(&step).unwrap();
+        let back: Step = serde_json::from_str(&json).unwrap();
+        assert_eq!(step, back);
     }
 }
