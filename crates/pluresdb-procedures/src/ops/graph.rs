@@ -333,15 +333,18 @@ pub fn graph_clusters(
         .filter(|(_, members)| members.len() >= min_size)
         .enumerate()
         .map(|(cluster_idx, (_, members))| {
+            // Use a HashSet for O(1) membership checks when computing edge weights.
+            let member_set: HashSet<&String> = members.iter().collect();
+
             // Coherence: fraction of cluster-incident edge weight that is internal.
             let internal_weight: f64 = edges
                 .iter()
-                .filter(|e| members.contains(&e.from) && members.contains(&e.to))
+                .filter(|e| member_set.contains(&e.from) && member_set.contains(&e.to))
                 .map(|e| e.weight)
                 .sum();
             let total_member_edge_weight: f64 = edges
                 .iter()
-                .filter(|e| members.contains(&e.from) || members.contains(&e.to))
+                .filter(|e| member_set.contains(&e.from) || member_set.contains(&e.to))
                 .map(|e| e.weight)
                 .sum::<f64>()
                 .max(1.0);
