@@ -475,16 +475,39 @@ fn parse_graph_clusters(pair: Pair<Rule>) -> Result<Step, ParseError> {
     for kv in params.into_inner() {
         match kv.as_rule() {
             Rule::graph_algorithm_kv => {
-                let raw = kv.into_inner().next().expect("algorithm string").as_str();
-                algorithm = raw[1..raw.len() - 1].to_string();
+                let string_pair = kv.into_inner().next().expect("algorithm string");
+                let raw = string_pair.as_str();
+                let content = &raw[1..raw.len() - 1];
+                algorithm = unescape_string_content(content).map_err(|msg| {
+                    ParseError(pest::error::Error::new_from_span(
+                        pest::error::ErrorVariant::CustomError { message: msg },
+                        string_pair.as_span(),
+                    ))
+                })?;
             }
             Rule::graph_min_size_kv => {
-                let raw = kv.into_inner().next().expect("min_size integer").as_str();
-                min_size = raw.parse().ok();
+                let int_pair = kv.into_inner().next().expect("min_size integer");
+                let raw = int_pair.as_str();
+                min_size = Some(raw.parse::<usize>().map_err(|_| {
+                    ParseError(pest::error::Error::new_from_span(
+                        pest::error::ErrorVariant::CustomError {
+                            message: format!("min_size value '{}' is too large (overflow)", raw),
+                        },
+                        int_pair.as_span(),
+                    ))
+                })?);
             }
             Rule::graph_min_strength_kv => {
-                let raw = kv.into_inner().next().expect("min_strength float").as_str();
-                min_strength = raw.parse().ok();
+                let float_pair = kv.into_inner().next().expect("min_strength float");
+                let raw = float_pair.as_str();
+                min_strength = Some(raw.parse::<f64>().map_err(|_| {
+                    ParseError(pest::error::Error::new_from_span(
+                        pest::error::ErrorVariant::CustomError {
+                            message: format!("invalid min_strength value '{}'", raw),
+                        },
+                        float_pair.as_span(),
+                    ))
+                })?);
             }
             _ => {}
         }
