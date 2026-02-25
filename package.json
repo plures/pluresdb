@@ -107,11 +107,6 @@
     "npm": ">=8.0.0"
   },
   "files": [
-    "dist/",
-    "web/svelte/dist/",
-    "legacy/",
-    "examples/",
-    "scripts/",
     "embedded.js",
     "embedded.d.ts",
     "crates/pluresdb-node/index.d.ts",
