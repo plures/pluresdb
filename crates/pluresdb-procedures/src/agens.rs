@@ -444,20 +444,27 @@ impl<'a> AgensRuntime<'a> {
 
     /// Persist `event` in the commands table as a CRDT node.
     ///
-    /// Returns the assigned node ID (`"cmd:{event.id()}"`).  After emission,
-    /// peers that call [`poll_events`][Self::poll_events] will see the event.
+    /// Returns the assigned CRDT node ID. After emission, peers that call
+    /// [`poll_events`][Self::poll_events] will see the event.
     pub fn emit_event(&self, event: &AgensEvent) -> String {
-        let id = format!("cmd:{}", event.id());
+        // Use a unique node ID per emission so that command storage remains
+        // append-only, even when the logical event ID is reused (e.g., for
+        // recurring timers).
+        let unique_id = Uuid::new_v4();
+        let node_id = format!("cmd:{}:{}", event.id(), unique_id);
         self.store.put(
-            id.clone(),
+            node_id.clone(),
             self.actor.as_str(),
             json!({
                 "_type": TYPE_COMMAND,
+                // Store the logical event ID separately so consumers can
+                // correlate multiple emissions of the same logical event.
+                "logical_id": event.id(),
                 "event": serde_json::to_value(event)
                     .expect("AgensEvent serialization should not fail"),
             }),
         );
-        id
+        node_id
     }
 
     /// Poll the commands table for events that arrived at or after `since`.
