@@ -407,19 +407,40 @@ impl<'a> TimerTable<'a> {
         }
         let Some(entry) = self.entry_from_data(&node.id, &node.data) else {
             return false;
+        let Some(node) = self.store.get(timer_id) else {
+            eprintln!(
+                "Agens timer reschedule failed: timer with id '{}' not found",
+                timer_id
+            );
+            return false;
+        };
+        let Some(entry) = self.entry_from_data(&node.id, &node.data) else {
+            eprintln!(
+                "Agens timer reschedule failed: invalid timer entry for id '{}'",
+                node.id
+            );
+            return false;
         };
         // Convert the stored interval to i64 in a checked way to avoid overflow.
         let Ok(interval_i64) = i64::try_from(entry.interval_secs) else {
-            warn!(
-                timer_id,
-                interval_secs = entry.interval_secs,
-                "TimerTable::reschedule: interval_secs exceeds i64::MAX, skipping reschedule"
+            eprintln!(
+                "Agens timer reschedule failed: interval_secs '{}' for timer '{}' \
+                 exceeds i64::MAX",
+                entry.interval_secs,
+                entry.name
             );
             return false;
         };
         let duration = chrono::Duration::seconds(interval_i64);
         // Use checked_add_signed to avoid overflowing the DateTime.
         let Some(next) = entry.next_fire_at.checked_add_signed(duration) else {
+            eprintln!(
+                "Agens timer reschedule failed: next_fire_at overflow for timer '{}' \
+                 (id '{}') when adding {} seconds",
+                entry.name,
+                node.id,
+                interval_i64
+            );
             warn!(
                 timer_id,
                 ?duration,
