@@ -48,6 +48,7 @@ use pluresdb_core::CrdtStore;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use uuid::Uuid;
+use tracing::warn;
 
 // Node type tags used to namespace Agens data inside the CRDT store.
 const TYPE_COMMAND: &str = "agens:command";
@@ -62,6 +63,14 @@ const TYPE_TIMER: &str = "agens:timer";
 ///
 /// Events are persisted as CRDT nodes (type `"agens:command"`) so that they
 /// survive restarts and can be synced to peers via Hyperswarm.
+///
+/// # Security
+///
+/// Event payloads are arbitrary [`serde_json::Value`] and are not validated by
+/// the runtime.  When events arrive from remote peers via Hyperswarm, the data
+/// is untrusted.  **Procedure handlers must validate all fields** (types,
+/// ranges, allowed keys) before acting on them to prevent injection or
+/// prototype-pollution style attacks.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "event_type", rename_all = "snake_case")]
 pub enum AgensEvent {
@@ -316,6 +325,12 @@ impl<'a> TimerTable<'a> {
     /// or [`reschedule`][Self::reschedule]).
     ///
     /// The first firing is scheduled `interval_secs` from now.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `interval_secs` is `0` (a zero-duration timer would fire
+    /// continuously without advancing) or if it exceeds [`i64::MAX`] (which
+    /// would overflow the chrono duration).
     pub fn schedule(&self, name: &str, interval_secs: u64, payload: JsonValue) -> String {
         // Validate interval to avoid zero-duration loops and integer wrap-around.
         if interval_secs == 0 {
@@ -395,11 +410,22 @@ impl<'a> TimerTable<'a> {
         };
         // Convert the stored interval to i64 in a checked way to avoid overflow.
         let Ok(interval_i64) = i64::try_from(entry.interval_secs) else {
+            warn!(
+                timer_id,
+                interval_secs = entry.interval_secs,
+                "TimerTable::reschedule: interval_secs exceeds i64::MAX, skipping reschedule"
+            );
             return false;
         };
         let duration = chrono::Duration::seconds(interval_i64);
         // Use checked_add_signed to avoid overflowing the DateTime.
         let Some(next) = entry.next_fire_at.checked_add_signed(duration) else {
+            warn!(
+                timer_id,
+                ?duration,
+                "TimerTable::reschedule: next_fire_at would overflow DateTime bounds, \
+                 skipping reschedule"
+            );
             return false;
         };
         self.store.put(
@@ -417,7 +443,14 @@ impl<'a> TimerTable<'a> {
     }
 
     /// Parse a [`TimerEntry`] from raw node data.
+    ///
+    /// Returns `None` if `data` does not represent a valid Agens timer record
+    /// (`_type != agens:timer`, or any required field is absent/malformed).
     fn entry_from_data(&self, id: &str, data: &JsonValue) -> Option<TimerEntry> {
+        // Guard: only parse nodes that are actually Agens timer records.
+        if data.get("_type").and_then(|v| v.as_str()) != Some(TYPE_TIMER) {
+            return None;
+        }
         let name = data.get("name")?.as_str()?.to_string();
         let interval_secs = data.get("interval_secs")?.as_u64()?;
         let next_fire_at: DateTime<Utc> = data
