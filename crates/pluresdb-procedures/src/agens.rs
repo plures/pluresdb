@@ -407,19 +407,6 @@ impl<'a> TimerTable<'a> {
         }
         let Some(entry) = self.entry_from_data(&node.id, &node.data) else {
             return false;
-        let Some(node) = self.store.get(timer_id) else {
-            eprintln!(
-                "Agens timer reschedule failed: timer with id '{}' not found",
-                timer_id
-            );
-            return false;
-        };
-        let Some(entry) = self.entry_from_data(&node.id, &node.data) else {
-            eprintln!(
-                "Agens timer reschedule failed: invalid timer entry for id '{}'",
-                node.id
-            );
-            return false;
         };
         // Convert the stored interval to i64 in a checked way to avoid overflow.
         let Ok(interval_i64) = i64::try_from(entry.interval_secs) else {
