@@ -332,6 +332,16 @@ impl<'a> TimerTable<'a> {
         let Some(node) = self.store.get(timer_id) else {
             return false;
         };
+        let node_type = node.data.get("_type").and_then(|v| v.as_str());
+        if node_type != Some(TYPE_TIMER) {
+            debug_assert!(
+                false,
+                "TimerTable::reschedule called with non-timer node id `{}` (type: {:?})",
+                timer_id,
+                node_type,
+            );
+            return false;
+        }
         let Some(entry) = self.entry_from_data(&node.id, &node.data) else {
             return false;
         };
