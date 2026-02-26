@@ -326,8 +326,15 @@ impl<'a> TimerTable<'a> {
         let Some(entry) = self.entry_from_data(&node.id, &node.data) else {
             return false;
         };
-        let next = entry.next_fire_at
-            + chrono::Duration::seconds(entry.interval_secs as i64);
+        // Convert the stored interval to i64 in a checked way to avoid overflow.
+        let Ok(interval_i64) = i64::try_from(entry.interval_secs) else {
+            return false;
+        };
+        let duration = chrono::Duration::seconds(interval_i64);
+        // Use checked_add_signed to avoid overflowing the DateTime.
+        let Some(next) = entry.next_fire_at.checked_add_signed(duration) else {
+            return false;
+        };
         self.store.put(
             timer_id,
             self.actor.as_str(),
