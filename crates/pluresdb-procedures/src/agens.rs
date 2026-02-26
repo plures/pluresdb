@@ -285,9 +285,17 @@ impl<'a> TimerTable<'a> {
     ///
     /// The first firing is scheduled `interval_secs` from now.
     pub fn schedule(&self, name: &str, interval_secs: u64, payload: JsonValue) -> String {
+        // Validate interval to avoid zero-duration loops and integer wrap-around.
+        if interval_secs == 0 {
+            panic!("TimerTable::schedule: interval_secs must be greater than 0");
+        }
+
+        let interval_secs_i64 =
+            i64::try_from(interval_secs).expect("TimerTable::schedule: interval_secs too large");
+
         let id = format!("timer:{}", Uuid::new_v4());
         let next_fire_at =
-            Utc::now() + chrono::Duration::seconds(interval_secs as i64);
+            Utc::now() + chrono::Duration::seconds(interval_secs_i64);
         self.store.put(
             id.clone(),
             self.actor.as_str(),
