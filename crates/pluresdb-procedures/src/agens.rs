@@ -428,7 +428,7 @@ impl<'a> AgensRuntime<'a> {
             json!({
                 "_type": TYPE_COMMAND,
                 "event": serde_json::to_value(event)
-                    .unwrap_or(JsonValue::Null),
+                    .expect("AgensEvent serialization should not fail"),
             }),
         );
         id
