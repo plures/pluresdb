@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.3.0] - 2026-02-26
+
+### Added
+
+- Pares Agens procedure execution API in pluresdb-procedures (#120)
+
+### Developer Experience
+
+- repo cleanup (#118)
+
+
 ## [2.2.0] - 2026-02-25
 
 ### Added
