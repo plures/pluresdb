@@ -434,13 +434,6 @@ impl<'a> TimerTable<'a> {
         let duration = chrono::Duration::seconds(interval_i64);
         // Use checked_add_signed to avoid overflowing the DateTime.
         let Some(next) = entry.next_fire_at.checked_add_signed(duration) else {
-            eprintln!(
-                "Agens timer reschedule failed: next_fire_at overflow for timer '{}' \
-                 (id '{}') when adding {} seconds",
-                entry.name,
-                node.id,
-                interval_i64
-            );
             warn!(
                 timer_id,
                 ?duration,
