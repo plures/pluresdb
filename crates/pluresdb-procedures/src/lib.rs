@@ -49,6 +49,7 @@
 //! let p = pred!(score >= 0.5);
 //! ```
 
+pub mod agens;
 pub mod builder;
 pub mod engine;
 pub mod ir;

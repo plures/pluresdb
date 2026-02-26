@@ -12,10 +12,13 @@ keywords = ["database", "query", "dsl", "crdt"]
 pluresdb-core = { path = "../pluresdb-core" }
 pluresdb-procedures-macros = { path = "../pluresdb-procedures-macros" }
 anyhow.workspace = true
+chrono.workspace = true
+parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+uuid.workspace = true
 pest = "2.8"
 pest_derive = "2.8"
 
