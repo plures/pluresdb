@@ -203,7 +203,12 @@ impl<'a> StateTable<'a> {
     ///
     /// Updating an existing key merges via CRDT semantics (last-write-wins per
     /// field), so concurrent updates from different peers converge.
+    ///
+    /// A [`AgensEvent::StateChange`] command event is automatically emitted
+    /// to the commands table so that [`AgensRuntime::poll_events`] subscribers
+    /// are notified reactively without any extra caller code.
     pub fn set(&self, key: &str, value: JsonValue) {
+        let old_value = self.get(key);
         self.store.put(
             format!("state:{}", key),
             self.actor.as_str(),
@@ -213,6 +218,25 @@ impl<'a> StateTable<'a> {
                 "value": value,
             }),
         );
+        // Auto-emit a StateChange event so poll_events() subscribers see it.
+        let event_id = Uuid::new_v4().to_string();
+        let event = AgensEvent::StateChange {
+            id: event_id.clone(),
+            key: key.to_string(),
+            old_value,
+            new_value: value,
+        };
+        let node_id = format!("cmd:{}", event_id);
+        self.store.put(
+            node_id,
+            self.actor.as_str(),
+            json!({
+                "_type": TYPE_COMMAND,
+                "logical_id": &event_id,
+                "event": serde_json::to_value(&event)
+                    .expect("AgensEvent serialization should not fail"),
+            }),
+        );
     }
 
     /// Return all state entries updated at or after `since`.
@@ -220,6 +244,14 @@ impl<'a> StateTable<'a> {
     /// Each returned item is a `(key, value)` pair.  Use this to implement
     /// reactive triggers — advance `since` to the time of the last call to
     /// avoid re-processing unchanged entries.
+    ///
+    /// # Performance
+    ///
+    /// This method calls [`CrdtStore::list`] and filters in memory — it is
+    /// **O(n)** in the total number of nodes in the store.  For stores with
+    /// large amounts of data, prefer using [`AgensRuntime::poll_events`] to
+    /// receive only [`AgensEvent::StateChange`] events emitted by
+    /// [`set`][Self::set].
     pub fn watch(&self, since: DateTime<Utc>) -> Vec<(String, JsonValue)> {
         self.store
             .list()
@@ -316,6 +348,11 @@ impl<'a> TimerTable<'a> {
     }
 
     /// List all scheduled timers.
+    ///
+    /// # Performance
+    ///
+    /// This method calls [`CrdtStore::list`] and filters in memory — it is
+    /// **O(n)** in the total number of nodes in the store.
     pub fn list(&self) -> Vec<TimerEntry> {
         self.store
             .list()
@@ -328,6 +365,9 @@ impl<'a> TimerTable<'a> {
     }
 
     /// Return timers whose `next_fire_at` is at or before `now`.
+    ///
+    /// Delegates to [`list`][Self::list]; see its documentation for
+    /// performance characteristics.
     pub fn due_timers(&self, now: DateTime<Utc>) -> Vec<TimerEntry> {
         self.list().into_iter().filter(|t| t.next_fire_at <= now).collect()
     }
@@ -475,11 +515,20 @@ impl<'a> AgensRuntime<'a> {
         node_id
     }
 
-    /// Poll the commands table for events that arrived at or after `since`.
+    /// Poll the commands table for events that arrived **strictly after** `since`.
     ///
-    /// Returns events ordered oldest-first.  Advance `since` to
-    /// `Utc::now()` (or the timestamp of the last received event) before the
-    /// next call to avoid re-processing already-seen events.
+    /// Returns events ordered oldest-first.  Advance `since` to `Utc::now()`
+    /// before the next call to avoid re-processing already-seen events.
+    /// Using the timestamp of the last received event as `since` also works
+    /// because the filter is strictly greater-than, so that event is excluded
+    /// from the next poll.
+    ///
+    /// # Performance
+    ///
+    /// This method calls [`CrdtStore::list`] and filters in memory — it is
+    /// **O(n)** in the total number of nodes in the store, not just the number
+    /// of command nodes.  For high-frequency polling on large stores consider
+    /// maintaining a prefix-based index or using a dedicated commands table.
     pub fn poll_events(&self, since: DateTime<Utc>) -> Vec<AgensEvent> {
         let mut events: Vec<(DateTime<Utc>, AgensEvent)> = self
             .store
@@ -487,7 +536,7 @@ impl<'a> AgensRuntime<'a> {
             .into_iter()
             .filter(|n| {
                 n.data.get("_type").and_then(|v| v.as_str()) == Some(TYPE_COMMAND)
-                    && n.timestamp >= since
+                    && n.timestamp > since
             })
             .filter_map(|n| {
                 let ev: AgensEvent =
@@ -656,10 +705,11 @@ mod tests {
     fn timer_due_timers() {
         let store = make_store();
         let timers = TimerTable::new(&store, "actor");
-        // Schedule a timer that fires immediately (0-second interval).
-        let id = timers.schedule("instant", 0, json!({}));
-        // Due timers as of "now" should include it.
-        let due = timers.due_timers(Utc::now());
+        // Schedule a timer with a 1-second interval, then check due timers 2
+        // seconds in the future so the timer appears due.
+        let id = timers.schedule("soon", 1, json!({}));
+        let future = Utc::now() + chrono::Duration::seconds(2);
+        let due = timers.due_timers(future);
         assert!(due.iter().any(|t| t.id == id));
     }
 
@@ -761,5 +811,82 @@ mod tests {
         let polled = runtime.poll_events(before);
         // Both events should be present.
         assert_eq!(polled.len(), 2);
+    }
+
+    /// Emitting the same logical event twice must create two separate command
+    /// nodes (append-only semantics).
+    #[test]
+    fn emit_same_event_twice_creates_two_nodes() {
+        let store = CrdtStore::default();
+        let runtime = AgensRuntime::new(&store, "actor");
+        let before = Utc::now();
+        let ev = AgensEvent::Message { id: "dup".to_string(), payload: json!({}) };
+        runtime.emit_event(&ev);
+        runtime.emit_event(&ev);
+        let polled = runtime.poll_events(before);
+        assert_eq!(polled.len(), 2, "both emissions must be present");
+    }
+
+    /// `StateTable::set` must auto-emit a StateChange event visible via poll_events.
+    #[test]
+    fn state_set_emits_state_change_event() {
+        let store = CrdtStore::default();
+        let runtime = AgensRuntime::new(&store, "actor");
+        let before = Utc::now();
+        runtime.state().set("mood", json!("happy"));
+        let polled = runtime.poll_events(before);
+        assert_eq!(polled.len(), 1);
+        match &polled[0] {
+            AgensEvent::StateChange { key, new_value, old_value, .. } => {
+                assert_eq!(key, "mood");
+                assert_eq!(new_value, &json!("happy"));
+                assert!(old_value.is_none());
+            }
+            other => panic!("expected StateChange, got {:?}", other),
+        }
+    }
+
+    /// `StateTable::set` with an existing value must include the previous value
+    /// in the StateChange event's `old_value`.
+    #[test]
+    fn state_set_includes_old_value_in_event() {
+        let store = CrdtStore::default();
+        let runtime = AgensRuntime::new(&store, "actor");
+        runtime.state().set("x", json!(1));
+        let before = Utc::now();
+        runtime.state().set("x", json!(2));
+        let polled = runtime.poll_events(before);
+        // Only the second set should appear (the first is before `before`).
+        assert_eq!(polled.len(), 1);
+        match &polled[0] {
+            AgensEvent::StateChange { old_value, new_value, .. } => {
+                assert_eq!(old_value, &Some(json!(1)));
+                assert_eq!(new_value, &json!(2));
+            }
+            other => panic!("expected StateChange, got {:?}", other),
+        }
+    }
+
+    /// `StateTable::get` must not return data from a non-Agens node stored
+    /// under the same id prefix.
+    #[test]
+    fn state_get_ignores_non_agens_state_node() {
+        let store = CrdtStore::default();
+        // Write a node without _type at the state:{key} id.
+        store.put("state:hijack", "actor", json!({"value": "bad"}));
+        let state = StateTable::new(&store, "actor");
+        // get() must return None because _type != agens:state.
+        assert!(state.get("hijack").is_none());
+    }
+
+    /// In debug builds `reschedule` fires a debug_assert for non-timer nodes.
+    #[test]
+    #[should_panic(expected = "TimerTable::reschedule called with non-timer")]
+    #[cfg(debug_assertions)]
+    fn timer_reschedule_rejects_non_timer_node() {
+        let store = CrdtStore::default();
+        store.put("timer:fake", "actor", json!({"_type": "something_else"}));
+        let timers = TimerTable::new(&store, "actor");
+        timers.reschedule("timer:fake");
     }
 }
