@@ -187,6 +187,15 @@ impl<'a> StateTable<'a> {
     /// Retrieve the current value for `key`, or `None` if not set.
     pub fn get(&self, key: &str) -> Option<JsonValue> {
         let node = self.store.get(format!("state:{}", key))?;
+        // Ensure we only return values from Agens state records.
+        if node
+            .data
+            .get("_type")
+            .and_then(|v| v.as_str())
+            != Some(TYPE_STATE)
+        {
+            return None;
+        }
         node.data.get("value").cloned()
     }
 
