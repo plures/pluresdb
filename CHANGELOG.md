@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.1] - 2026-02-27
+
+### Developer Experience
+
+- bump the npm_and_yarn group across 2 directories with 3 updates (#122)
+
+
 ## [2.3.0] - 2026-02-26
 
 ### Added
