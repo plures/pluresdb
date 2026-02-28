@@ -63,11 +63,23 @@ impl GunNode {
     ///
     /// `state_ms` is the HAM timestamp assigned to every field (milliseconds
     /// since Unix epoch).  Use [`now_ms`] to obtain the current time.
+    ///
+    /// # Reserved key `"_"`
+    ///
+    /// The `"_"` key is reserved for GUN node metadata on the wire.  Any
+    /// `"_"` entry in `data` is silently removed before building the node to
+    /// prevent it from colliding with the `#[serde(rename = "_")]` metadata
+    /// field during serialization.  If you need to store data under a key
+    /// that looks like `"_"`, rename it on the application side before
+    /// calling this function (e.g., `"__underscore"`).
     pub fn from_data(
         soul: impl Into<Soul>,
-        data: HashMap<String, JsonValue>,
+        mut data: HashMap<String, JsonValue>,
         state_ms: f64,
     ) -> Self {
+        // Strip the reserved "_" key to prevent collision with the serde
+        // `#[serde(rename = "_")]` metadata field.
+        data.remove("_");
         let soul = soul.into();
         let state: HamState = data.keys().map(|k| (k.clone(), state_ms)).collect();
         Self {
@@ -86,7 +98,15 @@ impl GunNode {
     ///   (and its state) are taken from `other`.
     /// - On a tie the serialized values are compared lexicographically so that
     ///   the result is deterministic across all peers.
+    ///
+    /// # Soul mismatch
+    ///
+    /// If `other.meta.soul` differs from `self.meta.soul` the merge is skipped
+    /// entirely (no-op) to prevent silent cross-node data corruption.
     pub fn merge(&mut self, other: GunNode) {
+        if self.meta.soul != other.meta.soul {
+            return;
+        }
         for (field, other_value) in other.fields {
             let other_state = other.meta.state.get(&field).copied().unwrap_or(0.0);
             let self_state = self.meta.state.get(&field).copied().unwrap_or(0.0);
@@ -342,6 +362,35 @@ mod tests {
         assert_eq!(node_a.fields["name"], json!("Alice")); // untouched
         assert_eq!(node_a.fields["role"], json!("admin")); // updated
         assert_eq!(node_a.fields["age"], json!(30)); // added
+    }
+
+    #[test]
+    fn test_node_merge_soul_mismatch_is_noop() {
+        let mut fields_a = HashMap::new();
+        fields_a.insert("name".to_string(), json!("Alice"));
+        let mut node_a = GunNode::from_data("soul-a", fields_a, 1000.0);
+
+        let mut fields_b = HashMap::new();
+        fields_b.insert("name".to_string(), json!("Attacker"));
+        let node_b = GunNode::from_data("soul-b", fields_b, 9999.0);
+
+        node_a.merge(node_b);
+
+        // Merge was skipped: soul-a is unchanged despite soul-b having a higher timestamp.
+        assert_eq!(node_a.fields["name"], json!("Alice"));
+    }
+
+    #[test]
+    fn test_from_data_strips_reserved_underscore_key() {
+        let mut fields = HashMap::new();
+        fields.insert("name".to_string(), json!("Alice"));
+        fields.insert("_".to_string(), json!({"malicious": "metadata"}));
+
+        let node = GunNode::from_data("soul", fields, 1000.0);
+
+        // The "_" key must not appear in user fields.
+        assert!(!node.fields.contains_key("_"));
+        assert_eq!(node.fields["name"], json!("Alice"));
     }
 
     #[test]

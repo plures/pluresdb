@@ -22,7 +22,9 @@ mod disabled;
 pub use disabled::*;
 
 pub mod gun_protocol;
-pub use gun_protocol::{GunAck, GunGet, GunGetRequest, GunMessage, GunMeta, GunNode, GunPut, Soul};
+pub use gun_protocol::{
+    GunAck, GunGet, GunGetRequest, GunMessage, GunMeta, GunNode, GunPut, HamState, Soul,
+};
 
 mod replication;
 pub use replication::{MemConnection, Replicator};

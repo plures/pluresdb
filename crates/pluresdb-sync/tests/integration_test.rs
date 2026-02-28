@@ -153,10 +153,10 @@ async fn test_gun_protocol_push_all() {
     let alice = received
         .iter()
         .find(|(s, _)| s == "user:alice")
-        .map(|(_, f)| f)
+        .map(|(_, node)| node)
         .unwrap();
-    assert_eq!(alice["name"], json!("Alice"));
-    assert_eq!(alice["role"], json!("admin"));
+    assert_eq!(alice.fields["name"], json!("Alice"));
+    assert_eq!(alice.fields["role"], json!("admin"));
 }
 
 /// Bidirectional sync: both peers exchange their local nodes in a single
@@ -194,7 +194,7 @@ async fn test_gun_protocol_bidirectional_sync() {
 
 /// Demonstrate integration with `pluresdb_core::CrdtStore`:
 /// nodes written to store A are pushed over GUN PUT messages and
-/// applied to store B's hashmap (simulating a store merge).
+/// applied to store B (simulating a store merge).
 #[tokio::test]
 async fn test_gun_protocol_crdt_store_integration() {
     use pluresdb_core::CrdtStore;
@@ -227,11 +227,13 @@ async fn test_gun_protocol_crdt_store_integration() {
     push_result.unwrap();
     let received = received.unwrap();
 
-    // Apply received nodes to store B.
-    for (soul, fields) in received {
-        store_b.put(soul, "peer-a", serde_json::Value::Object(
-            fields.into_iter().collect(),
-        ));
+    // Apply received GunNodes to store B, preserving field data.
+    for (soul, gun_node) in received {
+        store_b.put(
+            soul,
+            "peer-a",
+            serde_json::Value::Object(gun_node.fields.into_iter().collect()),
+        );
     }
 
     // Verify store B has store A's data.

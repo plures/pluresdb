@@ -34,14 +34,17 @@ use uuid::Uuid;
 // In-process paired connection for testing
 // ---------------------------------------------------------------------------
 
-/// In-process [`Connection`] backed by Tokio MPSC channels.
+/// In-process [`Connection`] backed by Tokio unbounded MPSC channels.
+///
+/// Uses **unbounded** channels so that [`Replicator::sync`] never deadlocks
+/// when both peers push concurrently (no buffer limit to fill).
 ///
 /// Create a connected pair with [`MemConnection::pair`] for testing
 /// peer-to-peer protocol interactions without network I/O.
 pub struct MemConnection {
     peer_id: PeerId,
-    tx: mpsc::Sender<MessagePayload>,
-    rx: mpsc::Receiver<MessagePayload>,
+    tx: mpsc::UnboundedSender<MessagePayload>,
+    rx: mpsc::UnboundedReceiver<MessagePayload>,
 }
 
 impl MemConnection {
@@ -58,8 +61,8 @@ impl MemConnection {
     /// // conn_b.send(…) → conn_a.receive()
     /// ```
     pub fn pair(id_a: &str, id_b: &str) -> (MemConnection, MemConnection) {
-        let (tx_a, rx_a) = mpsc::channel(256);
-        let (tx_b, rx_b) = mpsc::channel(256);
+        let (tx_a, rx_a) = mpsc::unbounded_channel();
+        let (tx_b, rx_b) = mpsc::unbounded_channel();
         let conn_a = MemConnection {
             peer_id: id_b.to_string(),
             tx: tx_a,
@@ -79,7 +82,6 @@ impl Connection for MemConnection {
     async fn send(&mut self, data: &[u8]) -> Result<()> {
         self.tx
             .send(data.to_vec())
-            .await
             .context("MemConnection: send failed — receiver dropped")
     }
 
@@ -88,9 +90,10 @@ impl Connection for MemConnection {
     }
 
     async fn close(&mut self) -> Result<()> {
-        // Dropping the sender signals EOF to the remote receiver.
-        // Re-create with a closed channel so subsequent send() calls return Err.
-        let (tx, _rx) = mpsc::channel(1);
+        // Replacing the sender with a new disconnected one signals EOF to the
+        // remote receiver without closing the receive side (which would prevent
+        // the local peer from reading remaining in-flight messages).
+        let (tx, _rx) = mpsc::unbounded_channel();
         drop(std::mem::replace(&mut self.tx, tx));
         Ok(())
     }
@@ -139,6 +142,16 @@ impl Replicator {
     ///
     /// `data` should be a flat JSON object (`serde_json::Value::Object`).
     /// Non-object values are wrapped under the key `"value"`.
+    ///
+    /// # Phase 1 note
+    ///
+    /// This method stamps **all fields** with the current time (`now_ms()`) as
+    /// their HAM state timestamp.  This is correct for a first-time write but
+    /// will "refresh" all field timestamps on every subsequent replication,
+    /// effectively resetting per-field conflict history.  When preserving the
+    /// prior HAM state matters (e.g., incremental updates), use
+    /// [`encode_gun_node`][Self::encode_gun_node] and build the [`GunNode`]
+    /// with per-field timestamps from the local store.
     pub fn encode_put(&self, soul: &str, data: JsonValue) -> Result<Vec<u8>> {
         let fields: HashMap<String, JsonValue> = match data {
             JsonValue::Object(map) => map.into_iter().collect(),
@@ -150,6 +163,14 @@ impl Replicator {
         };
         let ts = crate::gun_protocol::now_ms();
         let node = GunNode::from_data(soul, fields, ts);
+        self.encode_gun_node(soul, node)
+    }
+
+    /// Encode a pre-built [`GunNode`] as a GUN PUT wire message.
+    ///
+    /// Use this when you need to preserve per-field HAM state timestamps
+    /// from the local store (e.g., for incremental / delta replication).
+    pub fn encode_gun_node(&self, soul: &str, node: GunNode) -> Result<Vec<u8>> {
         let mut put_map = HashMap::new();
         put_map.insert(soul.to_string(), node);
         GunMessage::Put(GunPut {
@@ -205,12 +226,19 @@ impl Replicator {
         .encode()
     }
 
-    /// Push a slice of `(soul, data)` pairs to the remote peer as GUN PUT
-    /// messages and close the connection when done.
+    /// Send a slice of `(soul, data)` pairs to the remote peer as GUN PUT
+    /// messages **without** closing the connection.
     ///
-    /// Each node is sent as a separate PUT message.  After all nodes have been
-    /// sent the connection is closed so the remote side can detect EOF.
-    pub async fn push_all<C: Connection>(
+    /// Use this when the connection should remain open for further reads or
+    /// writes after sending (e.g., bidirectional streaming).  Call
+    /// [`push_all`][Self::push_all] to send and then close in one step.
+    ///
+    /// # Error handling
+    ///
+    /// If `send_all` returns an error partway through the slice (e.g., the
+    /// remote dropped the connection), the connection is in an indeterminate
+    /// state and callers should treat it as unusable and drop it.
+    pub async fn send_all<C: Connection>(
         &self,
         conn: &mut C,
         nodes: &[(Soul, JsonValue)],
@@ -219,19 +247,38 @@ impl Replicator {
             let payload = self.encode_put(soul, data.clone())?;
             conn.send(&payload).await?;
         }
+        Ok(())
+    }
+
+    /// Send a slice of `(soul, data)` pairs to the remote peer as GUN PUT
+    /// messages and **close** the connection when done.
+    ///
+    /// Closing signals EOF to the remote receiver so it knows the stream is
+    /// complete.  Use [`send_all`][Self::send_all] if the connection should
+    /// remain open.
+    pub async fn push_all<C: Connection>(
+        &self,
+        conn: &mut C,
+        nodes: &[(Soul, JsonValue)],
+    ) -> Result<()> {
+        self.send_all(conn, nodes).await?;
         conn.close().await
     }
 
     /// Receive all incoming GUN PUT messages until the connection closes.
     ///
-    /// Returns a list of `(soul, fields)` pairs extracted from the received
-    /// PUT messages.  GET and ACK messages are silently ignored in this
-    /// helper; use [`Replicator::run_loop`] for full bidirectional handling.
+    /// Returns a list of [`GunNode`] values (including their HAM per-field
+    /// state) extracted from received PUT messages, keyed by soul.  GET and
+    /// ACK messages are silently ignored.
+    ///
+    /// Preserving the full [`GunNode`] (rather than just `fields`) lets
+    /// callers perform correct HAM merges and maintain conflict-resolution
+    /// state downstream.
     pub async fn receive_all<C: Connection>(
         &self,
         conn: &mut C,
-    ) -> Result<Vec<(Soul, HashMap<String, JsonValue>)>> {
-        let mut received: Vec<(Soul, HashMap<String, JsonValue>)> = Vec::new();
+    ) -> Result<Vec<(Soul, GunNode)>> {
+        let mut received: Vec<(Soul, GunNode)> = Vec::new();
         loop {
             match conn.receive().await? {
                 None => break,
@@ -239,7 +286,7 @@ impl Replicator {
                     let msg = GunMessage::decode(&raw)?;
                     if let GunMessage::Put(put) = msg {
                         for (soul, node) in put.put {
-                            received.push((soul, node.fields));
+                            received.push((soul, node));
                         }
                     }
                 }
@@ -250,13 +297,21 @@ impl Replicator {
 
     /// Run a full push-pull sync cycle with a remote peer.
     ///
-    /// Both peers should call this method concurrently (e.g. via
-    /// `tokio::join!`).  Each side:
-    /// 1. Pushes `local_nodes` to the remote via GUN PUT messages.
-    /// 2. Receives all PUT messages from the remote until EOF.
+    /// Each side sends its local nodes to the remote via GUN PUT messages,
+    /// then closes the write direction and reads until the remote does the
+    /// same.  Both peers MUST call this method concurrently (e.g. via
+    /// `tokio::join!`) so that their respective sends and receives can make
+    /// progress simultaneously.
     ///
-    /// Returns the nodes received from the remote peer as `(soul, fields)`
-    /// pairs.
+    /// On bounded transports the caller is responsible for ensuring both
+    /// sides run concurrently; otherwise a deadlock can occur when both
+    /// sides' send buffers fill before either starts reading.
+    /// [`MemConnection`] (the in-process test transport) uses an **unbounded**
+    /// channel specifically to avoid this; production transports should
+    /// implement appropriate backpressure or half-close mechanisms.
+    ///
+    /// Returns the nodes received from the remote peer as `(soul, GunNode)`
+    /// pairs, preserving the full HAM per-field state for downstream merges.
     ///
     /// # Example
     ///
@@ -281,8 +336,11 @@ impl Replicator {
         &self,
         conn: &mut C,
         local_nodes: &[(Soul, JsonValue)],
-    ) -> Result<Vec<(Soul, HashMap<String, JsonValue>)>> {
-        // Push local data then close the write side.
+    ) -> Result<Vec<(Soul, GunNode)>> {
+        // Push local data and close the write side so the remote peer detects
+        // EOF.  This must run concurrently with the remote's push (tokio::join!
+        // at the call site) so that neither side blocks waiting for the other
+        // to start reading.
         self.push_all(conn, local_nodes).await?;
         // Read whatever the remote side has sent.
         self.receive_all(conn).await
@@ -374,6 +432,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_receive_all_preserves_ham_state() {
+        let (mut conn_a, mut conn_b) = MemConnection::pair("peer-a", "peer-b");
+        let rep_a = Replicator::new("peer-a");
+        let rep_b = Replicator::new("peer-b");
+
+        let nodes = vec![("user:alice".to_string(), json!({"name": "Alice"}))];
+
+        let (_, received) = tokio::join!(
+            rep_a.push_all(&mut conn_a, &nodes),
+            rep_b.receive_all(&mut conn_b),
+        );
+        let received = received.unwrap();
+
+        let (_, node) = &received[0];
+        // HAM state must be preserved alongside field data.
+        assert!(node.meta.state.contains_key("name"));
+        assert!(node.meta.state["name"] > 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_send_all_does_not_close_connection() {
+        let (mut conn_a, mut conn_b) = MemConnection::pair("peer-a", "peer-b");
+        let rep_a = Replicator::new("peer-a");
+
+        let nodes = vec![("node:1".to_string(), json!({"x": 1}))];
+
+        // send_all should NOT close the connection.
+        rep_a.send_all(&mut conn_a, &nodes).await.unwrap();
+
+        // Receive the sent message.
+        let msg = conn_b.receive().await.unwrap();
+        assert!(msg.is_some());
+
+        // Connection is still open — we can send another message.
+        conn_a.send(b"extra").await.unwrap();
+        let extra = conn_b.receive().await.unwrap();
+        assert_eq!(extra, Some(b"extra".to_vec()));
+    }
+
+    #[tokio::test]
     async fn test_bidirectional_sync() {
         let (mut conn_a, mut conn_b) = MemConnection::pair("peer-a", "peer-b");
         let rep_a = Replicator::new("peer-a");
@@ -397,11 +495,12 @@ mod tests {
         // peer-a should have received bob's data
         assert_eq!(from_b.len(), 1);
         assert_eq!(from_b[0].0, "user:bob");
-        assert_eq!(from_b[0].1["name"], json!("Bob"));
+        assert_eq!(from_b[0].1.fields["name"], json!("Bob"));
 
         // peer-b should have received alice's data
         assert_eq!(from_a.len(), 1);
         assert_eq!(from_a[0].0, "user:alice");
-        assert_eq!(from_a[0].1["name"], json!("Alice"));
+        assert_eq!(from_a[0].1.fields["name"], json!("Alice"));
     }
 }
+
