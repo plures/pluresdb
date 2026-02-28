@@ -21,6 +21,14 @@ pub use relay::*;
 mod disabled;
 pub use disabled::*;
 
+pub mod gun_protocol;
+pub use gun_protocol::{
+    GunAck, GunGet, GunGetRequest, GunMessage, GunMeta, GunNode, GunPut, HamState, Soul,
+};
+
+mod replication;
+pub use replication::{MemConnection, Replicator};
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SyncEvent {
     NodeUpsert { id: String },
