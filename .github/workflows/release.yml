@@ -10,6 +10,11 @@ on:
         type: choice
         options: [patch, minor, major]
 
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
 jobs:
   release:
     # Pinned to a specific commit SHA to avoid supply-chain risks from moving branches.
