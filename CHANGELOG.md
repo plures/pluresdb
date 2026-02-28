@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0] - 2026-02-28
+
+### Added
+
+- add document storage and enrichment procedures (#125)
+
+
 ## [2.3.1] - 2026-02-27
 
 ### Developer Experience
