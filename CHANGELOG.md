@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0] - 2026-02-28
+
+### Added
+
+- Rust sync transport + minimal GUN-compatible wire protocol (phase 1) (#127)
+
+
 ## [2.4.0] - 2026-02-28
 
 ### Added
