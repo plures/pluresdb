@@ -51,7 +51,7 @@ comparing HAM state timestamps).
 
 | Field                  | Type              | Description                                          |
 |------------------------|-------------------|------------------------------------------------------|
-| `#`                    | string (UUID)     | Unique message identifier                            |
+| `#`                    | string (opaque)   | Unique message identifier (e.g. `<peer-id>-<uuid>`) |
 | `put`                  | object            | Map of soul → GUN node                               |
 | `put.<soul>._`         | object            | Node metadata                                        |
 | `put.<soul>._["#"]`    | string            | Soul (same as the map key)                           |
