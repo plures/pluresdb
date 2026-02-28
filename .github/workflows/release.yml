@@ -6,13 +6,21 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: 'Force version bump (patch/minor/major)'
+        description: 'Force version bump (patch/minor/major, or none to auto-detect)'
         type: choice
-        options: [patch, minor, major]
+        options: [none, patch, minor, major]
+        default: none
+
+permissions:
+  contents: write
+  id-token: write
+  packages: write
 
 jobs:
   release:
-    uses: plures/.github/.github/workflows/release-reusable.yml@main
+    # Pinned to commit SHA to avoid supply-chain risks from moving branches.
+    # Update this SHA intentionally when the reusable workflow changes.
+    uses: plures/.github/.github/workflows/release-reusable.yml@ab95f795684cb7dd8ed972ac90d9a282c9c50638
     with:
-      bump: ${{ inputs.bump || '' }}
+      bump: ${{ inputs.bump != 'none' && inputs.bump || '' }}
     secrets: inherit
