@@ -4,6 +4,8 @@
 //! foundation that can be reused across the native CLI, the Node addon, and
 //! any future host integrations.
 
+pub mod procedures;
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
