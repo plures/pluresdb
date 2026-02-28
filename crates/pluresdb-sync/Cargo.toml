@@ -16,6 +16,8 @@ serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 hex = "0.4"
+pluresdb-core = { path = "../pluresdb-core" }
