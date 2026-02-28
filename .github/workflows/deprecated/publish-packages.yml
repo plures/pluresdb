@@ -1,8 +1,9 @@
 name: Build and Publish Packages
 
 on:
-  release:
-    types: [published]
+  # Disabled: replaced by the org-level release-reusable workflow (release.yml).
+  # Kept as workflow_dispatch only for manual emergency use.
+  workflow_dispatch:
 
 jobs:
   build-packages:

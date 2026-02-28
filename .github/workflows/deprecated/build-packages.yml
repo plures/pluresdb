@@ -1,9 +1,8 @@
 name: Build Packages
 
 on:
-  push:
-    tags:
-      - "v*"
+  # Disabled: replaced by the org-level release-reusable workflow (release.yml).
+  # Kept as workflow_dispatch only for manual emergency use.
   workflow_dispatch:
     inputs:
       version:
