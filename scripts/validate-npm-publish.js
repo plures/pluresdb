@@ -163,7 +163,15 @@ async function main() {
 
   // 5. Run tests (if Deno is available)
   title("🧪 Running tests...");
-  if (denoAvailable) {
+  const skipTests =
+    process.env.SKIP_TESTS === "1" ||
+    process.env.SKIP_TESTS === "true" ||
+    process.env.SKIP_DENO_TESTS === "1" ||
+    process.env.SKIP_DENO_TESTS === "true";
+
+  if (skipTests) {
+    info("Tests skipped (SKIP_TESTS/SKIP_DENO_TESTS set)");
+  } else if (denoAvailable) {
     // Set DENO_PATH environment variable so npm test can find deno
     const testEnv = { ...process.env };
     const denoPathEnv = process.env.DENO_PATH;
