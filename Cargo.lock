@@ -2788,7 +2788,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "pluresdb-core",
@@ -2799,7 +2799,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-cli"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -2819,7 +2819,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-core"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2841,7 +2841,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-node"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "napi",
  "napi-build",
@@ -2857,7 +2857,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2875,7 +2875,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures-macros"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2884,7 +2884,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-storage"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2907,7 +2907,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sync"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2921,7 +2921,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-wasm"
-version = "2.2.0"
+version = "2.3.1"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -3558,6 +3558,12 @@ dependencies = [
  "cpufeatures",
  "digest",
 ]
+
+[[package]]
+name = "sha1_smol"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
 
 [[package]]
 name = "sha2"
@@ -4274,6 +4280,7 @@ dependencies = [
  "getrandom 0.3.3",
  "js-sys",
  "serde",
+ "sha1_smol",
  "wasm-bindgen",
 ]
 
