@@ -78,6 +78,9 @@ jobs:
         run: npm run validate-publish
         env:
           DENO_PATH: deno
+          # Deno's Node-compat cannot load some Node native addons (e.g. udx-native)
+          # used by hyperswarm-related tests; skip those during publish validation.
+          SKIP_DENO_TESTS: "true"
 
       - name: Build
         run: npm run build
@@ -159,6 +162,8 @@ jobs:
       - name: Build binary
         shell: bash
         run: |
+          # Ensure node_modules is present for Deno type resolution (e.g. @types/node)
+          npm ci
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
             deno compile -A --unstable-kv --output pluresdb.exe legacy/main.ts
           else
