@@ -347,30 +347,41 @@ pub fn on_memory_insert_attach_context(
         .map(str::to_owned);
 
     let context_window: Vec<String> = if let Some(key) = &conv_key {
-        // Collect other memories sharing the same conversation key.
-        let mut siblings: Vec<_> = store
-            .list()
-            .into_iter()
-            .filter(|n| {
-                if n.id == memory_id {
-                    return false;
-                }
-                if n.data.get("_type").and_then(|v| v.as_str()) != Some("memory") {
-                    return false;
-                }
-                let n_conv = n
-                    .data
-                    .get("conversation_id")
-                    .or_else(|| n.data.get("session_id"))
-                    .and_then(|v| v.as_str());
-                n_conv == Some(key.as_str())
-            })
-            .collect();
+        // Collect up to CONTEXT_WINDOW_SIZE most recent memories sharing the same
+        // conversation key, without sorting all siblings.
+        let mut top: Vec<_> = Vec::new();
 
-        // Sort by timestamp descending (most recent first).
-        siblings.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        siblings.truncate(CONTEXT_WINDOW_SIZE);
-        siblings.into_iter().map(|n| n.id).collect()
+        for n in store.list().into_iter() {
+            // Skip the newly inserted memory itself.
+            if n.id == memory_id {
+                continue;
+            }
+            // Only consider memory nodes.
+            if n.data.get("_type").and_then(|v| v.as_str()) != Some("memory") {
+                continue;
+            }
+            // Require the same conversation/session key.
+            let n_conv = n
+                .data
+                .get("conversation_id")
+                .or_else(|| n.data.get("session_id"))
+                .and_then(|v| v.as_str());
+            if n_conv != Some(key.as_str()) {
+                continue;
+            }
+
+            // Insert into `top` keeping it sorted by timestamp descending
+            // (most recent first), and cap length at CONTEXT_WINDOW_SIZE.
+            let insert_pos = top
+                .binary_search_by(|existing| existing.timestamp.cmp(&n.timestamp).reverse())
+                .unwrap_or_else(|pos| pos);
+            top.insert(insert_pos, n);
+            if top.len() > CONTEXT_WINDOW_SIZE {
+                top.pop();
+            }
+        }
+
+        top.into_iter().map(|n| n.id).collect()
     } else {
         Vec::new()
     };
