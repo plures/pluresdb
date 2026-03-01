@@ -309,6 +309,14 @@ pub fn on_memory_insert_detect_contradictions(
 /// Returns an error when `memory_id` is empty, when the node is not found,
 /// when the node's `_type` is not `"memory"`, or when `actor` is empty.
 ///
+/// # Performance
+///
+/// This procedure calls [`CrdtStore::list()`] to find sibling memories, which
+/// deserializes every stored node from the persistence engine (O(total_nodes)
+/// I/O per insert).  For stores with a small number of nodes this is
+/// acceptable, but in high-throughput workloads a dedicated
+/// conversation/session index should be introduced to scope the scan.
+///
 /// # Examples
 ///
 /// ```rust
@@ -419,6 +427,8 @@ pub struct TrainingPair {
     pub prompt_memory_id: String,
     /// Source memory node ID for the chosen response.
     pub chosen_memory_id: String,
+    /// Source memory node ID for the rejected response (DPO only; empty for SFT pairs).
+    pub rejected_memory_id: String,
 }
 
 /// Generate SFT and DPO training pairs from the memories in the store.
@@ -509,18 +519,20 @@ pub fn consolidate_training_pairs(
                         rejected: String::new(),
                         prompt_memory_id: reinforce_id.clone(),
                         chosen_memory_id: mem.id.clone(),
+                        rejected_memory_id: String::new(),
                     };
                     store.put(
                         pair_id,
                         actor,
                         serde_json::json!({
-                            "_type":             "training_pair",
-                            "format":            "sft",
-                            "prompt":            pair.prompt,
-                            "chosen":            pair.chosen,
-                            "rejected":          "",
-                            "prompt_memory_id":  pair.prompt_memory_id,
-                            "chosen_memory_id":  pair.chosen_memory_id,
+                            "_type":              "training_pair",
+                            "format":             "sft",
+                            "prompt":             pair.prompt,
+                            "chosen":             pair.chosen,
+                            "rejected":           "",
+                            "prompt_memory_id":   pair.prompt_memory_id,
+                            "chosen_memory_id":   pair.chosen_memory_id,
+                            "rejected_memory_id": "",
                         }),
                     );
                     pairs.push(pair);
@@ -555,19 +567,20 @@ pub fn consolidate_training_pairs(
                         rejected: rejected_text.to_owned(),
                         prompt_memory_id: mem.id.clone(),
                         chosen_memory_id: reinforce_id.clone(),
+                        rejected_memory_id: contradict_id.clone(),
                     };
                     store.put(
                         pair_id,
                         actor,
                         serde_json::json!({
-                            "chosen_memory_id":  pair.chosen_memory_id,
-                            "rejected_memory_id": contradict_id,
-                            "format":            "dpo",
-                            "prompt":            pair.prompt,
-                            "chosen":            pair.chosen,
-                            "rejected":          pair.rejected,
-                            "prompt_memory_id":  pair.prompt_memory_id,
-                            "chosen_memory_id":  pair.chosen_memory_id,
+                            "_type":              "training_pair",
+                            "format":             "dpo",
+                            "prompt":             pair.prompt,
+                            "chosen":             pair.chosen,
+                            "rejected":           pair.rejected,
+                            "prompt_memory_id":   pair.prompt_memory_id,
+                            "chosen_memory_id":   pair.chosen_memory_id,
+                            "rejected_memory_id": pair.rejected_memory_id,
                         }),
                     );
                     pairs.push(pair);
@@ -769,15 +782,21 @@ pub fn export_training_set(
             let node_fmt = pair_node.data.get("format").and_then(|v| v.as_str()).unwrap_or("");
             if node_fmt != fmt {
                 continue;
+            }
+        }
 
-        // If a quality gate is in effect, treat missing / unresolvable prompt memories
-        // as failing the gate, to match the documented behavior.
-        if min_q > 0.0 {
+        // Quality gate: resolve the prompt memory and check its quality_score.
+        // When a min_quality threshold is explicitly provided, missing or
+        // unresolvable prompt memories always fail the gate.
+        let prompt_memory_id = pair_node
+            .data
+            .get("prompt_memory_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if min_quality.is_some() {
             if prompt_memory_id.is_empty() {
-                // No prompt memory associated: fail the quality gate.
                 continue;
             }
-
             match store.get(prompt_memory_id) {
                 Some(prompt_mem) => {
                     let quality = prompt_mem
@@ -789,19 +808,7 @@ pub fn export_training_set(
                         continue;
                     }
                 }
-                None => {
-                    // Unresolvable prompt memory: fail the quality gate.
-            .unwrap_or("");
-        if !prompt_memory_id.is_empty() {
-            if let Some(prompt_mem) = store.get(prompt_memory_id) {
-                let quality = prompt_mem
-                    .data
-                    .get("quality_score")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-                if quality < min_q {
-                    continue;
-                }
+                None => continue,
             }
         }
 
@@ -912,11 +919,13 @@ fn is_word_separator(c: char) -> bool {
 }
 
 /// Return up to `limit` most-frequent non-stop-word tokens from `text`.
-/// The resulting UUID is order-sensitive: `pair_id(a, b)` is not guaranteed
-/// to equal `pair_id(b, a)`. This allows callers to encode role- and
-/// format-specific semantics in the argument order.
-fn deterministic_pair_id(a: &str, b: &str) -> String {
-    let combined = format!("{}:{}", a, b);
+fn extract_keywords(text: &str, limit: usize) -> Vec<String> {
+    use std::collections::HashMap;
+
+    let mut freq: HashMap<String, usize> = HashMap::new();
+    for word in text.split(is_word_separator) {
+        let lower = word.to_lowercase();
+        let w = lower.trim_matches(|c: char| !c.is_alphanumeric());
         if w.len() < 3 {
             continue;
         }
@@ -1260,6 +1269,12 @@ mod tests {
         let dpo: Vec<_> = pairs.iter().filter(|p| p.format == "dpo").collect();
         assert!(!dpo.is_empty());
         assert!(!dpo[0].rejected.is_empty());
+        // rejected_memory_id must trace back to the contradicting memory ("m2").
+        let expected_rejected_id = "m2";
+        assert_eq!(dpo[0].rejected_memory_id, expected_rejected_id);
+        // Verify the persisted node also carries rejected_memory_id.
+        let stored = store.get(&dpo[0].id).unwrap();
+        assert_eq!(stored.data["rejected_memory_id"], expected_rejected_id);
     }
 
     #[test]
@@ -1447,6 +1462,42 @@ mod tests {
         // With low min_quality the pair should be included.
         let jsonl = export_training_set(&store, None, Some(0.0)).unwrap();
         assert!(!jsonl.is_empty());
+    }
+
+    #[test]
+    fn export_excludes_pair_with_missing_prompt_memory_when_quality_gate_set() {
+        let store = CrdtStore::default();
+        // Pair references a prompt memory that does not exist in the store.
+        store.put(
+            "orphan_pair",
+            "actor",
+            serde_json::json!({
+                "_type": "training_pair", "format": "sft",
+                "prompt": "q", "chosen": "a", "rejected": "",
+                "prompt_memory_id": "nonexistent", "chosen_memory_id": "nonexistent",
+            }),
+        );
+
+        // With any explicit quality gate the pair must be excluded.
+        let jsonl = export_training_set(&store, None, Some(0.0)).unwrap();
+        assert!(jsonl.is_empty(), "expected empty but got: {jsonl}");
+    }
+
+    #[test]
+    fn export_excludes_pair_with_empty_prompt_memory_id_when_quality_gate_set() {
+        let store = CrdtStore::default();
+        // Pair has no prompt_memory_id field.
+        store.put(
+            "no_prompt_pair",
+            "actor",
+            serde_json::json!({
+                "_type": "training_pair", "format": "sft",
+                "prompt": "q", "chosen": "a", "rejected": "",
+            }),
+        );
+
+        let jsonl = export_training_set(&store, None, Some(0.1)).unwrap();
+        assert!(jsonl.is_empty(), "expected empty but got: {jsonl}");
     }
 
     // -----------------------------------------------------------------------
