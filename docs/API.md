@@ -62,9 +62,23 @@ pub fn put(
 ) -> NodeId
 ```
 
-Inserts or updates a node using CRDT semantics.  If an `EmbedText` backend is
-attached (via `with_embedder`), text content in `data` is automatically
-embedded.
+Inserts or updates a node using CRDT semantics.  The node is stored **immediately** — `put()` never blocks on embedding inference.  If an `EmbedText` backend is attached (via `with_embedder`) and the data contains extractable text, an [`EmbeddingTask`] is enqueued for the background worker started by [`spawn_embedding_worker`].  The vector index is updated eventually once the worker processes the task.
+
+##### `spawn_embedding_worker`
+
+```rust
+pub fn spawn_embedding_worker(store: Arc<CrdtStore>) -> std::thread::JoinHandle<()>
+```
+
+Starts a background OS thread that drains the embedding task queue.  Must be called after wrapping the store in an `Arc` and before issuing writes that need auto-embedding.  The thread shuts down automatically when the last `Arc<CrdtStore>` is dropped.
+
+##### `embedding_worker_stats`
+
+```rust
+pub fn embedding_worker_stats(&self) -> EmbeddingWorkerStats
+```
+
+Returns an observability snapshot: `queue_depth`, `last_processed` timestamp, and `dropped_tasks` counter.
 
 ##### `put_with_embedding`
 
