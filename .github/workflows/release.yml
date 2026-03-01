@@ -14,7 +14,7 @@ jobs:
   release:
     # Pinned to a specific commit SHA to avoid supply-chain risks from moving branches.
     # Update this SHA intentionally when changing the reusable release workflow.
-    uses: plures/.github/.github/workflows/release-reusable.yml@3f4c2b1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7
+    uses: plures/.github/.github/workflows/release-reusable.yml@3f4c2b1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e70
     with:
       bump: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump || '' }}
     secrets: inherit
