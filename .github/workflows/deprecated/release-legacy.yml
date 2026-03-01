@@ -117,7 +117,7 @@ jobs:
             platform: windows
             arch: x64
             ext: zip
-          - os: macos-13
+          - os: macos-latest
             platform: macos
             arch: x64
             ext: tar.gz
