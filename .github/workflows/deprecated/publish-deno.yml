@@ -1,13 +1,20 @@
 name: Publish to Deno
 
 on:
-  release:
-    types: [published]
+  # Disabled: replaced by the org-level release-reusable workflow (release.yml).
+  # Kept as workflow_dispatch only for manual emergency use.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to mirror to deno.land/x (e.g. v1.2.3)'
+        required: true
+        type: string
 
 jobs:
   publish-deno:
     name: Publish to Deno Land
     runs-on: ubuntu-latest
+    if: startsWith(inputs.tag, 'v')
     permissions:
       contents: read
       id-token: write
@@ -15,6 +22,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
 
       - name: Setup Deno
         uses: denoland/setup-deno@v1
@@ -27,4 +36,4 @@ jobs:
           deno install --allow-all --name deno_mirror https://deno.land/x/deno_mirror/cli.ts
 
           # Mirror to deno.land/x
-          deno_mirror --repo=${{ github.repository }} --tag=${{ github.ref_name }}
+          deno_mirror --repo=${{ github.repository }} --tag=${{ inputs.tag }}

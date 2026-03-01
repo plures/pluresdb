@@ -1,14 +1,20 @@
 name: Publish Docker Image
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  # Disabled: replaced by the org-level release-reusable workflow (release.yml).
+  # Kept as workflow_dispatch only for manual emergency use.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (e.g. v1.2.3)'
+        required: true
+        type: string
 
 jobs:
   publish-docker:
     name: Build and Publish Docker Image
     runs-on: ubuntu-latest
+    if: startsWith(inputs.tag, 'v')
     permissions:
       contents: read
       packages: write
@@ -16,6 +22,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -29,10 +37,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -41,4 +45,4 @@ jobs:
           push: true
           tags: |
             pluresdb/pluresdb:latest
-            pluresdb/pluresdb:${{ github.ref_name }}
+            pluresdb/pluresdb:${{ inputs.tag }}
