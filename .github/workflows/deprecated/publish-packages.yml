@@ -1,12 +1,20 @@
 name: Build and Publish Packages
 
 on:
+  # Disabled: replaced by the org-level release-reusable workflow (release.yml).
+  # Kept as workflow_dispatch only for manual emergency use.
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build packages for (e.g. v1.2.3)'
+        required: true
+        type: string
 
 jobs:
   build-packages:
     name: Build Packages
     runs-on: ${{ matrix.os }}
+    if: startsWith(inputs.tag, 'v')
     permissions:
       contents: write
 
@@ -17,6 +25,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
 
       - name: Install dependencies (Ubuntu)
         if: runner.os == 'Linux'
@@ -34,13 +44,13 @@ jobs:
         run: |
           cd packaging/scripts
           chmod +x build-packages.sh
-          ./build-packages.sh --version ${{ github.ref_name }}
+          ./build-packages.sh --version ${{ inputs.tag }}
 
       - name: Run build script (Windows)
         if: runner.os == 'Windows'
         run: |
           cd packaging/scripts
-          powershell -ExecutionPolicy Bypass -File build-packages.ps1 -Version ${{ github.ref_name }}
+          powershell -ExecutionPolicy Bypass -File build-packages.ps1 -Version ${{ inputs.tag }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

@@ -15,11 +15,16 @@ on:
         type: choice
         options: [none, patch, minor, major]
 
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
 jobs:
   release:
-    # Pinned to commit SHA to avoid supply-chain risks from moving branches.
-    # Update this SHA intentionally when the reusable workflow changes.
-    uses: plures/.github/.github/workflows/release-reusable.yml@ab95f795684cb7dd8ed972ac90d9a282c9c50638
+    # Pinned to a specific commit SHA to avoid supply-chain risks from moving branches.
+    # Update this SHA intentionally when changing the reusable release workflow.
+    uses: plures/.github/.github/workflows/release-reusable.yml@3f4c2b1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e70
     with:
-      bump: ${{ inputs.bump != 'none' && inputs.bump || '' }}
+      bump: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump || '' }}
     secrets: inherit
