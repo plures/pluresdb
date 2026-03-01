@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.3] - 2026-03-01
+
+### Fixed
+
+- add permissions to release.yml caller workflow (#133)
+
+
 ## [2.5.2] - 2026-02-28
 
 ### Developer Experience
