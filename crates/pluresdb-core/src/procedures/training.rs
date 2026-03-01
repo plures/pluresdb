@@ -282,10 +282,11 @@ pub fn on_memory_insert_detect_contradictions(
 
 /// Attach a sliding conversation context window to a newly inserted memory.
 ///
-/// The procedure finds up to [`CONTEXT_WINDOW_SIZE`] other memories that share
-/// the same `conversation_id` (or `session_id`) as the target node, ordered
-/// by their stored timestamp (most-recent first), and writes their IDs into
-/// the `context_window` field of the target node.
+/// The procedure tracks up to [`CONTEXT_WINDOW_SIZE`] other memories that
+/// have previously been processed through this procedure and share the same
+/// `conversation_id` (or `session_id`) as the target node, in
+/// most-recently-processed order, and writes their IDs into the
+/// `context_window` field of the target node.
 ///
 /// If the target node has neither a `conversation_id` nor a `session_id`, the
 /// procedure writes an empty `context_window` and returns successfully.
@@ -311,11 +312,14 @@ pub fn on_memory_insert_detect_contradictions(
 ///
 /// # Performance
 ///
-/// This procedure calls [`CrdtStore::list()`] to find sibling memories, which
-/// deserializes every stored node from the persistence engine (O(total_nodes)
-/// I/O per insert).  For stores with a small number of nodes this is
-/// acceptable, but in high-throughput workloads a dedicated
-/// conversation/session index should be introduced to scope the scan.
+/// This procedure maintains a per-conversation index node
+/// (`_type: "conversation_memory_index"`) to track recently processed memory
+/// IDs.  Both the read and write are single-node O(1) I/O operations,
+/// regardless of total store size.  The index is built incrementally: only
+/// memories processed through this procedure are tracked, which is the correct
+/// semantics for an on-insert event handler.  The index is capped at
+/// `2 × CONTEXT_WINDOW_SIZE` entries to keep the index node bounded even in
+/// long conversations.
 ///
 /// # Examples
 ///
@@ -355,41 +359,43 @@ pub fn on_memory_insert_attach_context(
         .map(str::to_owned);
 
     let context_window: Vec<String> = if let Some(key) = &conv_key {
-        // Collect up to CONTEXT_WINDOW_SIZE most recent memories sharing the same
-        // conversation key, without sorting all siblings.
-        let mut top: Vec<crate::NodeRecord> = Vec::new();
+        // Derive the deterministic index-node ID for this conversation (O(1)).
+        let idx_id = conv_index_id(key);
 
-        for n in store.list().into_iter() {
-            // Skip the newly inserted memory itself.
-            if n.id == memory_id {
-                continue;
-            }
-            // Only consider memory nodes.
-            if n.data.get("_type").and_then(|v| v.as_str()) != Some("memory") {
-                continue;
-            }
-            // Require the same conversation/session key.
-            let n_conv = n
-                .data
-                .get("conversation_id")
-                .or_else(|| n.data.get("session_id"))
-                .and_then(|v| v.as_str());
-            if n_conv != Some(key.as_str()) {
-                continue;
-            }
+        // Read the existing per-conversation index in a single O(1) get.
+        // The index tracks memory IDs for this conversation in most-recently-
+        // processed order, capped at 2 × CONTEXT_WINDOW_SIZE entries.
+        let existing_ids: Vec<String> = store
+            .get(&idx_id)
+            .and_then(|n| n.data.get("memory_ids").cloned())
+            .and_then(|v| serde_json::from_value::<Vec<String>>(v).ok())
+            .unwrap_or_default();
 
-            // Insert into `top` keeping it sorted by timestamp descending
-            // (most recent first), and cap length at CONTEXT_WINDOW_SIZE.
-            let insert_pos = top
-                .binary_search_by(|existing| existing.timestamp.cmp(&n.timestamp).reverse())
-                .unwrap_or_else(|pos| pos);
-            top.insert(insert_pos, n);
-            if top.len() > CONTEXT_WINDOW_SIZE {
-                top.pop();
-            }
-        }
+        // Prepend the current memory and deduplicate (handles idempotent re-runs),
+        // then cap to keep the index node bounded.
+        let updated_ids: Vec<String> = std::iter::once(memory_id.to_owned())
+            .chain(existing_ids.into_iter().filter(|id| id != memory_id))
+            .take(2 * CONTEXT_WINDOW_SIZE)
+            .collect();
 
-        top.into_iter().map(|n| n.id).collect()
+        // Persist the updated index in a single O(1) put.
+        store.put(
+            idx_id,
+            actor,
+            serde_json::json!({
+                "_type":           "conversation_memory_index",
+                "conversation_id": key,
+                "memory_ids":      updated_ids,
+            }),
+        );
+
+        // Context window = updated_ids minus the current memory, capped at size.
+        updated_ids
+            .iter()
+            .filter(|id| id.as_str() != memory_id)
+            .take(CONTEXT_WINDOW_SIZE)
+            .cloned()
+            .collect()
     } else {
         Vec::new()
     };
@@ -846,6 +852,13 @@ fn normalize_category(raw: &str) -> String {
     }
 }
 
+/// Returns the deterministic store ID for the per-conversation memory index
+/// node.  The index node has `_type: "conversation_memory_index"` and a
+/// `memory_ids` array of recently-processed memory IDs (most recent first).
+fn conv_index_id(conv_key: &str) -> String {
+    format!("conv_idx:{}", conv_key)
+}
+
 /// Validate the common (`actor`, `memory_id`) arguments shared by event-driven
 /// procedures.
 fn validate_common(actor: &str, memory_id: &str, ctx: &str) -> anyhow::Result<()> {
@@ -1137,6 +1150,8 @@ mod tests {
     #[test]
     fn attach_context_finds_sibling_memories() {
         let store = CrdtStore::default();
+        // Simulate realistic on-insert usage: each memory is put and processed
+        // in sequence so that the per-conversation index is built incrementally.
         for i in 0..3usize {
             store.put(
                 format!("m{}", i),
@@ -1147,35 +1162,39 @@ mod tests {
                     "conversation_id": "conv-1",
                 }),
             );
+            on_memory_insert_attach_context(&store, "actor", &format!("m{}", i)).unwrap();
         }
-        let result = on_memory_insert_attach_context(&store, "actor", "m0").unwrap();
+        // After processing all three, the last memory (m2) should see m0 and m1.
+        let result = on_memory_insert_attach_context(&store, "actor", "m2").unwrap();
         let window = result["context_window"].as_array().unwrap();
-        // m1 and m2 share the same conversation but are not m0.
         assert_eq!(window.len(), 2);
     }
 
     #[test]
     fn attach_context_uses_session_id_fallback() {
         let store = CrdtStore::default();
+        // Process m1 first to register it in the session index, then m2.
         store.put(
             "m1",
             "actor",
             serde_json::json!({"_type": "memory", "text": "a", "session_id": "s1"}),
         );
+        on_memory_insert_attach_context(&store, "actor", "m1").unwrap();
         store.put(
             "m2",
             "actor",
             serde_json::json!({"_type": "memory", "text": "b", "session_id": "s1"}),
         );
-        let result = on_memory_insert_attach_context(&store, "actor", "m1").unwrap();
+        let result = on_memory_insert_attach_context(&store, "actor", "m2").unwrap();
         let window = result["context_window"].as_array().unwrap();
         assert_eq!(window.len(), 1);
-        assert_eq!(window[0], "m2");
+        assert_eq!(window[0], "m1");
     }
 
     #[test]
     fn attach_context_caps_at_window_size() {
         let store = CrdtStore::default();
+        // Process all memories in sequence to build the index incrementally.
         for i in 0..=CONTEXT_WINDOW_SIZE {
             store.put(
                 format!("m{}", i),
@@ -1186,9 +1205,15 @@ mod tests {
                     "conversation_id": "conv-big",
                 }),
             );
+            on_memory_insert_attach_context(&store, "actor", &format!("m{}", i)).unwrap();
         }
-        // "m0" should see at most CONTEXT_WINDOW_SIZE others.
-        let result = on_memory_insert_attach_context(&store, "actor", "m0").unwrap();
+        // The last memory should see at most CONTEXT_WINDOW_SIZE predecessors.
+        let result = on_memory_insert_attach_context(
+            &store,
+            "actor",
+            &format!("m{}", CONTEXT_WINDOW_SIZE),
+        )
+        .unwrap();
         let window = result["context_window"].as_array().unwrap();
         assert!(window.len() <= CONTEXT_WINDOW_SIZE);
     }
