@@ -768,14 +768,28 @@ pub fn export_training_set(
             let node_fmt = pair_node.data.get("format").and_then(|v| v.as_str()).unwrap_or("");
             if node_fmt != fmt {
                 continue;
-            }
-        }
 
-        // Quality gate: resolve the prompt memory and check its quality_score.
-        let prompt_memory_id = pair_node
-            .data
-            .get("prompt_memory_id")
-            .and_then(|v| v.as_str())
+        // If a quality gate is in effect, treat missing / unresolvable prompt memories
+        // as failing the gate, to match the documented behavior.
+        if min_q > 0.0 {
+            if prompt_memory_id.is_empty() {
+                // No prompt memory associated: fail the quality gate.
+                continue;
+            }
+
+            match store.get(prompt_memory_id) {
+                Some(prompt_mem) => {
+                    let quality = prompt_mem
+                        .data
+                        .get("quality_score")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.0);
+                    if quality < min_q {
+                        continue;
+                    }
+                }
+                None => {
+                    // Unresolvable prompt memory: fail the quality gate.
             .unwrap_or("");
         if !prompt_memory_id.is_empty() {
             if let Some(prompt_mem) = store.get(prompt_memory_id) {
