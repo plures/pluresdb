@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.6] - 2026-03-01
+
+### Changed
+
+- make embeddings + vector index eventual (async), not in put() hot path (#139)
+
+
 ## [2.5.5] - 2026-03-01
 
 ### Fixed
