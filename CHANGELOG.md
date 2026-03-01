@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.5.4] - 2026-03-01
+
+### Fixed
+
+- harden org release workflow migration (#135)
+
+### Developer Experience
+
+- disable automatic triggers on deprecated publish workflows (#132)
+
+
 ## [2.5.3] - 2026-03-01
 
 ### Fixed
