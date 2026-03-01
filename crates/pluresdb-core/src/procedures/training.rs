@@ -32,13 +32,13 @@
 //!   "conversation_id": "...",    // *
 //!   "session_id":      "...",    // *
 //!   "source":          "...",    // *
-//!   "confidence":      0.0–1.0,  // * written by score_quality
 //!   "word_count":      42,       // * written by on_memory_insert_enrich
 //!   "keywords":        ["..."],  // * written by on_memory_insert_enrich
 //!   "contradicts":     ["id"],   // * written by on_memory_insert_detect_contradictions
 //!   "reinforces":      ["id"],   // * written by on_memory_insert_detect_contradictions
 //!   "context_window":  ["id"],   // * written by on_memory_insert_attach_context
-//!   "quality_score":   0.0–1.0   // * written by score_quality
+//!   "quality_score":   0.0–1.0,  // * written by score_quality
+//!   "confidence":      0.0–1.0   // * written by score_quality (alias for quality_score)
 //! }
 //! ```
 //!
@@ -133,13 +133,13 @@ pub fn on_memory_insert_enrich(
     let keywords = extract_keywords(text, 10);
     let language_hint = detect_language_hint(text);
 
-    // Preserve the existing category or fall back to "general".
-    let category = node
+    // Normalize the category to a known set; default to "general".
+    let raw_category = node
         .data
         .get("category")
         .and_then(|v| v.as_str())
-        .unwrap_or("general")
-        .to_owned();
+        .unwrap_or("");
+    let category = normalize_category(raw_category);
 
     let enriched = serde_json::json!({
         "word_count":     word_count,
@@ -349,7 +349,7 @@ pub fn on_memory_insert_attach_context(
     let context_window: Vec<String> = if let Some(key) = &conv_key {
         // Collect up to CONTEXT_WINDOW_SIZE most recent memories sharing the same
         // conversation key, without sorting all siblings.
-        let mut top: Vec<_> = Vec::new();
+        let mut top: Vec<crate::NodeRecord> = Vec::new();
 
         for n in store.list().into_iter() {
             // Skip the newly inserted memory itself.
@@ -499,7 +499,8 @@ pub fn consolidate_training_pairs(
                     reinforce_node.data.get("text").and_then(|v| v.as_str()).unwrap_or("");
 
                 if !prompt_text.is_empty() && !mem_text.is_empty() {
-                    let pair_id = deterministic_pair_id(reinforce_id, &mem.id);
+                    let pair_id =
+                        deterministic_pair_id(&["sft", reinforce_id, mem.id.as_str()]);
                     let pair = TrainingPair {
                         id: pair_id.clone(),
                         format: "sft".to_owned(),
@@ -540,7 +541,12 @@ pub fn consolidate_training_pairs(
                     contradict_node.data.get("text").and_then(|v| v.as_str()).unwrap_or("");
 
                 if !chosen_text.is_empty() && !rejected_text.is_empty() {
-                    let pair_id = deterministic_pair_id(reinforce_id, contradict_id);
+                    let pair_id = deterministic_pair_id(&[
+                        "dpo",
+                        mem.id.as_str(),
+                        reinforce_id.as_str(),
+                        contradict_id.as_str(),
+                    ]);
                     let pair = TrainingPair {
                         id: pair_id.clone(),
                         format: "dpo".to_owned(),
@@ -587,8 +593,10 @@ pub fn consolidate_training_pairs(
 /// | Has `reinforces` entries → +0.3 | 0–0.3  | Corroborated by similar memories      |
 /// | Has no `contradicts` → +0.3     | 0–0.3  | Not contradicted by other memories    |
 ///
-/// The resulting score is clamped to `[0.0, 1.0]` and written back as
-/// `quality_score` on each memory node.
+/// The resulting score is clamped to `[0.0, 1.0]` and written back as both
+/// `quality_score` and `confidence` on each memory node (`confidence` is the
+/// field name used by the pluresLM extended schema; `quality_score` is the
+/// canonical internal name).
 ///
 /// This procedure is idempotent: re-running it updates the score to reflect
 /// the current state of the store.
@@ -679,10 +687,11 @@ pub fn score_quality(
         let clamped = score.clamp(0.0, 1.0);
         scores.insert(mem.id.clone(), serde_json::json!(clamped));
 
-        // Write back quality_score to the node.
+        // Write back both quality_score (internal) and confidence (pluresLM schema) to the node.
         let mut updated = mem.data.clone();
         if let Some(obj) = updated.as_object_mut() {
             obj.insert("quality_score".to_owned(), serde_json::json!(clamped));
+            obj.insert("confidence".to_owned(), serde_json::json!(clamped));
         }
         store.put(mem.id.clone(), actor, updated);
     }
@@ -800,6 +809,21 @@ pub fn export_training_set(
 // Private helpers
 // ---------------------------------------------------------------------------
 
+/// Normalize a raw category string to one of the known valid values for the
+/// pluresLM schema: `"fact"`, `"instruction"`, `"conversation"`, `"code"`, or
+/// `"preference"`.  Matching is case-insensitive and strips surrounding
+/// whitespace.  Unrecognised values map to `"general"`.
+fn normalize_category(raw: &str) -> String {
+    match raw.trim().to_lowercase().as_str() {
+        "fact" => "fact".to_owned(),
+        "instruction" => "instruction".to_owned(),
+        "conversation" => "conversation".to_owned(),
+        "code" => "code".to_owned(),
+        "preference" => "preference".to_owned(),
+        _ => "general".to_owned(),
+    }
+}
+
 /// Validate the common (`actor`, `memory_id`) arguments shared by event-driven
 /// procedures.
 fn validate_common(actor: &str, memory_id: &str, ctx: &str) -> anyhow::Result<()> {
@@ -895,15 +919,17 @@ fn extract_keywords(text: &str, limit: usize) -> Vec<String> {
     pairs.into_iter().map(|(w, _)| w).collect()
 }
 
-/// Derive a deterministic training-pair ID from two memory IDs.
+/// Derive a deterministic training-pair ID from an ordered list of components.
 ///
-/// The two IDs are sorted lexicographically before hashing so that the
-/// resulting UUID is identical regardless of argument order
-/// (`pair_id(a, b) == pair_id(b, a)`).
-fn deterministic_pair_id(a: &str, b: &str) -> String {
-    // Sort deterministically so pair(a,b) == pair(b,a).
-    let (first, second) = if a <= b { (a, b) } else { (b, a) };
-    let combined = format!("{}:{}", first, second);
+/// Components are joined with `:` and hashed using UUID-v5 with a
+/// project-specific namespace.  The caller is responsible for providing
+/// components in a consistent, role-significant order so that distinct pairs
+/// always produce distinct IDs (e.g. pass `["sft", prompt_id, chosen_id]` for
+/// SFT pairs and `["dpo", prompt_id, chosen_id, rejected_id]` for DPO pairs).
+/// Unlike the previous two-argument signature this function does **not** sort
+/// its inputs, so the order of arguments matters.
+fn deterministic_pair_id(components: &[&str]) -> String {
+    let combined = components.join(":");
     // A randomly chosen namespace UUID specific to this use case.  Using a
     // project-specific namespace ensures pair IDs do not collide with UUIDs
     // generated by other parts of the system.
@@ -973,6 +999,30 @@ mod tests {
             "m1",
             "actor",
             serde_json::json!({"_type": "memory", "text": "some text here"}),
+        );
+        let meta = on_memory_insert_enrich(&store, "actor", "m1").unwrap();
+        assert_eq!(meta["category"], "general");
+    }
+
+    #[test]
+    fn enrich_normalizes_category_case() {
+        let store = CrdtStore::default();
+        store.put(
+            "m1",
+            "actor",
+            serde_json::json!({"_type": "memory", "text": "some text here", "category": "FACT"}),
+        );
+        let meta = on_memory_insert_enrich(&store, "actor", "m1").unwrap();
+        assert_eq!(meta["category"], "fact");
+    }
+
+    #[test]
+    fn enrich_normalizes_unknown_category_to_general() {
+        let store = CrdtStore::default();
+        store.put(
+            "m1",
+            "actor",
+            serde_json::json!({"_type": "memory", "text": "text", "category": "unknown_type"}),
         );
         let meta = on_memory_insert_enrich(&store, "actor", "m1").unwrap();
         assert_eq!(meta["category"], "general");
@@ -1265,6 +1315,8 @@ mod tests {
         score_quality(&store, "actor").unwrap();
         let node = store.get("m1").unwrap();
         assert!(node.data["quality_score"].as_f64().is_some());
+        // Also writes the pluresLM `confidence` alias.
+        assert_eq!(node.data["confidence"], node.data["quality_score"]);
     }
 
     #[test]
@@ -1409,15 +1461,23 @@ mod tests {
 
     #[test]
     fn deterministic_pair_id_is_stable() {
-        let id1 = deterministic_pair_id("a", "b");
-        let id2 = deterministic_pair_id("a", "b");
+        let id1 = deterministic_pair_id(&["sft", "a", "b"]);
+        let id2 = deterministic_pair_id(&["sft", "a", "b"]);
         assert_eq!(id1, id2);
     }
 
     #[test]
-    fn deterministic_pair_id_is_symmetric() {
-        let id1 = deterministic_pair_id("a", "b");
-        let id2 = deterministic_pair_id("b", "a");
-        assert_eq!(id1, id2);
+    fn deterministic_pair_id_includes_format() {
+        let sft_id = deterministic_pair_id(&["sft", "a", "b"]);
+        let dpo_id = deterministic_pair_id(&["dpo", "a", "b"]);
+        assert_ne!(sft_id, dpo_id, "different formats must yield different IDs");
+    }
+
+    #[test]
+    fn deterministic_pair_id_includes_all_roles() {
+        // Same reinforce+contradict but different prompt → different DPO pair IDs.
+        let id1 = deterministic_pair_id(&["dpo", "prompt-a", "chosen", "rejected"]);
+        let id2 = deterministic_pair_id(&["dpo", "prompt-b", "chosen", "rejected"]);
+        assert_ne!(id1, id2, "different prompt memories must yield different DPO pair IDs");
     }
 }
