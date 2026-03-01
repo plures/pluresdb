@@ -7,7 +7,7 @@
 pub mod procedures;
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -57,6 +57,13 @@ pub trait EmbedText: Send + Sync + std::fmt::Debug {
 
     /// Dimensionality of the embeddings produced by this backend.
     fn dimension(&self) -> usize;
+
+    /// Optional model identifier, used for task labelling and observability.
+    ///
+    /// Returns `None` by default.  Override for embedders that track model IDs.
+    fn model_id(&self) -> Option<&str> {
+        None
+    }
 }
 
 /// A key-value map of logical clocks per actor.
@@ -67,6 +74,34 @@ pub type NodeData = JsonValue;
 
 /// Default embedding dimension (bge-small-en-v1.5).
 pub const DEFAULT_EMBEDDING_DIM: usize = 768;
+
+/// A pending embedding computation task, enqueued by [`CrdtStore::put`] and
+/// processed by the background worker started via
+/// [`CrdtStore::spawn_embedding_worker`].
+#[derive(Debug, Clone)]
+pub struct EmbeddingTask {
+    /// The node identifier for which an embedding should be computed.
+    pub node_id: NodeId,
+    /// Plain-text extracted from the node data at enqueue time.
+    pub extracted_text: String,
+    /// Model identifier reported by the embedder at enqueue time, if available.
+    pub model_id: Option<String>,
+    /// Wall-clock time when the task was enqueued.
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Observability snapshot for the embedding background worker.
+///
+/// Returned by [`CrdtStore::embedding_worker_stats`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct EmbeddingWorkerStats {
+    /// Number of tasks currently waiting in the queue.
+    pub queue_depth: usize,
+    /// Wall-clock time of the most recently completed embedding task, if any.
+    pub last_processed: Option<DateTime<Utc>>,
+    /// Number of tasks dropped because the queue was at capacity.
+    pub dropped_tasks: usize,
+}
 
 /// A search result from vector similarity search.
 #[derive(Debug, Clone)]
@@ -279,8 +314,8 @@ pub struct CrdtStore {
     nodes: DashMap<NodeId, NodeRecord>,
     vector_index: Arc<VectorIndex>,
     /// Optional text-embedding backend.  When set, [`put`][CrdtStore::put]
-    /// will automatically generate and index an embedding for each node whose
-    /// JSON data contains extractable text content.
+    /// enqueues an async embedding task for each node whose JSON data contains
+    /// extractable text content.
     embedder: Option<Arc<dyn EmbedText>>,
     /// Optional storage engine persistence layer.  When set, every `put`,
     /// `put_with_embedding`, and `delete` will write-through to the engine.
@@ -292,6 +327,19 @@ pub struct CrdtStore {
     /// to [`vector_search`][CrdtStore::vector_search] will build the index
     /// lazily and set this to `true`.
     vector_index_ready: AtomicBool,
+    /// Sender half of the async embedding task queue.
+    /// When `Some`, [`put`][CrdtStore::put] enqueues tasks here instead of
+    /// blocking on embedding inference.
+    embedding_tx: Option<std::sync::mpsc::SyncSender<EmbeddingTask>>,
+    /// Receiver half — claimed exactly once by
+    /// [`spawn_embedding_worker`][CrdtStore::spawn_embedding_worker].
+    embedding_rx: parking_lot::Mutex<Option<std::sync::mpsc::Receiver<EmbeddingTask>>>,
+    /// Approximate number of tasks currently waiting in the queue.
+    embedding_queue_depth: AtomicUsize,
+    /// Wall-clock timestamp of the last task processed by the background worker.
+    embedding_last_processed: parking_lot::Mutex<Option<DateTime<Utc>>>,
+    /// Number of tasks dropped because the queue was at capacity.
+    embedding_dropped: AtomicUsize,
 }
 
 impl std::fmt::Debug for CrdtStore {
@@ -313,6 +361,11 @@ impl Default for CrdtStore {
             persistence: None,
             // No persistence to load from, so the index is trivially ready.
             vector_index_ready: AtomicBool::new(true),
+            embedding_tx: None,
+            embedding_rx: parking_lot::Mutex::new(None),
+            embedding_queue_depth: AtomicUsize::new(0),
+            embedding_last_processed: parking_lot::Mutex::new(None),
+            embedding_dropped: AtomicUsize::new(0),
         }
     }
 }
@@ -321,9 +374,11 @@ impl CrdtStore {
     /// Attach a text-embedding backend to this store.
     ///
     /// After calling this method, every subsequent call to [`put`][Self::put]
-    /// will automatically extract text from the node data and generate an
-    /// embedding via `embedder`.  The embedding is stored on the
-    /// [`NodeRecord`] and indexed in the HNSW graph for vector search.
+    /// will extract text from the node data and enqueue an
+    /// [`EmbeddingTask`] for processing by the background worker (started via
+    /// [`spawn_embedding_worker`][Self::spawn_embedding_worker]).  The default
+    /// queue capacity is **1 024** tasks; use
+    /// [`with_embedder_capacity`][Self::with_embedder_capacity] to customise.
     ///
     /// # Example
     ///
@@ -332,10 +387,24 @@ impl CrdtStore {
     /// use pluresdb_core::{CrdtStore, FastEmbedder};
     ///
     /// let embedder = FastEmbedder::new("BAAI/bge-small-en-v1.5").unwrap();
-    /// let store = CrdtStore::default().with_embedder(Arc::new(embedder));
+    /// let store = Arc::new(CrdtStore::default().with_embedder(Arc::new(embedder)));
+    /// CrdtStore::spawn_embedding_worker(Arc::clone(&store));
     /// ```
-    pub fn with_embedder(mut self, embedder: Arc<dyn EmbedText>) -> Self {
+    pub fn with_embedder(self, embedder: Arc<dyn EmbedText>) -> Self {
+        self.with_embedder_capacity(embedder, 1024)
+    }
+
+    /// Like [`with_embedder`][Self::with_embedder] but with a custom task-queue
+    /// capacity.
+    ///
+    /// `capacity` is the maximum number of pending embedding tasks that can
+    /// sit in the queue at any time.  When the queue is full, new tasks are
+    /// dropped and counted in [`EmbeddingWorkerStats::dropped_tasks`].
+    pub fn with_embedder_capacity(mut self, embedder: Arc<dyn EmbedText>, capacity: usize) -> Self {
+        let (tx, rx) = std::sync::mpsc::sync_channel(capacity);
         self.embedder = Some(embedder);
+        self.embedding_tx = Some(tx);
+        *self.embedding_rx.lock() = Some(rx);
         self
     }
 
@@ -490,33 +559,59 @@ impl CrdtStore {
 
     /// Inserts or updates a node using CRDT semantics.
     ///
-    /// When an [`EmbedText`] backend has been attached via
-    /// [`with_embedder`][Self::with_embedder], this method will also
-    /// auto-generate an embedding for any text content found in `data` and
-    /// store it alongside the node (equivalent to calling
-    /// [`put_with_embedding`][Self::put_with_embedding] manually).
+    /// The node is stored **immediately** — this method never blocks on
+    /// embedding inference or index building.  When an [`EmbedText`] backend
+    /// has been attached via [`with_embedder`][Self::with_embedder], an
+    /// [`EmbeddingTask`] is enqueued for the background worker (started via
+    /// [`spawn_embedding_worker`][Self::spawn_embedding_worker]) which will
+    /// compute the embedding and update the vector index out-of-band.
     ///
-    /// Embedding failures are silently ignored so that the put always
-    /// succeeds — the node is stored without an embedding in that case.
+    /// If the task queue is full the embedding task is dropped (the node is
+    /// still stored) and the dropped-task counter incremented.
     pub fn put(&self, id: impl Into<NodeId>, actor: impl Into<ActorId>, data: NodeData) -> NodeId {
         let id = id.into();
         let actor = actor.into();
-        // Auto-embed when an embedder is attached and the data contains text.
-        if let Some(embedder) = &self.embedder {
-            if let Some(text) = extract_text_from_data(&data) {
-                if let Ok(mut batch) = embedder.embed(&[text.as_str()]) {
-                    if let Some(embedding) = batch.pop() {
-                        return self.put_with_embedding(id, actor, data, embedding);
-                    }
-                }
-            }
-        }
+        // Store the node immediately using CRDT semantics.
         self.nodes
             .entry(id.clone())
             .and_modify(|record| record.merge_update(actor.clone(), data.clone()))
             .or_insert_with(|| NodeRecord::new(id.clone(), actor, data.clone()));
         if let Some(entry) = self.nodes.get(&id) {
             self.persist_node(entry.value());
+        }
+        // Enqueue an embedding task if the data contains text (non-blocking).
+        if let Some(tx) = &self.embedding_tx {
+            if let Some(text) = extract_text_from_data(&data) {
+                let model_id = self
+                    .embedder
+                    .as_ref()
+                    .and_then(|e| e.model_id())
+                    .map(str::to_owned);
+                let task = EmbeddingTask {
+                    node_id: id.clone(),
+                    extracted_text: text,
+                    model_id,
+                    timestamp: Utc::now(),
+                };
+                match tx.try_send(task) {
+                    Ok(()) => {
+                        self.embedding_queue_depth.fetch_add(1, Ordering::Relaxed);
+                    }
+                    Err(std::sync::mpsc::TrySendError::Full(_)) => {
+                        self.embedding_dropped.fetch_add(1, Ordering::Relaxed);
+                        tracing::warn!(
+                            "[CrdtStore] embedding queue full; task for '{}' dropped",
+                            id
+                        );
+                    }
+                    Err(std::sync::mpsc::TrySendError::Disconnected(_)) => {
+                        tracing::warn!(
+                            "[CrdtStore] embedding worker disconnected; task for '{}' dropped",
+                            id
+                        );
+                    }
+                }
+            }
         }
         id
     }
@@ -557,6 +652,27 @@ impl CrdtStore {
             self.persist_node(entry.value());
         }
         id
+    }
+
+    /// Apply a computed embedding to an existing node and update the vector index.
+    ///
+    /// Called by the background embedding worker.  Unlike
+    /// [`put_with_embedding`][Self::put_with_embedding], this method does
+    /// **not** touch the CRDT vector clock so CRDT merge semantics remain
+    /// deterministic.
+    fn set_embedding_for_node(&self, node_id: &str, embedding: Vec<f32>) {
+        let emb_valid = !embedding.is_empty()
+            && embedding.iter().all(|v| v.is_finite())
+            && embedding.iter().any(|v| *v != 0.0);
+        self.nodes
+            .entry(node_id.to_string())
+            .and_modify(|record| record.embedding = Some(embedding.clone()));
+        if emb_valid {
+            self.vector_index.insert(node_id, &embedding);
+        }
+        if let Some(entry) = self.nodes.get(node_id) {
+            self.persist_node(entry.value());
+        }
     }
 
     /// Removes a node from the store.
@@ -635,6 +751,69 @@ impl CrdtStore {
             data,
         };
         (id, op)
+    }
+
+    /// Spawn a background OS thread that processes pending embedding tasks.
+    ///
+    /// **Must** be called after wrapping the store in an [`Arc`].  The worker
+    /// takes ownership of the receiver end of the task queue and runs until all
+    /// senders are dropped (i.e. the `Arc<CrdtStore>` is fully released).
+    ///
+    /// Each task calls the attached embedder, then updates the node record and
+    /// vector index via [`set_embedding_for_node`][Self::set_embedding_for_node]
+    /// without touching the CRDT vector clock.
+    ///
+    /// # Panics
+    ///
+    /// Panics if:
+    /// - no embedder has been attached via [`with_embedder`][Self::with_embedder], or
+    /// - this method has already been called (the receiver is only claimable once).
+    pub fn spawn_embedding_worker(store: Arc<Self>) -> std::thread::JoinHandle<()> {
+        let rx = store
+            .embedding_rx
+            .lock()
+            .take()
+            .expect("spawn_embedding_worker: no embedder attached or worker already started");
+        let store_w = Arc::clone(&store);
+        std::thread::Builder::new()
+            .name("pluresdb-embedding-worker".into())
+            .spawn(move || {
+                while let Ok(task) = rx.recv() {
+                    // Decrement the in-flight counter before doing the (slow)
+                    // inference work so stats reflect the queue accurately.
+                    store_w
+                        .embedding_queue_depth
+                        .fetch_sub(1, Ordering::Relaxed);
+                    if let Some(embedder) = &store_w.embedder {
+                        if let Ok(mut batch) =
+                            embedder.embed(&[task.extracted_text.as_str()])
+                        {
+                            if let Some(embedding) = batch.pop() {
+                                store_w
+                                    .set_embedding_for_node(&task.node_id, embedding);
+                            }
+                        }
+                    }
+                    *store_w.embedding_last_processed.lock() = Some(Utc::now());
+                }
+            })
+            .expect("failed to spawn embedding worker thread")
+    }
+
+    /// Returns an observability snapshot for the embedding background worker.
+    ///
+    /// - [`queue_depth`][EmbeddingWorkerStats::queue_depth]: tasks waiting to
+    ///   be processed.
+    /// - [`last_processed`][EmbeddingWorkerStats::last_processed]: wall-clock
+    ///   time of the most recently processed task.
+    /// - [`dropped_tasks`][EmbeddingWorkerStats::dropped_tasks]: tasks
+    ///   discarded because the queue was at capacity.
+    pub fn embedding_worker_stats(&self) -> EmbeddingWorkerStats {
+        EmbeddingWorkerStats {
+            queue_depth: self.embedding_queue_depth.load(Ordering::Relaxed),
+            last_processed: *self.embedding_last_processed.lock(),
+            dropped_tasks: self.embedding_dropped.load(Ordering::Relaxed),
+        }
     }
 
     /// Performs approximate nearest-neighbour search over all indexed nodes.
@@ -1218,9 +1397,10 @@ fn extract_text_from_data(data: &JsonValue) -> Option<String> {
 /// use pluresdb_core::{CrdtStore, FastEmbedder};
 ///
 /// let embedder = FastEmbedder::new("BAAI/bge-small-en-v1.5")?;
-/// let store = CrdtStore::default().with_embedder(Arc::new(embedder));
+/// let store = Arc::new(CrdtStore::default().with_embedder(Arc::new(embedder)));
+/// CrdtStore::spawn_embedding_worker(Arc::clone(&store));
 ///
-/// // Auto-embeds "user prefers dark mode" on insert:
+/// // Enqueues an async embedding task for "user prefers dark mode":
 /// store.put("memory-1", "actor", serde_json::json!({"content": "user prefers dark mode"}));
 /// ```
 #[cfg(feature = "embeddings")]
@@ -1288,6 +1468,10 @@ impl EmbedText for FastEmbedder {
 
     fn dimension(&self) -> usize {
         self.dimension
+    }
+
+    fn model_id(&self) -> Option<&str> {
+        Some(&self.model_id)
     }
 }
 
@@ -1502,19 +1686,31 @@ mod tests {
         }
     }
 
+    /// Poll `store` until `node_id` has an embedding, or panic after `attempts × 10 ms`.
+    fn wait_for_embedding(store: &CrdtStore, node_id: &str, attempts: usize) -> NodeRecord {
+        (0..attempts)
+            .find_map(|_| {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                let r = store.get(node_id).expect("node should still exist");
+                r.embedding.is_some().then_some(r)
+            })
+            .unwrap_or_else(|| panic!("embedding for '{}' not computed within ~{} ms", node_id, attempts * 10))
+    }
+
     #[test]
     fn put_auto_embeds_when_embedder_attached() {
         use std::sync::Arc;
 
-        let store = CrdtStore::default().with_embedder(Arc::new(MockEmbedder));
+        let store = Arc::new(CrdtStore::default().with_embedder(Arc::new(MockEmbedder)));
+        CrdtStore::spawn_embedding_worker(Arc::clone(&store));
 
-        // Data with a string field — should be auto-embedded.
+        // Node is stored immediately — before the worker has had a chance to embed.
         store.put("n1", "actor", serde_json::json!({"content": "hello"}));
-        let record = store.get("n1").expect("node should exist");
-        assert!(
-            record.embedding.is_some(),
-            "embedding should have been generated automatically"
-        );
+        let immediate = store.get("n1").expect("node should exist right away");
+        assert_eq!(immediate.id, "n1", "node is stored immediately");
+
+        // Wait up to ~1 s for the background worker to compute the embedding.
+        let record = wait_for_embedding(&store, "n1", 100);
 
         // Verify the vector is searchable.
         let emb = record.embedding.as_ref().unwrap();
@@ -1538,13 +1734,78 @@ mod tests {
     fn put_skips_embedding_for_numeric_data() {
         use std::sync::Arc;
 
-        let store = CrdtStore::default().with_embedder(Arc::new(MockEmbedder));
-        // Numeric-only payload — no text to embed.
+        let store = Arc::new(CrdtStore::default().with_embedder(Arc::new(MockEmbedder)));
+        CrdtStore::spawn_embedding_worker(Arc::clone(&store));
+        // Numeric-only payload — no text to embed, no task should be enqueued.
         store.put("n3", "actor", serde_json::json!({"value": 99}));
         let record = store.get("n3").expect("node should exist");
         assert!(
             record.embedding.is_none(),
             "embedding should not be generated for numeric-only payloads"
+        );
+        // No task was queued because there was no text.
+        assert_eq!(store.embedding_worker_stats().queue_depth, 0);
+    }
+
+    #[test]
+    fn put_node_stored_immediately_before_worker_runs() {
+        use std::sync::Arc;
+
+        // Without spawning the worker, put() should return immediately and the
+        // node should be present — but without an embedding yet.
+        let store = Arc::new(CrdtStore::default().with_embedder(Arc::new(MockEmbedder)));
+        store.put("n-pre", "actor", serde_json::json!({"content": "test content"}));
+
+        let record = store.get("n-pre").expect("node should exist immediately");
+        assert!(
+            record.embedding.is_none(),
+            "embedding should not be set before worker processes the task"
+        );
+        assert_eq!(
+            store.embedding_worker_stats().queue_depth,
+            1,
+            "one task should be queued"
+        );
+    }
+
+    #[test]
+    fn embedding_worker_stats_dropped_tasks() {
+        use std::sync::Arc;
+
+        // Capacity-0 channel: every try_send returns TrySendError::Full because
+        // no receiver is blocking on recv().
+        let store =
+            Arc::new(CrdtStore::default().with_embedder_capacity(Arc::new(MockEmbedder), 0));
+
+        store.put("d1", "actor", serde_json::json!({"content": "drop me"}));
+
+        let stats = store.embedding_worker_stats();
+        assert_eq!(stats.dropped_tasks, 1, "task should have been dropped");
+        assert_eq!(stats.queue_depth, 0, "dropped task must not inflate queue_depth");
+    }
+
+    #[test]
+    fn embedding_worker_stats_last_processed_updated() {
+        use std::sync::Arc;
+
+        let store = Arc::new(CrdtStore::default().with_embedder(Arc::new(MockEmbedder)));
+        CrdtStore::spawn_embedding_worker(Arc::clone(&store));
+
+        // Before any puts, last_processed should be None.
+        assert!(store.embedding_worker_stats().last_processed.is_none());
+
+        store.put("ts1", "actor", serde_json::json!({"content": "hello"}));
+
+        // Wait for the worker to process the task (reuse the embedding-ready helper).
+        wait_for_embedding(&store, "ts1", 100);
+
+        let processed = store
+            .embedding_worker_stats()
+            .last_processed
+            .expect("last_processed should be set after worker runs");
+        assert!(
+            processed <= Utc::now(),
+            "last_processed should not be in the future"
         );
     }
 
