@@ -1,5 +1,10 @@
 name: Release
 
+permissions:
+  contents: write
+  id-token: write
+  packages: write
+
 on:
   push:
     branches: [main]
@@ -8,7 +13,7 @@ on:
       bump:
         description: 'Force version bump (patch/minor/major)'
         type: choice
-        options: [patch, minor, major]
+        options: [none, patch, minor, major]
 
 permissions:
   contents: write
