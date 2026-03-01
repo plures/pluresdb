@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.5] - 2026-03-01
+
+### Fixed
+
+- add explicit `none` option to workflow_dispatch bump input (#137)
+
+
 ## [2.5.4] - 2026-03-01
 
 ### Fixed
