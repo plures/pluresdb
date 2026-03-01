@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.5.2] - 2026-02-28
+
+### Developer Experience
+
+- migrate pluresdb to org release workflow (#129)
+
+
+## [2.5.1] - 2026-02-28
+
+### Fixed
+
+- release pipeline should publish reliably (#128)
+
+
 ## [2.5.0] - 2026-02-28
 
 ### Added
