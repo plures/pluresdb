@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.0] - 2026-03-01
+
+### Added
+
+- add training data processing procedures (#140)
+
+
 ## [2.5.6] - 2026-03-01
 
 ### Changed
