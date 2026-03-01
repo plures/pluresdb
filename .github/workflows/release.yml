@@ -6,9 +6,10 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: 'Force version bump (patch/minor/major)'
+        description: 'Force version bump (none/patch/minor/major)'
         type: choice
-        options: [patch, minor, major]
+        default: none
+        options: [none, patch, minor, major]
 
 jobs:
   release:
@@ -16,5 +17,5 @@ jobs:
     # Update this SHA intentionally when changing the reusable release workflow.
     uses: plures/.github/.github/workflows/release-reusable.yml@3f4c2b1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7
     with:
-      bump: ${{ inputs.bump || '' }}
+      bump: ${{ inputs.bump != 'none' && inputs.bump || '' }}
     secrets: inherit
