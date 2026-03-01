@@ -912,13 +912,11 @@ fn is_word_separator(c: char) -> bool {
 }
 
 /// Return up to `limit` most-frequent non-stop-word tokens from `text`.
-fn extract_keywords(text: &str, limit: usize) -> Vec<String> {
-    use std::collections::HashMap;
-
-    let mut freq: HashMap<String, usize> = HashMap::new();
-    for word in text.split(is_word_separator) {
-        let lower = word.to_lowercase();
-        let w = lower.trim_matches(|c: char| !c.is_alphanumeric());
+/// The resulting UUID is order-sensitive: `pair_id(a, b)` is not guaranteed
+/// to equal `pair_id(b, a)`. This allows callers to encode role- and
+/// format-specific semantics in the argument order.
+fn deterministic_pair_id(a: &str, b: &str) -> String {
+    let combined = format!("{}:{}", a, b);
         if w.len() < 3 {
             continue;
         }
