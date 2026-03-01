@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: 'Force version bump (patch/minor/major)'
+        description: 'Force version bump (none/patch/minor/major)'
         type: choice
         options: [none, patch, minor, major]
 
