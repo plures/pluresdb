@@ -560,7 +560,8 @@ pub fn consolidate_training_pairs(
                         pair_id,
                         actor,
                         serde_json::json!({
-                            "_type":             "training_pair",
+                            "chosen_memory_id":  pair.chosen_memory_id,
+                            "rejected_memory_id": contradict_id,
                             "format":            "dpo",
                             "prompt":            pair.prompt,
                             "chosen":            pair.chosen,
