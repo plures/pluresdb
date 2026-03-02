@@ -64,6 +64,26 @@ pub fn sha256_hex(data: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+/// Validate that `hash` is a 64-character lowercase hex string safe for use
+/// as a storage key.
+///
+/// Rejects strings containing path separators, `..`, or any character outside
+/// `[0-9a-f]` to prevent path traversal and key-injection attacks.
+pub fn validate_hash(hash: &str) -> anyhow::Result<()> {
+    if hash.len() != 64 {
+        anyhow::bail!(
+            "invalid blob hash: expected 64 hex chars, got {} chars",
+            hash.len()
+        );
+    }
+    if !hash.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')) {
+        anyhow::bail!(
+            "invalid blob hash: must contain only lowercase hex digits [0-9a-f]"
+        );
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // MemoryBlobStore
 // ---------------------------------------------------------------------------
@@ -79,6 +99,7 @@ pub struct MemoryBlobStore {
 
 impl BlobStore for MemoryBlobStore {
     fn put(&self, data: &[u8]) -> Result<String> {
+        // `sha256_hex` always produces a valid 64-char lowercase hex string.
         let hash = sha256_hex(data);
         self.inner
             .write()
@@ -88,15 +109,18 @@ impl BlobStore for MemoryBlobStore {
     }
 
     fn get(&self, hash: &str) -> Result<Option<Vec<u8>>> {
+        validate_hash(hash)?;
         Ok(self.inner.read().get(hash).cloned())
     }
 
     fn delete(&self, hash: &str) -> Result<()> {
+        validate_hash(hash)?;
         self.inner.write().remove(hash);
         Ok(())
     }
 
     fn exists(&self, hash: &str) -> Result<bool> {
+        validate_hash(hash)?;
         Ok(self.inner.read().contains_key(hash))
     }
 }
@@ -133,13 +157,8 @@ impl FileBlobStore {
         Ok(Self { base_path })
     }
 
-    /// Compute the filesystem path for a given hex hash.
+    /// Compute the filesystem path for a given (pre-validated) hex hash.
     fn blob_path(&self, hash: &str) -> PathBuf {
-        if hash.len() < 4 {
-            // Fall back to a single-level path for unusually short hashes
-            // (SHA-256 is always 64 chars; this guard is a safety net only).
-            return self.base_path.join(hash);
-        }
         let (prefix, suffix) = hash.split_at(2);
         self.base_path.join(prefix).join(suffix)
     }
@@ -147,6 +166,7 @@ impl FileBlobStore {
 
 impl BlobStore for FileBlobStore {
     fn put(&self, data: &[u8]) -> Result<String> {
+        // `sha256_hex` always produces a valid 64-char lowercase hex string.
         let hash = sha256_hex(data);
         let path = self.blob_path(&hash);
         if !path.exists() {
@@ -162,6 +182,7 @@ impl BlobStore for FileBlobStore {
     }
 
     fn get(&self, hash: &str) -> Result<Option<Vec<u8>>> {
+        validate_hash(hash)?;
         let path = self.blob_path(hash);
         if path.exists() {
             let data = fs::read(&path)
@@ -173,6 +194,7 @@ impl BlobStore for FileBlobStore {
     }
 
     fn delete(&self, hash: &str) -> Result<()> {
+        validate_hash(hash)?;
         let path = self.blob_path(hash);
         if path.exists() {
             fs::remove_file(&path)
@@ -182,6 +204,7 @@ impl BlobStore for FileBlobStore {
     }
 
     fn exists(&self, hash: &str) -> Result<bool> {
+        validate_hash(hash)?;
         Ok(self.blob_path(hash).exists())
     }
 }
@@ -260,7 +283,67 @@ mod tests {
     #[test]
     fn test_delete_nonexistent_is_noop() {
         let store = MemoryBlobStore::default();
-        // Should not error.
-        store.delete("0000000000000000000000000000000000000000000000000000000000000000").unwrap();
+        // A valid 64-char hex hash that doesn't exist should succeed silently.
+        store
+            .delete("0000000000000000000000000000000000000000000000000000000000000000")
+            .unwrap();
+    }
+
+    // -----------------------------------------------------------------------
+    // Hash validation / path traversal tests
+    // -----------------------------------------------------------------------
+
+    /// Strings that must be rejected to prevent path traversal attacks.
+    fn path_traversal_inputs() -> Vec<&'static str> {
+        vec![
+            "../etc/passwd",
+            "../../secret",
+            "/etc/passwd",
+            "00000000000000000000000000000000000000000000000000000000000000GG", // uppercase
+            "0000000000000000000000000000000000000000000000000000000000000000XX", // too long
+            "short", // too short
+        ]
+    }
+
+    #[test]
+    fn test_memory_blob_store_rejects_invalid_hashes() {
+        let store = MemoryBlobStore::default();
+        for bad in path_traversal_inputs() {
+            assert!(store.get(bad).is_err(), "should reject hash: {bad}");
+            assert!(store.delete(bad).is_err(), "should reject hash: {bad}");
+            assert!(store.exists(bad).is_err(), "should reject hash: {bad}");
+        }
+    }
+
+    #[test]
+    fn test_file_blob_store_rejects_invalid_hashes() {
+        let dir = TempDir::new().unwrap();
+        let store = FileBlobStore::open(dir.path()).unwrap();
+        for bad in path_traversal_inputs() {
+            assert!(store.get(bad).is_err(), "should reject hash: {bad}");
+            assert!(store.delete(bad).is_err(), "should reject hash: {bad}");
+            assert!(store.exists(bad).is_err(), "should reject hash: {bad}");
+        }
+    }
+
+    #[test]
+    fn test_validate_hash_accepts_valid_sha256() {
+        validate_hash("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+            .unwrap();
+    }
+
+    #[test]
+    fn test_validate_hash_rejects_uppercase() {
+        assert!(validate_hash(
+            "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_validate_hash_rejects_path_separator() {
+        // 63 real chars + '/' = 64 chars total but contains separator.
+        let bad = format!("{}/", "a".repeat(63));
+        assert!(validate_hash(&bad).is_err());
     }
 }

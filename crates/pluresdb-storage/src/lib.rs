@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use sled::IVec;
 use tracing::{info, instrument};
 
-pub use blob::{sha256_hex, BlobStore, FileBlobStore, MemoryBlobStore};
+pub use blob::{sha256_hex, validate_hash, BlobStore, FileBlobStore, MemoryBlobStore};
 pub use encryption::{EncryptionConfig, EncryptionMetadata};
 pub use rad::{RadAdapter, SledRadAdapter};
 pub use replay::{ReplayStats, metadata_pruning, rebuild_from_wal, replay_wal};

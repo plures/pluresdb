@@ -134,14 +134,14 @@ pub fn encode_manifest_nodes(
 
     // Manifest node: lists ref names and object OIDs.
     let ref_names: Vec<serde_json::Value> =
-        manifest.refs.iter().map(|r| json!(r.name)).collect();
+        manifest.refs.iter().map(|r| json!(&r.name)).collect();
     let obj_oids: Vec<serde_json::Value> =
-        manifest.objects.iter().map(|o| json!(o.oid)).collect();
+        manifest.objects.iter().map(|o| json!(&o.oid)).collect();
     let manifest_node = GunNode::from_data(
         manifest_soul(&manifest.repo_id),
         [
             ("_type".to_string(), json!("git:manifest")),
-            ("repo_id".to_string(), json!(manifest.repo_id)),
+            ("repo_id".to_string(), json!(&manifest.repo_id)),
             ("refs".to_string(), json!(ref_names)),
             ("objects".to_string(), json!(obj_oids)),
         ]
@@ -157,8 +157,8 @@ pub fn encode_manifest_nodes(
             ref_soul(&manifest.repo_id, &r.name),
             [
                 ("_type".to_string(), json!("git:ref")),
-                ("name".to_string(), json!(r.name)),
-                ("oid".to_string(), json!(r.oid)),
+                ("name".to_string(), json!(&r.name)),
+                ("oid".to_string(), json!(&r.oid)),
             ]
             .into_iter()
             .collect(),
@@ -173,7 +173,7 @@ pub fn encode_manifest_nodes(
             obj_soul(&manifest.repo_id, &obj.oid),
             [
                 ("_type".to_string(), json!("git:obj")),
-                ("oid".to_string(), json!(obj.oid)),
+                ("oid".to_string(), json!(&obj.oid)),
                 ("kind".to_string(), json!(obj.kind.as_str())),
             ]
             .into_iter()
@@ -333,7 +333,7 @@ mod tests {
                         HashMap::new()
                     };
                 let ts = crate::gun_protocol::now_ms();
-                (soul.clone(), crate::gun_protocol::GunNode::from_data(soul, fields, ts))
+                (soul.clone(), crate::gun_protocol::GunNode::from_data(soul.as_str(), fields, ts))
             })
             .collect();
 
@@ -366,7 +366,7 @@ mod tests {
                         HashMap::new()
                     };
                 let ts = crate::gun_protocol::now_ms();
-                (soul.clone(), crate::gun_protocol::GunNode::from_data(soul, fields, ts))
+                (soul.clone(), crate::gun_protocol::GunNode::from_data(soul.as_str(), fields, ts))
             })
             .collect();
 
