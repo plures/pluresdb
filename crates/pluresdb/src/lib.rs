@@ -37,8 +37,8 @@
 // Re-export core types
 pub use pluresdb_core::{
     ActorId, CrdtOperation, CrdtStore, EmbedText,
-    NodeData, NodeId, NodeRecord, VectorClock, VectorIndex,
-    VectorSearchResult, DEFAULT_EMBEDDING_DIM,
+    NodeData, NodeId, NodeRecord, NoOpPlugin, PluresLmPlugin,
+    VectorClock, VectorIndex, VectorSearchResult, DEFAULT_EMBEDDING_DIM,
 };
 
 #[cfg(feature = "sqlite-compat")]
@@ -54,7 +54,7 @@ pub use pluresdb_storage::{
 };
 
 // Re-export sync types
-pub use pluresdb_sync::{SyncBroadcaster, SyncEvent};
+pub use pluresdb_sync::{GunRelayServer, SyncBroadcaster, SyncEvent};
 
 // Re-export commonly used error types
 pub use pluresdb_core::StoreError as CoreError;
@@ -96,6 +96,56 @@ mod tests {
     #[test]
     fn test_convenience_functions() {
         let (_store, _storage) = new_memory_database();
+    }
+
+    #[test]
+    fn test_lm_plugin_integration() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        #[derive(Debug)]
+        struct CountPlugin {
+            writes: Arc<AtomicUsize>,
+            deletes: Arc<AtomicUsize>,
+        }
+        impl PluresLmPlugin for CountPlugin {
+            fn plugin_id(&self) -> &str {
+                "count"
+            }
+            fn on_node_written(&self, _id: &pluresdb_core::NodeId, _data: &NodeData) {
+                self.writes.fetch_add(1, Ordering::Relaxed);
+            }
+            fn on_node_deleted(&self, _id: &pluresdb_core::NodeId) {
+                self.deletes.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+
+        let writes = Arc::new(AtomicUsize::new(0));
+        let deletes = Arc::new(AtomicUsize::new(0));
+        let plugin = CountPlugin {
+            writes: Arc::clone(&writes),
+            deletes: Arc::clone(&deletes),
+        };
+
+        let store = CrdtStore::default().with_lm_plugin(Arc::new(plugin));
+        assert_eq!(store.lm_plugin_id(), Some("count"));
+
+        store.put("node-1", "actor", NodeData::Null);
+        store.put("node-2", "actor", NodeData::Null);
+        assert_eq!(writes.load(Ordering::Relaxed), 2, "on_node_written should be called twice");
+
+        store.delete("node-1").unwrap();
+        assert_eq!(deletes.load(Ordering::Relaxed), 1, "on_node_deleted should be called once");
+
+        // NoOpPlugin compiles and attaches without error.
+        let _store2 = CrdtStore::default().with_lm_plugin(Arc::new(NoOpPlugin));
+    }
+
+    #[test]
+    fn test_gun_relay_server_is_accessible() {
+        // Verify GunRelayServer is re-exported from the umbrella crate.
+        let server = GunRelayServer::new().with_broadcast_capacity(64);
+        let _router = server.build_router();
     }
 }
 

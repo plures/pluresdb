@@ -15,7 +15,7 @@ use axum::{
 use clap::{Parser, Subcommand};
 use pluresdb_core::CrdtStore;
 use pluresdb_storage::{MemoryStorage, SledStorage, StorageEngine, StoredNode};
-use pluresdb_sync::SyncBroadcaster;
+use pluresdb_sync::{GunRelayServer, SyncBroadcaster};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::runtime::Runtime;
@@ -227,6 +227,26 @@ enum Commands {
         /// Target sled data directory (will be created if it doesn't exist)
         #[arg(long)]
         target: PathBuf,
+    },
+
+    /// Start a GUN.js-compatible WebSocket relay server
+    ///
+    /// Binds to <bind>:<port>/gun and speaks the GUN wire protocol
+    /// (PUT / GET / ACK).  GUN.js clients can connect with:
+    ///
+    ///   const gun = Gun({ peers: ['ws://localhost:4444/gun'] });
+    GunRelay {
+        /// Server port
+        #[arg(long, short = 'p', default_value = "4444")]
+        port: u16,
+
+        /// Bind address
+        #[arg(long, default_value = "0.0.0.0")]
+        bind: String,
+
+        /// Broadcast channel capacity
+        #[arg(long, default_value = "256")]
+        broadcast_capacity: usize,
     },
 }
 
@@ -1662,6 +1682,18 @@ fn main() -> Result<()> {
                     );
                     std::process::exit(1);
                 }
+            }
+
+            Commands::GunRelay { port, bind, broadcast_capacity } => {
+                let addr = format!("{}:{}", bind, port);
+                info!("[GunRelay] starting GUN WebSocket relay on ws://{}/gun", addr);
+                println!("GUN relay starting on ws://{}/gun", addr);
+                println!("Connect with: Gun({{ peers: ['ws://{}/gun'] }})", addr);
+                println!("Press Ctrl+C to stop");
+                GunRelayServer::new()
+                    .with_broadcast_capacity(broadcast_capacity)
+                    .serve(&addr)
+                    .await
             }
         }
     })

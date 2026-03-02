@@ -223,6 +223,15 @@ impl GunMessage {
         }
     }
 
+    /// Return a short string identifying the message type (`"PUT"`, `"GET"`, or `"ACK"`).
+    pub fn message_type(&self) -> &'static str {
+        match self {
+            GunMessage::Put(_) => "PUT",
+            GunMessage::Get(_) => "GET",
+            GunMessage::Ack(_) => "ACK",
+        }
+    }
+
     /// Encode the message as UTF-8 JSON bytes.
     pub fn encode(&self) -> anyhow::Result<Vec<u8>> {
         Ok(serde_json::to_vec(self)?)
