@@ -2911,12 +2911,16 @@ version = "2.6.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "axum",
  "blake2",
+ "dashmap",
+ "futures",
  "hex",
  "pluresdb-core",
  "serde",
  "serde_json",
  "tokio",
+ "tower-http 0.5.2",
  "tracing",
  "uuid",
 ]

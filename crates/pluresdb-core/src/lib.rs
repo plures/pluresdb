@@ -4,6 +4,9 @@
 //! foundation that can be reused across the native CLI, the Node addon, and
 //! any future host integrations.
 
+pub mod plugin;
+pub use plugin::{NoOpPlugin, PluresLmPlugin};
+
 pub mod procedures;
 
 use std::collections::HashMap;
@@ -317,6 +320,12 @@ pub struct CrdtStore {
     /// enqueues an async embedding task for each node whose JSON data contains
     /// extractable text content.
     embedder: Option<Arc<dyn EmbedText>>,
+    /// Optional plugin that separates higher-level layers (e.g. pluresLM)
+    /// from the core engine.  When set, [`put`][CrdtStore::put] calls
+    /// [`PluresLmPlugin::on_node_written`] after every successful write, and
+    /// [`delete`][CrdtStore::delete] calls
+    /// [`PluresLmPlugin::on_node_deleted`] after every successful removal.
+    lm_plugin: Option<Arc<dyn PluresLmPlugin>>,
     /// Optional storage engine persistence layer.  When set, every `put`,
     /// `put_with_embedding`, and `delete` will write-through to the engine.
     /// Read operations (`get`, `list`) query the engine directly rather than
@@ -348,6 +357,7 @@ impl std::fmt::Debug for CrdtStore {
             .field("nodes", &self.nodes.len())
             .field("vector_index", &self.vector_index)
             .field("embedder", &self.embedder.is_some())
+            .field("lm_plugin", &self.lm_plugin.as_ref().map(|p| p.plugin_id()))
             .finish()
     }
 }
@@ -358,6 +368,7 @@ impl Default for CrdtStore {
             nodes: DashMap::new(),
             vector_index: Arc::new(VectorIndex::default()),
             embedder: None,
+            lm_plugin: None,
             persistence: None,
             // No persistence to load from, so the index is trivially ready.
             vector_index_ready: AtomicBool::new(true),
@@ -411,6 +422,31 @@ impl CrdtStore {
     /// Returns a reference to the attached embedder, if any.
     pub fn embedder(&self) -> Option<&dyn EmbedText> {
         self.embedder.as_deref()
+    }
+
+    /// Attach a pluresLM plugin to this store.
+    ///
+    /// The plugin is called after every successful [`put`][Self::put] and
+    /// [`delete`][Self::delete] operation, providing a clean extension point
+    /// for pluresLM (and other higher-level layers) without coupling the core
+    /// engine to any particular schema or model.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use std::sync::Arc;
+    /// use pluresdb_core::{CrdtStore, PluresLmPlugin, NoOpPlugin};
+    ///
+    /// let store = CrdtStore::default().with_lm_plugin(Arc::new(NoOpPlugin));
+    /// ```
+    pub fn with_lm_plugin(mut self, plugin: Arc<dyn PluresLmPlugin>) -> Self {
+        self.lm_plugin = Some(plugin);
+        self
+    }
+
+    /// Returns the identifier of the attached pluresLM plugin, if any.
+    pub fn lm_plugin_id(&self) -> Option<&str> {
+        self.lm_plugin.as_ref().map(|p| p.plugin_id())
     }
 
     /// Build the HNSW vector index from all nodes that have embeddings.
@@ -613,6 +649,10 @@ impl CrdtStore {
                 }
             }
         }
+        // Notify the plugin (non-blocking).
+        if let Some(plugin) = &self.lm_plugin {
+            plugin.on_node_written(&id, &data);
+        }
         id
     }
 
@@ -681,6 +721,10 @@ impl CrdtStore {
         let in_sqlite = self.unpersist_node(id_ref);
         let in_memory = self.nodes.remove(id_ref).is_some();
         if in_memory || in_sqlite {
+            // Notify the plugin (non-blocking).
+            if let Some(plugin) = &self.lm_plugin {
+                plugin.on_node_deleted(&id_ref.to_owned());
+            }
             Ok(())
         } else {
             Err(StoreError::NotFound(id_ref.to_owned()))
@@ -1512,6 +1556,52 @@ mod tests {
         let record = store.get(&id).expect("record should exist");
         assert_eq!(record.data["hello"], "world");
         assert_eq!(record.clock.get("actor-a"), Some(&1));
+    }
+
+    #[test]
+    fn lm_plugin_lifecycle_hooks() {
+        use crate::plugin::NoOpPlugin;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        #[derive(Debug)]
+        struct CountingPlugin {
+            written: Arc<AtomicUsize>,
+            deleted: Arc<AtomicUsize>,
+        }
+        impl crate::plugin::PluresLmPlugin for CountingPlugin {
+            fn plugin_id(&self) -> &str {
+                "counting"
+            }
+            fn on_node_written(&self, _id: &NodeId, _data: &NodeData) {
+                self.written.fetch_add(1, Ordering::Relaxed);
+            }
+            fn on_node_deleted(&self, _id: &NodeId) {
+                self.deleted.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+
+        let written = Arc::new(AtomicUsize::new(0));
+        let deleted = Arc::new(AtomicUsize::new(0));
+        let plugin = Arc::new(CountingPlugin {
+            written: Arc::clone(&written),
+            deleted: Arc::clone(&deleted),
+        });
+
+        let store = CrdtStore::default().with_lm_plugin(plugin);
+        assert_eq!(store.lm_plugin_id(), Some("counting"));
+
+        // Two writes → on_node_written called twice.
+        store.put("a", "actor", serde_json::json!({}));
+        store.put("b", "actor", serde_json::json!({}));
+        assert_eq!(written.load(Ordering::Relaxed), 2);
+
+        // One delete → on_node_deleted called once.
+        store.delete("a").unwrap();
+        assert_eq!(deleted.load(Ordering::Relaxed), 1);
+
+        // No-op plugin compiles and can be attached.
+        let _store2 = CrdtStore::default().with_lm_plugin(Arc::new(NoOpPlugin));
     }
 
     #[test]

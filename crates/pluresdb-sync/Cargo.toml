@@ -11,10 +11,14 @@ keywords = ["sync", "p2p", "local-first"]
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
+axum.workspace = true
 blake2 = "0.10"
+dashmap.workspace = true
+futures.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+tower-http.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 
