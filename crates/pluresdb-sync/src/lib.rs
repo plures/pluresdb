@@ -26,11 +26,11 @@ pub use gun_protocol::{
     GunAck, GunGet, GunGetRequest, GunMessage, GunMeta, GunNode, GunPut, HamState, Soul,
 };
 
-mod replication;
-pub use replication::{MemConnection, Replicator};
-
 mod gun_relay;
 pub use gun_relay::GunRelayServer;
+
+mod replication;
+pub use replication::{MemConnection, Replicator};
 
 pub mod git_replication;
 
