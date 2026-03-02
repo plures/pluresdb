@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.0] - 2026-03-02
+
+### Added
+
+- GUN.js wire-compat SEA, RAD adapter, blob CAS, git replication protocol (#142)
+
+
 ## [2.6.0] - 2026-03-01
 
 ### Added
