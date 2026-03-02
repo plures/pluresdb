@@ -4,7 +4,9 @@
 //! initial native bootstrap we provide a simple in-memory store and a sled-based
 //! durable implementation that can run entirely within the application process.
 
+pub mod blob;
 pub mod encryption;
+pub mod rad;
 pub mod replay;
 pub mod wal;
 
@@ -19,7 +21,9 @@ use serde::{Deserialize, Serialize};
 use sled::IVec;
 use tracing::{info, instrument};
 
+pub use blob::{sha256_hex, validate_hash, BlobStore, FileBlobStore, MemoryBlobStore};
 pub use encryption::{EncryptionConfig, EncryptionMetadata};
+pub use rad::{RadAdapter, SledRadAdapter};
 pub use replay::{ReplayStats, metadata_pruning, rebuild_from_wal, replay_wal};
 pub use wal::{DurabilityLevel, WalEntry, WalOperation, WalValidation, WriteAheadLog};
 
@@ -76,6 +80,12 @@ impl SledStorage {
         info!(path = %path.as_ref().display(), "opening sled storage");
         let db = sled::open(path)?;
         Ok(Self { db })
+    }
+
+    /// Access the underlying sled database for advanced operations (e.g., RAD
+    /// prefix / range scans).
+    pub fn db(&self) -> &sled::Db {
+        &self.db
     }
 
     fn serialize(node: &StoredNode) -> Result<Vec<u8>> {

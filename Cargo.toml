@@ -11,6 +11,7 @@ members = [
     # "crates/pluresdb-ipc",  # Temporarily excluded - Send trait bounds issue with shared_memory
     "crates/pluresdb-procedures-macros",
     "crates/pluresdb-procedures",
+    "crates/pluresdb-sea",
 ]
 resolver = "2"
 
@@ -25,6 +26,8 @@ repository = "https://github.com/plures/pluresdb"
 [workspace.dependencies]
 aes-gcm = "0.10"
 anyhow = "1.0"
+base64 = "0.22"
+sha2 = "0.10"
 arc-swap = "1.6"
 argon2 = "0.5"
 async-trait = "0.1"
