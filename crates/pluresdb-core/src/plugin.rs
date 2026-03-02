@@ -59,16 +59,28 @@ pub trait PluresLmPlugin: Send + Sync + fmt::Debug {
     /// Validate a node payload before it is stored.
     ///
     /// Return `Ok(())` to allow the write, or an error string to reject it.
+    ///
+    /// **Important:** `pluresdb-core` itself does **not** automatically call
+    /// this method from [`CrdtStore::put`] or related write paths. It is a
+    /// hook intended for higher-level layers (such as pluresLM) or wrapper
+    /// APIs around [`CrdtStore`] that choose to enforce additional validation
+    /// before persisting nodes.
+    ///
     /// The default implementation accepts every payload.
     fn validate_node(&self, _id: &NodeId, _data: &NodeData) -> Result<(), String> {
         Ok(())
     }
 
-    /// Return an optional schema version string for the node type.
+    /// Return an optional schema or version identifier for the node type.
     ///
-    /// PluresDB core uses this to populate a `_schema` field in stored nodes
-    /// when the plugin recognises the node type.  If the plugin does not
-    /// recognise the node it should return `None`.
+    /// This is a convenience hook for callers that wish to attach a
+    /// schema/version marker (for example in a `_schema` field) when the
+    /// plugin recognises the node type. If the plugin does not recognise the
+    /// node it should return `None`.
+    ///
+    /// **Note:** `pluresdb-core` does **not** automatically call this method
+    /// or populate any `_schema` field; it is up to higher-level layers or
+    /// wrapper APIs to use this hook if they want such behaviour.
     fn schema_version_for(&self, _id: &NodeId, _data: &NodeData) -> Option<&'static str> {
         None
     }
