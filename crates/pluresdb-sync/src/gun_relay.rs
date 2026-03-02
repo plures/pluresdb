@@ -203,7 +203,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
             }
             if ws_tx
                 .send(Message::Text(
-                    String::from_utf8_lossy(&envelope.payload).into_owned().into(),
+                    String::from_utf8_lossy(&envelope.payload).to_string().into(),
                 ))
                 .await
                 .is_err()
@@ -232,11 +232,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
                     debug!(
                         "[GunRelay] peer {} sent {} id={}",
                         peer_id_recv,
-                        match &gun_msg {
-                            GunMessage::Put(_) => "PUT",
-                            GunMessage::Get(_) => "GET",
-                            GunMessage::Ack(_) => "ACK",
-                        },
+                        gun_msg.message_type(),
                         gun_msg.id()
                     );
                     // Relay valid GUN messages to all other peers.
