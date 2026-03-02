@@ -163,6 +163,7 @@ impl GunRelayServer {
                 .expect("failed to install Ctrl+C handler");
         }
     }
+
     /// Build the Axum router (exposed for testing and embedding in larger apps).
     ///
     /// The returned `Router` handles `/gun` WebSocket upgrades with its own
