@@ -691,6 +691,10 @@ impl CrdtStore {
         if let Some(entry) = self.nodes.get(&id) {
             self.persist_node(entry.value());
         }
+        // Notify the plugin (non-blocking).
+        if let Some(plugin) = &self.lm_plugin {
+            plugin.on_node_written(&id, &data);
+        }
         id
     }
 
@@ -1591,10 +1595,14 @@ mod tests {
         let store = CrdtStore::default().with_lm_plugin(plugin);
         assert_eq!(store.lm_plugin_id(), Some("counting"));
 
-        // Two writes → on_node_written called twice.
+        // Two writes via put → on_node_written called twice.
         store.put("a", "actor", serde_json::json!({}));
         store.put("b", "actor", serde_json::json!({}));
         assert_eq!(written.load(Ordering::Relaxed), 2);
+
+        // put_with_embedding also triggers on_node_written.
+        store.put_with_embedding("c", "actor", serde_json::json!({"label": "c"}), vec![1.0, 0.0, 0.0]);
+        assert_eq!(written.load(Ordering::Relaxed), 3, "put_with_embedding must also fire on_node_written");
 
         // One delete → on_node_deleted called once.
         store.delete("a").unwrap();
