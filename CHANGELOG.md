@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.0] - 2026-03-02
+
+### Added
+
+- PluresDB/pluresLM architectural separation + Rust GUN.js networking (#144)
+
+
 ## [2.7.0] - 2026-03-02
 
 ### Added
