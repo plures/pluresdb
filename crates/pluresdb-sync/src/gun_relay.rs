@@ -132,10 +132,37 @@ impl GunRelayServer {
         let app = self.build_router();
         info!("[GunRelay] listening on ws://{}/gun", addr);
         let listener = tokio::net::TcpListener::bind(addr).await?;
-        axum::serve(listener, app).await?;
+        axum::serve(listener, app)
+            .with_graceful_shutdown(GunRelayServer::shutdown_signal())
+            .await?;
         Ok(())
     }
 
+    /// Wait for a shutdown signal (Ctrl+C on all platforms, plus SIGTERM on Unix).
+    ///
+    /// This mirrors the behavior of the CLI HTTP API server so that the relay
+    /// can shut down gracefully when the process is terminated.
+    async fn shutdown_signal() {
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix::{signal, SignalKind};
+
+            let mut terminate =
+                signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {},
+                _ = terminate.recv() => {},
+            }
+        }
+
+        #[cfg(not(unix))]
+        {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("failed to install Ctrl+C handler");
+        }
+    }
     /// Build the Axum router (exposed for testing and embedding in larger apps).
     ///
     /// The returned `Router` handles `/gun` WebSocket upgrades with its own
