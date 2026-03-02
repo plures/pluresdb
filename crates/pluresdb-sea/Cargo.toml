@@ -1,0 +1,29 @@
+[package]
+name = "pluresdb-sea"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "SEA (Security, Encryption, Authorization) primitives for PluresDB — GUN.js wire-compatible."
+keywords = ["sea", "gun", "p2p", "encryption", "authentication"]
+
+[dependencies]
+# Elliptic-curve P-256 for ECDSA signing and ECDH key exchange
+p256 = { version = "0.13", features = ["ecdh", "ecdsa"] }
+# SHA-256 hashing (used by ECDSA internally and for PBKDF2)
+sha2.workspace = true
+# PBKDF2 key derivation for SEA work/encrypt
+pbkdf2 = { version = "0.12", features = ["hmac"] }
+# AES-256-GCM symmetric encryption
+aes-gcm.workspace = true
+# Random number generation
+rand.workspace = true
+# Base64 URL-safe encoding for wire format
+base64.workspace = true
+# Serialisation
+serde.workspace = true
+serde_json.workspace = true
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true

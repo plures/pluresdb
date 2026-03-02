@@ -32,6 +32,8 @@ pub use replication::{MemConnection, Replicator};
 mod gun_relay;
 pub use gun_relay::GunRelayServer;
 
+pub mod git_replication;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SyncEvent {
     NodeUpsert { id: String },
