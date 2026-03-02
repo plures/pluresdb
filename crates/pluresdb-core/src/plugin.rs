@@ -51,7 +51,7 @@ pub trait PluresLmPlugin: Send + Sync + fmt::Debug {
     /// The default implementation does nothing.
     fn on_node_written(&self, _id: &NodeId, _data: &NodeData) {}
 
-    /// Called before a node is deleted from the store.
+    /// Called after a node is deleted from the store.
     ///
     /// The default implementation does nothing.
     fn on_node_deleted(&self, _id: &NodeId) {}
