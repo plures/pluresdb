@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.0] - 2026-03-03
+
+### Added
+
+- durable event contracts for Praxis analysis lifecycle (#146)
+
+
 ## [2.8.0] - 2026-03-02
 
 ### Added
