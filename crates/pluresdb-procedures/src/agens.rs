@@ -660,11 +660,13 @@ impl<'a> AgensRuntime<'a> {
                 // queries on `logical_id` without deserializing the full
                 // `event` value.
                 "logical_id": event.id(),
-                "event": serde_json::to_value(event)
-                    .expect(&format!(
-                        "AgensEvent::{} serialization should not fail",
-                        event.event_type()
-                    )),
+                "event": serde_json::to_value(event).unwrap_or_else(|err| {
+                    panic!(
+                        "AgensEvent::{} serialization should not fail: {}",
+                        event.event_type(),
+                        err
+                    )
+                }),
             }),
         );
         node_id
