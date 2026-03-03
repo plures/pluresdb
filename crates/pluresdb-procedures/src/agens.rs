@@ -1263,11 +1263,12 @@ mod tests {
         assert!(handled.load(Ordering::SeqCst));
     }
 
-    /// Re-emitting an already-processed praxis event must not trigger the
-    /// handler a second time when the consumer polls only events strictly
-    /// after the first emission's timestamp.
+    /// Re-emitting an already-processed praxis event is idempotent in the
+    /// store (single command node) and preserves a stable logical id, even
+    /// if the consumer later polls after the first emission's timestamp and
+    /// observes the event again due to an LWW timestamp update.
     #[test]
-    fn praxis_idempotent_reemit_not_redelivered_after_poll() {
+    fn praxis_idempotent_reemit_single_node_and_stable_id() {
         let store = CrdtStore::default();
         let runtime = AgensRuntime::new(&store, "pluresLM");
 
