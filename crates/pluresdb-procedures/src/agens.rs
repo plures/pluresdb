@@ -55,6 +55,14 @@ const TYPE_COMMAND: &str = "agens:command";
 const TYPE_STATE: &str = "agens:state";
 const TYPE_TIMER: &str = "agens:timer";
 
+/// Node ID prefix for idempotent praxis lifecycle command nodes.
+///
+/// Praxis events are stored under `"{PRAXIS_CMD_PREFIX}{event_id}"`.
+/// Using a stable prefix makes it easy to enumerate all praxis command nodes
+/// and ensures the idempotency guarantee: re-emitting an event with the same
+/// `id` always resolves to the same CRDT node key.
+const PRAXIS_CMD_PREFIX: &str = "praxis:cmd:";
+
 // ---------------------------------------------------------------------------
 // Event types
 // ---------------------------------------------------------------------------
@@ -117,13 +125,64 @@ pub enum AgensEvent {
         /// Tool output payload.
         payload: JsonValue,
     },
+    /// A Praxis analysis job completed successfully and results are available.
+    ///
+    /// Emitted by PluresLM once analysis is ready for consumption by Pares
+    /// Agens.  Use [`AgensRuntime::emit_praxis_event`] so the event is stored
+    /// under a stable, deterministic CRDT node key — re-emitting the same
+    /// `analysis_id` is idempotent.
+    PraxisAnalysisReady {
+        /// Unique event ID.  For idempotency, derive this deterministically
+        /// from `analysis_id` (e.g. `format!("praxis-ready:{}", analysis_id)`).
+        id: String,
+        /// Identifies the Praxis analysis job.
+        analysis_id: String,
+        /// Optional session or conversation context.
+        session_id: Option<String>,
+        /// Analysis result payload (schema defined by PluresLM).
+        payload: JsonValue,
+    },
+    /// A Praxis analysis job failed.
+    ///
+    /// Emitted by PluresLM when analysis cannot be completed.  Like
+    /// [`PraxisAnalysisReady`][AgensEvent::PraxisAnalysisReady], use
+    /// [`AgensRuntime::emit_praxis_event`] for idempotent delivery.
+    PraxisAnalysisFailed {
+        /// Unique event ID.  For idempotency, derive this deterministically
+        /// from `analysis_id` (e.g. `format!("praxis-failed:{}", analysis_id)`).
+        id: String,
+        /// Identifies the Praxis analysis job that failed.
+        analysis_id: String,
+        /// Optional session or conversation context.
+        session_id: Option<String>,
+        /// Human-readable description of the failure.
+        reason: String,
+        /// Additional error detail payload.
+        payload: JsonValue,
+    },
+    /// Praxis guidance for a session has been updated.
+    ///
+    /// Emitted by PluresLM whenever guidance data changes.  Use
+    /// [`AgensRuntime::emit_praxis_event`] for idempotent delivery.
+    PraxisGuidanceUpdated {
+        /// Unique event ID.  For idempotency, derive this deterministically
+        /// from `guidance_id` (e.g. `format!("praxis-guidance:{}", guidance_id)`).
+        id: String,
+        /// Identifies the guidance item that was updated.
+        guidance_id: String,
+        /// Optional session or conversation context.
+        session_id: Option<String>,
+        /// Updated guidance payload (schema defined by PluresLM).
+        payload: JsonValue,
+    },
 }
 
 impl AgensEvent {
     /// Return the event-type string used as a handler lookup key.
     ///
     /// One of: `"message"`, `"timer"`, `"state_change"`,
-    /// `"model_response"`, `"tool_result"`.
+    /// `"model_response"`, `"tool_result"`, `"praxis_analysis_ready"`,
+    /// `"praxis_analysis_failed"`, `"praxis_guidance_updated"`.
     pub fn event_type(&self) -> &'static str {
         match self {
             AgensEvent::Message { .. } => "message",
@@ -131,6 +190,9 @@ impl AgensEvent {
             AgensEvent::StateChange { .. } => "state_change",
             AgensEvent::ModelResponse { .. } => "model_response",
             AgensEvent::ToolResult { .. } => "tool_result",
+            AgensEvent::PraxisAnalysisReady { .. } => "praxis_analysis_ready",
+            AgensEvent::PraxisAnalysisFailed { .. } => "praxis_analysis_failed",
+            AgensEvent::PraxisGuidanceUpdated { .. } => "praxis_guidance_updated",
         }
     }
 
@@ -141,7 +203,10 @@ impl AgensEvent {
             | AgensEvent::Timer { id, .. }
             | AgensEvent::StateChange { id, .. }
             | AgensEvent::ModelResponse { id, .. }
-            | AgensEvent::ToolResult { id, .. } => id.as_str(),
+            | AgensEvent::ToolResult { id, .. }
+            | AgensEvent::PraxisAnalysisReady { id, .. }
+            | AgensEvent::PraxisAnalysisFailed { id, .. }
+            | AgensEvent::PraxisGuidanceUpdated { id, .. } => id.as_str(),
         }
     }
 }
@@ -541,12 +606,88 @@ impl<'a> AgensRuntime<'a> {
                 "_type": TYPE_COMMAND,
                 // Store the logical event ID separately so consumers can
                 // correlate multiple emissions of the same logical event.
+                // This is redundant with `event.id()` but enables index
+                // queries on `logical_id` without deserializing the full
+                // `event` value.
                 "logical_id": event.id(),
                 "event": serde_json::to_value(event)
                     .expect("AgensEvent serialization should not fail"),
             }),
         );
         node_id
+    }
+
+    /// Persist a praxis lifecycle event using an **idempotent** CRDT node.
+    ///
+    /// Unlike [`emit_event`][Self::emit_event], this method writes to a
+    /// deterministic node key derived solely from `event.id()`:
+    /// `"praxis:cmd:{id}"`.  Because CRDT semantics apply last-write-wins
+    /// merging, re-emitting the same logical event (same `id`, same or
+    /// updated payload) converges to a single store entry — no duplicate
+    /// command nodes are created.
+    ///
+    /// This satisfies the durable event contract for the Praxis analysis
+    /// lifecycle:
+    ///
+    /// - **Durable**: the node is persisted in the CRDT store and survives
+    ///   restarts and peer sync via Hyperswarm.
+    /// - **Idempotent**: emitting an event with the same `id` a second time
+    ///   (e.g. after a crash-recovery or network retry) updates the same
+    ///   underlying CRDT node rather than creating a new one, so no duplicate
+    ///   command nodes are stored.
+    ///
+    /// Note that idempotent storage does **not** by itself guarantee
+    /// exactly-once delivery to consumers. `poll_events()` is timestamp-
+    /// based, and rewriting the same deterministic node will advance its
+    /// timestamp so it can be observed again after a consumer moves its
+    /// `since` cursor. Consumers that require exactly-once handling must
+    /// deduplicate on `event.id()` / logical id (or persist a processed
+    /// watermark per logical id).
+    ///
+    /// # Security
+    ///
+    /// The `event` payload is stored verbatim. Callers must sanitize all
+    /// fields before emission to prevent prototype-pollution or injection
+    /// attacks.
+    ///
+    /// # Usage
+    ///
+    /// Use this method for [`AgensEvent::PraxisAnalysisReady`],
+    /// [`AgensEvent::PraxisAnalysisFailed`], and
+    /// [`AgensEvent::PraxisGuidanceUpdated`].  It also works for any other
+    /// event variant when idempotent storage is desired.
+    pub fn emit_praxis_event(&self, event: &AgensEvent) -> String {
+        let node_id = Self::praxis_node_key(event.id());
+        self.store.put(
+            node_id.clone(),
+            self.actor.as_str(),
+            json!({
+                "_type": TYPE_COMMAND,
+                // Store the logical event ID separately so consumers can
+                // correlate multiple emissions of the same logical event.
+                // This is redundant with `event.id()` but enables index
+                // queries on `logical_id` without deserializing the full
+                // `event` value.
+                "logical_id": event.id(),
+                "event": serde_json::to_value(event).unwrap_or_else(|err| {
+                    panic!(
+                        "AgensEvent::{} serialization should not fail: {}",
+                        event.event_type(),
+                        err
+                    )
+                }),
+            }),
+        );
+        node_id
+    }
+
+    /// Build the deterministic CRDT node key for a praxis command event.
+    ///
+    /// Returns `"{PRAXIS_CMD_PREFIX}{event_id}"`.  This is the single source
+    /// of truth for the idempotency key used by
+    /// [`emit_praxis_event`][Self::emit_praxis_event].
+    fn praxis_node_key(event_id: &str) -> String {
+        format!("{}{}", PRAXIS_CMD_PREFIX, event_id)
     }
 
     /// Poll the commands table for events that arrived **strictly after** `since`.
@@ -922,5 +1063,257 @@ mod tests {
         store.put("timer:fake", "actor", json!({"_type": "something_else"}));
         let timers = TimerTable::new(&store, "actor");
         timers.reschedule("timer:fake");
+    }
+
+    // -----------------------------------------------------------------------
+    // Praxis analysis lifecycle event contracts
+    // -----------------------------------------------------------------------
+
+    /// Verify that the three praxis lifecycle variants return the correct
+    /// event-type strings.
+    #[test]
+    fn praxis_event_type_strings() {
+        let ev = AgensEvent::PraxisAnalysisReady {
+            id: "r1".to_string(),
+            analysis_id: "a1".to_string(),
+            session_id: None,
+            payload: json!({}),
+        };
+        assert_eq!(ev.event_type(), "praxis_analysis_ready");
+
+        let ev = AgensEvent::PraxisAnalysisFailed {
+            id: "f1".to_string(),
+            analysis_id: "a1".to_string(),
+            session_id: Some("sess-1".to_string()),
+            reason: "timeout".to_string(),
+            payload: json!({}),
+        };
+        assert_eq!(ev.event_type(), "praxis_analysis_failed");
+
+        let ev = AgensEvent::PraxisGuidanceUpdated {
+            id: "g1".to_string(),
+            guidance_id: "guide-1".to_string(),
+            session_id: None,
+            payload: json!({"hint": "be concise"}),
+        };
+        assert_eq!(ev.event_type(), "praxis_guidance_updated");
+    }
+
+    /// Praxis lifecycle events must survive a JSON serialization round-trip.
+    #[test]
+    fn praxis_event_serde_roundtrip() {
+        let events = vec![
+            AgensEvent::PraxisAnalysisReady {
+                id: "r1".to_string(),
+                analysis_id: "a1".to_string(),
+                session_id: Some("sess-42".to_string()),
+                payload: json!({"score": 0.9}),
+            },
+            AgensEvent::PraxisAnalysisFailed {
+                id: "f1".to_string(),
+                analysis_id: "a1".to_string(),
+                session_id: None,
+                reason: "model unavailable".to_string(),
+                payload: json!({"code": 503}),
+            },
+            AgensEvent::PraxisGuidanceUpdated {
+                id: "g1".to_string(),
+                guidance_id: "guide-7".to_string(),
+                session_id: Some("sess-42".to_string()),
+                payload: json!({"hint": "be concise"}),
+            },
+        ];
+        for ev in &events {
+            let serialized = serde_json::to_string(ev).unwrap();
+            let back: AgensEvent = serde_json::from_str(&serialized).unwrap();
+            assert_eq!(*ev, back);
+        }
+    }
+
+    /// `emit_praxis_event` must write to a deterministic `praxis:cmd:{id}` node
+    /// so that re-emitting the same logical event is idempotent (only one CRDT
+    /// node in the store, visible once via `poll_events`).
+    #[test]
+    fn emit_praxis_event_is_idempotent() {
+        let store = CrdtStore::default();
+        let runtime = AgensRuntime::new(&store, "pluresLM");
+        let before = Utc::now();
+
+        let ev = AgensEvent::PraxisAnalysisReady {
+            id: "praxis-ready:a1".to_string(),
+            analysis_id: "a1".to_string(),
+            session_id: None,
+            payload: json!({"result": "ok"}),
+        };
+
+        // Emit twice — should converge to a single store node.
+        let node_id_1 = runtime.emit_praxis_event(&ev);
+        let node_id_2 = runtime.emit_praxis_event(&ev);
+
+        // Both calls must return the same deterministic node ID.
+        assert_eq!(node_id_1, node_id_2);
+        assert_eq!(node_id_1, format!("{}{}", PRAXIS_CMD_PREFIX, "praxis-ready:a1"));
+
+        // poll_events must return exactly one event (not two).
+        let polled = runtime.poll_events(before);
+        assert_eq!(polled.len(), 1, "idempotent emission must not create duplicate events");
+        assert_eq!(polled[0], ev);
+    }
+
+    /// Fixture: a full successful praxis analysis lifecycle sequence:
+    ///   1. Emit `PraxisAnalysisReady`
+    ///   2. Emit `PraxisGuidanceUpdated`
+    ///
+    /// Verify both events are polled in emission order and can be dispatched
+    /// to registered procedure handlers.
+    #[test]
+    fn praxis_lifecycle_success_sequence() {
+        use std::sync::{atomic::{AtomicUsize, Ordering}, Arc};
+
+        let store = CrdtStore::default();
+        let runtime = AgensRuntime::new(&store, "pluresLM");
+
+        let counter = Arc::new(AtomicUsize::new(0));
+        let c1 = counter.clone();
+        let c2 = counter.clone();
+
+        runtime.register_procedure(
+            "praxis_analysis_ready",
+            Arc::new(move |_ev: &AgensEvent| {
+                c1.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }),
+        );
+        runtime.register_procedure(
+            "praxis_guidance_updated",
+            Arc::new(move |_ev: &AgensEvent| {
+                c2.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }),
+        );
+
+        let before = Utc::now();
+
+        let ready = AgensEvent::PraxisAnalysisReady {
+            id: "praxis-ready:job-1".to_string(),
+            analysis_id: "job-1".to_string(),
+            session_id: Some("session-abc".to_string()),
+            payload: json!({"confidence": 0.95}),
+        };
+        let guidance = AgensEvent::PraxisGuidanceUpdated {
+            id: "praxis-guidance:guide-1".to_string(),
+            guidance_id: "guide-1".to_string(),
+            session_id: Some("session-abc".to_string()),
+            payload: json!({"hint": "focus on key points"}),
+        };
+
+        runtime.emit_praxis_event(&ready);
+        runtime.emit_praxis_event(&guidance);
+
+        let polled = runtime.poll_events(before);
+        assert_eq!(polled.len(), 2);
+
+        for ev in &polled {
+            runtime.execute_procedure(ev).unwrap();
+        }
+
+        assert_eq!(counter.load(Ordering::SeqCst), 2);
+    }
+
+    /// Fixture: a failed praxis analysis lifecycle sequence:
+    ///   1. Emit `PraxisAnalysisFailed`
+    ///
+    /// Verify the event is polled and handler is called once.
+    #[test]
+    fn praxis_lifecycle_failure_sequence() {
+        use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+
+        let store = CrdtStore::default();
+        let runtime = AgensRuntime::new(&store, "pluresLM");
+
+        let handled = Arc::new(AtomicBool::new(false));
+        let h = handled.clone();
+
+        runtime.register_procedure(
+            "praxis_analysis_failed",
+            Arc::new(move |ev: &AgensEvent| {
+                if let AgensEvent::PraxisAnalysisFailed { reason, .. } = ev {
+                    assert_eq!(reason, "model unavailable");
+                }
+                h.store(true, Ordering::SeqCst);
+                Ok(())
+            }),
+        );
+
+        let before = Utc::now();
+
+        let failed = AgensEvent::PraxisAnalysisFailed {
+            id: "praxis-failed:job-2".to_string(),
+            analysis_id: "job-2".to_string(),
+            session_id: None,
+            reason: "model unavailable".to_string(),
+            payload: json!({"code": 503}),
+        };
+
+        runtime.emit_praxis_event(&failed);
+
+        let polled = runtime.poll_events(before);
+        assert_eq!(polled.len(), 1);
+        runtime.execute_procedure(&polled[0]).unwrap();
+        assert!(handled.load(Ordering::SeqCst));
+    }
+
+    /// Re-emitting an already-processed praxis event is idempotent in the
+    /// store (single command node) and preserves a stable logical id, even
+    /// if the consumer later polls after the first emission's timestamp and
+    /// observes the event again due to an LWW timestamp update.
+    #[test]
+    fn praxis_idempotent_reemit_single_node_and_stable_id() {
+        let store = CrdtStore::default();
+        let runtime = AgensRuntime::new(&store, "pluresLM");
+
+        let ev = AgensEvent::PraxisAnalysisReady {
+            id: "praxis-ready:a99".to_string(),
+            analysis_id: "a99".to_string(),
+            session_id: None,
+            payload: json!({}),
+        };
+
+        let before = Utc::now();
+        runtime.emit_praxis_event(&ev);
+
+        // First poll — consumer processes the event.
+        let first_poll = runtime.poll_events(before);
+        assert_eq!(first_poll.len(), 1);
+
+        // Advance the consumer's `since` cursor past the first emission.
+        let after_first = Utc::now();
+
+        // Re-emit the same logical event (e.g. crash-recovery replay).
+        runtime.emit_praxis_event(&ev);
+
+        // Second poll using the advanced cursor: because the node is
+        // overwritten with a newer timestamp the consumer may see the event
+        // again, but it carries the same logical `id` — consumers are expected
+        // to deduplicate on `id()` if strict exactly-once semantics are
+        // required.  Here we only assert the node count in the store remains
+        // one (idempotent storage).
+        let store_commands: Vec<_> = store
+            .list()
+            .into_iter()
+            .filter(|n| {
+                n.data.get("_type").and_then(|v| v.as_str()) == Some(TYPE_COMMAND)
+                    && n.id.starts_with(PRAXIS_CMD_PREFIX)
+            })
+            .collect();
+        assert_eq!(store_commands.len(), 1, "exactly one praxis command node in store");
+
+        // The second poll with the advanced cursor reflects the re-emit
+        // (LWW timestamp update), but the event id is stable.
+        let second_poll = runtime.poll_events(after_first);
+        for ev in &second_poll {
+            // All re-delivered events carry the original logical id.
+            assert_eq!(ev.id(), "praxis-ready:a99");
+        }
     }
 }
