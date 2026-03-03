@@ -632,8 +632,17 @@ impl<'a> AgensRuntime<'a> {
     /// - **Durable**: the node is persisted in the CRDT store and survives
     ///   restarts and peer sync via Hyperswarm.
     /// - **Idempotent**: emitting an event with the same `id` a second time
-    ///   (e.g. after a crash-recovery or network retry) produces no new store
-    ///   entry, so downstream procedure handlers are not triggered spuriously.
+    ///   (e.g. after a crash-recovery or network retry) updates the same
+    ///   underlying CRDT node rather than creating a new one, so no duplicate
+    ///   command nodes are stored.
+    ///
+    /// Note that idempotent storage does **not** by itself guarantee
+    /// exactly-once delivery to consumers. `poll_events()` is timestamp-
+    /// based, and rewriting the same deterministic node will advance its
+    /// timestamp so it can be observed again after a consumer moves its
+    /// `since` cursor. Consumers that require exactly-once handling must
+    /// deduplicate on `event.id()` / logical id (or persist a processed
+    /// watermark per logical id).
     ///
     /// # Security
     ///
