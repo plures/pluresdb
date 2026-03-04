@@ -1,3 +1,10 @@
+## [2.9.4] - 2026-03-04
+
+### Fixed
+
+- add per-branch concurrency lock to prevent duplicate tag races
+
+
 ## [2.9.3] — 2026-03-04
 
 
