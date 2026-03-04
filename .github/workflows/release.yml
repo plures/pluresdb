@@ -14,5 +14,6 @@ jobs:
   release:
     uses: plures/.github/.github/workflows/release-reusable.yml@main
     with:
-      bump: ${{ inputs.bump || '' }}
+      # `inputs` context is not available on push events; use event payload inputs.
+      bump: ${{ github.event.inputs.bump || '' }}
     secrets: inherit
