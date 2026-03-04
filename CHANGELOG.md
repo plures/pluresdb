@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.1] - 2026-03-04
+
+### Fixed
+
+- use github.event.inputs for push-compatible reusable release call
+
+
 ## [2.9.0] - 2026-03-03
 
 ### Added
