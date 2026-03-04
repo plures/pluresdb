@@ -1,3 +1,7 @@
+## [] — 2026-03-04
+
+- fix(release): use github.event.inputs for push-compatible reusable release call (74ffe0a)
+
 # Changelog
 
 ## [2.9.0] - 2026-03-03
