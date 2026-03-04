@@ -1,3 +1,8 @@
+## [2.9.5] — 2026-03-04
+
+- chore(release): 2.9.4 (368ab69)
+- fix(release): add per-branch concurrency lock to prevent duplicate tag races (e9127cc)
+
 ## [2.9.4] - 2026-03-04
 
 ### Fixed
