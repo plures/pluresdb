@@ -1,6 +1,6 @@
 # PluresDB
 
-[![npm version](https://badge.fury.io/js/pluresdb.svg)](https://badge.fury.io/js/@plures/pluresdb)
+[![npm (@plures/pluresdb)](https://img.shields.io/npm/v/@plures/pluresdb)](https://www.npmjs.com/package/@plures/pluresdb)
 [![crates.io](https://img.shields.io/crates/v/pluresdb-core.svg)](https://crates.io/crates/pluresdb-core)
 [![Deno version](https://img.shields.io/badge/deno-v2.x-blue)](https://deno.land)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
@@ -19,6 +19,9 @@ extensions, and personal knowledge management.
 > [MIGRATION.md](MIGRATION.md) for upgrade instructions.
 
 ## Install
+
+> **Version channels:** npm package `@plures/pluresdb` and GitHub Releases are currently at the v2.x line (latest: `v2.9.6`). Rust crates (`pluresdb-core`, `pluresdb-sync`) are currently on the 1.4.x line and will be bumped in a coordinated crates release.
+
 
 ```bash
 # Node.js
@@ -116,7 +119,7 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 
 ## Distribution
 
-- **npm**: [`pluresdb`](https://www.npmjs.com/package/pluresdb)
+- **npm**: [`@plures/pluresdb`](https://www.npmjs.com/package/@plures/pluresdb)
 - **JSR**: [`@plures/pluresdb`](https://jsr.io/@plures/pluresdb)
 - **crates.io**: [`pluresdb-core`](https://crates.io/crates/pluresdb-core), [`pluresdb-sync`](https://crates.io/crates/pluresdb-sync)
 - **Winget**: `pluresdb.pluresdb`
