@@ -1,3 +1,10 @@
+## [2.9.8] - 2026-03-06
+
+### Developer Experience
+
+- bump bytes in the cargo group across 1 directory (#149)
+
+
 ## [2.9.7] - 2026-03-06
 
 ### Fixed
