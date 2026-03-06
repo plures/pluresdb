@@ -112,6 +112,7 @@
     "crates/pluresdb-node/index.d.ts",
     "crates/pluresdb-node/index.js",
     "crates/pluresdb-node/*.node",
+    "scripts/postinstall.js",
     "README.md",
     "LICENSE",
     "package.json"
