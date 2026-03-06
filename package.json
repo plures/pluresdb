@@ -107,11 +107,13 @@
     "npm": ">=8.0.0"
   },
   "files": [
+    "dist/",
     "embedded.js",
     "embedded.d.ts",
     "crates/pluresdb-node/index.d.ts",
     "crates/pluresdb-node/index.js",
     "crates/pluresdb-node/*.node",
+    "scripts/postinstall.js",
     "README.md",
     "LICENSE",
     "package.json"
