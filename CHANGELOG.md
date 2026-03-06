@@ -1,3 +1,10 @@
+## [2.9.7] - 2026-03-06
+
+### Fixed
+
+- add dist/ and scripts/postinstall.js to npm package files whitelist (#148)
+
+
 ## [2.9.6] — 2026-03-04
 
 
