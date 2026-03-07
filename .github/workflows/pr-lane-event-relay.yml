@@ -1,0 +1,44 @@
+name: PR Lane Event Relay
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled]
+  pull_request_review:
+    types: [submitted, dismissed, edited]
+  check_suite:
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip when relay secret is missing
+        id: preflight
+        run: |
+          if [ -z "${{ secrets.PLURES_PROJECTS }}" ]; then
+            echo "Relay disabled: missing PLURES_PROJECTS secret"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dispatch lane tick to automation-infrastructure
+        if: steps.preflight.outputs.enabled == 'true'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PLURES_PROJECTS }}
+          repository: plures/automation-infrastructure
+          event-type: lane-tick
+          client-payload: |
+            {
+              "repo": "${{ github.event.repository.name }}",
+              "event": "${{ github.event_name }}",
+              "action": "${{ github.event.action || '' }}",
+              "pr": "${{ github.event.pull_request.number || '' }}",
+              "sha": "${{ github.sha }}",
+              "ref": "${{ github.ref }}"
+            }
