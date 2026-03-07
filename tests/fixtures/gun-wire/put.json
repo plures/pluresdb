@@ -1,0 +1,16 @@
+{
+  "#": "msg-put-1",
+  "put": {
+    "user:alice": {
+      "_": {
+        "#": "user:alice",
+        ">": {
+          "name": 1700000000000,
+          "role": 1700000000001
+        }
+      },
+      "name": "Alice",
+      "role": "admin"
+    }
+  }
+}

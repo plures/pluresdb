@@ -1,0 +1,7 @@
+{
+  "#": "msg-get-1",
+  "get": {
+    "#": "user:alice",
+    ".": "name"
+  }
+}
