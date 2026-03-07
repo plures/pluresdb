@@ -1,0 +1,10 @@
+[package]
+name = "pluresdb-crdt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "HAM-compatible merge decision primitives for PluresDB"
+repository.workspace = true
+
+[dependencies]
