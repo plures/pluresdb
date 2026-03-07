@@ -42,7 +42,7 @@ use axum::{
 use dashmap::DashMap;
 use futures::{SinkExt, StreamExt};
 use std::{net::SocketAddr, sync::Arc};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, Mutex};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -219,10 +219,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
     info!("[GunRelay] peer connected: {}", peer_id);
 
     let mut rx = state.tx.subscribe();
-    let (mut ws_tx, mut ws_rx) = socket.split();
+    let (ws_tx, mut ws_rx) = socket.split();
+    let ws_tx = Arc::new(Mutex::new(ws_tx));
 
     // Task: forward broadcast messages from other peers to this peer's socket.
     let peer_id_send = peer_id.clone();
+    let ws_tx_send = Arc::clone(&ws_tx);
     let mut send_task = tokio::spawn(async move {
         loop {
             match rx.recv().await {
@@ -231,7 +233,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
                     if envelope.origin == peer_id_send {
                         continue;
                     }
-                    if ws_tx
+                    if ws_tx_send
+                        .lock()
+                        .await
                         .send(Message::Text(
                             String::from_utf8_lossy(&envelope.payload).to_string().into(),
                         ))
@@ -258,6 +262,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
     // Task: receive messages from this peer's socket and broadcast.
     let peer_id_recv = peer_id.clone();
     let tx = state.tx.clone();
+    let ws_tx_ack = Arc::clone(&ws_tx);
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_rx.next().await {
             let raw = match msg {
@@ -277,6 +282,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
                         gun_msg.message_type(),
                         gun_msg.id()
                     );
+
+                    // Parse-level ACK path for compatibility probing.
+                    if send_ack(&ws_tx_ack, gun_msg.id(), None).await.is_err() {
+                        break;
+                    }
+
                     // Relay valid GUN messages to all other peers.
                     let envelope = RelayEnvelope {
                         origin: peer_id_recv.clone(),
@@ -292,6 +303,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
                         "[GunRelay] peer {} sent invalid GUN message: {}",
                         peer_id_recv, e
                     );
+
+                    if send_ack(&ws_tx_ack, "parse-error", Some(e.to_string()))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
                 }
             }
         }
@@ -308,6 +326,27 @@ async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
         .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
     state.peers.remove(&peer_id);
     info!("[GunRelay] peer disconnected: {}", peer_id);
+}
+
+/// Send an ACK frame back to the originating peer.
+async fn send_ack(
+    ws_tx: &Arc<Mutex<futures::stream::SplitSink<WebSocket, Message>>>,
+    reply_to: &str,
+    err: Option<String>,
+) -> anyhow::Result<()> {
+    let ack = GunMessage::Ack(crate::gun_protocol::GunAck {
+        id: format!("ack-{}", Uuid::new_v4()),
+        reply_to: reply_to.to_string(),
+        err: err.clone(),
+        ok: if err.is_none() { Some(1) } else { None },
+    });
+
+    ws_tx
+        .lock()
+        .await
+        .send(Message::Text(String::from_utf8(ack.encode()?)?.into()))
+        .await?;
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -431,5 +470,83 @@ mod tests {
         // Verify by checking the origin field.
         assert_ne!(recv_b.origin, "peer-b", "peer-b should not echo to itself");
         assert_ne!(recv_c.origin, "peer-c", "peer-c should not echo to itself");
+    }
+
+    /// Smoke test for lane-3 compatibility endpoint behavior:
+    /// valid PUT/GET payloads are parsed and ACKed over `/gun` websocket.
+    #[tokio::test]
+    async fn test_websocket_accepts_put_get_and_returns_ack() {
+        use crate::gun_protocol::{GunGet, GunGetRequest, GunNode, GunPut, Soul};
+        use serde_json::json;
+        use std::collections::HashMap;
+        use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let app = GunRelayServer::new().build_router();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let (mut client, _resp) = connect_async(format!("ws://{}/gun", addr)).await.unwrap();
+
+        let mut fields = HashMap::new();
+        fields.insert("name".to_string(), json!("Alice"));
+        let node = GunNode::from_data("user:alice", fields, 1_700_000_000_000.0);
+        let mut put_map: HashMap<Soul, GunNode> = HashMap::new();
+        put_map.insert("user:alice".to_string(), node);
+        let put = GunMessage::Put(GunPut {
+            id: "smoke-put-1".to_string(),
+            put: put_map,
+        });
+        client
+            .send(WsMessage::Text(String::from_utf8(put.encode().unwrap()).unwrap().into()))
+            .await
+            .unwrap();
+
+        let put_ack_raw = client.next().await.unwrap().unwrap();
+        let put_ack_raw = match put_ack_raw {
+            WsMessage::Text(t) => t.to_string().into_bytes(),
+            WsMessage::Binary(b) => b.to_vec(),
+            other => panic!("expected put ACK frame, got {:?}", other),
+        };
+        match GunMessage::decode(&put_ack_raw).unwrap() {
+            GunMessage::Ack(ack) => {
+                assert_eq!(ack.reply_to, "smoke-put-1");
+                assert_eq!(ack.ok, Some(1));
+                assert!(ack.err.is_none());
+            }
+            other => panic!("expected ACK for put, got {:?}", other),
+        }
+
+        let get = GunMessage::Get(GunGet {
+            id: "smoke-get-1".to_string(),
+            get: GunGetRequest {
+                soul: "user:alice".to_string(),
+                field: None,
+            },
+        });
+        client
+            .send(WsMessage::Text(String::from_utf8(get.encode().unwrap()).unwrap().into()))
+            .await
+            .unwrap();
+
+        let get_ack_raw = client.next().await.unwrap().unwrap();
+        let get_ack_raw = match get_ack_raw {
+            WsMessage::Text(t) => t.to_string().into_bytes(),
+            WsMessage::Binary(b) => b.to_vec(),
+            other => panic!("expected get ACK frame, got {:?}", other),
+        };
+        match GunMessage::decode(&get_ack_raw).unwrap() {
+            GunMessage::Ack(ack) => {
+                assert_eq!(ack.reply_to, "smoke-get-1");
+                assert_eq!(ack.ok, Some(1));
+                assert!(ack.err.is_none());
+            }
+            other => panic!("expected ACK for get, got {:?}", other),
+        }
+
+        let _ = client.close(None).await;
+        server.abort();
     }
 }
