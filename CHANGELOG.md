@@ -1,3 +1,10 @@
+## [2.9.9] - 2026-03-07
+
+### Developer Experience
+
+- add PR lane event relay to centralized merge FSM
+
+
 ## [2.9.8] - 2026-03-06
 
 ### Developer Experience
