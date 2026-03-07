@@ -13,8 +13,8 @@ struct FixtureExpect {
 
 #[derive(Debug, Deserialize)]
 struct FixtureCase {
-    name: String,
-    raw: Value,
+    name: Option<String>,
+    raw: Option<Value>,
     expect: Option<FixtureExpect>,
 }
 
@@ -46,6 +46,11 @@ fn load_fixture_cases() -> anyhow::Result<Vec<FixtureCase>> {
         let path = entry.path();
         let raw = fs::read_to_string(&path)?;
         let value: Value = serde_json::from_str(&raw)?;
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("unnamed")
+            .to_string();
 
         match value {
             Value::Array(cases) => {
@@ -53,8 +58,19 @@ fn load_fixture_cases() -> anyhow::Result<Vec<FixtureCase>> {
                     all_cases.push(serde_json::from_value(case)?);
                 }
             }
-            Value::Object(_) => {
-                all_cases.push(serde_json::from_value(value)?);
+            Value::Object(obj) => {
+                // Support two fixture shapes:
+                // 1) structured case: { name, raw, expect }
+                // 2) raw wire message: {"#":..., "put"|"get"|"@":...}
+                if obj.contains_key("raw") || obj.contains_key("name") || obj.contains_key("expect") {
+                    all_cases.push(serde_json::from_value(Value::Object(obj))?);
+                } else {
+                    all_cases.push(FixtureCase {
+                        name: Some(stem),
+                        raw: Some(Value::Object(obj)),
+                        expect: None,
+                    });
+                }
             }
             other => {
                 anyhow::bail!(
@@ -77,9 +93,16 @@ fn load_fixture_cases() -> anyhow::Result<Vec<FixtureCase>> {
 fn gun_wire_golden_decode_encode_invariants() {
     let cases = load_fixture_cases().expect("load fixtures");
 
-    for case in cases {
-        let case_name = case.name.clone();
-        let raw_bytes = serde_json::to_vec(&case.raw).expect("serialize fixture raw payload");
+    for (idx, case) in cases.into_iter().enumerate() {
+        let case_name = case
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("fixture-case-{idx}"));
+        let case_raw = case
+            .raw
+            .clone()
+            .unwrap_or_else(|| panic!("case `{}` missing `raw` field", case_name));
+        let raw_bytes = serde_json::to_vec(&case_raw).expect("serialize fixture raw payload");
 
         let decoded = GunMessage::decode(&raw_bytes)
             .unwrap_or_else(|err| panic!("case `{}` failed decode: {err:#}", case_name));
