@@ -1,0 +1,40 @@
+[
+  {
+    "name": "get-node",
+    "raw": {
+      "#": "msg-get-001",
+      "get": {
+        "#": "user:alice"
+      }
+    },
+    "expect": {
+      "type": "GET",
+      "id": "msg-get-001"
+    }
+  },
+  {
+    "name": "ack-success",
+    "raw": {
+      "#": "ack-001",
+      "@": "msg-put-001",
+      "ok": 1,
+      "err": null
+    },
+    "expect": {
+      "type": "ACK",
+      "id": "ack-001"
+    }
+  },
+  {
+    "name": "ack-error",
+    "raw": {
+      "#": "ack-err-001",
+      "@": "msg-get-404",
+      "err": "soul not found"
+    },
+    "expect": {
+      "type": "ACK",
+      "id": "ack-err-001"
+    }
+  }
+]
