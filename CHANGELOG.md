@@ -1,3 +1,10 @@
+## [2.9.10] - 2026-03-10
+
+### Documentation
+
+- fix npm package references and clarify version channels
+
+
 ## [2.9.9] - 2026-03-07
 
 ### Developer Experience
