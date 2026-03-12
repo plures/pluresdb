@@ -1,0 +1,38 @@
+name: PR Lint
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  conventional-commits:
+    name: Conventional commit title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title follows Conventional Commits
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          # Conventional Commits pattern: type(scope)!: description
+          # Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert
+          PATTERN='^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?!?: .{1,}'
+          if echo "$PR_TITLE" | grep -qE "$PATTERN"; then
+            echo "✅ PR title follows Conventional Commits format: $PR_TITLE"
+          else
+            echo "❌ PR title does not follow Conventional Commits format."
+            echo ""
+            echo "Expected format: type(scope): description"
+            echo "Examples:"
+            echo "  feat(storage): add blob compression"
+            echo "  fix(sync): handle disconnected peers gracefully"
+            echo "  docs: update CONTRIBUTING guide"
+            echo "  chore(deps): bump @plures/design-dojo to 0.10.6"
+            echo ""
+            echo "Valid types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert"
+            echo ""
+            echo "Got: $PR_TITLE"
+            exit 1
+          fi

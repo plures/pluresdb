@@ -1,31 +1,31 @@
 <script lang="ts">
-  import { selected } from "../lib/stores";
+  import { db } from "../lib/state.svelte.ts";
   import { push as toast } from "../lib/toasts";
   import JsonEditor from "./JsonEditor.svelte";
   import Ajv from "ajv";
-  let text = "";
-  let originalText = "";
-  let timer: any;
-  let dark = false;
-  let schemaText = "";
+  let text = $state("");
+  let originalText = $state("");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let dark = $state(false);
+  let schemaText = $state("");
   const schemaPlaceholder = '{"type":"object","properties":{}}';
   const ajv = new Ajv({ allErrors: true, strict: false });
+  let previousId = $state<string | undefined>(undefined);
 
-  $: {
-    const newText = JSON.stringify($selected?.data ?? {}, null, 2);
-    if (text === "" || text === originalText) {
-      text = newText;
-      originalText = newText;
-    } else if ($selected?.id !== previousId) {
+  $effect(() => {
+    const newText = JSON.stringify(db.selected?.data ?? {}, null, 2);
+    if (text === "" || text === originalText || db.selected?.id !== previousId) {
       text = newText;
       originalText = newText;
     }
-  }
-  let previousId: string | undefined;
-  $: previousId = $selected?.id;
+    previousId = db.selected?.id;
+  });
 
-  $: dark = document.documentElement.getAttribute("data-theme") === "dark";
-  $: hasChanges = text !== originalText;
+  const hasChanges = $derived(text !== originalText);
+
+  $effect(() => {
+    dark = document.documentElement.getAttribute("data-theme") === "dark";
+  });
 
   function debounced() {
     clearTimeout(timer);
@@ -54,7 +54,7 @@
     toast("Changes reverted", "info");
   }
   function copyAsCurl() {
-    if (!$selected) return;
+    if (!db.selected) return;
     let data: any;
     try {
       data = JSON.parse(text);
@@ -63,7 +63,7 @@
       return;
     }
     const host = window.location.origin;
-    const curl = `curl -X POST ${host}/api/put -H "Content-Type: application/json" -d '${JSON.stringify({ id: $selected.id, data })}'`;
+    const curl = `curl -X POST ${host}/api/put -H "Content-Type: application/json" -d '${JSON.stringify({ id: db.selected.id, data })}'`;
     navigator.clipboard.writeText(curl);
     toast("cURL copied to clipboard", "success");
   }
@@ -92,7 +92,7 @@
     else toast("Schema validation failed: " + ajv.errorsText(validate.errors), "error");
   }
   async function save() {
-    if (!$selected) return;
+    if (!db.selected) return;
     let data: any;
     try {
       data = JSON.parse(text);
@@ -104,7 +104,7 @@
       await fetch("/api/put", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: $selected.id, data }),
+        body: JSON.stringify({ id: db.selected.id, data }),
       });
       originalText = text;
       toast("Saved", "success");
@@ -113,9 +113,9 @@
     }
   }
   async function del() {
-    if (!$selected) return;
+    if (!db.selected) return;
     try {
-      await fetch("/api/delete?id=" + encodeURIComponent($selected.id));
+      await fetch("/api/delete?id=" + encodeURIComponent(db.selected.id));
       toast("Deleted", "success");
     } catch {
       toast("Delete failed", "error");
@@ -125,31 +125,31 @@
 
 <section aria-labelledby="detail-heading">
   <h3 id="detail-heading">Details</h3>
-  {#if $selected}
+  {#if db.selected}
     <label for="id">Id</label>
-    <input id="id" value={$selected.id} disabled aria-label="Node ID (read-only)" />
+    <input id="id" value={db.selected.id} disabled aria-label="Node ID (read-only)" />
     <div role="toolbar" aria-label="Editor actions" class="row">
       <button
         class="secondary"
-        on:click={pretty}
+        onclick={pretty}
         aria-label="Format JSON with indentation"
         title="Format JSON with indentation">Pretty</button
       >
       <button
         class="secondary"
-        on:click={compact}
+        onclick={compact}
         aria-label="Format JSON compactly"
         title="Format JSON compactly">Compact</button
       >
       <button
         class="secondary"
-        on:click={copyAsCurl}
+        onclick={copyAsCurl}
         aria-label="Copy as cURL command"
         title="Copy as cURL command">Copy cURL</button
       >
       <button
         class="secondary"
-        on:click={revert}
+        onclick={revert}
         disabled={!hasChanges}
         aria-label="Revert unsaved changes"
         title="Revert unsaved changes">Revert</button
@@ -158,13 +158,13 @@
     <div role="toolbar" aria-label="Node actions" class="row">
       <button
         class="secondary"
-        on:click={validate}
+        onclick={validate}
         aria-label="Validate JSON against schema"
         title="Validate against schema">Validate</button
       >
       <button
         class="secondary outline"
-        on:click={del}
+        onclick={del}
         aria-label="Delete this node"
         title="Delete this node">Delete</button
       >
