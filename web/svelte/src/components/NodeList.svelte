@@ -1,27 +1,23 @@
 <script lang="ts">
-  import { selectedId, nodes } from "../lib/stores";
+  import { db } from "../lib/state.svelte.ts";
   import VirtualList from "./VirtualList.svelte";
-  let filter = "";
-  let sortBy: "id" | "type" = "id";
-  let sortDesc = false;
+  let filter = $state("");
+  let sortBy = $state<"id" | "type">("id");
+  let sortDesc = $state(false);
   function select(id: string) {
-    selectedId.set(id);
+    db.selectedId = id;
   }
 
-  $: items = Object.values($nodes)
-    .filter((it) => it.id.toLowerCase().includes(filter.toLowerCase()))
-    .sort((a, b) => {
-      let aVal: any, bVal: any;
-      if (sortBy === "id") {
-        aVal = a.id;
-        bVal = b.id;
-      } else if (sortBy === "type") {
-        aVal = a.data?.type ?? "";
-        bVal = b.data?.type ?? "";
-      }
-      const cmp = typeof aVal === "string" ? aVal.localeCompare(bVal) : aVal - bVal;
-      return sortDesc ? -cmp : cmp;
-    });
+  const items = $derived(
+    Object.values(db.nodes)
+      .filter((it) => it.id.toLowerCase().includes(filter.toLowerCase()))
+      .sort((a, b) => {
+        const aVal = sortBy === "id" ? a.id : ((a.data?.type as string) ?? "");
+        const bVal = sortBy === "id" ? b.id : ((b.data?.type as string) ?? "");
+        const cmp = aVal.localeCompare(bVal);
+        return sortDesc ? -cmp : cmp;
+      }),
+  );
 
   async function createNode() {
     const id = prompt("New node id:");
@@ -31,7 +27,7 @@
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id, data: {} }),
     });
-    selectedId.set(id);
+    db.selectedId = id;
   }
 
   function handleKeydown(e: KeyboardEvent, id: string) {
@@ -71,7 +67,7 @@
   <div role="toolbar" aria-label="Sort controls" class="sort-controls">
     <button
       class="secondary outline compact"
-      on:click={() => toggleSort("id")}
+      onclick={() => toggleSort("id")}
       aria-label="Sort by ID {sortBy === 'id' ? (sortDesc ? 'descending' : 'ascending') : ''}"
       aria-pressed={sortBy === "id"}
     >
@@ -79,7 +75,7 @@
     </button>
     <button
       class="secondary outline compact"
-      on:click={() => toggleSort("type")}
+      onclick={() => toggleSort("type")}
       aria-label="Sort by type {sortBy === 'type' ? (sortDesc ? 'descending' : 'ascending') : ''}"
       aria-pressed={sortBy === "type"}
     >
@@ -89,29 +85,29 @@
 
   <div role="listbox" aria-label="Available nodes" tabindex="0">
     <VirtualList {items} itemHeight={36} height={420}>
-      <svelte:fragment let:visible let:startIndex>
-        {#each visible as it, i}
+      {#snippet children({ visible }: { visible: typeof items; startIndex: number })}
+        {#each visible as it}
           <button
             role="option"
-            aria-selected={$selectedId === it.id}
-            class:selected={$selectedId === it.id}
-            on:click={() => select(it.id)}
-            on:keydown={(e) => handleKeydown(e, it.id)}
+            aria-selected={db.selectedId === it.id}
+            class:selected={db.selectedId === it.id}
+            onclick={() => select(it.id)}
+            onkeydown={(e) => handleKeydown(e, it.id)}
             style="display:block; width:100%; text-align:left; padding:.3rem .5rem;"
           >
             {it.id}
           </button>
         {/each}
-      </svelte:fragment>
+      {/snippet}
     </VirtualList>
   </div>
-  <button on:click={createNode} aria-label="Create new node">Create</button>
+  <button onclick={createNode} aria-label="Create new node">Create</button>
 </section>
 
 <style>
   button.selected {
-    background: var(--pico-primary-background);
-    color: var(--pico-primary-inverse);
+    background: var(--color-accent, #0969da);
+    color: #fff;
   }
   .sr-only {
     position: absolute;

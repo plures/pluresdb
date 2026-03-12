@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { push as toast } from "../lib/toasts";
-  import { selectedId } from "../lib/stores";
 
   let dark = false;
   let notebooks: Array<{

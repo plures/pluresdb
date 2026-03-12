@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { selectedId } from "../lib/stores";
-  let q = "";
-  let timer: any;
-  let results: Array<{ id: string; data: Record<string, unknown> }> = [];
+  import { db } from "../lib/state.svelte.ts";
+  let q = $state("");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let results = $state<Array<{ id: string; data: Record<string, unknown> }>>([]);
   function debounced() {
     clearTimeout(timer);
     timer = setTimeout(search, 250);
@@ -12,7 +12,7 @@
     results = await res.json();
   }
   function pick(id: string) {
-    selectedId.set(id);
+    db.selectedId = id;
   }
   function handleResultKeydown(e: KeyboardEvent, id: string) {
     if (e.key === "Enter" || e.key === " ") {
@@ -29,7 +29,7 @@
     id="search-query"
     placeholder="Query"
     bind:value={q}
-    on:input={debounced}
+    oninput={debounced}
     aria-label="Enter search query for vector search"
     aria-describedby="search-results-count"
   />
@@ -39,8 +39,8 @@
   <div class="stack" aria-label="Search results">
     {#each results as r}
       <button
-        on:click={() => pick(r.id)}
-        on:keydown={(e) => handleResultKeydown(e, r.id)}
+        onclick={() => pick(r.id)}
+        onkeydown={(e) => handleResultKeydown(e, r.id)}
         class="ghost"
         aria-label="Select node {r.id}"
       >

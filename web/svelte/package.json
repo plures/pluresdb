@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@monaco-editor/loader": "^1.5.0",
+    "@plures/design-dojo": "^0.10.6",
     "cytoscape": "^3.29.3",
     "cytoscape-cola": "^2.5.1",
     "cytoscape-cose-bilkent": "^4.1.0",
