@@ -15,9 +15,9 @@ class DbState {
   selectedId = $state<string | null>(null);
   settings = $state<AppSettings>({});
 
-  get selected(): NodeItem | null {
-    return this.selectedId ? (this.nodes[this.selectedId] ?? null) : null;
-  }
+  readonly selected = $derived.by((): NodeItem | null =>
+    this.selectedId ? (this.nodes[this.selectedId] ?? null) : null,
+  );
 
   upsertNode(item: NodeItem): void {
     this.nodes = { ...this.nodes, [item.id]: item };

@@ -12,15 +12,9 @@
     Object.values(db.nodes)
       .filter((it) => it.id.toLowerCase().includes(filter.toLowerCase()))
       .sort((a, b) => {
-        let aVal: string | number, bVal: string | number;
-        if (sortBy === "id") {
-          aVal = a.id;
-          bVal = b.id;
-        } else {
-          aVal = (a.data?.type as string) ?? "";
-          bVal = (b.data?.type as string) ?? "";
-        }
-        const cmp = typeof aVal === "string" ? aVal.localeCompare(bVal as string) : aVal - (bVal as number);
+        const aVal = sortBy === "id" ? a.id : ((a.data?.type as string) ?? "");
+        const bVal = sortBy === "id" ? b.id : ((b.data?.type as string) ?? "");
+        const cmp = aVal.localeCompare(bVal);
         return sortDesc ? -cmp : cmp;
       }),
   );

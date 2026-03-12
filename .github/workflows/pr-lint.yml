@@ -18,7 +18,7 @@ jobs:
         run: |
           # Conventional Commits pattern: type(scope)!: description
           # Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert
-          PATTERN='^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?!?: .{1,}'
+          PATTERN='^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?!?: .{3,}'
           if echo "$PR_TITLE" | grep -qE "$PATTERN"; then
             echo "✅ PR title follows Conventional Commits format: $PR_TITLE"
           else

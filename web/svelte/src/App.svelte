@@ -34,18 +34,7 @@
   import GuidedTour from "./components/GuidedTour.svelte";
   import ExampleDatasets from "./components/ExampleDatasets.svelte";
 
-  type ViewKey =
-    | "data" | "types" | "history" | "crdt" | "import" | "graph"
-    | "vector" | "faceted" | "notebooks" | "queries" | "rules" | "tasks"
-    | "mesh" | "storage" | "profiling" | "security" | "packaging" | "billing"
-    | "sqlite" | "p2p" | "identity" | "sharing" | "sync" | "settings";
-
-  let activeView = $state<ViewKey>("data");
-  let dark = $state(false);
-  let sidebarCollapsed = $state(false);
-  const nodeCount = $derived(Object.keys(db.nodes).length);
-
-  const tabs: Tab[] = [
+  const tabs = [
     { key: "data",      label: "🗄 Data" },
     { key: "graph",     label: "🕸 Graph" },
     { key: "vector",    label: "🔍 Vector" },
@@ -70,7 +59,14 @@
     { key: "billing",   label: "💳 Billing" },
     { key: "sqlite",    label: "🗃 SQLite" },
     { key: "settings",  label: "⚙ Settings" },
-  ];
+  ] as const satisfies Tab[];
+
+  type ViewKey = (typeof tabs)[number]["key"];
+
+  let activeView = $state<ViewKey>("data");
+  let dark = $state(false);
+  let sidebarCollapsed = $state(false);
+  const nodeCount = $derived(Object.keys(db.nodes).length);
 
   function handleViewChange(view: string) {
     activeView = view as ViewKey;

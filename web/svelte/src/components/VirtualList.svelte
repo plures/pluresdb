@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   let { items = [], itemHeight = 32, height = 360, children }: {
-    items: any[];
+    items: unknown[];
     itemHeight?: number;
     height?: number;
-    children?: Snippet<[{ visible: any[]; startIndex: number }]>;
+    children?: Snippet<[{ visible: unknown[]; startIndex: number }]>;
   } = $props();
 
   let container = $state<HTMLDivElement | undefined>(undefined);

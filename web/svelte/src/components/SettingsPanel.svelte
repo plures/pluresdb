@@ -2,7 +2,7 @@
   import { db } from "../lib/state.svelte.ts";
   let peersText = $state((db.settings.peers ?? []).join(","));
   let saveStatus = $state("");
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined = undefined;
 
   $effect(() => {
     peersText = (db.settings.peers ?? []).join(",");
