@@ -3,7 +3,37 @@
 //! These steps integrate with `CrdtStore`'s vector index and node data
 //! to provide semantic and keyword search within procedure pipelines.
 
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+
 use pluresdb_core::{CrdtStore, NodeRecord};
+
+/// Max-heap wrapper that orders [`NodeRecord`]s by their `id` field.
+///
+/// Used by [`apply_text_search`] to maintain a bounded set of the
+/// lexicographically-smallest `limit` matching nodes without sorting the
+/// full match collection.
+struct ByIdDesc(NodeRecord);
+
+impl PartialEq for ByIdDesc {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.id == other.0.id
+    }
+}
+
+impl Eq for ByIdDesc {}
+
+impl PartialOrd for ByIdDesc {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ByIdDesc {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.id.cmp(&other.0.id)
+    }
+}
 
 /// Perform a vector similarity search.
 ///
@@ -94,19 +124,23 @@ pub fn apply_text_search(
         .map(|t| t.to_lowercase())
         .collect();
 
-    if terms.is_empty() {
+    if terms.is_empty() || limit == 0 {
         return Vec::new();
     }
 
-    // Collect up to `limit` matching nodes, short-circuiting the scan once
-    // enough matches have been found to avoid unnecessary work on large stores.
-    let mut matches: Vec<NodeRecord> = Vec::with_capacity(limit);
+    // Use a bounded max-heap (ordered by node id) to keep track of the
+    // `limit` lexicographically-smallest matching nodes as we scan.
+    //
+    // Maintaining a max-heap of size `limit` means:
+    //   • The current worst (largest id) is always at the top.
+    //   • When a new match arrives whose id is smaller than the top, we evict
+    //     the top and insert the new match — O(log limit) per operation.
+    //   • We never hold more than `limit` matching nodes in memory at once,
+    //     avoiding the O(N) working set of a collect-then-sort approach.
+    //   • The final sort is O(limit log limit) over at most `limit` entries.
+    let mut heap: BinaryHeap<ByIdDesc> = BinaryHeap::with_capacity(limit);
 
-    for node in store.list().into_iter() {
-        if matches.len() == limit {
-            break;
-        }
-
+    for node in store.list() {
         let text = node
             .data
             .get(field)
@@ -115,14 +149,23 @@ pub fn apply_text_search(
             .unwrap_or_default();
 
         if terms.iter().all(|term| text.contains(term.as_str())) {
-            matches.push(node);
+            if heap.len() < limit {
+                heap.push(ByIdDesc(node));
+            } else if let Some(top) = heap.peek() {
+                // `top` is the current worst (largest id) in the heap.
+                // Evict it if the new match has a smaller id.
+                if node.id < top.0.id {
+                    heap.pop();
+                    heap.push(ByIdDesc(node));
+                }
+            }
         }
     }
 
-    // Ensure deterministic ordering for the returned subset. We sort by a
-    // stable key (the node's id) so that the result order is reproducible.
+    // Drain heap into a Vec and sort ascending by id for a deterministic
+    // result. The heap contains at most `limit` entries so this is cheap.
+    let mut matches: Vec<NodeRecord> = heap.into_iter().map(|e| e.0).collect();
     matches.sort_by(|a, b| a.id.cmp(&b.id));
-
     matches
 }
 
@@ -204,5 +247,29 @@ mod tests {
 
         let results = apply_text_search(&store, "", 10, "text");
         assert!(results.is_empty());
+    }
+
+    /// Verify the bounded-heap behaviour: with more matches than `limit` the
+    /// result must contain the lexicographically-*smallest* node ids, not
+    /// merely the first ones encountered during a scan.
+    #[test]
+    fn text_search_limit_returns_smallest_ids() {
+        let store = CrdtStore::default();
+        // Insert nodes with ids that are intentionally "out of order" to
+        // exercise the heap eviction path.
+        for suffix in &["z9", "a1", "m5", "b2", "y8", "c3"] {
+            store.put(
+                &format!("node-{}", suffix),
+                "a",
+                serde_json::json!({"text": "heap test entry"}),
+            );
+        }
+
+        let results = apply_text_search(&store, "heap", 3, "text");
+        assert_eq!(results.len(), 3);
+        // Expected: the three lexicographically smallest ids are
+        // "node-a1", "node-b2", "node-c3".
+        let ids: Vec<&str> = results.iter().map(|r| r.id.as_str()).collect();
+        assert_eq!(ids, vec!["node-a1", "node-b2", "node-c3"]);
     }
 }
