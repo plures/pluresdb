@@ -1,33 +1,42 @@
 <script lang="ts">
-  import { settings } from "../lib/stores";
-  let peersText = "";
-  let saveStatus = "";
-  $: peersText = ($settings.peers && $settings.peers.join(",")) || "";
-  let timer: any;
+  import { db } from "../lib/state.svelte.ts";
+  let peersText = $state((db.settings.peers ?? []).join(","));
+  let saveStatus = $state("");
+  let timer: ReturnType<typeof setTimeout> | undefined = undefined;
+
+  $effect(() => {
+    peersText = (db.settings.peers ?? []).join(",");
+  });
+
   function debounced() {
     clearTimeout(timer);
     timer = setTimeout(save, 250);
   }
   async function save() {
     saveStatus = "saving";
-    await fetch("/api/config", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify($settings),
-    });
-    saveStatus = "saved";
+    try {
+      const res = await fetch("/api/config", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(db.settings),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      saveStatus = "saved";
+    } catch {
+      saveStatus = "error";
+    }
     setTimeout(() => (saveStatus = ""), 2000);
   }
   function onPeers(e: Event) {
     const t = e.target as HTMLInputElement;
     peersText = t.value;
-    settings.update((s) => ({
-      ...s,
+    db.settings = {
+      ...db.settings,
       peers: peersText
         .split(",")
         .map((x) => x.trim())
         .filter(Boolean),
-    }));
+    };
     debounced();
   }
 </script>
@@ -41,8 +50,8 @@
     <label for="kvPath">KV Path</label>
     <input
       id="kvPath"
-      bind:value={$settings.kvPath}
-      on:input={debounced}
+      bind:value={db.settings.kvPath}
+      oninput={debounced}
       placeholder="/data/rg.sqlite"
       aria-describedby="kvPath-help"
     />
@@ -53,8 +62,8 @@
         <input
           id="port"
           type="number"
-          bind:value={$settings.port}
-          on:input={debounced}
+          bind:value={db.settings.port}
+          oninput={debounced}
           aria-label="WebSocket server port"
         />
       </div>
@@ -63,8 +72,8 @@
         <input
           id="apiOffset"
           type="number"
-          bind:value={$settings.apiPortOffset}
-          on:input={debounced}
+          bind:value={db.settings.apiPortOffset}
+          oninput={debounced}
           aria-label="HTTP API port offset from WebSocket port"
         />
       </div>
@@ -73,7 +82,7 @@
     <input
       id="peers"
       bind:value={peersText}
-      on:input={onPeers}
+      oninput={onPeers}
       aria-describedby="peers-help"
       placeholder="ws://localhost:8080, ws://localhost:8081"
     />

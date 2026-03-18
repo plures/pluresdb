@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { selectedId } from "../lib/stores";
+  import { db } from "../lib/state.svelte.ts";
   import { push as toast } from "../lib/toasts";
   import Cytoscape from "cytoscape";
   import dagre from "cytoscape-dagre";
@@ -128,7 +128,7 @@
     // Event handlers
     cy.on("tap", "node", (event: any) => {
       const nodeId = event.target.id();
-      selectedId.set(nodeId);
+      db.selectedId = nodeId;
       selectedNodes.add(nodeId);
       updateSelection();
     });
