@@ -108,6 +108,12 @@ pub fn apply_text_search(
         })
         .collect();
 
+    // Ensure deterministic ordering before applying the limit. Since
+    // CrdtStore::list() iteration order is not guaranteed to be stable,
+    // we sort by a stable key (the node's id) so that truncation is
+    // reproducible.
+    matches.sort_by(|a, b| a.id.cmp(&b.id));
+
     matches.truncate(limit);
     matches
 }
