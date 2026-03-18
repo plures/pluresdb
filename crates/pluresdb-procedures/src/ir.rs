@@ -443,7 +443,11 @@ pub enum Step {
     Transform {
         /// Output format: `"structured"`, `"fused"`, or `"toon"`.
         format: TransformFormat,
-        /// Maximum output characters (0 = unlimited).
+        /// Maximum characters **per transformed entry** (0 = no per-entry limit).
+        ///
+        /// This limit is applied to each node's transformed text or line. The
+        /// total combined `text` for formats like `"fused"` may therefore exceed
+        /// `max_chars` across all entries.
         #[serde(default)]
         max_chars: usize,
     },
