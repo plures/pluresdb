@@ -188,8 +188,8 @@ transform_format_kv    = { "format" ~ ":" ~ string }
 transform_max_chars_kv = { "max_chars" ~ ":" ~ pos_integer }
 
 // conditional(category == "decision", then: [sort(by: "score")], else: [limit(5)])
-// NOTE: For DSL usage, conditional is JSON-IR only (not parsed from text DSL).
-// This rule exists for forward-compatibility.
+// NOTE: `conditional` is parsed from the DSL for the predicate form shown above.
+// Full then/else branches are JSON-IR only and are not part of the text DSL grammar yet.
 conditional_step = { "conditional" ~ "(" ~ predicate ~ ")" }
 
 // assign(name: "context")
