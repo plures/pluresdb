@@ -917,13 +917,19 @@ fn parse_emit(pair: Pair<Rule>) -> Result<Step, ParseError> {
 // Helper: extract usize from a value pair
 fn parse_value_as_usize(pair: Pair<Rule>) -> usize {
     let inner = pair.into_inner().next().expect("value child");
-    inner.as_str().parse().unwrap_or(10)
+    inner
+        .as_str()
+        .parse()
+        .expect("invalid unsigned integer in value")
 }
 
 // Helper: extract f64 from a value pair
 fn parse_value_as_f64(pair: Pair<Rule>) -> f64 {
     let inner = pair.into_inner().next().expect("value child");
-    inner.as_str().parse().unwrap_or(0.0)
+    inner
+        .as_str()
+        .parse()
+        .expect("invalid float in value")
 }
 
 // Helper: extract String from a value pair (expects a string literal)
