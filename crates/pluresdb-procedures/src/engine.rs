@@ -321,6 +321,10 @@ impl<'a> ProcedureEngine<'a> {
                 _ => {
                     // For branch sub-pipelines, only support data-transform steps.
                     // Full step set available via top-level exec().
+                    return Err(anyhow::anyhow!(
+                        "Unsupported step in branch sub-pipeline; only data-transform steps \
+                         (filter, sort, limit, project, transform, assign, emit) are allowed"
+                    ));
                 }
             }
         }
