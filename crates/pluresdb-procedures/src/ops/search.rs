@@ -44,7 +44,11 @@ pub fn apply_vector_search(
             // Inject the similarity score into the node data for downstream steps
             let mut record = vsr.record;
             if let serde_json::Value::Object(ref mut map) = record.data {
-                map.insert("_score".to_string(), serde_json::json!(vsr.score));
+                let score_value = serde_json::json!(vsr.score);
+                // Keep `_score` for backward compatibility, but also set `score`
+                // so downstream pipeline steps that expect `score` can use it.
+                map.insert("_score".to_string(), score_value.clone());
+                map.insert("score".to_string(), score_value);
             }
             Some(record)
         })
@@ -53,8 +57,18 @@ pub fn apply_vector_search(
 
     // Already ordered by score from vector_search, but ensure stability
     nodes.sort_by(|a, b| {
-        let sa = a.data.get("_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let sb = b.data.get("_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let sa = a
+            .data
+            .get("score")
+            .or_else(|| a.data.get("_score"))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+        let sb = b
+            .data
+            .get("score")
+            .or_else(|| b.data.get("_score"))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
         sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
     });
 
