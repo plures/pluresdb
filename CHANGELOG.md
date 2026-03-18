@@ -1,3 +1,14 @@
+## [2.10.0] - 2026-03-18
+
+### Added
+
+- improve repository best practices compliance (40% → 90%+) (#151)
+
+### Developer Experience
+
+- bump the npm_and_yarn group across 2 directories with 1 update (#152)
+
+
 ## [2.9.10] - 2026-03-10
 
 ### Documentation
