@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { db } from "./lib/state.svelte.ts";
   import { Sidebar, TitleBar, StatusBar, StatusBarItem, StatusBarSpacer, Tabs } from "@plures/design-dojo/layout";
   import "@plures/design-dojo/tokens.css";
@@ -97,10 +97,19 @@
     });
   }
 
+  let eventSource: EventSource | null = null;
+
   onMount(async () => {
     await loadConfig();
-    const es = new EventSource("/api/events");
-    es.onmessage = (ev) => {
+
+    // Close any existing connection before creating a new one (defensive for HMR/remounts)
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+
+    eventSource = new EventSource("/api/events");
+    eventSource.onmessage = (ev) => {
       const e = JSON.parse(ev.data);
       if (e.node) {
         db.upsertNode({ id: e.id, data: e.node.data });
@@ -109,6 +118,16 @@
         if (db.selectedId === e.id) db.selectedId = null;
       }
     };
+    eventSource.onerror = (err) => {
+      console.error("EventSource connection error", err);
+    };
+  });
+
+  onDestroy(() => {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
   });
 </script>
 
