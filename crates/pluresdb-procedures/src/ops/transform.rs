@@ -21,6 +21,30 @@ pub fn apply_transform(
 }
 
 /// Structured: dense JSON assertions — keep only category, text (truncated), and score.
+fn truncate_text_utf8(text: &str, max_chars: usize) -> String {
+    if max_chars == 0 {
+        return text.to_string();
+    }
+
+    let mut end_byte = text.len();
+    let mut char_count = 0usize;
+
+    for (idx, _) in text.char_indices() {
+        if char_count == max_chars {
+            end_byte = idx;
+            break;
+        }
+        char_count += 1;
+    }
+
+    // If the string has <= max_chars characters, return it unchanged.
+    if char_count <= max_chars && end_byte == text.len() {
+        text.to_string()
+    } else {
+        format!("{}…", &text[..end_byte])
+    }
+}
+
 fn transform_structured(nodes: Vec<NodeRecord>, max_chars: usize) -> Vec<NodeRecord> {
     nodes
         .into_iter()
@@ -38,8 +62,8 @@ fn transform_structured(nodes: Vec<NodeRecord>, max_chars: usize) -> Vec<NodeRec
                 .and_then(|v| v.as_f64())
                 .unwrap_or(0.0);
 
-            let truncated = if max_chars > 0 && text.len() > max_chars {
-                format!("{}…", &text[..max_chars])
+            let truncated = if max_chars > 0 {
+                truncate_text_utf8(&text, max_chars)
             } else {
                 text
             };
