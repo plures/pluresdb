@@ -153,24 +153,14 @@ fn transform_toon(nodes: Vec<NodeRecord>, max_chars: usize) -> Vec<NodeRecord> {
             let text = extract_text(&node.data);
 
             let (render_text, truncated) = if max_chars > 0 {
-                // Find the byte index corresponding to `max_chars` Unicode scalar values.
-                let mut end: Option<usize> = None;
-                let mut count: usize = 0;
-                for (idx, _) in text.char_indices() {
-                    if count == max_chars {
-                        end = Some(idx);
-                        break;
-                    }
-                    count += 1;
-                }
-
-                if let Some(end_idx) = end {
-                    (&text[..end_idx], true)
-                } else {
-                    (text.as_str(), false)
-                }
+                // Take at most `max_chars` Unicode scalar values, and detect if there are more.
+                let mut chars = text.chars();
+                let truncated_text: String = chars.by_ref().take(max_chars).collect();
+                let truncated = chars.next().is_some();
+                (truncated_text, truncated)
             } else {
-                (text.as_str(), false)
+                // No truncation requested; keep the full text.
+                (text.clone(), false)
             };
 
             let toon = if truncated {
