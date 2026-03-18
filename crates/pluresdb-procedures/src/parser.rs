@@ -763,26 +763,19 @@ fn parse_auto_link(pair: Pair<Rule>) -> Result<Step, ParseError> {
 
 // ---- cognitive architecture steps ----
 
-/// Strip surrounding double-quotes from a pest-captured string literal and
-/// unescape its content using the same logic as [`parse_value`] for
-/// `Rule::string`.
-fn unquote(s: &str) -> String {
-    if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
-        let content = &s[1..s.len() - 1];
-        match unescape_string_content(content) {
-            Ok(unescaped) => unescaped,
-            // If unescaping fails, fall back to the raw inner content to avoid
-            // changing the existing non-failing behavior.
-            Err(_) => content.to_string(),
-        }
-    } else {
-        s.to_string()
-    }
-}
-
 fn parse_vector_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
     let mut children = pair.into_inner();
-    let query = unquote(children.next().expect("vector_search query string").as_str());
+    let query_pair = children
+        .next()
+        .expect("vector_search query string");
+    let query_value = parse_value(query_pair.clone())?;
+    let query = if let IrValue::String(s) = query_value {
+        s
+    } else {
+        // Fallback to the raw text to avoid changing existing non-failing behavior
+        // if the grammar ever allows non-string values here.
+        query_pair.as_str().to_string()
+    };
     let mut limit = 10usize;
     let mut min_score = 0.0f64;
     let mut category: Option<String> = None;
