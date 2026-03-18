@@ -3,6 +3,7 @@
   import { db } from "./lib/state.svelte.ts";
   import { Sidebar, TitleBar, StatusBar, StatusBarItem, StatusBarSpacer, Tabs } from "@plures/design-dojo/layout";
   import "@plures/design-dojo/tokens.css";
+  import "./styles/a11y.css";
   import type { Tab } from "@plures/design-dojo/layout";
   import NodeList from "./components/NodeList.svelte";
   import NodeDetail from "./components/NodeDetail.svelte";
@@ -33,7 +34,6 @@
   import Toasts from "./components/Toasts.svelte";
   import GuidedTour from "./components/GuidedTour.svelte";
   import ExampleDatasets from "./components/ExampleDatasets.svelte";
-
   const tabs = [
     { key: "data",      label: "🗄 Data" },
     { key: "graph",     label: "🕸 Graph" },
