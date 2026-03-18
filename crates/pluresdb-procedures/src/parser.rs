@@ -763,10 +763,18 @@ fn parse_auto_link(pair: Pair<Rule>) -> Result<Step, ParseError> {
 
 // ---- cognitive architecture steps ----
 
-/// Strip surrounding double-quotes from a pest-captured string literal.
+/// Strip surrounding double-quotes from a pest-captured string literal and
+/// unescape its content using the same logic as [`parse_value`] for
+/// `Rule::string`.
 fn unquote(s: &str) -> String {
     if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
-        s[1..s.len() - 1].to_string()
+        let content = &s[1..s.len() - 1];
+        match unescape_string_content(content) {
+            Ok(unescaped) => unescaped,
+            // If unescaping fails, fall back to the raw inner content to avoid
+            // changing the existing non-failing behavior.
+            Err(_) => content.to_string(),
+        }
     } else {
         s.to_string()
     }
@@ -787,7 +795,12 @@ fn parse_vector_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
             match key {
                 "limit" => limit = parse_value_as_usize(val),
                 "min_score" => min_score = parse_value_as_f64(val),
-                "category" => category = Some(parse_value_as_string(val)),
+                "category" => {
+                    let parsed = parse_value(val)?;
+                    if let IrValue::String(s) = parsed {
+                        category = Some(s);
+                    }
+                }
                 _ => {}
             }
         }
