@@ -94,27 +94,31 @@ pub fn apply_text_search(
         return Vec::new();
     }
 
-    let all_nodes = store.list();
-    let mut matches: Vec<NodeRecord> = all_nodes
-        .into_iter()
-        .filter(|node| {
-            let text = node
-                .data
-                .get(field)
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_lowercase())
-                .unwrap_or_default();
-            terms.iter().all(|term| text.contains(term.as_str()))
-        })
-        .collect();
+    // Collect up to `limit` matching nodes, short-circuiting the scan once
+    // enough matches have been found to avoid unnecessary work on large stores.
+    let mut matches: Vec<NodeRecord> = Vec::with_capacity(limit);
 
-    // Ensure deterministic ordering before applying the limit. Since
-    // CrdtStore::list() iteration order is not guaranteed to be stable,
-    // we sort by a stable key (the node's id) so that truncation is
-    // reproducible.
+    for node in store.list().into_iter() {
+        if matches.len() == limit {
+            break;
+        }
+
+        let text = node
+            .data
+            .get(field)
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_lowercase())
+            .unwrap_or_default();
+
+        if terms.iter().all(|term| text.contains(term.as_str())) {
+            matches.push(node);
+        }
+    }
+
+    // Ensure deterministic ordering for the returned subset. We sort by a
+    // stable key (the node's id) so that the result order is reproducible.
     matches.sort_by(|a, b| a.id.cmp(&b.id));
 
-    matches.truncate(limit);
     matches
 }
 
