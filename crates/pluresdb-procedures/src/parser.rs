@@ -58,6 +58,12 @@ fn parse_step(pair: Pair<Rule>) -> Result<Step, ParseError> {
         Rule::graph_neighbors_step => parse_graph_neighbors(inner),
         Rule::graph_links_step => parse_graph_links(inner),
         Rule::auto_link_step => parse_auto_link(inner),
+        Rule::vector_search_step => parse_vector_search(inner),
+        Rule::text_search_step => parse_text_search(inner),
+        Rule::transform_step => parse_transform(inner),
+        Rule::conditional_step => parse_conditional(inner),
+        Rule::assign_step => parse_assign(inner),
+        Rule::emit_step => parse_emit(inner),
         r => unreachable!("unexpected rule: {:?}", r),
     }
 }
@@ -753,6 +759,162 @@ fn parse_auto_link(pair: Pair<Rule>) -> Result<Step, ParseError> {
     }
 
     Ok(Step::AutoLink { algorithms, min_strength })
+}
+
+// ---- cognitive architecture steps ----
+
+/// Strip surrounding double-quotes from a pest-captured string literal.
+fn unquote(s: &str) -> String {
+    if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+        s[1..s.len() - 1].to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+fn parse_vector_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let mut children = pair.into_inner();
+    let query = unquote(children.next().expect("vector_search query string").as_str());
+    let mut limit = 10usize;
+    let mut min_score = 0.0f64;
+    let mut category: Option<String> = None;
+
+    for kv in children {
+        if kv.as_rule() == Rule::vector_search_kv {
+            let mut inner = kv.into_inner();
+            let key = inner.next().expect("kv key").as_str();
+            let val = inner.next().expect("kv value");
+            match key {
+                "limit" => limit = parse_value_as_usize(val),
+                "min_score" => min_score = parse_value_as_f64(val),
+                "category" => category = Some(parse_value_as_string(val)),
+                _ => {}
+            }
+        }
+    }
+
+    Ok(Step::VectorSearch { query, limit, min_score, category })
+}
+
+fn parse_text_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let mut children = pair.into_inner();
+    let query = unquote(children.next().expect("text_search query string").as_str());
+    let mut limit = 10usize;
+    let mut field = "text".to_string();
+
+    for kv in children {
+        if kv.as_rule() == Rule::text_search_kv {
+            let mut inner = kv.into_inner();
+            let key = inner.next().expect("kv key").as_str();
+            let val = inner.next().expect("kv value");
+            match key {
+                "limit" => limit = parse_value_as_usize(val),
+                "field" => field = parse_value_as_string(val),
+                _ => {}
+            }
+        }
+    }
+
+    Ok(Step::TextSearch { query, limit, field })
+}
+
+fn parse_transform(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    use crate::ir::TransformFormat;
+    let mut children = pair.into_inner();
+
+    let format_kv = children.next().expect("transform format kv");
+    let format_str = unquote(
+        format_kv.into_inner()
+            .find(|p| p.as_rule() == Rule::string)
+            .expect("format string")
+            .as_str(),
+    );
+    let format = match format_str.as_str() {
+        "structured" => TransformFormat::Structured,
+        "fused" => TransformFormat::Fused,
+        "toon" => TransformFormat::Toon,
+        other => return Err(ParseError(pest::error::Error::new_from_pos(
+            pest::error::ErrorVariant::CustomError {
+                message: format!("unknown transform format: {}", other),
+            },
+            pest::Position::from_start(""),
+        ))),
+    };
+
+    let mut max_chars = 0usize;
+    if let Some(mc_kv) = children.next() {
+        if mc_kv.as_rule() == Rule::transform_max_chars_kv {
+            let val_str = mc_kv.into_inner()
+                .find(|p| p.as_rule() == Rule::pos_integer)
+                .expect("max_chars value")
+                .as_str();
+            max_chars = val_str.parse().unwrap_or(0);
+        }
+    }
+
+    Ok(Step::Transform { format, max_chars })
+}
+
+fn parse_conditional(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    // DSL conditional only parses the condition predicate; then/else are JSON-IR only
+    let pred = pair.into_inner().next().expect("conditional predicate");
+    Ok(Step::Conditional {
+        condition: parse_predicate(pred)?,
+        then_steps: Vec::new(),
+        else_steps: Vec::new(),
+    })
+}
+
+fn parse_assign(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let kv = pair.into_inner().next().expect("assign name kv");
+    let name = unquote(
+        kv.into_inner()
+            .find(|p| p.as_rule() == Rule::string)
+            .expect("assign name string")
+            .as_str(),
+    );
+    Ok(Step::Assign { name })
+}
+
+fn parse_emit(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let mut children = pair.into_inner();
+
+    let label_kv = children.next().expect("emit label kv");
+    let label = unquote(
+        label_kv.into_inner()
+            .find(|p| p.as_rule() == Rule::string)
+            .expect("emit label string")
+            .as_str(),
+    );
+
+    let from_var = children.next().map(|from_kv| {
+        unquote(
+            from_kv.into_inner()
+                .find(|p| p.as_rule() == Rule::string)
+                .expect("emit from string")
+                .as_str(),
+        )
+    });
+
+    Ok(Step::Emit { label, from_var })
+}
+
+// Helper: extract usize from a value pair
+fn parse_value_as_usize(pair: Pair<Rule>) -> usize {
+    let inner = pair.into_inner().next().expect("value child");
+    inner.as_str().parse().unwrap_or(10)
+}
+
+// Helper: extract f64 from a value pair
+fn parse_value_as_f64(pair: Pair<Rule>) -> f64 {
+    let inner = pair.into_inner().next().expect("value child");
+    inner.as_str().parse().unwrap_or(0.0)
+}
+
+// Helper: extract String from a value pair (expects a string literal)
+fn parse_value_as_string(pair: Pair<Rule>) -> String {
+    let inner = pair.into_inner().next().expect("value child");
+    unquote(inner.as_str())
 }
 
 #[cfg(test)]
