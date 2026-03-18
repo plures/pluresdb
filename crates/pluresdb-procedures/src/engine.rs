@@ -207,7 +207,7 @@ impl<'a> ProcedureEngine<'a> {
                         // Create a sub-engine for the branch
                         // We temporarily replace nodes with the branch result
                         let sub_result = self.exec_with_nodes(branch, nodes, &mut variables)?;
-                        return Ok(sub_result);
+                        nodes = sub_result.nodes;
                     }
                 }
                 Step::Assign { name } => {
