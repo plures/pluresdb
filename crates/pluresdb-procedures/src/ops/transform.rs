@@ -108,8 +108,8 @@ fn transform_fused(nodes: Vec<NodeRecord>, max_chars: usize) -> Vec<NodeRecord> 
     for (cat, entries) in &groups {
         output.push_str(&format!("## {}\n", cat));
         for entry in entries {
-            let line = if max_chars > 0 && entry.len() > max_chars {
-                format!("{}…\n", &entry[..max_chars])
+            let line = if max_chars > 0 {
+                format!("{}\n", truncate_text_utf8(entry, max_chars))
             } else {
                 format!("{}\n", entry)
             };
