@@ -20,14 +20,14 @@ class DbState {
   );
 
   upsertNode(item: NodeItem): void {
-    this.nodes = { ...this.nodes, [item.id]: item };
+    this.nodes[item.id] = item;
   }
 
   removeNode(id: string): void {
-    const copy = { ...this.nodes };
-    delete copy[id];
-    this.nodes = copy;
+    delete this.nodes[id];
   }
+
+
 
   setAll(items: NodeItem[]): void {
     const map: Record<string, NodeItem> = {};
