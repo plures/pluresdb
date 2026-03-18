@@ -204,10 +204,7 @@ impl<'a> ProcedureEngine<'a> {
                         .unwrap_or(false);
                     let branch = if take_then { then_steps } else { else_steps };
                     if !branch.is_empty() {
-                        // Create a sub-engine for the branch
-                        // We temporarily replace nodes with the branch result
-                        let sub_result = self.exec_with_nodes(branch, nodes, &mut variables)?;
-                        nodes = sub_result.nodes;
+                        nodes = self.exec_with_nodes(branch, nodes, &mut variables)?;
                     }
                 }
                 Step::Assign { name } => {
@@ -265,12 +262,16 @@ impl<'a> ProcedureEngine<'a> {
 
     /// Execute a pipeline starting with a pre-populated node set and shared
     /// variable context (used by `Conditional` branches).
+    ///
+    /// Returns the transformed node set so that the outer pipeline can continue
+    /// operating on it.  Only data-transform steps are permitted; other steps
+    /// return an error.
     fn exec_with_nodes(
         &self,
         steps: &[Step],
         initial_nodes: Vec<NodeRecord>,
         variables: &mut HashMap<String, Vec<NodeRecord>>,
-    ) -> anyhow::Result<ProcedureResult> {
+    ) -> anyhow::Result<Vec<NodeRecord>> {
         let mut nodes = initial_nodes;
         let mut pending_limit: Option<usize> = None;
 
@@ -300,23 +301,15 @@ impl<'a> ProcedureEngine<'a> {
                 Step::Assign { name } => {
                     variables.insert(name.clone(), nodes.clone());
                 }
-                Step::Emit { label, from_var } => {
+                Step::Emit { from_var, .. } => {
+                    // In a branch sub-pipeline `Emit` acts as a terminal
+                    // selector: return the named variable's node set (or the
+                    // current set) so that the outer pipeline can continue.
                     let emit_nodes = match from_var {
                         Some(var) => variables.get(var).cloned().unwrap_or_default(),
                         None => nodes,
                     };
-                    let node_json: Vec<serde_json::Value> = emit_nodes
-                        .into_iter()
-                        .map(|n| {
-                            serde_json::json!({
-                                "id": n.id,
-                                "data": n.data,
-                                "timestamp": n.timestamp.to_rfc3339(),
-                                "_label": label,
-                            })
-                        })
-                        .collect();
-                    return Ok(ProcedureResult::from_nodes(node_json));
+                    return Ok(emit_nodes);
                 }
                 _ => {
                     // For branch sub-pipelines, only support data-transform steps.
@@ -333,18 +326,7 @@ impl<'a> ProcedureEngine<'a> {
             nodes.truncate(n);
         }
 
-        let node_json: Vec<serde_json::Value> = nodes
-            .into_iter()
-            .map(|n| {
-                serde_json::json!({
-                    "id": n.id,
-                    "data": n.data,
-                    "timestamp": n.timestamp.to_rfc3339(),
-                })
-            })
-            .collect();
-
-        Ok(ProcedureResult::from_nodes(node_json))
+        Ok(nodes)
     }
 
     /// Execute a JSON IR payload.
@@ -575,5 +557,291 @@ mod tests {
             .unwrap();
         // With all three algorithms, some edges must be created (temporal at minimum).
         assert!(!result.nodes.is_empty(), "expected edges from default algorithms");
+    }
+
+    // ---- Cognitive architecture step tests ----
+
+    #[test]
+    fn text_search_step_via_engine() {
+        let store = CrdtStore::default();
+        store.put("t1", "actor", serde_json::json!({"text": "Rust is fast and safe", "score": 0.9}));
+        store.put("t2", "actor", serde_json::json!({"text": "Python is great for scripting", "score": 0.5}));
+        store.put("t3", "actor", serde_json::json!({"text": "Rust powers PluresDB performance", "score": 0.7}));
+
+        let engine = ProcedureEngine::new(&store, "test");
+        let steps = vec![Step::TextSearch {
+            query: "rust".to_string(),
+            limit: 10,
+            field: "text".to_string(),
+        }];
+        let result = engine.exec(&steps).unwrap();
+        // Both t1 and t3 contain "rust"
+        assert_eq!(result.nodes.len(), 2);
+        let ids: Vec<&str> = result.nodes.iter()
+            .map(|n| n["id"].as_str().unwrap())
+            .collect();
+        assert!(ids.contains(&"t1"));
+        assert!(ids.contains(&"t3"));
+    }
+
+    #[test]
+    fn text_search_is_case_insensitive() {
+        let store = CrdtStore::default();
+        store.put("t1", "actor", serde_json::json!({"text": "RUST is blazingly fast"}));
+        store.put("t2", "actor", serde_json::json!({"text": "Python is dynamic"}));
+
+        let engine = ProcedureEngine::new(&store, "test");
+        // Query "rust" (lowercase) should match "RUST" (uppercase) in t1
+        let result = engine.exec(&[Step::TextSearch {
+            query: "rust".to_string(),
+            limit: 10,
+            field: "text".to_string(),
+        }]).unwrap();
+        assert_eq!(result.nodes.len(), 1);
+        assert_eq!(result.nodes[0]["id"], "t1");
+    }
+
+    #[test]
+    fn text_search_step_respects_limit() {
+        let store = CrdtStore::default();
+        for i in 0..10 {
+            store.put(
+                &format!("n{}", i),
+                "actor",
+                serde_json::json!({"text": format!("memory entry {}", i)}),
+            );
+        }
+        let engine = ProcedureEngine::new(&store, "test");
+        let steps = vec![Step::TextSearch {
+            query: "memory".to_string(),
+            limit: 3,
+            field: "text".to_string(),
+        }];
+        let result = engine.exec(&steps).unwrap();
+        assert_eq!(result.nodes.len(), 3);
+    }
+
+    #[test]
+    fn transform_structured_via_engine() {
+        let store = CrdtStore::default();
+        store.put("d1", "actor", serde_json::json!({"category": "decision", "text": "Use Rust", "score": 0.9}));
+        store.put("d2", "actor", serde_json::json!({"category": "decision", "text": "Adopt CRDT", "score": 0.8}));
+        let engine = ProcedureEngine::new(&store, "test");
+        let steps = vec![
+            Step::Filter { predicate: Predicate::eq("category", "decision") },
+            Step::Transform { format: crate::ir::TransformFormat::Structured, max_chars: 0 },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        assert_eq!(result.nodes.len(), 2);
+        // Structured format replaces data with {category, text, score}
+        for node in &result.nodes {
+            assert!(node["data"]["category"].is_string());
+            assert!(node["data"]["text"].is_string());
+            assert!(node["data"]["score"].is_number());
+        }
+    }
+
+    #[test]
+    fn transform_toon_via_engine() {
+        let store = CrdtStore::default();
+        store.put("x1", "actor", serde_json::json!({"category": "decision", "text": "Use Rust", "score": 0.9}));
+        let engine = ProcedureEngine::new(&store, "test");
+        let steps = vec![
+            Step::Transform { format: crate::ir::TransformFormat::Toon, max_chars: 0 },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        assert_eq!(result.nodes.len(), 1);
+        let toon = result.nodes[0]["data"]["toon"].as_str().unwrap();
+        assert!(toon.starts_with("[D|0.9]"), "expected TOON notation starting with [D|0.9], got: {}", toon);
+    }
+
+    #[test]
+    fn assign_then_emit_from_var() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+
+        // Filter decisions into `my_var`, then filter further to open ones,
+        // then emit from `my_var` — should return the decisions (not just open ones).
+        let steps = vec![
+            Step::Filter { predicate: Predicate::eq("category", "decision") },
+            Step::Assign { name: "my_var".to_string() },
+            Step::Filter { predicate: Predicate::eq("status", "open") },
+            Step::Emit {
+                label: "decisions".to_string(),
+                from_var: Some("my_var".to_string()),
+            },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        // my_var holds all 3 decisions; the further filter narrows to 1 open
+        // decision, but Emit(from_var) returns the full assigned set of 3.
+        assert_eq!(result.nodes.len(), 3, "emit from_var should return the assigned variable, not the post-filter set");
+        assert!(result.nodes.iter().all(|n| n["_label"] == "decisions"));
+    }
+
+    #[test]
+    fn emit_current_nodes_with_label() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+
+        let steps = vec![
+            Step::Filter { predicate: Predicate::eq("status", "open") },
+            Step::Emit { label: "open_nodes".to_string(), from_var: None },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        // 3 open nodes from populate()
+        assert_eq!(result.nodes.len(), 3);
+        assert!(result.nodes.iter().all(|n| n["_label"] == "open_nodes"));
+    }
+
+    #[test]
+    fn conditional_takes_then_branch() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+
+        // Filter to decisions (category == "decision"), then run a Conditional
+        // that checks if first node has category == "decision" (true).
+        // then_steps: keep only score > 0.7 → n1 (0.9)
+        // else_steps: keep only score < 0.3 → none from this set
+        let steps = vec![
+            Step::Filter { predicate: Predicate::eq("category", "decision") },
+            Step::Conditional {
+                condition: Predicate::eq("category", "decision"),
+                then_steps: vec![
+                    Step::Filter {
+                        predicate: Predicate::Comparison {
+                            field: "score".to_string(),
+                            cmp: CmpOp::Gt,
+                            value: IrValue::Number(0.7),
+                        },
+                    },
+                ],
+                else_steps: vec![
+                    Step::Filter { predicate: Predicate::eq("status", "closed") },
+                ],
+            },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        // then branch: decisions with score > 0.7 → only n1 (score 0.9)
+        assert_eq!(result.nodes.len(), 1);
+        assert_eq!(result.nodes[0]["id"], "n1");
+    }
+
+    #[test]
+    fn conditional_takes_else_branch() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+
+        // Filter to notes (category == "note") — only n2.
+        // Conditional checks category == "decision" (false for a note node).
+        // else_steps: filter status == "open" → n2 is open, so it stays.
+        // then_steps: filter status == "closed" → would remove n2.
+        let steps = vec![
+            Step::Filter { predicate: Predicate::eq("category", "note") },
+            Step::Conditional {
+                condition: Predicate::eq("category", "decision"),
+                then_steps: vec![
+                    Step::Filter { predicate: Predicate::eq("status", "closed") },
+                ],
+                else_steps: vec![
+                    Step::Filter { predicate: Predicate::eq("status", "open") },
+                ],
+            },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        // else branch taken: note nodes with status == "open" → only n2
+        assert_eq!(result.nodes.len(), 1);
+        assert_eq!(result.nodes[0]["id"], "n2");
+    }
+
+    #[test]
+    fn conditional_with_empty_set_takes_else() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+
+        // Filter to non-existent category → empty set.
+        // Conditional: empty nodes → else branch taken (condition not met).
+        let steps = vec![
+            Step::Filter { predicate: Predicate::eq("category", "nonexistent") },
+            Step::Conditional {
+                condition: Predicate::eq("category", "decision"),
+                then_steps: vec![],
+                else_steps: vec![
+                    // else_steps is empty too, so nodes stay empty
+                ],
+            },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        assert_eq!(result.nodes.len(), 0);
+    }
+
+    #[test]
+    fn steps_after_conditional_still_run() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+
+        // Filter to decisions (3 nodes), Conditional passes them through
+        // (then_steps empty), then Limit(1) should still apply.
+        let steps = vec![
+            Step::Filter { predicate: Predicate::eq("category", "decision") },
+            Step::Conditional {
+                condition: Predicate::eq("category", "decision"),
+                then_steps: vec![],  // empty: nodes pass through unchanged
+                else_steps: vec![],
+            },
+            Step::Sort {
+                by: "score".to_string(),
+                dir: SortDir::Desc,
+                after: None,
+            },
+            Step::Limit { n: 1 },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        // Conditional passes all 3 decisions through; Sort+Limit yields just n1
+        assert_eq!(result.nodes.len(), 1, "steps after Conditional must still execute");
+        assert_eq!(result.nodes[0]["id"], "n1");
+    }
+
+    #[test]
+    fn assign_binds_current_set_and_pipeline_continues() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+
+        // Assign does NOT consume the node set; the pipeline should continue
+        // with the same nodes after Assign.
+        let steps = vec![
+            Step::Filter { predicate: Predicate::eq("category", "decision") },
+            Step::Assign { name: "snap".to_string() },
+            // Further filter: should still work on the decision set
+            Step::Filter { predicate: Predicate::eq("status", "open") },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        // Only n1 is a decision AND open
+        assert_eq!(result.nodes.len(), 1);
+        assert_eq!(result.nodes[0]["id"], "n1");
+    }
+
+    #[test]
+    fn emit_from_nonexistent_var_returns_empty() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+
+        // Emit referencing a variable that was never Assign-ed → empty result.
+        let steps = vec![
+            Step::Filter { predicate: Predicate::eq("category", "decision") },
+            Step::Emit {
+                label: "result".to_string(),
+                from_var: Some("no_such_var".to_string()),
+            },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        assert_eq!(result.nodes.len(), 0, "emit from unknown variable should return empty set");
     }
 }

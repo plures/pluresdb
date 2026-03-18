@@ -181,6 +181,21 @@ fn parse_cmp_op(pair: Pair<Rule>) -> Result<CmpOp, ParseError> {
     })
 }
 
+/// Strip surrounding double-quotes and unescape escape sequences from a string
+/// literal token produced by the PEG grammar.
+///
+/// The grammar rule for `string` always produces a `"…"` token; this helper
+/// strips the delimiters and resolves backslash escapes so callers receive
+/// the logical string value.
+fn unquote(s: &str) -> String {
+    let content = if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+        &s[1..s.len() - 1]
+    } else {
+        s
+    };
+    unescape_string_content(content).unwrap_or_else(|_| content.to_string())
+}
+
 fn unescape_string_content(s: &str) -> Result<String, String> {
     let mut result = String::with_capacity(s.len());
     let mut chars = s.chars();
