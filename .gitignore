@@ -74,3 +74,4 @@ azure/infrastructure/*.json
 
 deno.lock
 .fastembed_cache/
+librust_out.rlib
