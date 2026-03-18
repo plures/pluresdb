@@ -76,6 +76,7 @@
     const cfg = await res.json();
     db.settings = cfg;
     dark = cfg.dark === true;
+    db.settings.dark = dark;
     applyTheme();
   }
 
@@ -85,6 +86,7 @@
 
   async function toggleTheme() {
     dark = !dark;
+    db.settings.dark = dark;
     applyTheme();
     const res = await fetch("/api/config");
     const cfg: any = await res.json();

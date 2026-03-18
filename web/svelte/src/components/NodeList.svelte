@@ -12,8 +12,8 @@
     Object.values(db.nodes)
       .filter((it) => it.id.toLowerCase().includes(filter.toLowerCase()))
       .sort((a, b) => {
-        const aVal = sortBy === "id" ? a.id : ((a.data?.type as string) ?? "");
-        const bVal = sortBy === "id" ? b.id : ((b.data?.type as string) ?? "");
+        const aVal = sortBy === "id" ? a.id : String(a.data?.type ?? "");
+        const bVal = sortBy === "id" ? b.id : String(b.data?.type ?? "");
         const cmp = aVal.localeCompare(bVal);
         return sortDesc ? -cmp : cmp;
       }),

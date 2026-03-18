@@ -6,7 +6,7 @@
   let text = $state("");
   let originalText = $state("");
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let dark = $state(false);
+  const dark = $derived(db.settings.dark === true);
   let schemaText = $state("");
   const schemaPlaceholder = '{"type":"object","properties":{}}';
   const ajv = new Ajv({ allErrors: true, strict: false });
@@ -22,10 +22,6 @@
   });
 
   const hasChanges = $derived(text !== originalText);
-
-  $effect(() => {
-    dark = document.documentElement.getAttribute("data-theme") === "dark";
-  });
 
   function debounced() {
     clearTimeout(timer);

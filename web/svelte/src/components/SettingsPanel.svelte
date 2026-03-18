@@ -14,12 +14,17 @@
   }
   async function save() {
     saveStatus = "saving";
-    await fetch("/api/config", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(db.settings),
-    });
-    saveStatus = "saved";
+    try {
+      const res = await fetch("/api/config", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(db.settings),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      saveStatus = "saved";
+    } catch {
+      saveStatus = "error";
+    }
     setTimeout(() => (saveStatus = ""), 2000);
   }
   function onPeers(e: Event) {
