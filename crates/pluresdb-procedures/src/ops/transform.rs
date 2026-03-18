@@ -152,10 +152,31 @@ fn transform_toon(nodes: Vec<NodeRecord>, max_chars: usize) -> Vec<NodeRecord> {
                 .unwrap_or(0.0);
             let text = extract_text(&node.data);
 
-            let toon = if max_chars > 0 && text.len() > max_chars {
-                format!("[{}|{:.1}] {}…", code, score, &text[..max_chars])
+            let (render_text, truncated) = if max_chars > 0 {
+                // Find the byte index corresponding to `max_chars` Unicode scalar values.
+                let mut end: Option<usize> = None;
+                let mut count: usize = 0;
+                for (idx, _) in text.char_indices() {
+                    if count == max_chars {
+                        end = Some(idx);
+                        break;
+                    }
+                    count += 1;
+                }
+
+                if let Some(end_idx) = end {
+                    (&text[..end_idx], true)
+                } else {
+                    (text.as_str(), false)
+                }
             } else {
-                format!("[{}|{:.1}] {}", code, score, text)
+                (text.as_str(), false)
+            };
+
+            let toon = if truncated {
+                format!("[{}|{:.1}] {}…", code, score, render_text)
+            } else {
+                format!("[{}|{:.1}] {}", code, score, render_text)
             };
 
             node.data = serde_json::json!({
