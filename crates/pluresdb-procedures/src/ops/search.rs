@@ -129,7 +129,145 @@ pub fn apply_text_search(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pluresdb_core::CrdtStore;
+    use pluresdb_core::{CrdtStore, EmbedText};
+
+    // -----------------------------------------------------------------------
+    // Test helpers for vector search
+    // -----------------------------------------------------------------------
+
+    /// Test helper: embedder that always returns the same fixed vector for any input.
+    #[derive(Debug)]
+    struct FixedEmbedder {
+        embedding: Vec<f32>,
+    }
+
+    impl EmbedText for FixedEmbedder {
+        fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
+            Ok(texts.iter().map(|_| self.embedding.clone()).collect())
+        }
+
+        fn dimension(&self) -> usize {
+            self.embedding.len()
+        }
+    }
+
+    /// Test helper: embedder that always returns an error, simulating an unavailable model.
+    #[derive(Debug)]
+    struct FailingEmbedder;
+
+    impl EmbedText for FailingEmbedder {
+        fn embed(&self, _texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
+            anyhow::bail!("embedding service unavailable")
+        }
+
+        fn dimension(&self) -> usize {
+            3
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // apply_vector_search tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn vector_search_no_embedder_returns_empty() {
+        let store = CrdtStore::default(); // no embedder attached
+        let results = apply_vector_search(&store, "hello world", 10, 0.0, None);
+        assert!(
+            results.is_empty(),
+            "should return empty when no embedder is configured"
+        );
+    }
+
+    #[test]
+    fn vector_search_embed_failure_returns_empty() {
+        use std::sync::Arc;
+        let store = CrdtStore::default().with_embedder(Arc::new(FailingEmbedder));
+        let results = apply_vector_search(&store, "anything", 10, 0.0, None);
+        assert!(
+            results.is_empty(),
+            "should return empty when the embedder fails"
+        );
+    }
+
+    #[test]
+    fn vector_search_injects_score_fields() {
+        use std::sync::Arc;
+        let embedding = vec![1.0_f32, 0.0, 0.0];
+        let store = CrdtStore::default()
+            .with_embedder(Arc::new(FixedEmbedder { embedding: embedding.clone() }));
+        store.put_with_embedding(
+            "n1",
+            "actor",
+            serde_json::json!({"content": "test node"}),
+            embedding,
+        );
+
+        let results = apply_vector_search(&store, "query", 10, 0.0, None);
+        assert!(!results.is_empty(), "should find the indexed node");
+
+        let node = &results[0];
+        assert!(
+            node.data.get("_score").is_some(),
+            "_score field should be injected into node data"
+        );
+        assert!(
+            node.data.get("score").is_some(),
+            "score field should be injected into node data"
+        );
+
+        let score = node
+            .data
+            .get("score")
+            .and_then(|v| v.as_f64())
+            .expect("score should be a number");
+        let legacy_score = node
+            .data
+            .get("_score")
+            .and_then(|v| v.as_f64())
+            .expect("_score should be a number");
+        assert_eq!(
+            score, legacy_score,
+            "score and _score should carry the same value for backward compatibility"
+        );
+        assert!(score > 0.0, "score should be positive for a matching node");
+    }
+
+    #[test]
+    fn vector_search_category_filter() {
+        use std::sync::Arc;
+        let embedding = vec![1.0_f32, 0.0, 0.0];
+        let store = CrdtStore::default()
+            .with_embedder(Arc::new(FixedEmbedder { embedding: embedding.clone() }));
+
+        store.put_with_embedding(
+            "n1",
+            "actor",
+            serde_json::json!({"category": "alpha"}),
+            embedding.clone(),
+        );
+        store.put_with_embedding(
+            "n2",
+            "actor",
+            serde_json::json!({"category": "beta"}),
+            embedding,
+        );
+
+        let filtered = apply_vector_search(&store, "query", 10, 0.0, Some("alpha"));
+        assert_eq!(
+            filtered.len(),
+            1,
+            "only the alpha-category node should be returned"
+        );
+        assert_eq!(filtered[0].id, "n1");
+
+        let all = apply_vector_search(&store, "query", 10, 0.0, None);
+        assert_eq!(all.len(), 2, "both nodes should be returned with no category filter");
+    }
+
+    // -----------------------------------------------------------------------
+    // apply_text_search tests
+    // -----------------------------------------------------------------------
 
     #[test]
     fn text_search_matches_all_terms() {
