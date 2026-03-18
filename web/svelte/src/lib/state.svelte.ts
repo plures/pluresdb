@@ -27,8 +27,6 @@ class DbState {
     delete this.nodes[id];
   }
 
-
-
   setAll(items: NodeItem[]): void {
     const map: Record<string, NodeItem> = {};
     for (const it of items) map[it.id] = it;
