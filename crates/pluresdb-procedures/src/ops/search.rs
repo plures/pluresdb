@@ -29,7 +29,11 @@ pub fn apply_vector_search(
     };
     let query_embedding = &embeddings[0];
 
-    let results = store.vector_search(query_embedding, limit * 2, min_score as f32);
+    let results = store.vector_search(
+        query_embedding,
+        limit.saturating_mul(2),
+        min_score as f32,
+    );
 
     let mut nodes: Vec<NodeRecord> = results
         .into_iter()
