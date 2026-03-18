@@ -851,12 +851,19 @@ fn parse_transform(pair: Pair<Rule>) -> Result<Step, ParseError> {
     let mut max_chars = 0usize;
     if let Some(mc_kv) = children.next() {
         if mc_kv.as_rule() == Rule::transform_max_chars_kv {
-            let val_str = mc_kv
+            let val_pair = mc_kv
                 .into_inner()
                 .find(|p| p.as_rule() == Rule::pos_integer)
-                .expect("max_chars value")
-                .as_str();
-            max_chars = val_str.parse().unwrap_or(0);
+                .expect("max_chars value");
+            let val_str = val_pair.as_str();
+            max_chars = val_str.parse().map_err(|_| {
+                ParseError(pest::error::Error::new_from_span(
+                    pest::error::ErrorVariant::CustomError {
+                        message: format!("invalid max_chars value: {}", val_str),
+                    },
+                    val_pair.as_span(),
+                ))
+            })?;
         }
     }
 
