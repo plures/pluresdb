@@ -804,7 +804,17 @@ fn parse_vector_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
 
 fn parse_text_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
     let mut children = pair.into_inner();
-    let query = unquote(children.next().expect("text_search query string").as_str());
+    let query_pair = children
+        .next()
+        .expect("text_search query string");
+    let query_value = parse_value(query_pair.clone())?;
+    let query = if let IrValue::String(s) = query_value {
+        s
+    } else {
+        // Fallback to the raw text to avoid changing existing non-failing behavior
+        // if the grammar ever allows non-string values here.
+        query_pair.as_str().to_string()
+    };
     let mut limit = 10usize;
     let mut field = "text".to_string();
 
