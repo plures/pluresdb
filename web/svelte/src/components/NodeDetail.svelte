@@ -53,6 +53,13 @@
     text = originalText;
     toast("Changes reverted", "info");
   }
+  function escapeForShellDoubleQuotes(input: string): string {
+    return input
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .replace(/\$/g, "\\$")
+      .replace(/`/g, "\\`");
+  }
   function copyAsCurl() {
     if (!db.selected) return;
     let data: any;
@@ -63,7 +70,9 @@
       return;
     }
     const host = window.location.origin;
-    const curl = `curl -X POST ${host}/api/put -H "Content-Type: application/json" -d '${JSON.stringify({ id: db.selected.id, data })}'`;
+    const jsonPayload = JSON.stringify({ id: db.selected.id, data });
+    const escapedJson = escapeForShellDoubleQuotes(jsonPayload);
+    const curl = `curl -X POST ${host}/api/put -H "Content-Type: application/json" -d "${escapedJson}"`;
     navigator.clipboard.writeText(curl);
     toast("cURL copied to clipboard", "success");
   }
