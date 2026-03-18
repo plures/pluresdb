@@ -419,17 +419,17 @@ pub enum Step {
         category: Option<String>,
     },
 
-    /// Full-text keyword search over node data's `text` field.
+    /// Full-text keyword search over a single field in node data (default: `data.text`).
     ///
-    /// Returns nodes whose `data.text` (or `data.content`) contains **all**
-    /// of the whitespace-separated terms in `query` (case-insensitive).
+    /// Returns nodes whose `data.<field>` value contains **all** of the
+    /// whitespace-separated terms in `query` (case-insensitive).
     TextSearch {
         /// Whitespace-separated search terms.
         query: String,
         /// Maximum results (default: 10).
         #[serde(default = "default_vector_search_limit")]
         limit: usize,
-        /// Field to search within `data` (default: `"text"`).
+        /// Name of the field within `data` to search (default: `"text"`).
         #[serde(default = "default_text_field")]
         field: String,
     },
