@@ -823,28 +823,30 @@ fn parse_transform(pair: Pair<Rule>) -> Result<Step, ParseError> {
     let mut children = pair.into_inner();
 
     let format_kv = children.next().expect("transform format kv");
-    let format_str = unquote(
-        format_kv.into_inner()
-            .find(|p| p.as_rule() == Rule::string)
-            .expect("format string")
-            .as_str(),
-    );
+    let format_pair = format_kv
+        .into_inner()
+        .find(|p| p.as_rule() == Rule::string)
+        .expect("format string");
+    let format_str = unquote(format_pair.as_str());
     let format = match format_str.as_str() {
         "structured" => TransformFormat::Structured,
         "fused" => TransformFormat::Fused,
         "toon" => TransformFormat::Toon,
-        other => return Err(ParseError(pest::error::Error::new_from_pos(
-            pest::error::ErrorVariant::CustomError {
-                message: format!("unknown transform format: {}", other),
-            },
-            pest::Position::from_start(""),
-        ))),
+        other => {
+            return Err(ParseError(pest::error::Error::new_from_span(
+                pest::error::ErrorVariant::CustomError {
+                    message: format!("unknown transform format: {}", other),
+                },
+                format_pair.as_span(),
+            )));
+        }
     };
 
     let mut max_chars = 0usize;
     if let Some(mc_kv) = children.next() {
         if mc_kv.as_rule() == Rule::transform_max_chars_kv {
-            let val_str = mc_kv.into_inner()
+            let val_str = mc_kv
+                .into_inner()
                 .find(|p| p.as_rule() == Rule::pos_integer)
                 .expect("max_chars value")
                 .as_str();
