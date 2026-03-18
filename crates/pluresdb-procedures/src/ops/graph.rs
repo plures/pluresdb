@@ -1556,3 +1556,226 @@ mod tests_phase2a {
         assert_eq!(ids, vec!["b"]);
     }
 }
+
+// ---------------------------------------------------------------------------
+// ChronicleTrace — causal graph traversal for Chronos chronicle nodes
+// ---------------------------------------------------------------------------
+
+/// Walk the causal graph of Chronos chronicle nodes starting from `root`.
+///
+/// Chronicle nodes encode causal relationships in two ways:
+/// 1. A `causal_parent` field whose value is the ID of the parent node.
+/// 2. Edge nodes with `_edge: true`, `from`, `to`, and `link_type: "causal"`.
+///
+/// ## Direction
+///
+/// | Value        | Behaviour                                                           |
+/// |--------------|---------------------------------------------------------------------|
+/// | `"backward"` | Follow `causal_parent` links toward the chain root (default)        |
+/// | `"forward"`  | Traverse from root outward by following `causal_parent` back-refs   |
+/// | `"both"`     | Traverse in both directions simultaneously                          |
+///
+/// The root node itself is always included in the result.  BFS is used so
+/// nodes are returned in breadth-first order from the root.
+///
+/// # Arguments
+///
+/// * `store`     — the CRDT store to read from.
+/// * `root`      — ID of the starting chronicle node.
+/// * `max_depth` — maximum traversal depth in hops.
+/// * `direction` — `"backward"`, `"forward"`, or `"both"` (see table above).
+///
+/// # Returns
+///
+/// All reachable chronicle nodes (including `root`) in BFS order.  Returns
+/// an empty `Vec` when `root` does not exist in the store.
+pub fn chronicle_trace(
+    store: &CrdtStore,
+    root: &str,
+    max_depth: usize,
+    direction: &str,
+) -> Vec<NodeRecord> {
+    // Resolve the root node; return empty on missing root.
+    if store.get(root).is_none() {
+        return vec![];
+    }
+
+    // Build a forward-adjacency map (parent → [children]) from causal edge nodes
+    // and causal_parent fields so we can traverse in either direction efficiently.
+    // This is O(N) over all nodes but keeps the traversal simple and correct.
+    let all_nodes = store.list();
+
+    // forward_map[parent_id] = list of child_ids that declare parent as causal_parent
+    let mut forward_map: HashMap<String, Vec<String>> = HashMap::new();
+    // backward_map[child_id] = parent_id (from causal_parent field)
+    let mut backward_map: HashMap<String, String> = HashMap::new();
+
+    for n in &all_nodes {
+        // Ingest causal_parent field references.
+        if let Some(parent_id) = n.data.get("causal_parent").and_then(|v| v.as_str()) {
+            if !parent_id.is_empty() {
+                backward_map.insert(n.id.clone(), parent_id.to_owned());
+                forward_map.entry(parent_id.to_owned()).or_default().push(n.id.clone());
+            }
+        }
+        // Ingest causal edge nodes (_edge: true, link_type: "causal").
+        if n.data.get("_edge").and_then(|v| v.as_bool()).unwrap_or(false)
+            && n.data.get("link_type").and_then(|v| v.as_str()) == Some("causal")
+        {
+            let from = n.data.get("from").and_then(|v| v.as_str()).unwrap_or("");
+            let to = n.data.get("to").and_then(|v| v.as_str()).unwrap_or("");
+            if !from.is_empty() && !to.is_empty() {
+                // Treat edge direction: from → to means `from` is the causal parent.
+                // `causal_parent` field takes precedence over edge-based parents: if
+                // the child node already declares a causal_parent via its data field
+                // we keep that value and only add the forward direction from this edge.
+                backward_map.entry(to.to_owned()).or_insert_with(|| from.to_owned());
+                forward_map.entry(from.to_owned()).or_default().push(to.to_owned());
+            }
+        }
+    }
+
+    // BFS traversal.
+    let mut visited: HashSet<String> = HashSet::new();
+    let mut queue: VecDeque<(String, usize)> = VecDeque::new();
+    let mut result: Vec<NodeRecord> = Vec::new();
+
+    visited.insert(root.to_owned());
+    queue.push_back((root.to_owned(), 0));
+
+    while let Some((current_id, depth)) = queue.pop_front() {
+        if let Some(node) = store.get(&current_id) {
+            result.push(node);
+        }
+
+        if depth >= max_depth {
+            continue;
+        }
+
+        // Determine which neighbours to visit based on direction.
+        let go_backward =
+            direction == "backward" || direction == "both";
+        let go_forward =
+            direction == "forward" || direction == "both";
+
+        if go_backward {
+            if let Some(parent_id) = backward_map.get(&current_id) {
+                if visited.insert(parent_id.clone()) {
+                    queue.push_back((parent_id.clone(), depth + 1));
+                }
+            }
+        }
+        if go_forward {
+            if let Some(children) = forward_map.get(&current_id) {
+                for child_id in children {
+                    if visited.insert(child_id.clone()) {
+                        queue.push_back((child_id.clone(), depth + 1));
+                    }
+                }
+            }
+        }
+    }
+
+    // The root node is always the first element in the result because it is the
+    // first item dequeued from BFS.  No deduplication is needed here since the
+    // visited set prevents the root from being enqueued a second time.
+    result
+}
+
+#[cfg(test)]
+mod chronicle_tests {
+    use super::*;
+    use pluresdb_core::CrdtStore;
+
+    fn make_chain(store: &CrdtStore) {
+        // root ← mid ← leaf  (causal_parent links)
+        store.put(
+            "root",
+            "actor",
+            serde_json::json!({"_type": "chronos:decision", "route": "analytical"}),
+        );
+        store.put(
+            "mid",
+            "actor",
+            serde_json::json!({"_type": "chronos:decision", "causal_parent": "root", "route": "creative"}),
+        );
+        store.put(
+            "leaf",
+            "actor",
+            serde_json::json!({"_type": "chronos:decision", "causal_parent": "mid", "route": "quick"}),
+        );
+    }
+
+    #[test]
+    fn backward_traversal_from_leaf() {
+        let store = CrdtStore::default();
+        make_chain(&store);
+        let nodes = chronicle_trace(&store, "leaf", 10, "backward");
+        let ids: Vec<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+        assert!(ids.contains(&"leaf"));
+        assert!(ids.contains(&"mid"));
+        assert!(ids.contains(&"root"));
+        assert_eq!(ids.len(), 3);
+    }
+
+    #[test]
+    fn forward_traversal_from_root() {
+        let store = CrdtStore::default();
+        make_chain(&store);
+        let nodes = chronicle_trace(&store, "root", 10, "forward");
+        let ids: Vec<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+        assert!(ids.contains(&"root"));
+        assert!(ids.contains(&"mid"));
+        assert!(ids.contains(&"leaf"));
+        assert_eq!(ids.len(), 3);
+    }
+
+    #[test]
+    fn both_traversal_from_mid() {
+        let store = CrdtStore::default();
+        make_chain(&store);
+        let nodes = chronicle_trace(&store, "mid", 10, "both");
+        let ids: Vec<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+        assert!(ids.contains(&"root"));
+        assert!(ids.contains(&"mid"));
+        assert!(ids.contains(&"leaf"));
+        assert_eq!(ids.len(), 3);
+    }
+
+    #[test]
+    fn max_depth_limits_traversal() {
+        let store = CrdtStore::default();
+        make_chain(&store);
+        // From leaf with depth 1: only leaf → mid (not root).
+        let nodes = chronicle_trace(&store, "leaf", 1, "backward");
+        let ids: Vec<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+        assert!(ids.contains(&"leaf"));
+        assert!(ids.contains(&"mid"));
+        assert!(!ids.contains(&"root"));
+    }
+
+    #[test]
+    fn missing_root_returns_empty() {
+        let store = CrdtStore::default();
+        let nodes = chronicle_trace(&store, "nonexistent", 10, "backward");
+        assert!(nodes.is_empty());
+    }
+
+    #[test]
+    fn causal_edge_nodes_are_traversed() {
+        let store = CrdtStore::default();
+        store.put("n1", "actor", serde_json::json!({"_type": "chronos:decision"}));
+        store.put("n2", "actor", serde_json::json!({"_type": "chronos:decision"}));
+        // Edge stored as a separate node with link_type: "causal"
+        store.put(
+            "edge:n1:n2",
+            "actor",
+            serde_json::json!({"_edge": true, "from": "n1", "to": "n2", "link_type": "causal"}),
+        );
+        // Forward from n1 should reach n2 via the causal edge node.
+        let nodes = chronicle_trace(&store, "n1", 10, "forward");
+        let ids: Vec<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+        assert!(ids.contains(&"n1"));
+        assert!(ids.contains(&"n2"));
+    }
+}

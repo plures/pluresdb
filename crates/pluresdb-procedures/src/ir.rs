@@ -396,10 +396,46 @@ pub enum Step {
         #[serde(skip_serializing_if = "Option::is_none")]
         min_strength: Option<f64>,
     },
+    /// Walk the causal graph of Chronos chronicle nodes starting from `root`.
+    ///
+    /// Chronicle nodes are connected via `causal_parent` field references or
+    /// via edges whose `link_type` is `"causal"`.  This step traverses those
+    /// causal links and returns all reachable nodes (including the root) in
+    /// causal order, up to `max_depth` hops.
+    ///
+    /// ## Direction
+    ///
+    /// | Value        | Meaning                                                        |
+    /// |--------------|----------------------------------------------------------------|
+    /// | `"backward"` | Follow `causal_parent` links toward the chain root (default)   |
+    /// | `"forward"`  | Follow edges where the root is the `causal_parent` (children)  |
+    /// | `"both"`     | Traverse in both directions                                    |
+    ///
+    /// Returns the reachable [`NodeRecord`]s (including the starting root) in
+    /// BFS order.  Downstream pipeline steps (filter, sort, project) can refine
+    /// the result further.
+    ChronicleTrace {
+        /// ID of the starting chronicle node.
+        root: String,
+        /// Maximum traversal depth in hops (default: 50).
+        #[serde(default = "default_chronicle_max_depth")]
+        max_depth: usize,
+        /// Traversal direction: `"backward"` (default), `"forward"`, or `"both"`.
+        #[serde(default = "default_chronicle_direction")]
+        direction: String,
+    },
 }
 
 fn default_cluster_algorithm() -> String {
     "louvain".to_string()
+}
+
+fn default_chronicle_max_depth() -> usize {
+    50
+}
+
+fn default_chronicle_direction() -> String {
+    "backward".to_string()
 }
 
 // ---------------------------------------------------------------------------
@@ -586,5 +622,30 @@ mod tests {
         let json = serde_json::to_string(&step).unwrap();
         let back: Step = serde_json::from_str(&json).unwrap();
         assert_eq!(step, back);
+    }
+
+    #[test]
+    fn step_chronicle_trace_roundtrip() {
+        let step = Step::ChronicleTrace {
+            root: "chronos:decision:abc".to_string(),
+            max_depth: 20,
+            direction: "backward".to_string(),
+        };
+        let json = serde_json::to_string(&step).unwrap();
+        let back: Step = serde_json::from_str(&json).unwrap();
+        assert_eq!(step, back);
+    }
+
+    #[test]
+    fn step_chronicle_trace_defaults() {
+        let json = r#"{"op":"chronicle_trace","root":"decision:1"}"#;
+        let step: Step = serde_json::from_str(json).unwrap();
+        if let Step::ChronicleTrace { root, max_depth, direction } = step {
+            assert_eq!(root, "decision:1");
+            assert_eq!(max_depth, 50);
+            assert_eq!(direction, "backward");
+        } else {
+            panic!("expected ChronicleTrace");
+        }
     }
 }

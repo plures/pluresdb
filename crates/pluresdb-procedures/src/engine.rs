@@ -171,6 +171,14 @@ impl<'a> ProcedureEngine<'a> {
                         strength,
                     );
                 }
+                Step::ChronicleTrace { root, max_depth, direction } => {
+                    nodes = crate::ops::graph::chronicle_trace(
+                        self.store,
+                        root.as_str(),
+                        *max_depth,
+                        direction.as_str(),
+                    );
+                }
             }
         }
 
@@ -230,7 +238,8 @@ fn leading_limit_without_filter(steps: &[Step]) -> Option<usize> {
             Step::GraphClusters { .. }
             | Step::GraphPath { .. }
             | Step::GraphPagerank { .. }
-            | Step::GraphStats => break,
+            | Step::GraphStats
+            | Step::ChronicleTrace { .. } => break,
             Step::Limit { n } => {
                 min_limit = Some(match min_limit {
                     Some(prev) => prev.min(*n),
