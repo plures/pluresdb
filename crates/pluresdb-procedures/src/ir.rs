@@ -694,4 +694,3 @@ mod tests {
         assert_eq!(step, back);
     }
 }
-// (patch applied by edit below)
