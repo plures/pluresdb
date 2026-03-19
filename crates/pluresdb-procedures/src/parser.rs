@@ -764,9 +764,11 @@ fn parse_auto_link(pair: Pair<Rule>) -> Result<Step, ParseError> {
 
 // ---- cognitive architecture steps ----
 
-fn parse_string_atom(pair: Pair<Rule>) -> String {
-    let s = pair.as_str();
-    // Strip surrounding quotes if present (single or double).
+/// Strip surrounding quotes from a DSL string literal and expand escape sequences.
+///
+/// Accepts both single-quoted (`'...'`) and double-quoted (`"..."`) literals.
+/// When no surrounding quotes are present the string is returned as-is.
+fn unquote(s: &str) -> String {
     let unquoted = if s.len() >= 2 {
         let first = s.as_bytes()[0] as char;
         let last = s.as_bytes()[s.len() - 1] as char;
@@ -802,6 +804,10 @@ fn parse_string_atom(pair: Pair<Rule>) -> String {
     result
 }
 
+fn parse_string_atom(pair: Pair<Rule>) -> String {
+    unquote(pair.as_str())
+}
+
 fn parse_vector_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
     let mut children = pair.into_inner();
     let query_pair = children
@@ -831,8 +837,8 @@ fn parse_vector_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
             let key = inner.next().expect("kv key").as_str();
             let val = inner.next().expect("kv value");
             match key {
-                "limit" => limit = parse_value_as_usize(val),
-                "min_score" => min_score = parse_value_as_f64(val),
+                "limit" => limit = parse_value_as_usize(val)?,
+                "min_score" => min_score = parse_value_as_f64(val)?,
                 "category" => {
                     let parsed = parse_value(val)?;
                     if let IrValue::String(s) = parsed {
@@ -875,7 +881,7 @@ fn parse_text_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
             let key = inner.next().expect("kv key").as_str();
             let val = inner.next().expect("kv value");
             match key {
-                "limit" => limit = parse_value_as_usize(val),
+                "limit" => limit = parse_value_as_usize(val)?,
                 "field" => field = parse_value_as_string(val),
                 _ => {}
             }
@@ -1053,8 +1059,9 @@ mod tests_new_dsl_steps {
     #[test]
     fn parse_vector_search_step_variant() {
         // Basic smoke test to ensure the vector_search DSL parses to the right variant.
-        // The exact argument structure is validated elsewhere; here we only care about the step kind.
-        let steps = parse_query(r#"vector_search(query: "foo", limit: 5)"#).unwrap();
+        // Grammar syntax: vector_search("query", limit: N, min_score: 0.0, category: "cat")
+        // The query is a positional first argument (bare string), not key: value.
+        let steps = parse_query(r#"vector_search("foo", limit: 5)"#).unwrap();
         assert_eq!(steps.len(), 1);
         match &steps[0] {
             Step::VectorSearch { .. } => {}
@@ -1065,7 +1072,9 @@ mod tests_new_dsl_steps {
     #[test]
     fn parse_text_search_step_variant() {
         // Basic smoke test to ensure the text_search DSL parses to the right variant.
-        let steps = parse_query(r#"text_search(query: "foo", limit: 10)"#).unwrap();
+        // Grammar syntax: text_search("query", limit: N, field: "text")
+        // The query is a positional first argument (bare string), not key: value.
+        let steps = parse_query(r#"text_search("foo", limit: 10)"#).unwrap();
         assert_eq!(steps.len(), 1);
         match &steps[0] {
             Step::TextSearch { .. } => {}

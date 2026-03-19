@@ -174,6 +174,14 @@ impl<'a> ProcedureEngine<'a> {
                         strength,
                     );
                 }
+                Step::ChronicleTrace { root, max_depth, direction } => {
+                    nodes = crate::ops::graph::chronicle_trace(
+                        self.store,
+                        root.as_str(),
+                        *max_depth,
+                        direction.as_str(),
+                    );
+                }
 
                 // ---- Cognitive architecture steps ----
 
@@ -204,10 +212,15 @@ impl<'a> ProcedureEngine<'a> {
                         .unwrap_or(false);
                     let branch = if take_then { then_steps } else { else_steps };
                     if !branch.is_empty() {
-                        // Create a sub-engine for the branch
-                        // We temporarily replace nodes with the branch result
-                        let sub_result = self.exec_with_nodes(branch, nodes, &mut variables)?;
-                        nodes = sub_result.nodes;
+                        // Run the branch sub-pipeline.  If the branch terminates with
+                        // an Emit step, propagate the result and stop the outer
+                        // pipeline.  Otherwise update the running node set.
+                        let (branch_nodes, early_return) =
+                            self.exec_with_nodes(branch, nodes.clone(), &mut variables)?;
+                        if let Some(result) = early_return {
+                            return Ok(result);
+                        }
+                        nodes = branch_nodes;
                     }
                 }
                 Step::Assign { name } => {
@@ -265,12 +278,17 @@ impl<'a> ProcedureEngine<'a> {
 
     /// Execute a pipeline starting with a pre-populated node set and shared
     /// variable context (used by `Conditional` branches).
+    ///
+    /// Returns `(remaining_nodes, early_return)` where:
+    /// - `remaining_nodes` is the node set after all steps complete normally.
+    /// - `early_return` is `Some(ProcedureResult)` when an `Emit` step caused
+    ///   early termination; the caller should propagate this result immediately.
     fn exec_with_nodes(
         &self,
         steps: &[Step],
         initial_nodes: Vec<NodeRecord>,
         variables: &mut HashMap<String, Vec<NodeRecord>>,
-    ) -> anyhow::Result<ProcedureResult> {
+    ) -> anyhow::Result<(Vec<NodeRecord>, Option<ProcedureResult>)> {
         let mut nodes = initial_nodes;
         let mut pending_limit: Option<usize> = None;
 
@@ -316,7 +334,7 @@ impl<'a> ProcedureEngine<'a> {
                             })
                         })
                         .collect();
-                    return Ok(ProcedureResult::from_nodes(node_json));
+                    return Ok((vec![], Some(ProcedureResult::from_nodes(node_json))));
                 }
                 _ => {
                     // For branch sub-pipelines, only support data-transform steps.
@@ -333,18 +351,7 @@ impl<'a> ProcedureEngine<'a> {
             nodes.truncate(n);
         }
 
-        let node_json: Vec<serde_json::Value> = nodes
-            .into_iter()
-            .map(|n| {
-                serde_json::json!({
-                    "id": n.id,
-                    "data": n.data,
-                    "timestamp": n.timestamp.to_rfc3339(),
-                })
-            })
-            .collect();
-
-        Ok(ProcedureResult::from_nodes(node_json))
+        Ok((nodes, None))
     }
 
     /// Validate a sequence of steps before execution.
@@ -422,12 +429,13 @@ fn leading_limit_without_filter(steps: &[Step]) -> Option<usize> {
     for step in steps {
         match step {
             Step::Filter { .. } => break, // filter found — optimisation doesn't apply
-            // Graph and search steps replace the initial node set entirely, so pre-truncating
-            // the initial list offers no benefit.
+            // Graph, search, and chronicle steps replace the initial node set entirely,
+            // so pre-truncating the initial list offers no benefit.
             Step::GraphClusters { .. }
             | Step::GraphPath { .. }
             | Step::GraphPagerank { .. }
             | Step::GraphStats
+            | Step::ChronicleTrace { .. }
             | Step::VectorSearch { .. }
             | Step::TextSearch { .. } => break,
             Step::Limit { n } => {
