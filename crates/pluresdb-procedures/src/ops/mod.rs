@@ -9,4 +9,6 @@ pub mod filter;
 pub mod graph;
 pub mod mutate;
 pub mod project;
+pub mod search;
 pub mod sort;
+pub mod transform;
