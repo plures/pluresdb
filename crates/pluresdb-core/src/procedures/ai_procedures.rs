@@ -487,7 +487,7 @@ pub fn chronos_preference_pairs(
                 "prompt":        prompt,
                 "chosen":        corrected,
                 "rejected":      original,
-                "correction_id": corr.id,
+                "correction_id": corr.id.clone(),
             }),
         );
 
