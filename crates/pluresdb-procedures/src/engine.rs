@@ -347,6 +347,58 @@ impl<'a> ProcedureEngine<'a> {
         Ok(ProcedureResult::from_nodes(node_json))
     }
 
+    /// Validate a sequence of steps before execution.
+    ///
+    /// Currently this enforces that conditional branches (`then_steps` /
+    /// `else_steps`) only contain the subset of step types that
+    /// `exec_with_nodes` supports for branch sub-pipelines.
+    fn validate_steps_for_exec(&self, steps: &[Step]) -> anyhow::Result<()> {
+        for step in steps {
+            if let Step::Conditional {
+                then_steps,
+                else_steps,
+                ..
+            } = step
+            {
+                Self::validate_branch_steps(then_steps)?;
+                Self::validate_branch_steps(else_steps)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate that a branch sub-pipeline only contains the supported
+    /// data-transform step types.
+    fn validate_branch_steps(steps: &[Step]) -> anyhow::Result<()> {
+        for step in steps {
+            match step {
+                Step::Filter { .. }
+                | Step::Sort { .. }
+                | Step::Limit { .. }
+                | Step::Project { .. }
+                | Step::Transform { .. }
+                | Step::Assign { .. }
+                | Step::Emit { .. } => {
+                    // Supported in branch sub-pipelines.
+                }
+                Step::Conditional { .. } => {
+                    return Err(anyhow::anyhow!(
+                        "Unsupported step in branch sub-pipeline; nested conditional steps \
+                         are not currently allowed. Only data-transform steps \
+                         (filter, sort, limit, project, transform, assign, emit) are allowed"
+                    ));
+                }
+                _ => {
+                    return Err(anyhow::anyhow!(
+                        "Unsupported step in branch sub-pipeline; only data-transform steps \
+                         (filter, sort, limit, project, transform, assign, emit) are allowed"
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Execute a JSON IR payload.
     ///
     /// The `ir` value must be a JSON array of step objects as produced by
@@ -354,6 +406,7 @@ impl<'a> ProcedureEngine<'a> {
     pub fn exec_ir(&self, ir: &serde_json::Value) -> anyhow::Result<ProcedureResult> {
         let steps: Vec<Step> = serde_json::from_value(ir.clone())
             .map_err(|e| anyhow::anyhow!("IR deserialisation error: {}", e))?;
+        self.validate_steps_for_exec(&steps)?;
         self.exec(&steps)
     }
 }
