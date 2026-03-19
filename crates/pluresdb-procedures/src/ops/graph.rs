@@ -1629,8 +1629,25 @@ pub fn chronicle_trace(
                 // `causal_parent` field takes precedence over edge-based parents: if
                 // the child node already declares a causal_parent via its data field
                 // we keep that value and only add the forward direction from this edge.
-                backward_map.entry(to.to_owned()).or_insert_with(|| from.to_owned());
-                forward_map.entry(from.to_owned()).or_default().push(to.to_owned());
+                //
+                // To honour this precedence during traversal, avoid recording a
+                // forward edge when the child already has a different causal parent
+                // registered in `backward_map`.
+                if let Some(existing_parent) = backward_map.get(to) {
+                    if existing_parent != from {
+                        // Child already bound to a different causal parent; ignore
+                        // this edge for traversal purposes.
+                        continue;
+                    }
+                }
+
+                backward_map
+                    .entry(to.to_owned())
+                    .or_insert_with(|| from.to_owned());
+                forward_map
+                    .entry(from.to_owned())
+                    .or_default()
+                    .push(to.to_owned());
             }
         }
     }
