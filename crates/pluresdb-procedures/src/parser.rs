@@ -5,6 +5,7 @@
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
+use pest::error::{Error as PestError, ErrorVariant};
 
 use crate::ir::{AggFn, CmpOp, FieldSpec, IrValue, MutateOp, Predicate, SortDir, Step};
 
@@ -925,21 +926,55 @@ fn parse_emit(pair: Pair<Rule>) -> Result<Step, ParseError> {
 }
 
 // Helper: extract usize from a value pair
-fn parse_value_as_usize(pair: Pair<Rule>) -> usize {
-    let inner = pair.into_inner().next().expect("value child");
+fn parse_value_as_usize(pair: Pair<Rule>) -> Result<usize, ParseError> {
+    let span = pair.as_span();
+    let mut inner_pairs = pair.into_inner();
+    let inner = inner_pairs.next().ok_or_else(|| {
+        ParseError(PestError::new_from_span(
+            ErrorVariant::CustomError {
+                message: "expected numeric value".into(),
+            },
+            span,
+        ))
+    })?;
+
     inner
         .as_str()
-        .parse()
-        .expect("invalid unsigned integer in value")
+        .parse::<usize>()
+        .map_err(|_| {
+            ParseError(PestError::new_from_span(
+                ErrorVariant::CustomError {
+                    message: "invalid unsigned integer in value".into(),
+                },
+                inner.as_span(),
+            ))
+        })
 }
 
 // Helper: extract f64 from a value pair
-fn parse_value_as_f64(pair: Pair<Rule>) -> f64 {
-    let inner = pair.into_inner().next().expect("value child");
+fn parse_value_as_f64(pair: Pair<Rule>) -> Result<f64, ParseError> {
+    let span = pair.as_span();
+    let mut inner_pairs = pair.into_inner();
+    let inner = inner_pairs.next().ok_or_else(|| {
+        ParseError(PestError::new_from_span(
+            ErrorVariant::CustomError {
+                message: "expected numeric value".into(),
+            },
+            span,
+        ))
+    })?;
+
     inner
         .as_str()
-        .parse()
-        .expect("invalid float in value")
+        .parse::<f64>()
+        .map_err(|_| {
+            ParseError(PestError::new_from_span(
+                ErrorVariant::CustomError {
+                    message: "invalid float in value".into(),
+                },
+                inner.as_span(),
+            ))
+        })
 }
 
 // Helper: extract String from a value pair (expects a string literal)
