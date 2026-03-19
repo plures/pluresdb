@@ -129,7 +129,139 @@ pub fn apply_text_search(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pluresdb_core::CrdtStore;
+    use pluresdb_core::{CrdtStore, EmbedText};
+    use std::sync::Arc;
+
+    // ---------------------------------------------------------------------------
+    // Mock embedder: always returns [1.0, 0.0, 0.0] regardless of input text.
+    // Two texts therefore always have cosine similarity 1.0, which makes
+    // vector-search results fully deterministic in unit tests.
+    // ---------------------------------------------------------------------------
+    #[derive(Debug)]
+    struct AlwaysOneEmbedder;
+
+    impl EmbedText for AlwaysOneEmbedder {
+        fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
+            Ok(texts.iter().map(|_| vec![1.0_f32, 0.0, 0.0]).collect())
+        }
+
+        fn dimension(&self) -> usize {
+            3
+        }
+    }
+
+    // Helper: build a store with the mock embedder already attached.
+    fn store_with_embedder() -> CrdtStore {
+        CrdtStore::default().with_embedder(Arc::new(AlwaysOneEmbedder))
+    }
+
+    // ---------------------------------------------------------------------------
+    // apply_vector_search tests
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn vector_search_no_embedder_returns_empty() {
+        // A store with no embedder must return an empty result immediately.
+        let store = CrdtStore::default();
+        store.put("n1", "a", serde_json::json!({"content": "hello"}));
+
+        let results = apply_vector_search(&store, "hello", 10, 0.0, None);
+        assert!(
+            results.is_empty(),
+            "expected empty result when store has no embedder"
+        );
+    }
+
+    #[test]
+    fn vector_search_injects_score_fields() {
+        // Nodes pre-seeded with the same unit vector as our mock embedder
+        // produces → cosine similarity = 1.0.
+        let store = store_with_embedder();
+        store.put_with_embedding(
+            "n1",
+            "a",
+            serde_json::json!({"content": "hello"}),
+            vec![1.0_f32, 0.0, 0.0],
+        );
+
+        let results = apply_vector_search(&store, "any text", 10, 0.0, None);
+        assert_eq!(results.len(), 1, "expected exactly one result");
+
+        let data = &results[0].data;
+        assert!(
+            data.get("score").is_some(),
+            "`score` field should be injected into result data"
+        );
+        assert!(
+            data.get("_score").is_some(),
+            "`_score` field should be injected into result data for backward compatibility"
+        );
+
+        let score = data["score"].as_f64().expect("`score` should be a number");
+        let _score = data["_score"].as_f64().expect("`_score` should be a number");
+        assert!(
+            (score - 1.0_f64).abs() < 1e-5,
+            "`score` should be ~1.0 for identical unit vectors, got {score}"
+        );
+        assert!(
+            (_score - score).abs() < 1e-10,
+            "`score` and `_score` should hold the same value"
+        );
+    }
+
+    #[test]
+    fn vector_search_category_filter_excludes_non_matching() {
+        let store = store_with_embedder();
+        store.put_with_embedding(
+            "cat_a",
+            "a",
+            serde_json::json!({"content": "alpha", "category": "A"}),
+            vec![1.0_f32, 0.0, 0.0],
+        );
+        store.put_with_embedding(
+            "cat_b",
+            "a",
+            serde_json::json!({"content": "beta", "category": "B"}),
+            vec![1.0_f32, 0.0, 0.0],
+        );
+
+        let results = apply_vector_search(&store, "any", 10, 0.0, Some("A"));
+        assert_eq!(results.len(), 1, "only the node in category A should match");
+        assert_eq!(results[0].id, "cat_a");
+    }
+
+    #[test]
+    fn vector_search_min_score_filters_results() {
+        // Nodes with embedding orthogonal to the query ([0,1,0] vs [1,0,0])
+        // have cosine similarity 0.0 and must be excluded when min_score > 0.
+        let store = store_with_embedder();
+        // This node aligns with the query → similarity = 1.0
+        store.put_with_embedding(
+            "aligned",
+            "a",
+            serde_json::json!({"content": "aligned"}),
+            vec![1.0_f32, 0.0, 0.0],
+        );
+        // This node is orthogonal to the query → similarity = 0.0
+        store.put_with_embedding(
+            "orthogonal",
+            "a",
+            serde_json::json!({"content": "orthogonal"}),
+            vec![0.0_f32, 1.0, 0.0],
+        );
+
+        // With a strict min_score only the aligned node should survive.
+        let results = apply_vector_search(&store, "any text", 10, 0.5, None);
+        assert_eq!(results.len(), 1, "exactly one node should pass min_score=0.5");
+        assert_eq!(
+            results[0].id, "aligned",
+            "orthogonal node should be filtered out by min_score=0.5"
+        );
+    }
+
+    // ---------------------------------------------------------------------------
+    // apply_text_search tests
+    // ---------------------------------------------------------------------------
 
     #[test]
     fn text_search_matches_all_terms() {
