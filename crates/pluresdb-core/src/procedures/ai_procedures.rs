@@ -108,7 +108,7 @@ pub struct PreferencePair {
     pub prompt: String,
     /// The preferred (correct / accepted) output.
     pub chosen: String,
-    /// The rejected (original, corrected) output.
+    /// The original (non-preferred) output that was corrected or rejected by the user.
     pub rejected: String,
     /// Source correction node ID.
     pub correction_id: String,
@@ -740,6 +740,8 @@ pub fn cerebellum_tune(
             weight_suggestions.insert(route.clone(), factor);
         }
     }
+    // Sort for deterministic output across runs and peers.
+    underperforming.sort_unstable();
 
     // Human approval gate: only auto-apply when an approval node exists.
     // Use deterministic approval node ID instead of scanning the entire store.
@@ -902,6 +904,8 @@ pub fn memory_relevance_tune(
             low_relevance.push(cat.clone());
         }
     }
+    // Sort for deterministic output across runs and peers.
+    low_relevance.sort_unstable();
 
     // Human approval gate.
     let approval_granted = all.iter().any(|n| {
@@ -1101,7 +1105,8 @@ fn derive_id(components: &[&str]) -> String {
 
 /// Export trajectories as a JSONL string compatible with standard RL pipelines.
 ///
-/// Each line is a JSON object with fields: `id`, `state`, `action`, `outcome`.
+/// Each line is a JSON object with fields: `id`, `state`, `action`, `outcome`,
+/// `decision_id` (the source chronicle node ID).
 ///
 /// # Examples
 ///
@@ -1136,7 +1141,8 @@ pub fn export_trajectories_jsonl(trajectories: &[Trajectory]) -> anyhow::Result<
 
 /// Export preference pairs as a JSONL string for DPO training.
 ///
-/// Each line is a JSON object with fields: `id`, `prompt`, `chosen`, `rejected`.
+/// Each line is a JSON object with fields: `id`, `prompt`, `chosen`, `rejected`,
+/// `correction_id` (provenance — the source `chronos:correction` node ID).
 ///
 /// # Examples
 ///
@@ -1158,10 +1164,11 @@ pub fn export_preference_pairs_jsonl(pairs: &[PreferencePair]) -> anyhow::Result
         .iter()
         .map(|p| {
             serde_json::to_string(&serde_json::json!({
-                "id":      &p.id,
-                "prompt":  &p.prompt,
-                "chosen":  &p.chosen,
-                "rejected":&p.rejected,
+                "id":            &p.id,
+                "prompt":        &p.prompt,
+                "chosen":        &p.chosen,
+                "rejected":      &p.rejected,
+                "correction_id": &p.correction_id,
             }))
         })
         .collect::<Result<Vec<_>, _>>()?;
