@@ -102,7 +102,7 @@ pub fn apply_text_search(
     // enough matches have been found to avoid unnecessary work on large stores.
     let mut matches: Vec<NodeRecord> = Vec::with_capacity(limit);
 
-    for node in store.list().into_iter() {
+    for node in store.iter_nodes() {
         if matches.len() == limit {
             break;
         }

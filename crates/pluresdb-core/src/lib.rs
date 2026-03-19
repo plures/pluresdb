@@ -775,6 +775,60 @@ impl CrdtStore {
         self.nodes.iter().map(|entry| entry.value().clone()).collect()
     }
 
+    /// Returns a lazy iterator over all nodes in the store.
+    ///
+    /// Unlike [`list`][Self::list], which materializes the entire node set into
+    /// a `Vec` before returning, `iter_nodes` yields each [`NodeRecord`] one at
+    /// a time.  Callers that only need the first *N* results (e.g. a text-search
+    /// with a `limit`) can therefore short-circuit without loading the full
+    /// dataset into memory.
+    ///
+    /// **In-memory stores** (no persistence layer attached): the DashMap is
+    /// iterated lazily — no allocation beyond the iterator state itself.
+    ///
+    /// **Persistence-backed stores**: the storage engine is queried up-front and
+    /// the resulting `Vec` is converted into an iterator.  A true streaming
+    /// storage API does not yet exist; once `StorageEngine` gains one, this path
+    /// can be updated to avoid the full dataset allocation as well.
+    ///
+    /// In-memory entries always shadow their stored counterparts, so callers see
+    /// the most recent data regardless of which path is taken.
+    pub fn iter_nodes(&self) -> Box<dyn Iterator<Item = NodeRecord> + '_> {
+        if let Some(storage) = &self.persistence {
+            match block_on(storage.list()) {
+                Ok(nodes) => {
+                    let in_memory = &self.nodes;
+                    return Box::new(nodes.into_iter().filter_map(move |stored| {
+                        let id = stored.id.clone();
+                        let record = match serde_json::from_value::<NodeRecord>(stored.payload) {
+                            Ok(r) => r,
+                            Err(e) => {
+                                tracing::warn!(
+                                    "[CrdtStore] iter_nodes: failed to deserialize node {}: {}",
+                                    id,
+                                    e
+                                );
+                                return None;
+                            }
+                        };
+                        // Prefer the in-memory version which may have newer data.
+                        if let Some(entry) = in_memory.get(&record.id) {
+                            Some(entry.value().clone())
+                        } else {
+                            Some(record)
+                        }
+                    }));
+                }
+                Err(e) => {
+                    tracing::error!("[CrdtStore] iter_nodes from storage failed: {}", e);
+                    return Box::new(std::iter::empty());
+                }
+            }
+        }
+        // In-memory path: lazily iterate the DashMap without collecting.
+        Box::new(self.nodes.iter().map(|entry| entry.value().clone()))
+    }
+
     /// Applies a CRDT operation, returning the resulting node identifier when relevant.
     pub fn apply(&self, op: CrdtOperation) -> Result<Option<NodeId>, StoreError> {
         match op {
