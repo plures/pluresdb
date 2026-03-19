@@ -898,7 +898,7 @@ pub fn memory_relevance_tune(
     }
 
     // Human approval gate.
-    let approval_granted = store.list().into_iter().any(|n| {
+    let approval_granted = all.iter().any(|n| {
         n.data.get("_type").and_then(|v| v.as_str()) == Some("chronos:approval")
             && n.data.get("procedure").and_then(|v| v.as_str())
                 == Some("memory_relevance_tune")
