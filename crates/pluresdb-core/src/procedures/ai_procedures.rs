@@ -1117,11 +1117,11 @@ pub fn export_trajectories_jsonl(trajectories: &[Trajectory]) -> anyhow::Result<
         .iter()
         .map(|t| {
             serde_json::to_string(&serde_json::json!({
-                "id":          t.id,
-                "state":       t.state,
-                "action":      t.action,
-                "outcome":     t.outcome,
-                "decision_id": t.decision_id,
+                "id":          &t.id,
+                "state":       &t.state,
+                "action":      &t.action,
+                "outcome":     &t.outcome,
+                "decision_id": &t.decision_id,
             }))
         })
         .collect::<Result<Vec<_>, _>>()?;
