@@ -764,18 +764,62 @@ fn parse_auto_link(pair: Pair<Rule>) -> Result<Step, ParseError> {
 
 // ---- cognitive architecture steps ----
 
+fn parse_string_atom(pair: Pair<Rule>) -> String {
+    let s = pair.as_str();
+    // Strip surrounding quotes if present (single or double).
+    let unquoted = if s.len() >= 2 {
+        let first = s.as_bytes()[0] as char;
+        let last = s.as_bytes()[s.len() - 1] as char;
+        if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+            &s[1..s.len() - 1]
+        } else {
+            s
+        }
+    } else {
+        s
+    };
+
+    let mut result = String::new();
+    let mut chars = unquoted.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            if let Some(escaped) = chars.next() {
+                match escaped {
+                    'n' => result.push('\n'),
+                    'r' => result.push('\r'),
+                    't' => result.push('\t'),
+                    '\\' => result.push('\\'),
+                    '"' => result.push('"'),
+                    '\'' => result.push('\''),
+                    other => result.push(other),
+                }
+            }
+        } else {
+            result.push(c);
+        }
+    }
+
+    result
+}
+
 fn parse_vector_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
     let mut children = pair.into_inner();
     let query_pair = children
         .next()
         .expect("vector_search query string");
-    let query_value = parse_value(query_pair.clone())?;
-    let query = if let IrValue::String(s) = query_value {
-        s
+    let query = if query_pair.as_rule() == Rule::string {
+        // The grammar currently passes a `string` atom; parse it directly to avoid
+        // calling `parse_value` on a non-`value` rule (which can panic).
+        parse_string_atom(query_pair)
     } else {
-        // Fallback to the raw text to avoid changing existing non-failing behavior
-        // if the grammar ever allows non-string values here.
-        query_pair.as_str().to_string()
+        let query_value = parse_value(query_pair.clone())?;
+        if let IrValue::String(s) = query_value {
+            s
+        } else {
+            // Fallback to the raw text to avoid changing existing non-failing behavior
+            // if the grammar ever allows non-string values here.
+            query_pair.as_str().to_string()
+        }
     };
     let mut limit = 10usize;
     let mut min_score = 0.0f64;
@@ -808,13 +852,19 @@ fn parse_text_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
     let query_pair = children
         .next()
         .expect("text_search query string");
-    let query_value = parse_value(query_pair.clone())?;
-    let query = if let IrValue::String(s) = query_value {
-        s
+    let query = if query_pair.as_rule() == Rule::string {
+        // The grammar currently passes a `string` atom; parse it directly to avoid
+        // calling `parse_value` on a non-`value` rule (which can panic).
+        parse_string_atom(query_pair)
     } else {
-        // Fallback to the raw text to avoid changing existing non-failing behavior
-        // if the grammar ever allows non-string values here.
-        query_pair.as_str().to_string()
+        let query_value = parse_value(query_pair.clone())?;
+        if let IrValue::String(s) = query_value {
+            s
+        } else {
+            // Fallback to the raw text to avoid changing existing non-failing behavior
+            // if the grammar ever allows non-string values here.
+            query_pair.as_str().to_string()
+        }
     };
     let mut limit = 10usize;
     let mut field = "text".to_string();
