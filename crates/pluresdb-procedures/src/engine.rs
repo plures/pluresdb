@@ -204,10 +204,14 @@ impl<'a> ProcedureEngine<'a> {
                         .unwrap_or(false);
                     let branch = if take_then { then_steps } else { else_steps };
                     if !branch.is_empty() {
-                        // Create a sub-engine for the branch
-                        // We temporarily replace nodes with the branch result
-                        let sub_result = self.exec_with_nodes(branch, nodes, &mut variables)?;
-                        nodes = sub_result.nodes;
+                        let (branch_nodes, emit_result) =
+                            self.exec_with_nodes(branch, nodes, &mut variables)?;
+                        // Emit is terminal — propagate the result immediately so that
+                        // outer steps after the Conditional are not executed.
+                        if let Some(result) = emit_result {
+                            return Ok(result);
+                        }
+                        nodes = branch_nodes;
                     }
                 }
                 Step::Assign { name } => {
@@ -265,12 +269,16 @@ impl<'a> ProcedureEngine<'a> {
 
     /// Execute a pipeline starting with a pre-populated node set and shared
     /// variable context (used by `Conditional` branches).
+    ///
+    /// Returns the updated node list and, when an `Emit` step is encountered,
+    /// the already-serialised [`ProcedureResult`].  The caller must propagate
+    /// the result immediately when `Some` is returned.
     fn exec_with_nodes(
         &self,
         steps: &[Step],
         initial_nodes: Vec<NodeRecord>,
         variables: &mut HashMap<String, Vec<NodeRecord>>,
-    ) -> anyhow::Result<ProcedureResult> {
+    ) -> anyhow::Result<(Vec<NodeRecord>, Option<ProcedureResult>)> {
         let mut nodes = initial_nodes;
         let mut pending_limit: Option<usize> = None;
 
@@ -316,7 +324,7 @@ impl<'a> ProcedureEngine<'a> {
                             })
                         })
                         .collect();
-                    return Ok(ProcedureResult::from_nodes(node_json));
+                    return Ok((Vec::new(), Some(ProcedureResult::from_nodes(node_json))));
                 }
                 _ => {
                     // For branch sub-pipelines, only support data-transform steps.
@@ -333,18 +341,7 @@ impl<'a> ProcedureEngine<'a> {
             nodes.truncate(n);
         }
 
-        let node_json: Vec<serde_json::Value> = nodes
-            .into_iter()
-            .map(|n| {
-                serde_json::json!({
-                    "id": n.id,
-                    "data": n.data,
-                    "timestamp": n.timestamp.to_rfc3339(),
-                })
-            })
-            .collect();
-
-        Ok(ProcedureResult::from_nodes(node_json))
+        Ok((nodes, None))
     }
 
     /// Validate a sequence of steps before execution.
@@ -628,5 +625,227 @@ mod tests {
             .unwrap();
         // With all three algorithms, some edges must be created (temporal at minimum).
         assert!(!result.nodes.is_empty(), "expected edges from default algorithms");
+    }
+
+    // ---- Cognitive architecture step tests ----
+
+    #[test]
+    fn emit_current_nodes_returns_labelled_payload() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+        let steps = vec![
+            Step::Filter {
+                predicate: Predicate::eq("category", "decision"),
+            },
+            Step::Emit {
+                label: "decisions".to_string(),
+                from_var: None,
+            },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        // populate() has 3 decision nodes: n1, n3, n5
+        assert_eq!(result.nodes.len(), 3);
+        for node in &result.nodes {
+            assert_eq!(node["_label"], "decisions", "every emitted node must carry _label");
+        }
+    }
+
+    #[test]
+    fn emit_is_terminal_ignores_subsequent_steps() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+        // A Limit step placed after Emit should never be reached.
+        let steps = vec![
+            Step::Filter {
+                predicate: Predicate::eq("category", "decision"),
+            },
+            Step::Emit {
+                label: "out".to_string(),
+                from_var: None,
+            },
+            Step::Limit { n: 1 }, // unreachable — pipeline terminates at Emit
+        ];
+        let result = engine.exec(&steps).unwrap();
+        // All 3 decisions must be returned (Limit was not applied).
+        assert_eq!(result.nodes.len(), 3);
+    }
+
+    #[test]
+    fn assign_stores_snapshot_of_current_nodes() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+        // Capture all decision nodes, then narrow the current set to only open ones.
+        // Emit from the assigned variable must still return all 3 decisions.
+        let steps = vec![
+            Step::Filter {
+                predicate: Predicate::eq("category", "decision"),
+            },
+            Step::Assign { name: "decisions_var".to_string() },
+            Step::Filter {
+                predicate: Predicate::eq("status", "open"),
+            },
+            Step::Emit {
+                label: "all_decisions".to_string(),
+                from_var: Some("decisions_var".to_string()),
+            },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        // decisions_var was snapshotted before the second filter — must hold all 3.
+        assert_eq!(result.nodes.len(), 3);
+        assert!(
+            result.nodes.iter().all(|n| n["_label"] == "all_decisions"),
+            "all emitted nodes must carry the emit label"
+        );
+    }
+
+    #[test]
+    fn emit_from_var_returns_variable_not_current_set() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+        // Assign 3 decision nodes, truncate current set to 1, then emit from variable.
+        let steps = vec![
+            Step::Filter {
+                predicate: Predicate::eq("category", "decision"),
+            },
+            Step::Assign { name: "saved".to_string() },
+            Step::Limit { n: 1 },
+            // Emit from the variable (3 nodes) not the current set (1 node).
+            Step::Emit {
+                label: "from_saved".to_string(),
+                from_var: Some("saved".to_string()),
+            },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        assert_eq!(result.nodes.len(), 3, "emit from_var must return the saved 3 nodes");
+        assert!(result.nodes.iter().all(|n| n["_label"] == "from_saved"));
+    }
+
+    #[test]
+    fn conditional_takes_then_branch_when_predicate_matches_first_node() {
+        let store = CrdtStore::default();
+        // Use a single decision node so the first-node condition is deterministic.
+        store.put("d1", "actor", serde_json::json!({"category": "decision", "status": "open"}));
+        let engine = ProcedureEngine::new(&store, "test");
+        let steps = vec![
+            Step::Filter {
+                predicate: Predicate::eq("category", "decision"),
+            },
+            Step::Conditional {
+                condition: Predicate::eq("category", "decision"),
+                then_steps: vec![
+                    // Assign inside the then branch; variable is visible outside.
+                    Step::Assign { name: "branch_result".to_string() },
+                ],
+                else_steps: vec![
+                    Step::Assign { name: "else_taken".to_string() },
+                ],
+            },
+            Step::Emit {
+                label: "check".to_string(),
+                from_var: Some("branch_result".to_string()),
+            },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        // then branch was taken — branch_result holds the decision node.
+        assert_eq!(result.nodes.len(), 1);
+        assert_eq!(result.nodes[0]["id"], "d1");
+    }
+
+    #[test]
+    fn conditional_takes_else_branch_when_predicate_does_not_match() {
+        let store = CrdtStore::default();
+        store.put("note1", "actor", serde_json::json!({"category": "note", "status": "open"}));
+        store.put("note2", "actor", serde_json::json!({"category": "note", "status": "closed"}));
+        let engine = ProcedureEngine::new(&store, "test");
+        // Filter to notes only — the first node will have category="note", not "decision".
+        let steps = vec![
+            Step::Filter {
+                predicate: Predicate::eq("category", "note"),
+            },
+            Step::Conditional {
+                condition: Predicate::eq("category", "decision"),
+                // then: filter to open (would give 1 note)
+                then_steps: vec![Step::Filter {
+                    predicate: Predicate::eq("status", "open"),
+                }],
+                // else: filter to closed (should give 1 note)
+                else_steps: vec![Step::Filter {
+                    predicate: Predicate::eq("status", "closed"),
+                }],
+            },
+            Step::Emit {
+                label: "else_path".to_string(),
+                from_var: None,
+            },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        // else branch ran — only the closed note remains.
+        assert_eq!(result.nodes.len(), 1);
+        assert_eq!(result.nodes[0]["id"], "note2");
+        assert_eq!(result.nodes[0]["_label"], "else_path");
+    }
+
+    #[test]
+    fn branch_result_continues_through_outer_steps() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+        // Conditional sorts the decision nodes (desc), outer Limit keeps top 2.
+        let steps = vec![
+            Step::Filter {
+                predicate: Predicate::eq("category", "decision"),
+            },
+            Step::Conditional {
+                condition: Predicate::eq("category", "decision"),
+                then_steps: vec![Step::Sort {
+                    by: "score".to_string(),
+                    dir: SortDir::Desc,
+                    after: None,
+                }],
+                else_steps: vec![],
+            },
+            // Outer Limit applies to the nodes returned by the branch.
+            Step::Limit { n: 2 },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        assert_eq!(result.nodes.len(), 2);
+        // Decisions sorted desc: n1(0.9), n3(0.5), n5(0.3) — top 2 are n1, n3.
+        assert_eq!(result.nodes[0]["id"], "n1");
+        assert_eq!(result.nodes[1]["id"], "n3");
+    }
+
+    #[test]
+    fn variables_assigned_before_conditional_persist_after_branch() {
+        let store = CrdtStore::default();
+        populate(&store);
+        let engine = ProcedureEngine::new(&store, "test");
+        // Pre-branch variable must survive the Conditional and remain accessible in Emit.
+        let steps = vec![
+            Step::Filter {
+                predicate: Predicate::eq("status", "open"),
+            },
+            // Snapshot the 3 open nodes (n1, n2, n4).
+            Step::Assign { name: "open_nodes".to_string() },
+            // Conditional narrows current set to open decisions only (n1).
+            Step::Conditional {
+                condition: Predicate::eq("status", "open"),
+                then_steps: vec![Step::Filter {
+                    predicate: Predicate::eq("category", "decision"),
+                }],
+                else_steps: vec![],
+            },
+            // Emit from the pre-branch variable — must still contain all 3 open nodes.
+            Step::Emit {
+                label: "pre_branch".to_string(),
+                from_var: Some("open_nodes".to_string()),
+            },
+        ];
+        let result = engine.exec(&steps).unwrap();
+        assert_eq!(result.nodes.len(), 3, "pre-branch variable must not be mutated by the branch");
+        assert!(result.nodes.iter().all(|n| n["_label"] == "pre_branch"));
     }
 }

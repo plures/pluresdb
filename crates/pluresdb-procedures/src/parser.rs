@@ -181,6 +181,22 @@ fn parse_cmp_op(pair: Pair<Rule>) -> Result<CmpOp, ParseError> {
     })
 }
 
+/// Strip surrounding double-quotes from a string literal token and unescape
+/// any escape sequences inside.
+///
+/// # Panics
+///
+/// Panics if the string content contains invalid escape sequences.  This
+/// should only be called with tokens that have already been matched by the
+/// `string` grammar rule — the grammar guarantees well-formed escape
+/// sequences, so a panic here would indicate a grammar/parser bug rather than
+/// invalid user input.
+fn unquote(s: &str) -> String {
+    let content = &s[1..s.len() - 1];
+    unescape_string_content(content)
+        .expect("unquote: invalid escape sequence in grammar-validated string")
+}
+
 fn unescape_string_content(s: &str) -> Result<String, String> {
     let mut result = String::with_capacity(s.len());
     let mut chars = s.chars();
