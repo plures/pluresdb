@@ -336,7 +336,7 @@ pub fn chronos_extract_trajectories(
                 "state":       state,
                 "action":      action,
                 "outcome":     outcome,
-                "decision_id": traj.decision_id,
+                "decision_id": &traj.decision_id,
             }),
         );
 
