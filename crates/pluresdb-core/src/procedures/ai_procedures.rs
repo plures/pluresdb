@@ -40,6 +40,8 @@ use std::collections::HashMap;
 
 use uuid::Uuid;
 
+use chrono::{Duration, Utc};
+
 use crate::CrdtStore;
 
 // ---------------------------------------------------------------------------
@@ -196,12 +198,16 @@ pub fn chronos_decision_audit(
     hours: Option<i64>,
 ) -> anyhow::Result<DecisionAuditReport> {
     anyhow::ensure!(!actor.is_empty(), "chronos_decision_audit: actor must not be empty");
-    let _hours = hours.unwrap_or(DEFAULT_AUDIT_HOURS);
+    let hours = hours.unwrap_or(DEFAULT_AUDIT_HOURS);
+    let cutoff = Utc::now() - Duration::hours(hours);
 
     let decisions: Vec<_> = store
         .list()
         .into_iter()
-        .filter(|n| n.data.get("_type").and_then(|v| v.as_str()) == Some("chronos:decision"))
+        .filter(|n| {
+            n.timestamp >= cutoff
+                && n.data.get("_type").and_then(|v| v.as_str()) == Some("chronos:decision")
+        })
         .collect();
 
     let mut total = 0usize;
