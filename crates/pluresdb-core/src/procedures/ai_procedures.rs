@@ -736,11 +736,16 @@ pub fn cerebellum_tune(
     }
 
     // Human approval gate: only auto-apply when an approval node exists.
-    let approval_granted = store.list().into_iter().any(|n| {
-        n.data.get("_type").and_then(|v| v.as_str()) == Some("chronos:approval")
-            && n.data.get("procedure").and_then(|v| v.as_str()) == Some("cerebellum_tune")
-            && n.data.get("approved").and_then(|v| v.as_bool()).unwrap_or(false)
-    });
+    // Use deterministic approval node ID instead of scanning the entire store.
+    let approval_node_id = "approval:cerebellum_tune";
+    let approval_granted = store
+        .get(approval_node_id)
+        .map(|n| {
+            n.data.get("_type").and_then(|v| v.as_str()) == Some("chronos:approval")
+                && n.data.get("procedure").and_then(|v| v.as_str()) == Some("cerebellum_tune")
+                && n.data.get("approved").and_then(|v| v.as_bool()).unwrap_or(false)
+        })
+        .unwrap_or(false);
 
     let auto_applied = auto_apply && approval_granted;
 
