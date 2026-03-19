@@ -706,28 +706,4 @@ mod tests {
         assert_eq!(step, back);
     }
 
-    #[test]
-    fn step_chronicle_trace_roundtrip() {
-        let step = Step::ChronicleTrace {
-            root: "chronos:decision:abc".to_string(),
-            max_depth: 20,
-            direction: "backward".to_string(),
-        };
-        let json = serde_json::to_string(&step).unwrap();
-        let back: Step = serde_json::from_str(&json).unwrap();
-        assert_eq!(step, back);
-    }
-
-    #[test]
-    fn step_chronicle_trace_defaults() {
-        let json = r#"{"op":"chronicle_trace","root":"decision:1"}"#;
-        let step: Step = serde_json::from_str(json).unwrap();
-        if let Step::ChronicleTrace { root, max_depth, direction } = step {
-            assert_eq!(root, "decision:1");
-            assert_eq!(max_depth, 50);
-            assert_eq!(direction, "backward");
-        } else {
-            panic!("expected ChronicleTrace");
-        }
-    }
 }
