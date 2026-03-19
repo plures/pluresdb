@@ -3,7 +3,9 @@
 use pluresdb_core::{CrdtStore, NodeRecord};
 
 use crate::ir::{ProcedureResult, Step};
-use crate::ops::{aggregate, filter, graph, mutate, project, sort};
+use crate::ops::{aggregate, filter, graph, mutate, project, search, sort, transform};
+
+use std::collections::HashMap;
 
 /// Executes query pipelines (sequences of [`Step`]s) against a [`CrdtStore`].
 ///
@@ -74,6 +76,7 @@ impl<'a> ProcedureEngine<'a> {
             all
         };
         let mut pending_limit: Option<usize> = None;
+        let mut variables: HashMap<String, Vec<NodeRecord>> = HashMap::new();
 
         for step in steps {
             match step {
@@ -171,13 +174,62 @@ impl<'a> ProcedureEngine<'a> {
                         strength,
                     );
                 }
-                Step::ChronicleTrace { root, max_depth, direction } => {
-                    nodes = crate::ops::graph::chronicle_trace(
+
+                // ---- Cognitive architecture steps ----
+
+                Step::VectorSearch { query, limit, min_score, category } => {
+                    nodes = search::apply_vector_search(
                         self.store,
-                        root.as_str(),
-                        *max_depth,
-                        direction.as_str(),
+                        query,
+                        *limit,
+                        *min_score,
+                        category.as_deref(),
                     );
+                }
+                Step::TextSearch { query, limit, field } => {
+                    nodes = search::apply_text_search(
+                        self.store,
+                        query,
+                        *limit,
+                        field,
+                    );
+                }
+                Step::Transform { format, max_chars } => {
+                    nodes = transform::apply_transform(nodes, format, *max_chars);
+                }
+                Step::Conditional { condition, then_steps, else_steps } => {
+                    let take_then = nodes
+                        .first()
+                        .map(|n| filter::eval_predicate(condition, &n.data))
+                        .unwrap_or(false);
+                    let branch = if take_then { then_steps } else { else_steps };
+                    if !branch.is_empty() {
+                        // Create a sub-engine for the branch
+                        // We temporarily replace nodes with the branch result
+                        let sub_result = self.exec_with_nodes(branch, nodes, &mut variables)?;
+                        nodes = sub_result.nodes;
+                    }
+                }
+                Step::Assign { name } => {
+                    variables.insert(name.clone(), nodes.clone());
+                }
+                Step::Emit { label, from_var } => {
+                    let emit_nodes = match from_var {
+                        Some(var) => variables.get(var).cloned().unwrap_or_default(),
+                        None => nodes,
+                    };
+                    let node_json: Vec<serde_json::Value> = emit_nodes
+                        .into_iter()
+                        .map(|n| {
+                            serde_json::json!({
+                                "id": n.id,
+                                "data": n.data,
+                                "timestamp": n.timestamp.to_rfc3339(),
+                                "_label": label,
+                            })
+                        })
+                        .collect();
+                    return Ok(ProcedureResult::from_nodes(node_json));
                 }
             }
         }
@@ -211,6 +263,142 @@ impl<'a> ProcedureEngine<'a> {
         self.exec(&steps)
     }
 
+    /// Execute a pipeline starting with a pre-populated node set and shared
+    /// variable context (used by `Conditional` branches).
+    fn exec_with_nodes(
+        &self,
+        steps: &[Step],
+        initial_nodes: Vec<NodeRecord>,
+        variables: &mut HashMap<String, Vec<NodeRecord>>,
+    ) -> anyhow::Result<ProcedureResult> {
+        let mut nodes = initial_nodes;
+        let mut pending_limit: Option<usize> = None;
+
+        for step in steps {
+            match step {
+                Step::Filter { predicate } => {
+                    nodes = filter::apply_filter(nodes, predicate);
+                }
+                Step::Sort { by, dir, after } => {
+                    nodes = sort::apply_sort(
+                        nodes,
+                        by.as_str(),
+                        dir,
+                        pending_limit.take(),
+                        after.as_deref(),
+                    );
+                }
+                Step::Limit { n } => {
+                    pending_limit = Some(*n);
+                }
+                Step::Project { fields } => {
+                    nodes = project::apply_project(nodes, fields);
+                }
+                Step::Transform { format, max_chars } => {
+                    nodes = transform::apply_transform(nodes, format, *max_chars);
+                }
+                Step::Assign { name } => {
+                    variables.insert(name.clone(), nodes.clone());
+                }
+                Step::Emit { label, from_var } => {
+                    let emit_nodes = match from_var {
+                        Some(var) => variables.get(var).cloned().unwrap_or_default(),
+                        None => nodes,
+                    };
+                    let node_json: Vec<serde_json::Value> = emit_nodes
+                        .into_iter()
+                        .map(|n| {
+                            serde_json::json!({
+                                "id": n.id,
+                                "data": n.data,
+                                "timestamp": n.timestamp.to_rfc3339(),
+                                "_label": label,
+                            })
+                        })
+                        .collect();
+                    return Ok(ProcedureResult::from_nodes(node_json));
+                }
+                _ => {
+                    // For branch sub-pipelines, only support data-transform steps.
+                    // Full step set available via top-level exec().
+                    return Err(anyhow::anyhow!(
+                        "Unsupported step in branch sub-pipeline; only data-transform steps \
+                         (filter, sort, limit, project, transform, assign, emit) are allowed"
+                    ));
+                }
+            }
+        }
+
+        if let Some(n) = pending_limit {
+            nodes.truncate(n);
+        }
+
+        let node_json: Vec<serde_json::Value> = nodes
+            .into_iter()
+            .map(|n| {
+                serde_json::json!({
+                    "id": n.id,
+                    "data": n.data,
+                    "timestamp": n.timestamp.to_rfc3339(),
+                })
+            })
+            .collect();
+
+        Ok(ProcedureResult::from_nodes(node_json))
+    }
+
+    /// Validate a sequence of steps before execution.
+    ///
+    /// Currently this enforces that conditional branches (`then_steps` /
+    /// `else_steps`) only contain the subset of step types that
+    /// `exec_with_nodes` supports for branch sub-pipelines.
+    fn validate_steps_for_exec(&self, steps: &[Step]) -> anyhow::Result<()> {
+        for step in steps {
+            if let Step::Conditional {
+                then_steps,
+                else_steps,
+                ..
+            } = step
+            {
+                Self::validate_branch_steps(then_steps)?;
+                Self::validate_branch_steps(else_steps)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate that a branch sub-pipeline only contains the supported
+    /// data-transform step types.
+    fn validate_branch_steps(steps: &[Step]) -> anyhow::Result<()> {
+        for step in steps {
+            match step {
+                Step::Filter { .. }
+                | Step::Sort { .. }
+                | Step::Limit { .. }
+                | Step::Project { .. }
+                | Step::Transform { .. }
+                | Step::Assign { .. }
+                | Step::Emit { .. } => {
+                    // Supported in branch sub-pipelines.
+                }
+                Step::Conditional { .. } => {
+                    return Err(anyhow::anyhow!(
+                        "Unsupported step in branch sub-pipeline; nested conditional steps \
+                         are not currently allowed. Only data-transform steps \
+                         (filter, sort, limit, project, transform, assign, emit) are allowed"
+                    ));
+                }
+                _ => {
+                    return Err(anyhow::anyhow!(
+                        "Unsupported step in branch sub-pipeline; only data-transform steps \
+                         (filter, sort, limit, project, transform, assign, emit) are allowed"
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Execute a JSON IR payload.
     ///
     /// The `ir` value must be a JSON array of step objects as produced by
@@ -218,6 +406,7 @@ impl<'a> ProcedureEngine<'a> {
     pub fn exec_ir(&self, ir: &serde_json::Value) -> anyhow::Result<ProcedureResult> {
         let steps: Vec<Step> = serde_json::from_value(ir.clone())
             .map_err(|e| anyhow::anyhow!("IR deserialisation error: {}", e))?;
+        self.validate_steps_for_exec(&steps)?;
         self.exec(&steps)
     }
 }
@@ -233,13 +422,14 @@ fn leading_limit_without_filter(steps: &[Step]) -> Option<usize> {
     for step in steps {
         match step {
             Step::Filter { .. } => break, // filter found — optimisation doesn't apply
-            // Graph steps replace the initial node set entirely, so pre-truncating
+            // Graph and search steps replace the initial node set entirely, so pre-truncating
             // the initial list offers no benefit.
             Step::GraphClusters { .. }
             | Step::GraphPath { .. }
             | Step::GraphPagerank { .. }
             | Step::GraphStats
-            | Step::ChronicleTrace { .. } => break,
+            | Step::VectorSearch { .. }
+            | Step::TextSearch { .. } => break,
             Step::Limit { n } => {
                 min_limit = Some(match min_limit {
                     Some(prev) => prev.min(*n),
