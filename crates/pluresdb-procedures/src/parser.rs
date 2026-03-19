@@ -907,7 +907,8 @@ fn parse_emit(pair: Pair<Rule>) -> Result<Step, ParseError> {
 
     let label_kv = children.next().expect("emit label kv");
     let label = unquote(
-        label_kv.into_inner()
+        label_kv
+            .into_inner()
             .find(|p| p.as_rule() == Rule::string)
             .expect("emit label string")
             .as_str(),
@@ -915,7 +916,8 @@ fn parse_emit(pair: Pair<Rule>) -> Result<Step, ParseError> {
 
     let from_var = children.next().map(|from_kv| {
         unquote(
-            from_kv.into_inner()
+            from_kv
+                .into_inner()
                 .find(|p| p.as_rule() == Rule::string)
                 .expect("emit from string")
                 .as_str(),
@@ -923,6 +925,103 @@ fn parse_emit(pair: Pair<Rule>) -> Result<Step, ParseError> {
     });
 
     Ok(Step::Emit { label, from_var })
+}
+
+#[cfg(test)]
+mod tests_new_dsl_steps {
+    use super::parse_query;
+    use crate::ir::{Step, TransformFormat};
+
+    #[test]
+    fn parse_transform_with_default_max_chars() {
+        // Only format is provided; max_chars should default to 0.
+        let steps = parse_query(r#"transform(format: "structured")"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::Transform { format, max_chars } => {
+                assert_eq!(*format, TransformFormat::Structured);
+                assert_eq!(*max_chars, 0);
+            }
+            other => panic!("expected Transform step, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_conditional_initializes_empty_then_else() {
+        let steps = parse_query(r#"conditional(category == "decision")"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::Conditional {
+                condition: _,
+                then_steps,
+                else_steps,
+            } => {
+                assert!(then_steps.is_empty());
+                assert!(else_steps.is_empty());
+            }
+            other => panic!("expected Conditional step, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_assign_unquotes_escaped_string() {
+        let steps = parse_query(r#"assign(name: "foo\"bar")"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::Assign { name } => {
+                assert_eq!(name, "foo\"bar");
+            }
+            other => panic!("expected Assign step, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_emit_with_and_without_from_var() {
+        // Without from: should default to None.
+        let steps = parse_query(r#"emit(label: "result")"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::Emit { label, from_var } => {
+                assert_eq!(label, "result");
+                assert!(from_var.is_none());
+            }
+            other => panic!("expected Emit step, got {:?}", other),
+        }
+
+        // With from: should parse into Some(..).
+        let steps = parse_query(r#"emit(label: "result", from: "tmp_var")"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::Emit { label, from_var } => {
+                assert_eq!(label, "result");
+                assert_eq!(from_var.as_deref(), Some("tmp_var"));
+            }
+            other => panic!("expected Emit step with from_var, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_vector_search_step_variant() {
+        // Basic smoke test to ensure the vector_search DSL parses to the right variant.
+        // The exact argument structure is validated elsewhere; here we only care about the step kind.
+        let steps = parse_query(r#"vector_search(query: "foo", limit: 5)"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::VectorSearch { .. } => {}
+            other => panic!("expected VectorSearch step, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_text_search_step_variant() {
+        // Basic smoke test to ensure the text_search DSL parses to the right variant.
+        let steps = parse_query(r#"text_search(query: "foo", limit: 10)"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::TextSearch { .. } => {}
+            other => panic!("expected TextSearch step, got {:?}", other),
+        }
+    }
 }
 
 // Helper: extract usize from a value pair
