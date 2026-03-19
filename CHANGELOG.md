@@ -1,3 +1,10 @@
+## [2.11.0] - 2026-03-19
+
+### Added
+
+- cognitive architecture step types (#163)
+
+
 ## [2.10.0] - 2026-03-18
 
 ### Added
