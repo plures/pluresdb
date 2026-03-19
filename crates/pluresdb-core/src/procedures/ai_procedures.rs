@@ -1152,10 +1152,10 @@ pub fn export_preference_pairs_jsonl(pairs: &[PreferencePair]) -> anyhow::Result
         .iter()
         .map(|p| {
             serde_json::to_string(&serde_json::json!({
-                "id":      p.id,
-                "prompt":  p.prompt,
-                "chosen":  p.chosen,
-                "rejected":p.rejected,
+                "id":      &p.id,
+                "prompt":  &p.prompt,
+                "chosen":  &p.chosen,
+                "rejected":&p.rejected,
             }))
         })
         .collect::<Result<Vec<_>, _>>()?;
