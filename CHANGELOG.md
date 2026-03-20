@@ -1,3 +1,10 @@
+## [2.12.0] - 2026-03-20
+
+### Added
+
+- AI-specific procedures — decision audit, RL extraction, self-tuning (#167)
+
+
 ## [2.11.0] - 2026-03-19
 
 ### Added
