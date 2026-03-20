@@ -21,6 +21,7 @@ step = {
   | vector_search_step
   | text_search_step
   | transform_step
+  | conditional_step
   | assign_step
   | emit_step
   | graph_clusters_step

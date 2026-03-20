@@ -244,7 +244,8 @@ mod tests {
     fn structured_truncates_text() {
         let result = apply_transform(sample_nodes(), &TransformFormat::Structured, 10);
         let text = result[0].data["text"].as_str().unwrap();
-        assert!(text.len() <= 12); // 10 + "…"
+        // max_chars=10 ASCII chars + "…" (U+2026, 3 UTF-8 bytes) = 13 bytes max.
+        assert!(text.len() <= 13); // 10 + "…"
     }
 
     #[test]
