@@ -1,3 +1,28 @@
+## [2.12.0] - 2026-03-20
+
+### Added
+
+- AI-specific procedures — decision audit, RL extraction, self-tuning (#167)
+
+
+## [2.11.0] - 2026-03-19
+
+### Added
+
+- cognitive architecture step types (#163)
+
+
+## [2.10.0] - 2026-03-18
+
+### Added
+
+- improve repository best practices compliance (40% → 90%+) (#151)
+
+### Developer Experience
+
+- bump the npm_and_yarn group across 2 directories with 1 update (#152)
+
+
 ## [2.9.10] - 2026-03-10
 
 ### Documentation

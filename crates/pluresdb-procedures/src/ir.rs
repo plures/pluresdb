@@ -396,10 +396,157 @@ pub enum Step {
         #[serde(skip_serializing_if = "Option::is_none")]
         min_strength: Option<f64>,
     },
+
+    /// Walk the causal graph of Chronos chronicle nodes starting from `root`.
+    ///
+    /// Chronicle nodes are connected via `causal_parent` field references or
+    /// via edges whose `link_type` is `"causal"`.  This step traverses those
+    /// causal links and returns all reachable nodes (including the root) in
+    /// causal order, up to `max_depth` hops.
+    ///
+    /// ## Direction
+    ///
+    /// | Value        | Meaning                                                        |
+    /// |--------------|----------------------------------------------------------------|
+    /// | `"backward"` | Follow `causal_parent` links toward the chain root (default)   |
+    /// | `"forward"`  | Follow edges where the root is the `causal_parent` (children)  |
+    /// | `"both"`     | Traverse in both directions                                    |
+    ///
+    /// Returns the reachable [`NodeRecord`]s (including the starting root) in
+    /// BFS order.  Downstream pipeline steps (filter, sort, project) can refine
+    /// the result further.
+    ChronicleTrace {
+        /// ID of the starting chronicle node.
+        root: String,
+        /// Maximum traversal depth in hops (default: 50).
+        #[serde(default = "default_chronicle_max_depth")]
+        max_depth: usize,
+        /// Traversal direction: `"backward"` (default), `"forward"`, or `"both"`.
+        #[serde(default = "default_chronicle_direction")]
+        direction: String,
+    },
+
+    // -----------------------------------------------------------------------
+    // Cognitive architecture steps
+    // -----------------------------------------------------------------------
+
+    /// Perform a vector similarity search against the store's HNSW index.
+    ///
+    /// The `query` field contains the raw text to embed (the engine calls the
+    /// store's embedder).  Returns results ordered by descending similarity.
+    VectorSearch {
+        /// Raw text query — will be embedded by the store's [`EmbedText`] impl.
+        query: String,
+        /// Maximum number of results to return (default: 10).
+        #[serde(default = "default_vector_search_limit")]
+        limit: usize,
+        /// Minimum cosine similarity score in `[0, 1]` (default: 0.0).
+        #[serde(default)]
+        min_score: f64,
+        /// Optional category filter — only return nodes matching this category.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        category: Option<String>,
+    },
+
+    /// Full-text keyword search over a single field in node data (default: `data.text`).
+    ///
+    /// Returns nodes whose `data.<field>` value contains **all** of the
+    /// whitespace-separated terms in `query` (case-insensitive).
+    TextSearch {
+        /// Whitespace-separated search terms.
+        query: String,
+        /// Maximum results (default: 10).
+        #[serde(default = "default_vector_search_limit")]
+        limit: usize,
+        /// Name of the field within `data` to search (default: `"text"`).
+        #[serde(default = "default_text_field")]
+        field: String,
+    },
+
+    /// Transform node data into a compressed representation.
+    ///
+    /// Supported formats:
+    /// - `"structured"` — dense JSON assertions (key-value pairs)
+    /// - `"fused"` — category-grouped single text block
+    /// - `"toon"` — ultra-compact single-line notation (TOON format)
+    Transform {
+        /// Output format: `"structured"`, `"fused"`, or `"toon"`.
+        format: TransformFormat,
+        /// Maximum characters **per transformed entry** (0 = no per-entry limit).
+        ///
+        /// This limit is applied to each node's transformed text or line. The
+        /// total combined `text` for formats like `"fused"` may therefore exceed
+        /// `max_chars` across all entries.
+        #[serde(default)]
+        max_chars: usize,
+    },
+
+    /// Conditionally execute one of two sub-pipelines based on a predicate
+    /// evaluated against the current node set.
+    ///
+    /// `condition` is checked against the **first node** in the set (useful
+    /// after aggregation or single-result steps). If the set is empty, the
+    /// `else_steps` branch is taken.
+    Conditional {
+        condition: Predicate,
+        then_steps: Vec<Step>,
+        #[serde(default)]
+        else_steps: Vec<Step>,
+    },
+
+    /// Bind the current node set to a named variable in the pipeline context.
+    ///
+    /// Variables can be referenced by later steps (e.g. `Emit`).  This step
+    /// passes the node set through unchanged.
+    Assign {
+        /// Variable name to bind.
+        name: String,
+    },
+
+    /// Emit a structured output from the pipeline.
+    ///
+    /// This is a terminal step that produces a labelled result, optionally
+    /// combining the current node set with named variables.
+    Emit {
+        /// Label for this output (used by callers to identify the result).
+        label: String,
+        /// If set, emit the contents of this named variable instead of the
+        /// current node set.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        from_var: Option<String>,
+    },
+}
+
+fn default_vector_search_limit() -> usize {
+    10
+}
+
+fn default_text_field() -> String {
+    "text".to_string()
+}
+
+/// Output format for the `Transform` step.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransformFormat {
+    /// Dense JSON assertions: `{"category":"decision","text":"Use Rust for...","score":0.9}`
+    Structured,
+    /// Category-grouped text block, one line per entry.
+    Fused,
+    /// Ultra-compact notation: `[D|0.9] Use Rust for performance → decided 2026-03`
+    Toon,
 }
 
 fn default_cluster_algorithm() -> String {
     "louvain".to_string()
+}
+
+fn default_chronicle_max_depth() -> usize {
+    50
+}
+
+fn default_chronicle_direction() -> String {
+    "backward".to_string()
 }
 
 // ---------------------------------------------------------------------------
@@ -587,4 +734,5 @@ mod tests {
         let back: Step = serde_json::from_str(&json).unwrap();
         assert_eq!(step, back);
     }
+
 }

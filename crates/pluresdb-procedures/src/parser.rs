@@ -5,6 +5,7 @@
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
+use pest::error::{Error as PestError, ErrorVariant};
 
 use crate::ir::{AggFn, CmpOp, FieldSpec, IrValue, MutateOp, Predicate, SortDir, Step};
 
@@ -58,6 +59,12 @@ fn parse_step(pair: Pair<Rule>) -> Result<Step, ParseError> {
         Rule::graph_neighbors_step => parse_graph_neighbors(inner),
         Rule::graph_links_step => parse_graph_links(inner),
         Rule::auto_link_step => parse_auto_link(inner),
+        Rule::vector_search_step => parse_vector_search(inner),
+        Rule::text_search_step => parse_text_search(inner),
+        Rule::transform_step => parse_transform(inner),
+        Rule::conditional_step => parse_conditional(inner),
+        Rule::assign_step => parse_assign(inner),
+        Rule::emit_step => parse_emit(inner),
         r => unreachable!("unexpected rule: {:?}", r),
     }
 }
@@ -753,6 +760,385 @@ fn parse_auto_link(pair: Pair<Rule>) -> Result<Step, ParseError> {
     }
 
     Ok(Step::AutoLink { algorithms, min_strength })
+}
+
+// ---- cognitive architecture steps ----
+
+/// Strip surrounding quotes from a DSL string literal and expand escape sequences.
+///
+/// Accepts both single-quoted (`'...'`) and double-quoted (`"..."`) literals.
+/// When no surrounding quotes are present the string is returned as-is.
+fn unquote(s: &str) -> String {
+    let unquoted = if s.len() >= 2 {
+        let first = s.as_bytes()[0] as char;
+        let last = s.as_bytes()[s.len() - 1] as char;
+        if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+            &s[1..s.len() - 1]
+        } else {
+            s
+        }
+    } else {
+        s
+    };
+
+    let mut result = String::new();
+    let mut chars = unquoted.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            if let Some(escaped) = chars.next() {
+                match escaped {
+                    'n' => result.push('\n'),
+                    'r' => result.push('\r'),
+                    't' => result.push('\t'),
+                    '\\' => result.push('\\'),
+                    '"' => result.push('"'),
+                    '\'' => result.push('\''),
+                    other => result.push(other),
+                }
+            }
+        } else {
+            result.push(c);
+        }
+    }
+
+    result
+}
+
+fn parse_string_atom(pair: Pair<Rule>) -> String {
+    unquote(pair.as_str())
+}
+
+fn parse_vector_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let mut children = pair.into_inner();
+    let query_pair = children
+        .next()
+        .expect("vector_search query string");
+    let query = if query_pair.as_rule() == Rule::string {
+        // The grammar currently passes a `string` atom; parse it directly to avoid
+        // calling `parse_value` on a non-`value` rule (which can panic).
+        parse_string_atom(query_pair)
+    } else {
+        let query_value = parse_value(query_pair.clone())?;
+        if let IrValue::String(s) = query_value {
+            s
+        } else {
+            // Fallback to the raw text to avoid changing existing non-failing behavior
+            // if the grammar ever allows non-string values here.
+            query_pair.as_str().to_string()
+        }
+    };
+    let mut limit = 10usize;
+    let mut min_score = 0.0f64;
+    let mut category: Option<String> = None;
+
+    for kv in children {
+        if kv.as_rule() == Rule::vector_search_kv {
+            let mut inner = kv.into_inner();
+            let key = inner.next().expect("kv key").as_str();
+            let val = inner.next().expect("kv value");
+            match key {
+                "limit" => limit = parse_value_as_usize(val)?,
+                "min_score" => min_score = parse_value_as_f64(val)?,
+                "category" => {
+                    let parsed = parse_value(val)?;
+                    if let IrValue::String(s) = parsed {
+                        category = Some(s);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Ok(Step::VectorSearch { query, limit, min_score, category })
+}
+
+fn parse_text_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let mut children = pair.into_inner();
+    let query_pair = children
+        .next()
+        .expect("text_search query string");
+    let query = if query_pair.as_rule() == Rule::string {
+        // The grammar currently passes a `string` atom; parse it directly to avoid
+        // calling `parse_value` on a non-`value` rule (which can panic).
+        parse_string_atom(query_pair)
+    } else {
+        let query_value = parse_value(query_pair.clone())?;
+        if let IrValue::String(s) = query_value {
+            s
+        } else {
+            // Fallback to the raw text to avoid changing existing non-failing behavior
+            // if the grammar ever allows non-string values here.
+            query_pair.as_str().to_string()
+        }
+    };
+    let mut limit = 10usize;
+    let mut field = "text".to_string();
+
+    for kv in children {
+        if kv.as_rule() == Rule::text_search_kv {
+            let mut inner = kv.into_inner();
+            let key = inner.next().expect("kv key").as_str();
+            let val = inner.next().expect("kv value");
+            match key {
+                "limit" => limit = parse_value_as_usize(val)?,
+                "field" => field = parse_value_as_string(val),
+                _ => {}
+            }
+        }
+    }
+
+    Ok(Step::TextSearch { query, limit, field })
+}
+
+fn parse_transform(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    use crate::ir::TransformFormat;
+    let mut children = pair.into_inner();
+
+    let format_kv = children.next().expect("transform format kv");
+    let format_pair = format_kv
+        .into_inner()
+        .find(|p| p.as_rule() == Rule::string)
+        .expect("format string");
+    let format_str = unquote(format_pair.as_str());
+    let format = match format_str.as_str() {
+        "structured" => TransformFormat::Structured,
+        "fused" => TransformFormat::Fused,
+        "toon" => TransformFormat::Toon,
+        other => {
+            return Err(ParseError(pest::error::Error::new_from_span(
+                pest::error::ErrorVariant::CustomError {
+                    message: format!("unknown transform format: {}", other),
+                },
+                format_pair.as_span(),
+            )));
+        }
+    };
+
+    let mut max_chars = 0usize;
+    if let Some(mc_kv) = children.next() {
+        if mc_kv.as_rule() == Rule::transform_max_chars_kv {
+            let val_pair = mc_kv
+                .into_inner()
+                .find(|p| p.as_rule() == Rule::pos_integer)
+                .expect("max_chars value");
+            let val_str = val_pair.as_str();
+            max_chars = val_str.parse().map_err(|_| {
+                ParseError(pest::error::Error::new_from_span(
+                    pest::error::ErrorVariant::CustomError {
+                        message: format!("invalid max_chars value: {}", val_str),
+                    },
+                    val_pair.as_span(),
+                ))
+            })?;
+        }
+    }
+
+    Ok(Step::Transform { format, max_chars })
+}
+
+fn parse_conditional(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    // DSL conditional only parses the condition predicate; then/else are JSON-IR only
+    let pred = pair.into_inner().next().expect("conditional predicate");
+    Ok(Step::Conditional {
+        condition: parse_predicate(pred)?,
+        then_steps: Vec::new(),
+        else_steps: Vec::new(),
+    })
+}
+
+fn parse_assign(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let kv = pair.into_inner().next().expect("assign name kv");
+    let name = unquote(
+        kv.into_inner()
+            .find(|p| p.as_rule() == Rule::string)
+            .expect("assign name string")
+            .as_str(),
+    );
+    Ok(Step::Assign { name })
+}
+
+fn parse_emit(pair: Pair<Rule>) -> Result<Step, ParseError> {
+    let mut children = pair.into_inner();
+
+    let label_kv = children.next().expect("emit label kv");
+    let label = unquote(
+        label_kv
+            .into_inner()
+            .find(|p| p.as_rule() == Rule::string)
+            .expect("emit label string")
+            .as_str(),
+    );
+
+    let from_var = children.next().map(|from_kv| {
+        unquote(
+            from_kv
+                .into_inner()
+                .find(|p| p.as_rule() == Rule::string)
+                .expect("emit from string")
+                .as_str(),
+        )
+    });
+
+    Ok(Step::Emit { label, from_var })
+}
+
+#[cfg(test)]
+mod tests_new_dsl_steps {
+    use super::parse_query;
+    use crate::ir::{Step, TransformFormat};
+
+    #[test]
+    fn parse_transform_with_default_max_chars() {
+        // Only format is provided; max_chars should default to 0.
+        let steps = parse_query(r#"transform(format: "structured")"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::Transform { format, max_chars } => {
+                assert_eq!(*format, TransformFormat::Structured);
+                assert_eq!(*max_chars, 0);
+            }
+            other => panic!("expected Transform step, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_conditional_initializes_empty_then_else() {
+        let steps = parse_query(r#"conditional(category == "decision")"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::Conditional {
+                condition: _,
+                then_steps,
+                else_steps,
+            } => {
+                assert!(then_steps.is_empty());
+                assert!(else_steps.is_empty());
+            }
+            other => panic!("expected Conditional step, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_assign_unquotes_escaped_string() {
+        let steps = parse_query(r#"assign(name: "foo\"bar")"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::Assign { name } => {
+                assert_eq!(name, "foo\"bar");
+            }
+            other => panic!("expected Assign step, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_emit_with_and_without_from_var() {
+        // Without from: should default to None.
+        let steps = parse_query(r#"emit(label: "result")"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::Emit { label, from_var } => {
+                assert_eq!(label, "result");
+                assert!(from_var.is_none());
+            }
+            other => panic!("expected Emit step, got {:?}", other),
+        }
+
+        // With from: should parse into Some(..).
+        let steps = parse_query(r#"emit(label: "result", from: "tmp_var")"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::Emit { label, from_var } => {
+                assert_eq!(label, "result");
+                assert_eq!(from_var.as_deref(), Some("tmp_var"));
+            }
+            other => panic!("expected Emit step with from_var, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_vector_search_step_variant() {
+        // Basic smoke test to ensure the vector_search DSL parses to the right variant.
+        // Grammar syntax: vector_search("query", limit: N, min_score: 0.0, category: "cat")
+        // The query is a positional first argument (bare string), not key: value.
+        let steps = parse_query(r#"vector_search("foo", limit: 5)"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::VectorSearch { .. } => {}
+            other => panic!("expected VectorSearch step, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_text_search_step_variant() {
+        // Basic smoke test to ensure the text_search DSL parses to the right variant.
+        // Grammar syntax: text_search("query", limit: N, field: "text")
+        // The query is a positional first argument (bare string), not key: value.
+        let steps = parse_query(r#"text_search("foo", limit: 10)"#).unwrap();
+        assert_eq!(steps.len(), 1);
+        match &steps[0] {
+            Step::TextSearch { .. } => {}
+            other => panic!("expected TextSearch step, got {:?}", other),
+        }
+    }
+}
+
+// Helper: extract usize from a value pair
+fn parse_value_as_usize(pair: Pair<Rule>) -> Result<usize, ParseError> {
+    let span = pair.as_span();
+    let mut inner_pairs = pair.into_inner();
+    let inner = inner_pairs.next().ok_or_else(|| {
+        ParseError(PestError::new_from_span(
+            ErrorVariant::CustomError {
+                message: "expected numeric value".into(),
+            },
+            span,
+        ))
+    })?;
+
+    inner
+        .as_str()
+        .parse::<usize>()
+        .map_err(|_| {
+            ParseError(PestError::new_from_span(
+                ErrorVariant::CustomError {
+                    message: "invalid unsigned integer in value".into(),
+                },
+                inner.as_span(),
+            ))
+        })
+}
+
+// Helper: extract f64 from a value pair
+fn parse_value_as_f64(pair: Pair<Rule>) -> Result<f64, ParseError> {
+    let span = pair.as_span();
+    let mut inner_pairs = pair.into_inner();
+    let inner = inner_pairs.next().ok_or_else(|| {
+        ParseError(PestError::new_from_span(
+            ErrorVariant::CustomError {
+                message: "expected numeric value".into(),
+            },
+            span,
+        ))
+    })?;
+
+    inner
+        .as_str()
+        .parse::<f64>()
+        .map_err(|_| {
+            ParseError(PestError::new_from_span(
+                ErrorVariant::CustomError {
+                    message: "invalid float in value".into(),
+                },
+                inner.as_span(),
+            ))
+        })
+}
+
+// Helper: extract String from a value pair (expects a string literal)
+fn parse_value_as_string(pair: Pair<Rule>) -> String {
+    let inner = pair.into_inner().next().expect("value child");
+    unquote(inner.as_str())
 }
 
 #[cfg(test)]
