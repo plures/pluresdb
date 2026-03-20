@@ -5,6 +5,7 @@
 //! durable implementation that can run entirely within the application process.
 
 pub mod blob;
+pub mod bridge;
 pub mod encryption;
 pub mod rad;
 pub mod replay;
@@ -22,6 +23,10 @@ use sled::IVec;
 use tracing::{info, instrument};
 
 pub use blob::{sha256_hex, validate_hash, BlobStore, FileBlobStore, MemoryBlobStore};
+pub use bridge::{
+    BlobObjectBridge, ChunkRef, Manifest, ObjectBridge, ObjectRestorer, SnapshotManager,
+    WalFlusher,
+};
 pub use encryption::{EncryptionConfig, EncryptionMetadata};
 pub use rad::{RadAdapter, SledRadAdapter};
 pub use replay::{ReplayStats, metadata_pruning, rebuild_from_wal, replay_wal};
