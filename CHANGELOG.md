@@ -1,3 +1,10 @@
+## [2.12.1] - 2026-03-20
+
+### Developer Experience
+
+- bump flatted (#177)
+
+
 ## [2.12.0] - 2026-03-20
 
 ### Added
