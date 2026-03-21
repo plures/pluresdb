@@ -102,7 +102,10 @@ const validatePayload = defineRule<GraphValidationContext>({
     if (!evt) return RuleResult.noop();
 
     const { id, data, operation } = evt.payload;
-    if (operation === "delete") return RuleResult.noop();
+    if (operation === "delete") {
+      // Deletes skip payload-shape validation but still emit a positive validation fact.
+      return RuleResult.emit([NodeMutationValid.create({ id })]);
+    }
 
     const isPlain =
       data !== null &&
