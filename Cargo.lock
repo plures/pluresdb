@@ -2921,7 +2921,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb"
-version = "2.12.0"
+version = "2.14.0"
 dependencies = [
  "anyhow",
  "pluresdb-core",
@@ -2932,7 +2932,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-cli"
-version = "2.12.0"
+version = "2.14.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2952,7 +2952,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-core"
-version = "2.12.0"
+version = "2.14.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2974,7 +2974,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-node"
-version = "2.12.0"
+version = "2.14.0"
 dependencies = [
  "napi",
  "napi-build",
@@ -2990,7 +2990,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures"
-version = "2.12.0"
+version = "2.14.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3008,7 +3008,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures-macros"
-version = "2.12.0"
+version = "2.14.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3017,7 +3017,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sea"
-version = "2.12.0"
+version = "2.14.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3033,7 +3033,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-storage"
-version = "2.12.0"
+version = "2.14.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3058,7 +3058,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sync"
-version = "2.12.0"
+version = "2.14.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3077,7 +3077,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-wasm"
-version = "2.12.0"
+version = "2.14.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -3561,9 +3561,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.9"
+version = "0.103.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7df23109aa6c1567d1c575b9952556388da57401e4ace1d15f79eedad0d8f53"
+checksum = "df33b2b81ac578cabaf06b89b0631153a3f416b0a886e8a7a1707fb51abbd1ef"
 dependencies = [
  "ring",
  "rustls-pki-types",
