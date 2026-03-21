@@ -49,17 +49,40 @@ export interface DataIntegrityContext {
 // ---------------------------------------------------------------------------
 
 /** Recursively collect string values that look like graph node IDs (`*:*`). */
-function collectRefs(data: unknown, seen = new Set<string>()): string[] {
+function collectRefs(
+  data: unknown,
+  refs: Set<string> = new Set<string>(),
+  visited: WeakSet<object> = new WeakSet<object>(),
+): string[] {
   if (typeof data === "string") {
-    if (data.includes(":")) seen.add(data);
-  } else if (Array.isArray(data)) {
-    for (const item of data) collectRefs(item, seen);
-  } else if (data !== null && typeof data === "object") {
-    for (const val of Object.values(data as Record<string, unknown>)) {
-      collectRefs(val, seen);
+    if (data.includes(":")) {
+      refs.add(data);
+    }
+    return [...refs];
+  }
+
+  if (data !== null && typeof data === "object") {
+    const obj = data as object;
+
+    if (visited.has(obj)) {
+      // Cyclic reference detected; avoid infinite recursion.
+      return [...refs];
+    }
+
+    visited.add(obj);
+
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        collectRefs(item, refs, visited);
+      }
+    } else {
+      for (const val of Object.values(obj as Record<string, unknown>)) {
+        collectRefs(val, refs, visited);
+      }
     }
   }
-  return [...seen];
+
+  return [...refs];
 }
 
 // ---------------------------------------------------------------------------
