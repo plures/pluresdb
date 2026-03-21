@@ -1,3 +1,10 @@
+## [2.14.0] - 2026-03-21
+
+### Added
+
+- Adopt @plures/praxis for declarative logic management (#179)
+
+
 ## [2.13.0] - 2026-03-21
 
 ### Added
