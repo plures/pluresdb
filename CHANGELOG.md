@@ -1,3 +1,10 @@
+## [2.14.1] - 2026-03-21
+
+### Developer Experience
+
+- bump rustls-webpki in the cargo group across 1 directory (#180)
+
+
 ## [2.14.0] - 2026-03-21
 
 ### Added
