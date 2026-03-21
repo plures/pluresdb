@@ -49,40 +49,49 @@ export interface DataIntegrityContext {
 // ---------------------------------------------------------------------------
 
 /** Recursively collect string values that look like graph node IDs (`*:*`). */
+function collectRefs(data: unknown): string[];
 function collectRefs(
   data: unknown,
-  refs: Set<string> = new Set<string>(),
-  visited: WeakSet<object> = new WeakSet<object>(),
-): string[] {
+  refs: Set<string>,
+  visited: WeakSet<object>,
+): void;
+function collectRefs(
+  data: unknown,
+  refs?: Set<string>,
+  visited?: WeakSet<object>,
+): string[] | void {
+  const isTopLevel = refs === undefined || visited === undefined;
+  const effectiveRefs = refs ?? new Set<string>();
+  const effectiveVisited = visited ?? new WeakSet<object>();
+
   if (typeof data === "string") {
     if (data.includes(":")) {
-      refs.add(data);
+      effectiveRefs.add(data);
     }
-    return [...refs];
-  }
-
-  if (data !== null && typeof data === "object") {
+  } else if (data !== null && typeof data === "object") {
     const obj = data as object;
 
-    if (visited.has(obj)) {
+    if (effectiveVisited.has(obj)) {
       // Cyclic reference detected; avoid infinite recursion.
-      return [...refs];
+      return;
     }
 
-    visited.add(obj);
+    effectiveVisited.add(obj);
 
     if (Array.isArray(obj)) {
       for (const item of obj) {
-        collectRefs(item, refs, visited);
+        collectRefs(item, effectiveRefs, effectiveVisited);
       }
     } else {
       for (const val of Object.values(obj as Record<string, unknown>)) {
-        collectRefs(val, refs, visited);
+        collectRefs(val, effectiveRefs, effectiveVisited);
       }
     }
   }
 
-  return [...refs];
+  if (isTopLevel) {
+    return [...effectiveRefs];
+  }
 }
 
 // ---------------------------------------------------------------------------
