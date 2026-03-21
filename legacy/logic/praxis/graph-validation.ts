@@ -129,7 +129,7 @@ const validatePayload = defineRule<GraphValidationContext>({
     if (hasPriorInvalidForId) {
       return RuleResult.noop();
     }
-    return RuleResult.emit([NodeMutationValid.create({ id })]);
+    return RuleResult.noop();
   },
 });
 
