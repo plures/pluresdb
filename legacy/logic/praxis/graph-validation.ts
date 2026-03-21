@@ -117,6 +117,15 @@ const validatePayload = defineRule<GraphValidationContext>({
         }),
       ]);
     }
+
+    // Avoid emitting a contradictory "valid" fact if an invalid fact
+    // has already been produced for this mutation in the current step.
+    const hasPriorInvalidForId = events.some(
+      (e) => NodeMutationInvalid.is(e) && e.payload.id === id,
+    );
+    if (hasPriorInvalidForId) {
+      return RuleResult.noop();
+    }
     return RuleResult.emit([NodeMutationValid.create({ id })]);
   },
 });
