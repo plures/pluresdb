@@ -119,6 +119,7 @@
     "package.json"
   ],
   "dependencies": {
+    "@plures/praxis": "^1.4.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "hyperswarm": "^4.8.4",
