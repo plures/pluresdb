@@ -1,3 +1,10 @@
+## [2.13.0] - 2026-03-21
+
+### Added
+
+- add hybrid storage backend with ObjectBridge (#165)
+
+
 ## [2.12.1] - 2026-03-20
 
 ### Developer Experience
