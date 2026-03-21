@@ -69,13 +69,18 @@ export const CheckAccess = defineEvent<
 /** Conclusion: the operation is permitted. */
 export const AccessGranted = defineFact<
   "access.AccessGranted",
-  { operation: string; nodeId: string; actor: string }
+  { operation: "read" | "write" | "traverse" | "delete"; nodeId: string; actor: string }
 >("access.AccessGranted");
 
 /** Conclusion: the operation is denied. */
 export const AccessDenied = defineFact<
   "access.AccessDenied",
-  { operation: string; nodeId: string; actor: string; reasons: string[] }
+  {
+    operation: "read" | "write" | "traverse" | "delete";
+    nodeId: string;
+    actor: string;
+    reasons: string[];
+  }
 >("access.AccessDenied");
 
 // ---------------------------------------------------------------------------
