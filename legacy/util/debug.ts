@@ -1,3 +1,7 @@
+/**
+ * `true` when the `PLURESDB_DEBUG` environment variable is set to `"1"` or
+ * `"true"` (case-insensitive).  Works in both Deno and Node.js runtimes.
+ */
 export const DEBUG_ENABLED: boolean = (() => {
   try {
     let v = "";
@@ -20,6 +24,14 @@ export const DEBUG_ENABLED: boolean = (() => {
   }
 })();
 
+/**
+ * Log a debug message to `console.log` when {@link DEBUG_ENABLED} is `true`.
+ *
+ * All arguments are prefixed with `[pluresdb]` for easy filtering.
+ * In production builds with `PLURESDB_DEBUG` unset this function is a no-op.
+ *
+ * @param args - Any values to log.
+ */
 export function debugLog(...args: unknown[]): void {
   if (!DEBUG_ENABLED) return;
   // deno-lint-ignore no-console

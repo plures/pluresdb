@@ -1,8 +1,15 @@
 import { PluresDB } from "../core/database.ts";
 import { loadConfig, saveConfig } from "../config.ts";
 
+/**
+ * Handle returned by {@link startApiServer}.
+ *
+ * Provides the base URL of the running server and a method to shut it down.
+ */
 export interface ApiServerHandle {
+  /** Base HTTP URL of the API server (e.g. `"http://localhost:8080"`). */
   url: string;
+  /** Shut down the HTTP server. */
   close: () => void;
 }
 
@@ -119,6 +126,24 @@ function corsHeaders(extra?: Record<string, string>): Headers {
   return headers;
 }
 
+/**
+ * Start a PluresDB HTTP REST API server.
+ *
+ * Exposes the following endpoints:
+ * - `GET /api/nodes/:id`         — retrieve a node
+ * - `PUT /api/nodes/:id`         — insert or update a node
+ * - `DELETE /api/nodes/:id`      — delete a node
+ * - `GET /api/list`              — list all nodes
+ * - `POST /api/search`           — vector similarity search
+ * - `GET /api/events`            — Server-Sent Events stream of all changes
+ * - `GET /api/config`            — read current config
+ * - `POST /api/config`           — update config
+ * - `GET /`                      — serves the Svelte web UI (if built)
+ *
+ * @param opts.port - TCP port to listen on.
+ * @param opts.db   - PluresDB instance to serve.
+ * @returns An {@link ApiServerHandle} with `url` and `close`.
+ */
 export function startApiServer(
   opts: { port: number; db: PluresDB },
 ): ApiServerHandle {

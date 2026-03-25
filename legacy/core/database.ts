@@ -66,13 +66,45 @@ function sanitizeForOutput(
 }
 
 export interface ServeOptions {
+  /** TCP port on which the WebSocket mesh server listens. Defaults to `8080`. */
   port?: number;
 }
+
+/**
+ * Options accepted by the {@link PluresDB} constructor.
+ */
 export interface DatabaseOptions {
+  /**
+   * File-system path to the Deno KV store.
+   * If omitted an in-memory store is used (data is not persisted).
+   */
   kvPath?: string;
+  /**
+   * Unique identifier for this peer in the distributed mesh.
+   * A random UUID is generated when not provided.
+   */
   peerId?: string;
 }
 
+/**
+ * Main PluresDB database class.
+ *
+ * PluresDB is a local-first, P2P graph database with CRDT conflict resolution.
+ * It stores arbitrary JSON nodes, supports vector/similarity search, reactive
+ * subscriptions, and optional P2P synchronization via Hyperswarm or WebSocket
+ * mesh networking.
+ *
+ * @example
+ * ```typescript
+ * const db = new PluresDB();
+ * await db.ready(); // must be called before any other method
+ *
+ * await db.put("user:1", { name: "Alice", role: "admin" });
+ * const user = await db.get("user:1");
+ * const unsubscribe = db.on("user:1", (node) => console.log("changed", node));
+ * await db.close();
+ * ```
+ */
 export class PluresDB {
   private readonly storage: KvStorage;
   private readonly listeners: Map<
@@ -91,6 +123,13 @@ export class PluresDB {
   private readonly vectorIndex = new BruteForceVectorIndex();
   private hyperswarmSync: HyperswarmSync | null = null;
 
+  /**
+   * Create a new PluresDB instance.
+   *
+   * The database is **not** ready for use until {@link ready} has been awaited.
+   *
+   * @param options - Optional configuration (storage path, peer ID).
+   */
   constructor(options?: DatabaseOptions) {
     this.storage = new KvStorage();
     this.peerId = options?.peerId ?? crypto.randomUUID();
@@ -98,6 +137,14 @@ export class PluresDB {
     // Caller should await ready()
   }
 
+  /**
+   * Open the underlying KV store and rebuild the in-memory vector index.
+   *
+   * Must be awaited before calling any other method.
+   *
+   * @param kvPath - Optional file-system path for persistent storage.
+   *   Omit to use an ephemeral in-memory store.
+   */
   async ready(kvPath?: string): Promise<void> {
     await this.storage.open(kvPath);
     // Rebuild in-memory vector index from storage
@@ -111,6 +158,16 @@ export class PluresDB {
   }
 
   // Basic CRUD
+  /**
+   * Insert or update a node.
+   *
+   * The `data` payload is deep-merged with any existing node using last-write-
+   * wins semantics per field.  Setting a field to `null` removes it.
+   * Registered rules are evaluated after the write.
+   *
+   * @param id   - Stable, unique node identifier.
+   * @param data - Arbitrary JSON payload to store.
+   */
   async put(id: string, data: Record<string, unknown>): Promise<void> {
     this.ensureReady();
     await this.applyPut(id, data, false);
@@ -174,6 +231,12 @@ export class PluresDB {
     this.broadcast({ type: "put", originId: this.peerId, node: merged });
   }
 
+  /**
+   * Retrieve a node by its identifier.
+   *
+   * @param id - Node identifier to look up.
+   * @returns The node data merged with its `id` field, or `null` if not found.
+   */
   async get<T = Record<string, unknown>>(
     id: string,
   ): Promise<(T & { id: string }) | null> {
@@ -186,6 +249,14 @@ export class PluresDB {
     return { id: node.id, ...(sanitized as T) };
   }
 
+  /**
+   * Delete a node by its identifier.
+   *
+   * Fires subscriptions for the node with `null` and broadcasts the deletion
+   * to connected mesh peers.
+   *
+   * @param id - Identifier of the node to delete.
+   */
   async delete(id: string): Promise<void> {
     this.ensureReady();
     if (this.closed) return;
@@ -197,6 +268,17 @@ export class PluresDB {
   }
 
   // Subscriptions
+  /**
+   * Subscribe to changes on a single node.
+   *
+   * The callback is invoked asynchronously (via `queueMicrotask`) every time
+   * the node is written or deleted.  Receives the updated {@link NodeRecord},
+   * or `null` when the node has been deleted.
+   *
+   * @param id       - Node identifier to watch.
+   * @param callback - Function called on each change.
+   * @returns An unsubscribe function that removes the listener when called.
+   */
   on(id: string, callback: (node: NodeRecord | null) => void): () => void {
     this.ensureReady();
     const set = this.listeners.get(id) ?? new Set();
@@ -205,6 +287,14 @@ export class PluresDB {
     return () => this.off(id, callback);
   }
 
+  /**
+   * Remove a subscription previously registered with {@link on}.
+   *
+   * If `callback` is omitted all listeners for `id` are removed.
+   *
+   * @param id       - Node identifier.
+   * @param callback - Specific listener to remove, or omit to clear all.
+   */
   off(id: string, callback?: (node: NodeRecord | null) => void): void {
     const set = this.listeners.get(id);
     if (!set) return;
@@ -224,6 +314,17 @@ export class PluresDB {
   }
 
   // Vector search
+  /**
+   * Search for nodes whose embedding vectors are most similar to `query`.
+   *
+   * When `query` is a string it is converted to a deterministic 64-dimensional
+   * FNV-1a hash vector before searching.  Results are returned in descending
+   * cosine-similarity order.
+   *
+   * @param query - Embedding vector (number array) or text to embed.
+   * @param limit - Maximum number of results to return.
+   * @returns Array of matching nodes with an optional `similarity` score.
+   */
   async vectorSearch(
     query: string | number[],
     limit: number,
@@ -254,6 +355,12 @@ export class PluresDB {
   }
 
   // Type system convenience
+  /**
+   * Return all nodes whose `type` field equals `typeName`.
+   *
+   * @param typeName - Type label to filter by (e.g. `"User"`, `"Product"`).
+   * @returns Array of matching {@link NodeRecord} instances.
+   */
   async instancesOf(typeName: string): Promise<NodeRecord[]> {
     this.ensureReady();
     const results: NodeRecord[] = [];
@@ -263,11 +370,29 @@ export class PluresDB {
     return results;
   }
 
+  /**
+   * Return the full version history of a node, most-recent first.
+   *
+   * Each entry is a snapshot of the node at the time it was written.
+   *
+   * @param id - Node identifier.
+   * @returns Array of historical {@link NodeRecord} snapshots.
+   */
   async getNodeHistory(id: string): Promise<NodeRecord[]> {
     this.ensureReady();
     return await this.storage.getNodeHistory(id);
   }
 
+  /**
+   * Restore a node to a specific historical version.
+   *
+   * Locates the snapshot with the given `timestamp` in the node's history and
+   * re-applies its data via {@link put}, creating a new write on top.
+   *
+   * @param id        - Node identifier to restore.
+   * @param timestamp - Unix millisecond timestamp of the target snapshot.
+   * @throws {Error} If no matching snapshot is found in the history.
+   */
   async restoreNodeVersion(id: string, timestamp: number): Promise<void> {
     this.ensureReady();
     const history = await this.getNodeHistory(id);
@@ -282,6 +407,14 @@ export class PluresDB {
     await this.put(id, version.data);
   }
 
+  /**
+   * Set the `type` label on an existing (or new) node.
+   *
+   * Merges `{ type: typeName }` into the node's data via {@link put}.
+   *
+   * @param id       - Node identifier.
+   * @param typeName - Type label to assign (e.g. `"User"`, `"Product"`).
+   */
   async setType(id: string, typeName: string): Promise<void> {
     this.ensureReady();
     const existing = await this.storage.getNode(id);
@@ -291,6 +424,16 @@ export class PluresDB {
   }
 
   // Any-change subscription (internal use for API streaming)
+  /**
+   * Subscribe to changes on **any** node in the database.
+   *
+   * Useful for streaming all mutations to an API client or sync transport.
+   * The callback receives the node identifier and the updated
+   * {@link NodeRecord} (or `null` for deletions).
+   *
+   * @param callback - Function called for every write or deletion.
+   * @returns An unsubscribe function.
+   */
   onAny(
     callback: (event: { id: string; node: NodeRecord | null }) => void,
   ): () => void {
@@ -298,12 +441,22 @@ export class PluresDB {
     this.anyListeners.add(callback);
     return () => this.offAny(callback);
   }
+  /**
+   * Remove a listener registered with {@link onAny}.
+   *
+   * @param callback - The exact callback reference passed to {@link onAny}.
+   */
   offAny(
     callback: (event: { id: string; node: NodeRecord | null }) => void,
   ): void {
     this.anyListeners.delete(callback);
   }
 
+  /**
+   * Async iterator over every node currently stored in the database.
+   *
+   * @yields {@link NodeRecord} for each stored node.
+   */
   async *list(): AsyncIterable<NodeRecord> {
     this.ensureReady();
     for await (const node of this.storage.listNodes()) {
@@ -311,6 +464,13 @@ export class PluresDB {
     }
   }
 
+  /**
+   * Return all nodes as an array.
+   *
+   * Equivalent to collecting the results of {@link list} into an array.
+   *
+   * @returns Array of every {@link NodeRecord} in the database.
+   */
   async getAll(): Promise<NodeRecord[]> {
     this.ensureReady();
     const out: NodeRecord[] = [];
@@ -319,6 +479,13 @@ export class PluresDB {
   }
 
   // Mesh networking
+  /**
+   * Start a WebSocket mesh server so remote peers can connect to this instance.
+   *
+   * Only one server may be running at a time; subsequent calls are no-ops.
+   *
+   * @param options - Optional configuration (e.g. port number).
+   */
   serve(options?: ServeOptions): void {
     this.ensureReady();
     const port = options?.port ?? 8080;
@@ -337,6 +504,14 @@ export class PluresDB {
     }
   }
 
+  /**
+   * Connect to a remote PluresDB mesh server as a client.
+   *
+   * Immediately requests a full-state snapshot from the remote peer and
+   * keeps the connection open to receive future changes.
+   *
+   * @param url - WebSocket URL of the remote peer (e.g. `"ws://host:8080"`).
+   */
   connect(url: string): void {
     this.ensureReady();
     const socket = connectToPeer(url, {
@@ -369,6 +544,12 @@ export class PluresDB {
     socket.onclose = () => this.peerSockets.delete(socket);
   }
 
+  /**
+   * Close the database and release all resources.
+   *
+   * Closes WebSocket connections, shuts down the mesh server, disables
+   * Hyperswarm sync (if active), and closes the KV store.
+   */
   async close(): Promise<void> {
     this.closed = true;
     this.readyState = false;
@@ -603,9 +784,22 @@ export class PluresDB {
   }
 
   // --- rules ---
+  /**
+   * Register a reactive rule.
+   *
+   * Rules are evaluated after every {@link put} and after inbound mesh writes.
+   * A rule with a `whenType` filter only fires when the node's `type` matches.
+   *
+   * @param rule - Rule definition to add.
+   */
   addRule(rule: Rule): void {
     this.rules.addRule(rule);
   }
+  /**
+   * Remove a previously registered rule by name.
+   *
+   * @param name - The `rule.name` of the rule to remove.
+   */
   removeRule(name: string): void {
     this.rules.removeRule(name);
   }

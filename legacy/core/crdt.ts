@@ -1,5 +1,16 @@
 import type { NodeRecord, VectorClock } from "../types/index.ts";
 
+/**
+ * Merge two CRDT vector clocks by taking the element-wise maximum.
+ *
+ * The resulting clock contains every peer ID from both inputs.  For each peer
+ * the counter is set to the greater of the two values, ensuring the merged
+ * clock reflects the highest observed write count from either side.
+ *
+ * @param a - First vector clock.
+ * @param b - Second vector clock.
+ * @returns A new merged {@link VectorClock}.
+ */
 export function mergeVectorClocks(a: VectorClock, b: VectorClock): VectorClock {
   const merged: VectorClock = {};
   const keys = new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})]);
@@ -51,6 +62,25 @@ function deepMergeWithDeletes(
   return { data: out, state: outState };
 }
 
+/**
+ * CRDT merge of two {@link NodeRecord} instances.
+ *
+ * Implements last-write-wins semantics at the field level using the per-field
+ * `state` timestamps.  Setting a field value to `null` in the incoming record
+ * removes that field from the merged result.
+ *
+ * Rules:
+ * - If `local` is `null`, `incoming` is returned as-is.
+ * - If timestamps differ, the record with the **later** timestamp "wins" but
+ *   its fields are deep-merged against the loser using `state` timestamps.
+ * - If timestamps are **equal**, a deterministic field-wise merge is performed.
+ * - Vector clocks are always merged by taking the element-wise maximum.
+ *
+ * @param local    - The locally stored node, or `null` if not yet present.
+ * @param incoming - The incoming node to merge.
+ * @returns The merged {@link NodeRecord}.
+ * @throws {Error} If the two records have different `id` values.
+ */
 export function mergeNodes(
   local: NodeRecord | null,
   incoming: NodeRecord,
