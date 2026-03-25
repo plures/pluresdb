@@ -1,3 +1,11 @@
+## [2.15.0] - 2026-03-25
+
+### Added
+
+- add auto-approve workflow for Copilot runs
+- add Copilot PR Lifecycle workflow with level/strategic buckets
+
+
 ## [2.14.1] - 2026-03-21
 
 ### Developer Experience
