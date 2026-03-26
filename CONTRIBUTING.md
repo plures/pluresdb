@@ -119,12 +119,21 @@ version 1.x need to be migrated using the migration tool."
 
 ## Pull Request Process
 
-1. **Update documentation** if you're changing functionality
-2. **Add tests** for new features
-3. **Ensure CI passes** - All checks must pass
-4. **Request review** from maintainers
-5. **Address feedback** promptly
-6. **Squash commits** if requested to keep history clean
+1. **Title your PR using Conventional Commits format** - The CI enforces this.
+   PR titles must follow the same format as commit messages:
+   ```
+   docs: update CONTRIBUTING guide
+   feat(storage): add blob compression
+   fix(sync): handle disconnected peers gracefully
+   chore(deps): bump @plures/design-dojo to 0.10.6
+   ```
+   Do **not** use `[WIP]` or other non-conventional prefixes — use a draft PR instead.
+2. **Update documentation** if you're changing functionality
+3. **Add tests** for new features
+4. **Ensure CI passes** - All checks must pass
+5. **Request review** from maintainers
+6. **Address feedback** promptly
+7. **Squash commits** if requested to keep history clean
 
 ## Release Process
 

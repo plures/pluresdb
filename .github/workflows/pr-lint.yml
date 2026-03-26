@@ -33,6 +33,9 @@ jobs:
             echo ""
             echo "Valid types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert"
             echo ""
+            echo "Do NOT use [WIP] or similar prefixes — open a draft PR instead."
+            echo "See CONTRIBUTING.md (Pull Request Process section) for details."
+            echo ""
             echo "Got: $PR_TITLE"
             exit 1
           fi
