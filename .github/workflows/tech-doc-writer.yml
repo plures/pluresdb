@@ -56,8 +56,8 @@ jobs:
             const fs = require('fs');
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const prNum = ${{ github.event.pull_request.number }};
-            const prTitle = `${{ steps.context.outputs.pr_title }}`;
+            const prNum = context.payload.pull_request.number;
+            const prTitle = context.payload.pull_request.title;
 
             const changedFiles = fs.readFileSync('/tmp/changed_files.txt', 'utf8').trim();
             const codeDiff = fs.readFileSync('/tmp/code_diff.txt', 'utf8').trim();
