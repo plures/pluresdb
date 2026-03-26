@@ -20,14 +20,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
-          fetch-depth: 2
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
 
       - name: Gather diff context
         id: context
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
-          CHANGED=$(git diff --name-only HEAD~1 HEAD)
-          DIFF=$(git diff HEAD~1 HEAD -- ':(exclude)*.md' ':(exclude)*.yml' ':(exclude)*.json' ':(exclude).github/' ':(exclude)docs/' | head -500)
+          CHANGED=$(git diff --name-only "$BASE_SHA" "$MERGE_SHA")
+          DIFF=$(git diff "$BASE_SHA" "$MERGE_SHA" -- ':(exclude)*.md' ':(exclude)*.yml' ':(exclude)*.json' ':(exclude).github/' ':(exclude)docs/' | head -500)
           SRC_CHANGES=$(echo "$CHANGED" | grep -vE '^\.(github|gitignore)|^(README|CHANGELOG|docs/|\.)|\.md$|\.yml$|\.json$' | head -1)
 
           if [ -z "$SRC_CHANGES" ]; then
@@ -62,7 +65,7 @@ jobs:
 
             const body = `## Documentation Update Required
 
-> ⚠️ **Do NOT assume existing docs are correct.** Verify all doc claims against the actual source code. Use \`git diff HEAD~1 HEAD\` as your source of truth.
+> ⚠️ **Do NOT assume existing docs are correct.** Verify all doc claims against the actual source code. Use the PR diff as your source of truth.
 
 PR #${prNum} (\`${prTitle}\`) merged code changes.
 
