@@ -37,6 +37,24 @@ const packageRoot = typeof __dirname !== "undefined"
   ? path.resolve(__dirname, "..")
   : process.cwd();
 
+/**
+ * Node.js wrapper that manages a PluresDB Deno child process and exposes
+ * its REST API as a typed JavaScript client.
+ *
+ * Spawns a Deno subprocess running the PluresDB HTTP server, waits for it
+ * to become ready, and then delegates all calls to the REST API over
+ * `localhost`.  Extends `EventEmitter` so callers can listen for `"started"`,
+ * `"stopped"`, `"error"`, `"stdout"`, and `"stderr"` events.
+ *
+ * @example
+ * ```typescript
+ * const db = new PluresNode({ config: { port: 34567 } });
+ * await db.start();
+ * await db.put("user:1", { name: "Alice" });
+ * const user = await db.get("user:1");
+ * await db.stop();
+ * ```
+ */
 export class PluresNode extends EventEmitter {
   private process: ChildProcess | null = null;
   private config: PluresDBConfig;
@@ -44,6 +62,14 @@ export class PluresNode extends EventEmitter {
   private isRunning = false;
   private apiUrl: string = "";
 
+  /**
+   * Create a new PluresNode wrapper.
+   *
+   * By default the Deno server is started immediately unless
+   * `options.autoStart` is explicitly `false`.
+   *
+   * @param options - Configuration options.
+   */
   constructor(options: PluresDBOptions = {}) {
     super();
 
@@ -101,6 +127,13 @@ export class PluresNode extends EventEmitter {
     }
   }
 
+  /**
+   * Start the PluresDB Deno child process and wait for the HTTP server to
+   * become ready.
+   *
+   * Resolves when the server is accepting requests.  Rejects if the process
+   * cannot start or the server does not become ready within the timeout.
+   */
   async start(): Promise<void> {
     if (this.isRunning) {
       return;
@@ -201,6 +234,12 @@ export class PluresNode extends EventEmitter {
     throw new Error("Server failed to start within timeout");
   }
 
+  /**
+   * Stop the PluresDB Deno child process gracefully.
+   *
+   * Sends `SIGTERM` and waits for the process to exit.  If it does not exit
+   * within 5 seconds, `SIGKILL` is sent.
+   */
   async stop(): Promise<void> {
     if (!this.isRunning || !this.process) {
       return;
@@ -225,19 +264,32 @@ export class PluresNode extends EventEmitter {
     });
   }
 
+  /**
+   * Return the base HTTP URL of the running API server
+   * (e.g. `"http://localhost:34567"`).
+   */
   getApiUrl(): string {
     return this.apiUrl;
   }
 
+  /** Return the base HTTP URL of the web UI server. */
   getWebUrl(): string {
     return `http://${this.config.host}:${this.config.webPort}`;
   }
 
+  /** Return `true` if the child process is currently running. */
   isServerRunning(): boolean {
     return this.isRunning;
   }
 
   // SQLite-compatible API methods
+  /**
+   * Execute a SQL query against the PluresDB server.
+   *
+   * @param sql    - SQL statement with optional `?` placeholders.
+   * @param params - Bound parameter values in placeholder order.
+   * @returns Query result from the server.
+   */
   async query(sql: string, params: any[] = []): Promise<any> {
     const response = await fetch(`${this.apiUrl}/api/query`, {
       method: "POST",
@@ -252,6 +304,12 @@ export class PluresNode extends EventEmitter {
     return response.json();
   }
 
+  /**
+   * Insert or update a key/value pair in the database.
+   *
+   * @param key   - Node identifier.
+   * @param value - Arbitrary JSON value to store.
+   */
   async put(key: string, value: any): Promise<void> {
     const response = await fetch(`${this.apiUrl}/api/data`, {
       method: "PUT",
@@ -264,6 +322,12 @@ export class PluresNode extends EventEmitter {
     }
   }
 
+  /**
+   * Retrieve a value by key.
+   *
+   * @param key - Node identifier.
+   * @returns The stored value, or `null` if not found.
+   */
   async get(key: string): Promise<any> {
     const response = await fetch(
       `${this.apiUrl}/api/data/${encodeURIComponent(key)}`,
@@ -279,6 +343,11 @@ export class PluresNode extends EventEmitter {
     return response.json();
   }
 
+  /**
+   * Delete a key from the database.
+   *
+   * @param key - Node identifier to delete.
+   */
   async delete(key: string): Promise<void> {
     const response = await fetch(
       `${this.apiUrl}/api/data/${encodeURIComponent(key)}`,

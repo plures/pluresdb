@@ -109,6 +109,7 @@ pub struct EmbeddingWorkerStats {
 /// A search result from vector similarity search.
 #[derive(Debug, Clone)]
 pub struct VectorSearchResult {
+    /// The full node record that matched the query.
     pub record: NodeRecord,
     /// Cosine similarity score in \[0, 1\] where 1 = identical direction.
     pub score: f32,
@@ -117,9 +118,13 @@ pub struct VectorSearchResult {
 /// Metadata associated with a persisted node in the CRDT store.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct NodeRecord {
+    /// Unique node identifier.
     pub id: NodeId,
+    /// Arbitrary JSON payload stored with this node.
     pub data: NodeData,
+    /// Per-actor logical write counters used for CRDT merges.
     pub clock: VectorClock,
+    /// Wall-clock time of the last write that touched this node.
     pub timestamp: DateTime<Utc>,
     /// Optional embedding vector for vector similarity search.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -302,11 +307,13 @@ pub enum StoreError {
 /// CRDT operations that clients may apply to the store.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum CrdtOperation {
+    /// Insert or update a node identified by `id`.
     Put {
         id: NodeId,
         actor: ActorId,
         data: NodeData,
     },
+    /// Remove the node identified by `id`.
     Delete {
         id: NodeId,
     },
@@ -956,6 +963,7 @@ pub enum SqlValue {
 
 #[cfg(feature = "sqlite-compat")]
 impl SqlValue {
+    /// Return the integer value, or `None` if this is not `SqlValue::Integer`.
     pub fn as_i64(&self) -> Option<i64> {
         if let Self::Integer(value) = self {
             Some(*value)
@@ -964,6 +972,7 @@ impl SqlValue {
         }
     }
 
+    /// Return the floating-point value, or `None` if this is not `SqlValue::Real`.
     pub fn as_f64(&self) -> Option<f64> {
         if let Self::Real(value) = self {
             Some(*value)
@@ -972,6 +981,7 @@ impl SqlValue {
         }
     }
 
+    /// Return a string slice, or `None` if this is not `SqlValue::Text`.
     pub fn as_str(&self) -> Option<&str> {
         if let Self::Text(value) = self {
             Some(value.as_str())
@@ -980,6 +990,7 @@ impl SqlValue {
         }
     }
 
+    /// Return the raw byte slice, or `None` if this is not `SqlValue::Blob`.
     pub fn as_blob(&self) -> Option<&[u8]> {
         if let Self::Blob(value) = self {
             Some(value.as_slice())
@@ -988,6 +999,7 @@ impl SqlValue {
         }
     }
 
+    /// Convert to a `serde_json::Value` for serialization.
     pub fn to_json(&self) -> JsonValue {
         match self {
             SqlValue::Null => JsonValue::Null,
@@ -999,17 +1011,23 @@ impl SqlValue {
     }
 }
 
+/// The result of executing a `SELECT` query.
 #[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone, PartialEq)]
 pub struct QueryResult {
+    /// Ordered list of column names from the query.
     pub columns: Vec<String>,
+    /// All matching rows; each row is a vec of column values in column order.
     pub rows: Vec<Vec<SqlValue>>,
+    /// Number of rows affected by the last DML statement.
     pub changes: u64,
+    /// Row-id of the last INSERT, or 0 if not applicable.
     pub last_insert_rowid: i64,
 }
 
 #[cfg(feature = "sqlite-compat")]
 impl QueryResult {
+    /// Convert each row to a `HashMap<column_name, value>`.
     pub fn rows_as_maps(&self) -> Vec<HashMap<String, SqlValue>> {
         self.rows
             .iter()
@@ -1025,6 +1043,7 @@ impl QueryResult {
             .collect()
     }
 
+    /// Convert each row to a JSON object (`serde_json::Value`).
     pub fn rows_as_json(&self) -> Vec<JsonValue> {
         self.rows_as_maps()
             .into_iter()
@@ -1039,28 +1058,44 @@ impl QueryResult {
     }
 }
 
+/// Result of executing a DML statement (INSERT, UPDATE, DELETE).
 #[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExecutionResult {
+    /// Number of rows modified by the statement.
     pub changes: u64,
+    /// Row-id of the last INSERT, or 0 if not applicable.
     pub last_insert_rowid: i64,
 }
 
+/// Location of a SQLite database file.
 #[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum DatabasePath {
+    /// Pure in-memory database; data is not persisted across connections.
     InMemory,
+    /// File-backed database at the given path.
     File(PathBuf),
 }
 
+/// Configuration for opening a [`Database`].
+///
+/// Use the builder methods to construct the desired configuration.
+/// The default configuration creates an in-memory SQLite database.
 #[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone)]
 pub struct DatabaseOptions {
+    /// Where to store data.
     pub path: DatabasePath,
+    /// Open the database in read-only mode.
     pub read_only: bool,
+    /// Create the database file if it does not exist.
     pub create_if_missing: bool,
+    /// Apply the default performance pragmas on open.
     pub apply_default_pragmas: bool,
+    /// Additional SQLite PRAGMA statements applied after the defaults.
     pub custom_pragmas: Vec<(String, String)>,
+    /// How long SQLite should wait on a locked database before returning `BUSY`.
     pub busy_timeout: Option<Duration>,
     /// HuggingFace model ID to use for automatic text embedding (e.g.
     /// `"BAAI/bge-small-en-v1.5"`).  Requires the `embeddings` feature.
@@ -1084,10 +1119,16 @@ impl Default for DatabaseOptions {
 
 #[cfg(feature = "sqlite-compat")]
 impl DatabaseOptions {
+    /// Create options for an in-memory database (the default).
     pub fn in_memory() -> Self {
         Self::default()
     }
 
+    /// Create options for a file-backed database.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the SQLite database file.
     pub fn with_file(path: impl Into<PathBuf>) -> Self {
         Self {
             path: DatabasePath::File(path.into()),
@@ -1095,26 +1136,33 @@ impl DatabaseOptions {
         }
     }
 
+    /// Set whether to open the database in read-only mode.
     pub fn read_only(mut self, flag: bool) -> Self {
         self.read_only = flag;
         self
     }
 
+    /// Set whether the database file should be created if it does not exist.
     pub fn create_if_missing(mut self, flag: bool) -> Self {
         self.create_if_missing = flag;
         self
     }
 
+    /// Set whether to apply the default performance PRAGMAs on open.
     pub fn apply_default_pragmas(mut self, flag: bool) -> Self {
         self.apply_default_pragmas = flag;
         self
     }
 
+    /// Append a custom SQLite PRAGMA to apply after opening the database.
     pub fn add_pragma(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.custom_pragmas.push((name.into(), value.into()));
         self
     }
 
+    /// Set the busy-timeout for locked database access.
+    ///
+    /// Pass `None` to disable the busy timeout.
     pub fn busy_timeout(mut self, timeout: Option<Duration>) -> Self {
         self.busy_timeout = timeout;
         self
@@ -1144,6 +1192,26 @@ impl DatabaseOptions {
     }
 }
 
+/// A SQLite-compatible database connection backed by PluresDB.
+///
+/// Wraps a `rusqlite::Connection` behind an `Arc<Mutex<_>>` so the handle can
+/// be cloned and shared across threads.  All public methods are synchronous
+/// and safe to call from multiple threads.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// # #[cfg(feature = "sqlite-compat")]
+/// # {
+/// use pluresdb_core::{Database, DatabaseOptions};
+///
+/// let db = Database::open(DatabaseOptions::in_memory()).unwrap();
+/// db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)").unwrap();
+/// db.query("INSERT INTO users VALUES (1, 'Alice')", &[]).unwrap();
+/// let result = db.query("SELECT * FROM users", &[]).unwrap();
+/// println!("{:?}", result.rows_as_maps());
+/// # }
+/// ```
 #[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone)]
 pub struct Database {
@@ -1151,9 +1219,11 @@ pub struct Database {
     path: DatabasePath,
 }
 
+/// Errors produced by the SQLite-compatibility layer.
 #[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Error)]
 pub enum DatabaseError {
+    /// A rusqlite error occurred.
     #[error("sqlite error: {0}")]
     Sqlite(#[from] rusqlite::Error),
 }
@@ -1173,6 +1243,13 @@ const DEFAULT_PRAGMAS: &[(&str, &str)] = &[
 
 #[cfg(feature = "sqlite-compat")]
 impl Database {
+    /// Open a SQLite database with the given options.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DatabaseError::Sqlite`] if the underlying connection cannot
+    /// be established (e.g. the file does not exist and `create_if_missing` is
+    /// `false`).
     pub fn open(options: DatabaseOptions) -> DbResult<Self> {
         let connection = match &options.path {
             DatabasePath::InMemory => Connection::open_in_memory()?,
@@ -1204,10 +1281,16 @@ impl Database {
         })
     }
 
+    /// Return a reference to the database path used to open this connection.
     pub fn path(&self) -> &DatabasePath {
         &self.path
     }
 
+    /// Create a prepared [`Statement`] that can be executed multiple times.
+    ///
+    /// # Arguments
+    ///
+    /// * `sql` - SQL template, optionally containing `?` parameter placeholders.
     pub fn prepare(&self, sql: impl Into<String>) -> DbResult<Statement> {
         Ok(Statement {
             database: self.clone(),
@@ -1215,6 +1298,13 @@ impl Database {
         })
     }
 
+    /// Execute one or more semicolon-delimited SQL statements that do not return rows.
+    ///
+    /// Typically used for DDL (CREATE TABLE, DROP TABLE) or multi-statement scripts.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DatabaseError::Sqlite`] if any statement fails.
     pub fn exec(&self, sql: &str) -> DbResult<ExecutionResult> {
         self.with_connection(|conn| {
             conn.execute_batch(sql)?;
@@ -1225,6 +1315,12 @@ impl Database {
         })
     }
 
+    /// Execute a SQL query and return all matching rows.
+    ///
+    /// # Arguments
+    ///
+    /// * `sql` - SQL statement with optional `?` placeholders.
+    /// * `params` - Bound parameter values in placeholder order.
     pub fn query(&self, sql: &str, params: &[SqlValue]) -> DbResult<QueryResult> {
         Statement {
             database: self.clone(),
@@ -1233,6 +1329,10 @@ impl Database {
         .query_internal(params)
     }
 
+    /// Execute a SQLite PRAGMA statement and return the result.
+    ///
+    /// The `pragma` argument may or may not include the `PRAGMA` keyword; both
+    /// forms are accepted (e.g. `"journal_mode"` or `"PRAGMA journal_mode"`).
     pub fn pragma(&self, pragma: &str) -> DbResult<QueryResult> {
         let normalized = if pragma.trim_start().to_lowercase().starts_with("pragma") {
             pragma.trim().to_owned()
@@ -1242,6 +1342,10 @@ impl Database {
         self.query(&normalized, &[])
     }
 
+    /// Execute `f` inside a SQLite transaction.
+    ///
+    /// Commits automatically on success.  If `f` returns an error or panics,
+    /// the transaction is rolled back.
     pub fn transaction<F, T>(&self, f: F) -> DbResult<T>
     where
         F: FnOnce(&Transaction<'_>) -> DbResult<T>,
@@ -1263,6 +1367,10 @@ impl Database {
     }
 }
 
+/// A compiled SQL statement associated with a [`Database`] connection.
+///
+/// Obtain a `Statement` via [`Database::prepare`].  The same statement can be
+/// executed multiple times with different parameter bindings.
 #[cfg(feature = "sqlite-compat")]
 #[derive(Debug, Clone)]
 pub struct Statement {
@@ -1272,10 +1380,16 @@ pub struct Statement {
 
 #[cfg(feature = "sqlite-compat")]
 impl Statement {
+    /// Return the SQL template string that was used to create this statement.
     pub fn sql(&self) -> &str {
         &self.sql
     }
 
+    /// Execute the statement as a DML command (INSERT, UPDATE, DELETE).
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - Bound parameter values in placeholder order.
     pub fn run(&self, params: &[SqlValue]) -> DbResult<ExecutionResult> {
         self.database.with_connection(|conn| {
             let mut stmt = conn.prepare(&self.sql)?;
@@ -1288,15 +1402,26 @@ impl Statement {
         })
     }
 
+    /// Execute the statement as a SELECT query and return all matching rows.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - Bound parameter values in placeholder order.
     pub fn all(&self, params: &[SqlValue]) -> DbResult<QueryResult> {
         self.query_internal(params)
     }
 
+    /// Execute the statement as a SELECT query and return the first row, if any.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - Bound parameter values in placeholder order.
     pub fn get(&self, params: &[SqlValue]) -> DbResult<Option<HashMap<String, SqlValue>>> {
         let result = self.query_internal(params)?;
         Ok(result.rows_as_maps().into_iter().next())
     }
 
+    /// Return the column names produced by this statement (without executing it).
     pub fn columns(&self) -> DbResult<Vec<String>> {
         self.database.with_connection(|conn| {
             let stmt = conn.prepare(&self.sql)?;

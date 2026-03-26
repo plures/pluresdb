@@ -5,28 +5,67 @@ import { dirname, resolve } from "node:path";
 
 import { PluresNode } from "./node-wrapper.ts";
 
+/**
+ * Configuration for the `open()` factory function (mirrors the `sqlite` package API).
+ */
 export interface SQLiteConfig {
+  /** Path to the SQLite database file. */
   filename: string;
+  /** SQLite driver (accepted for API compatibility but ignored by PluresDB). */
   driver: any; // SQLite driver (ignored, but kept for compatibility)
+  /** Open mode flags (accepted for API compatibility but not enforced). */
   mode?: number;
+  /** When `true`, log SQL statements and row counts to `console.log`. */
   verbose?: boolean;
 }
 
+/**
+ * Options accepted by the {@link Database} constructor.
+ */
 export interface DatabaseOptions {
+  /** Path to the SQLite database file. */
   filename: string;
+  /** SQLite driver (accepted for API compatibility but ignored by PluresDB). */
   driver?: any;
+  /** Open mode flags (accepted for API compatibility but not enforced). */
   mode?: number;
+  /** When `true`, log SQL statements and row counts to `console.log`. */
   verbose?: boolean;
 }
 
 type RowRecord = Record<string, unknown>;
 
+/**
+ * SQLite-compatible async database interface backed by PluresDB.
+ *
+ * Provides a drop-in replacement for the `sqlite` and `sqlite3` npm packages,
+ * allowing existing code to switch to PluresDB without API changes.
+ *
+ * Only a subset of SQL is supported; complex queries may require migration.
+ *
+ * @example
+ * ```typescript
+ * const db = new Database({ filename: "./data.db" });
+ * await db.open();
+ * await db.exec("CREATE TABLE users (id INTEGER, name TEXT)");
+ * await db.run("INSERT INTO users (id, name) VALUES (?, ?)", [1, "Alice"]);
+ * const user = await db.get("SELECT * FROM users WHERE id = ?", [1]);
+ * await db.close();
+ * ```
+ */
 export class Database {
   private plures: PluresNode;
   private filename: string;
   private isOpen: boolean = false;
   private verbose: boolean = false;
 
+  /**
+   * Create a new database wrapper.
+   *
+   * The database is not ready until {@link open} resolves.
+   *
+   * @param options - Database options including the file path.
+   */
   constructor(options: DatabaseOptions) {
     this.filename = options.filename;
     this.verbose = options.verbose || false;
@@ -42,6 +81,15 @@ export class Database {
     });
   }
 
+  /**
+   * Open the database connection.
+   *
+   * Starts the underlying PluresDB server.  Must be awaited before calling any
+   * other method.
+   *
+   * @returns `this` for optional chaining.
+   * @throws {Error} If the database fails to open.
+   */
   async open(): Promise<Database> {
     if (this.isOpen) {
       return this;
@@ -61,6 +109,14 @@ export class Database {
     }
   }
 
+  /**
+   * Close the database connection.
+   *
+   * Stops the underlying PluresDB server.  Subsequent method calls will fail
+   * until the database is re-opened.
+   *
+   * @throws {Error} If the database fails to close cleanly.
+   */
   async close(): Promise<void> {
     if (!this.isOpen) {
       return;
@@ -79,6 +135,14 @@ export class Database {
   }
 
   // SQLite-compatible methods
+  /**
+   * Execute one or more semicolon-separated SQL statements.
+   *
+   * Typically used for DDL statements such as `CREATE TABLE` or `DROP TABLE`.
+   *
+   * @param sql - One or more SQL statements separated by semicolons.
+   * @throws {Error} If the database is not open or a statement fails.
+   */
   async exec(sql: string): Promise<void> {
     if (!this.isOpen) {
       throw new Error("Database is not open");
@@ -96,6 +160,14 @@ export class Database {
     }
   }
 
+  /**
+   * Execute a single DML statement (INSERT, UPDATE, DELETE) with parameters.
+   *
+   * @param sql    - SQL statement with optional `?` placeholders.
+   * @param params - Values to bind to the placeholders.
+   * @returns Object with `lastID` (always 0) and `changes` (rows affected).
+   * @throws {Error} If the database is not open or the statement fails.
+   */
   async run(
     sql: string,
     params: any[] = [],
@@ -115,6 +187,14 @@ export class Database {
     }
   }
 
+  /**
+   * Execute a SELECT statement and return the **first** matching row.
+   *
+   * @param sql    - SELECT statement with optional `?` placeholders.
+   * @param params - Values to bind to the placeholders.
+   * @returns The first row as a plain object, or `undefined` if none found.
+   * @throws {Error} If the database is not open or the query fails.
+   */
   async get(sql: string, params: any[] = []): Promise<any> {
     if (!this.isOpen) {
       throw new Error("Database is not open");
@@ -128,6 +208,14 @@ export class Database {
     }
   }
 
+  /**
+   * Execute a SELECT statement and return **all** matching rows.
+   *
+   * @param sql    - SELECT statement with optional `?` placeholders.
+   * @param params - Values to bind to the placeholders.
+   * @returns Array of row objects (may be empty).
+   * @throws {Error} If the database is not open or the query fails.
+   */
   async all(sql: string, params: any[] = []): Promise<any[]> {
     if (!this.isOpen) {
       throw new Error("Database is not open");
@@ -140,6 +228,15 @@ export class Database {
     }
   }
 
+  /**
+   * Execute a SELECT statement and invoke `callback` once per row.
+   *
+   * @param sql      - SELECT statement with optional `?` placeholders.
+   * @param params   - Values to bind to the placeholders.
+   * @param callback - Function called with each row object.
+   * @returns The total number of rows processed.
+   * @throws {Error} If the database is not open or the query fails.
+   */
   async each(
     sql: string,
     params: any[] = [],
@@ -165,6 +262,16 @@ export class Database {
   }
 
   // Transaction support
+  /**
+   * Execute `fn` inside a database transaction.
+   *
+   * Sends `BEGIN TRANSACTION` before calling `fn` and `COMMIT` on success.
+   * If `fn` throws, `ROLLBACK` is sent and the error is re-thrown.
+   *
+   * @param fn - Async function that performs database operations.
+   * @returns The value returned by `fn`.
+   * @throws {Error} If the database is not open, or if `fn` throws.
+   */
   async transaction<T>(fn: (db: Database) => Promise<T>): Promise<T> {
     if (!this.isOpen) {
       throw new Error("Database is not open");
@@ -182,6 +289,12 @@ export class Database {
   }
 
   // Prepare statements (simplified implementation)
+  /**
+   * Create a prepared statement that can be executed multiple times.
+   *
+   * @param sql - SQL statement with optional `?` placeholders.
+   * @returns A {@link PreparedStatement} bound to this database.
+   */
   prepare(sql: string): PreparedStatement {
     return new PreparedStatement(this, sql);
   }
@@ -568,27 +681,64 @@ function compareValues(a: unknown, b: unknown, desc = false): number {
   return desc ? -result : result;
 }
 
+/**
+ * A pre-compiled SQL statement that can be executed multiple times with
+ * different parameter bindings.
+ *
+ * Obtain an instance via {@link Database.prepare}.
+ */
 export class PreparedStatement {
   private db: Database;
   private sql: string;
 
+  /**
+   * Create a prepared statement.
+   *
+   * @param db  - Parent database instance.
+   * @param sql - SQL template string.
+   */
   constructor(db: Database, sql: string) {
     this.db = db;
     this.sql = sql;
   }
 
+  /**
+   * Execute the statement as a DML command.
+   *
+   * @param params - Parameter bindings for `?` placeholders.
+   * @returns Object with `lastID` and `changes`.
+   */
   async run(params: any[] = []): Promise<{ lastID: number; changes: number }> {
     return await this.db.run(this.sql, params);
   }
 
+  /**
+   * Execute the statement as a SELECT query and return the first row.
+   *
+   * @param params - Parameter bindings for `?` placeholders.
+   * @returns The first matching row, or `undefined` if none found.
+   */
   async get(params: any[] = []): Promise<any> {
     return await this.db.get(this.sql, params);
   }
 
+  /**
+   * Execute the statement as a SELECT query and return all rows.
+   *
+   * @param params - Parameter bindings for `?` placeholders.
+   * @returns Array of matching row objects.
+   */
   async all(params: any[] = []): Promise<any[]> {
     return await this.db.all(this.sql, params);
   }
 
+  /**
+   * Execute the statement as a SELECT query and invoke `callback` per row.
+   *
+   * @param params   - Parameter bindings for `?` placeholders.
+   * @param callback - Called once for each matching row.
+   * @returns Total number of rows processed.
+   */
   async each(
     params: any[] = [],
     callback: (row: any) => void,
@@ -596,13 +746,32 @@ export class PreparedStatement {
     return await this.db.each(this.sql, params, callback);
   }
 
+  /** No-op. Included for API compatibility with the `sqlite3` package. */
   finalize(): void {
     // No-op for compatibility
   }
 }
 
 // SQLite3 driver compatibility
+/**
+ * Drop-in replacement for the `sqlite3` npm package `Database` class.
+ *
+ * Extends {@link Database} with a callback-based constructor to match the
+ * `sqlite3` API and exposes the standard open-mode constants.
+ *
+ * @example
+ * ```typescript
+ * const db = new SQLite3Database("./data.db", (err) => {
+ *   if (err) throw err;
+ *   // database is now open
+ * });
+ * ```
+ */
 export class SQLite3Database extends Database {
+  /**
+   * @param filename - Path to the database file.
+   * @param callback - Optional callback invoked when the database is opened.
+   */
   constructor(filename: string, callback?: (err: Error | null) => void) {
     super({ filename });
 
@@ -624,6 +793,13 @@ export class SQLite3Database extends Database {
 }
 
 // Main export function - SQLite compatible API
+/**
+ * Open a database connection (mirrors the `sqlite` package `open()` API).
+ *
+ * @param options - Configuration including the `filename` to open.
+ * @returns A fully opened {@link Database} instance.
+ * @throws {Error} If the database fails to open.
+ */
 export async function open(options: SQLiteConfig): Promise<Database> {
   const db = new Database(options);
   return await db.open();
