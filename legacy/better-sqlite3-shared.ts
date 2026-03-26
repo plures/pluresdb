@@ -21,7 +21,7 @@ export function isPlainObject(
 }
 
 /**
- * Normalise the `args` array passed to a better-sqlite3 statement runner into
+ * Normalize the `args` array passed to a better-sqlite3 statement runner into
  * the canonical form expected by PluresDB.
  *
  * - An empty array → returned as-is.
@@ -144,7 +144,7 @@ export function shapeRow(
 
 /**
  * Coerce an unknown value returned by the PluresDB query engine into a
- * strongly-typed {@link QueryResult}.
+ * strongly typed {@link QueryResult}.
  *
  * Handles three shapes:
  * - An object with a `rows` property → mapped field-by-field.

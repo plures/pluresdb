@@ -114,9 +114,11 @@ impl SyncBroadcaster {
 
     /// Publish a [`SyncEvent`] to all current subscribers.
     ///
-    /// Returns an error only when the underlying channel has been closed
-    /// (i.e., all senders have been dropped), which should not happen during
-    /// normal operation since the broadcaster itself holds one sender.
+    /// Returns `Ok(())` on success.  Returns an [`anyhow::Error`] wrapping a
+    /// [`tokio::sync::broadcast::error::SendError`] only when the underlying
+    /// channel has been closed (i.e., all senders have been dropped), which
+    /// should not happen during normal operation since the broadcaster itself
+    /// holds one sender.
     ///
     /// Slow subscribers that fall behind by more than the channel capacity will
     /// begin to miss events (`RecvError::Lagged`); callers should handle this

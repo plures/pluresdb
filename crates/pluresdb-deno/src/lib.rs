@@ -21,7 +21,7 @@ use parking_lot::Mutex;
 pub struct QueryResult {
     /// Names of the columns in the result set, in order.
     pub columns: Vec<String>,
-    /// Each row serialised as a JSON object or array.
+    /// Each row serialized as a JSON object or array.
     pub rows: Vec<serde_json::Value>,
     /// Number of rows affected by the statement.
     pub changes: u64,
@@ -64,7 +64,7 @@ pub struct SearchResult {
     /// Arbitrary JSON payload stored with the node.
     pub data: serde_json::Value,
     /// Relevance score (higher is more relevant).  For text search this is the
-    /// number of times the query string appears in the serialised node data.
+    /// number of times the query string appears in the serialized node data.
     pub score: usize,
     /// RFC 3339 timestamp of the last write that touched this node.
     pub timestamp: String,

@@ -35,7 +35,7 @@ pub use wal::{DurabilityLevel, WalEntry, WalOperation, WalValidation, WriteAhead
 /// A node persisted by a [`StorageEngine`].
 ///
 /// Wraps an arbitrary JSON `payload` under a stable string `id`.  Higher-level
-/// layers (e.g. [`pluresdb_core::CrdtStore`]) serialise their richer
+/// layers (e.g. [`pluresdb_core::CrdtStore`]) serialize their richer
 /// [`NodeRecord`][pluresdb_core::NodeRecord] values into this type before
 /// delegating to the storage backend.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
