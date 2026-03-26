@@ -26,9 +26,6 @@ jobs:
       - name: Gather diff context
         id: context
         run: |
-          PR_TITLE="${{ github.event.pull_request.title }}"
-          PR_NUM="${{ github.event.pull_request.number }}"
-
           CHANGED=$(git diff --name-only HEAD~1 HEAD)
           DIFF=$(git diff HEAD~1 HEAD -- ':(exclude)*.md' ':(exclude)*.yml' ':(exclude)*.json' ':(exclude).github/' ':(exclude)docs/' | head -500)
           SRC_CHANGES=$(echo "$CHANGED" | grep -vE '^\.(github|gitignore)|^(README|CHANGELOG|docs/|\.)|\.md$|\.yml$|\.json$' | head -1)
@@ -38,13 +35,7 @@ jobs:
             exit 0
           fi
 
-          {
-            echo "skip=false"
-            echo "pr_num=$PR_NUM"
-            echo 'pr_title<<EOF'
-            echo "$PR_TITLE"
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
           echo "$CHANGED" > /tmp/changed_files.txt
           echo "$DIFF" > /tmp/code_diff.txt
 
