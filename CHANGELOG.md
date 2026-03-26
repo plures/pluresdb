@@ -1,3 +1,10 @@
+## [2.15.9] - 2026-03-26
+
+### Developer Experience
+
+- apply org-standard automation files (#205)
+
+
 ## [2.15.8] - 2026-03-26
 
 ### Fixed
