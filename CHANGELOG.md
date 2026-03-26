@@ -1,3 +1,10 @@
+## [2.15.1] - 2026-03-26
+
+### Documentation
+
+- improve api-documented dimension from 0% → 90% (#190)
+
+
 ## [2.15.0] - 2026-03-25
 
 ### Added
