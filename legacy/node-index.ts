@@ -590,6 +590,14 @@ export class PluresNode extends EventEmitter {
 }
 
 // SQLite-compatible API for easy migration
+
+/**
+ * SQLite-compatible async database API backed by PluresDB.
+ *
+ * Wraps a {@link PluresNode} subprocess and exposes a high-level interface
+ * that mirrors the `sqlite` npm package — `run`, `get`, `all`, and `exec` —
+ * so that existing code can switch to PluresDB with minimal changes.
+ */
 export class SQLiteCompatibleAPI {
   private plures: PluresNode;
 
@@ -690,6 +698,17 @@ export class SQLiteCompatibleAPI {
   }
 }
 
+/**
+ * Prepared-statement handle returned by {@link BetterSQLite3Database.prepare}.
+ *
+ * Provides the same chained-mode API as the `better-sqlite3` npm package:
+ * - `.bind(...params)` — attach parameters to re-use across multiple calls.
+ * - `.raw()` / `.pluck()` / `.expand()` — select the row-shape mode.
+ * - `.run()` / `.get()` / `.all()` / `.iterate()` — execute the statement.
+ *
+ * All execute methods are **async** (unlike the synchronous better-sqlite3
+ * package) because PluresDB uses an HTTP server underneath.
+ */
 export class BetterSQLite3Statement {
   private boundParams: unknown[] | undefined;
   private rawMode = false;
@@ -808,6 +827,23 @@ export class BetterSQLite3Statement {
   }
 }
 
+/**
+ * Drop-in replacement for the `better-sqlite3` npm package's `Database` class.
+ *
+ * Backed by a PluresDB Deno subprocess, so all methods are **async** (unlike
+ * the synchronous better-sqlite3 API).  Consumers that expect a synchronous
+ * interface should use the native Rust bindings via {@link NativePluresDatabase}
+ * instead.
+ *
+ * @example
+ * ```typescript
+ * const db = new BetterSQLite3Database("./data.db");
+ * await db.open();
+ * const stmt = db.prepare("SELECT * FROM users WHERE id = ?");
+ * const row = await stmt.get(1);
+ * await db.close();
+ * ```
+ */
 export class BetterSQLite3Database {
   private readonly options: BetterSQLite3Options;
   private readonly plures: PluresNode;

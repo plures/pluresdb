@@ -13,39 +13,71 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use parking_lot::Mutex;
 
+/// Result returned by [`PluresDatabase::query`].
+///
+/// Mirrors the shape of the underlying [`pluresdb_core`] query result and maps
+/// cleanly to a JavaScript object in Deno.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueryResult {
+    /// Names of the columns in the result set, in order.
     pub columns: Vec<String>,
+    /// Each row serialized as a JSON object or array.
     pub rows: Vec<serde_json::Value>,
+    /// Number of rows affected by the statement.
     pub changes: u64,
+    /// Row ID of the last inserted row (0 when not applicable).
     pub last_insert_rowid: i64,
 }
 
+/// Result returned by [`PluresDatabase::exec`].
+///
+/// Contains the write-impact metadata from an INSERT / UPDATE / DELETE
+/// statement executed via the SQL compatibility layer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResult {
+    /// Number of rows that were inserted, updated, or deleted.
     pub changes: u64,
+    /// Row ID of the last inserted row (0 when not applicable).
     pub last_insert_rowid: i64,
 }
 
+/// A CRDT node together with its full metadata, returned by
+/// [`PluresDatabase::get_with_metadata`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeWithMetadata {
+    /// Stable unique identifier of the node.
     pub id: String,
+    /// Arbitrary JSON payload stored with the node.
     pub data: serde_json::Value,
+    /// Per-actor write counters (vector clock).  Keys are actor IDs.
     pub clock: HashMap<String, u64>,
+    /// RFC 3339 timestamp of the last write that touched this node.
     pub timestamp: String,
 }
 
+/// A single result from [`PluresDatabase::search`] or
+/// [`PluresDatabase::vector_search`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
+    /// Stable unique identifier of the matching node.
     pub id: String,
+    /// Arbitrary JSON payload stored with the node.
     pub data: serde_json::Value,
+    /// Relevance score (higher is more relevant).  For text search this is the
+    /// number of times the query string appears in the serialized node data.
     pub score: usize,
+    /// RFC 3339 timestamp of the last write that touched this node.
     pub timestamp: String,
 }
 
+/// Aggregate statistics about the database returned by
+/// [`PluresDatabase::stats`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseStats {
+    /// Total number of nodes currently stored.
     pub total_nodes: u64,
+    /// Count of nodes broken down by their `type` field value.  Nodes that
+    /// have no `type` field are not included.
     pub type_counts: HashMap<String, u32>,
 }
 

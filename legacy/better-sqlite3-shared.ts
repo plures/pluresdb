@@ -1,5 +1,15 @@
 import { QueryResult } from "./types/node-types";
 
+/**
+ * Return `true` if `value` is a plain object (i.e. created by `{}` or
+ * `Object.create(null)`), and `false` for arrays, class instances, `null`,
+ * and primitives.
+ *
+ * Used throughout the better-sqlite3 compatibility layer to distinguish
+ * named-parameter objects from positional-parameter arrays.
+ *
+ * @param value - The value to test.
+ */
 export function isPlainObject(
   value: unknown,
 ): value is Record<string, unknown> {
@@ -10,6 +20,19 @@ export function isPlainObject(
   return proto === Object.prototype || proto === null;
 }
 
+/**
+ * Normalize the `args` array passed to a better-sqlite3 statement runner into
+ * the canonical form expected by PluresDB.
+ *
+ * - An empty array → returned as-is.
+ * - A single array argument → unwrapped (the inner array becomes the params).
+ * - A single plain-object argument → wrapped in an array (named params).
+ * - Any other single value → wrapped in an array.
+ * - Multiple arguments → returned unchanged.
+ *
+ * @param args - Raw arguments from the statement `.run()` / `.get()` call.
+ * @returns Normalised parameter list.
+ */
 export function normalizeParameterInput(args: unknown[]): unknown[] {
   if (args.length === 0) {
     return [];
@@ -50,6 +73,25 @@ function expandDotNotation(
   return result;
 }
 
+/**
+ * Transform a raw database row into the shape requested by the caller.
+ *
+ * Applies the three display modes supported by the better-sqlite3 API:
+ *
+ * - **`raw`** – Return the row unchanged.
+ * - **`pluck`** – Return only the first column's value as a scalar.
+ * - **`expand`** – Expand dot-notation column names into nested objects
+ *   (e.g. `"address.city"` → `{ address: { city: … } }`).
+ *
+ * If none of the modes are active the row is returned as a plain object with
+ * column names as keys (arrays are zipped with `columns`; objects are shallow
+ * cloned).
+ *
+ * @param row     - Raw row value from the underlying query engine.
+ * @param columns - Ordered list of column names (used when `row` is an array).
+ * @param mode    - Display mode flags.
+ * @returns Transformed row value.
+ */
 export function shapeRow(
   row: unknown,
   columns: string[] | undefined,
@@ -100,6 +142,19 @@ export function shapeRow(
   return normalized;
 }
 
+/**
+ * Coerce an unknown value returned by the PluresDB query engine into a
+ * strongly typed {@link QueryResult}.
+ *
+ * Handles three shapes:
+ * - An object with a `rows` property → mapped field-by-field.
+ * - An array → treated as a bare row list with no column metadata.
+ * - `null` / `undefined` → returns an empty result.
+ * - Any other value → wrapped in a single-element row list.
+ *
+ * @param raw - Raw value from the query engine.
+ * @returns Normalised {@link QueryResult}.
+ */
 export function normalizeQueryResult(raw: unknown): QueryResult {
   if (
     raw && typeof raw === "object" && "rows" in (raw as Record<string, unknown>)
@@ -145,6 +200,17 @@ export function normalizeQueryResult(raw: unknown): QueryResult {
   };
 }
 
+/**
+ * Split a SQL string containing multiple statements separated by semicolons
+ * into individual statement strings.
+ *
+ * Semicolons that appear inside single-quoted or double-quoted string literals
+ * are treated as part of the literal and do not act as statement separators.
+ * The returned strings are trimmed; empty strings are omitted.
+ *
+ * @param sql - One or more SQL statements joined by `;`.
+ * @returns Array of individual SQL statement strings.
+ */
 export function splitSqlStatements(sql: string): string[] {
   return sql
     .split(/;\s*(?=(?:[^"']|"[^"]*"|'[^']*')*$)/)
@@ -152,6 +218,15 @@ export function splitSqlStatements(sql: string): string[] {
     .filter((statement) => statement.length > 0);
 }
 
+/**
+ * Sanitize a string so it is safe to use as a filesystem directory name.
+ *
+ * Replaces whitespace and the path-separator characters `\`, `/`, and `:` with
+ * underscores, then collapses consecutive underscores into a single one.
+ *
+ * @param name - Raw name to sanitize.
+ * @returns Safe directory-name string.
+ */
 export function sanitizeDataDirName(name: string): string {
   return name.replace(/[\s\\/:]+/g, "_").replace(/_+/g, "_");
 }
