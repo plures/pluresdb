@@ -7,6 +7,9 @@
 pub mod plugin;
 pub use plugin::{NoOpPlugin, PluresLmPlugin};
 
+/// Higher-level document, training, and AI-agent procedures built on top of
+/// the core CRDT store.  See [`procedures::document`], [`procedures::training`],
+/// and [`procedures::ai_procedures`] for the individual sub-modules.
 pub mod procedures;
 
 use std::collections::HashMap;
@@ -1229,6 +1232,8 @@ pub enum DatabaseError {
 }
 
 #[cfg(feature = "sqlite-compat")]
+/// Convenience alias for `Result<T, `[`DatabaseError`]`>` used throughout the
+/// SQLite-compatibility layer.
 pub type DbResult<T> = Result<T, DatabaseError>;
 
 #[cfg(feature = "sqlite-compat")]

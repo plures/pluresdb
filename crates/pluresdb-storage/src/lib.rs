@@ -32,17 +32,37 @@ pub use rad::{RadAdapter, SledRadAdapter};
 pub use replay::{ReplayStats, metadata_pruning, rebuild_from_wal, replay_wal};
 pub use wal::{DurabilityLevel, WalEntry, WalOperation, WalValidation, WriteAheadLog};
 
+/// A node persisted by a [`StorageEngine`].
+///
+/// Wraps an arbitrary JSON `payload` under a stable string `id`.  Higher-level
+/// layers (e.g. [`pluresdb_core::CrdtStore`]) serialise their richer
+/// [`NodeRecord`][pluresdb_core::NodeRecord] values into this type before
+/// delegating to the storage backend.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StoredNode {
+    /// Stable, unique identifier for this node.
     pub id: String,
+    /// Arbitrary JSON payload associated with the node.
     pub payload: serde_json::Value,
 }
 
+/// Async CRUD interface for pluggable storage backends.
+///
+/// Implement this trait to provide a custom persistence layer for PluresDB.
+/// The two built-in implementations are [`MemoryStorage`] (non-durable, for
+/// tests) and [`SledStorage`] (durable, embedded).
+///
+/// All methods are `async` so implementations may perform I/O without
+/// blocking the Tokio runtime.
 #[async_trait]
 pub trait StorageEngine: Send + Sync {
+    /// Persist or overwrite `node`, keyed by [`StoredNode::id`].
     async fn put(&self, node: StoredNode) -> Result<()>;
+    /// Return the node with the given `id`, or `None` if it does not exist.
     async fn get(&self, id: &str) -> Result<Option<StoredNode>>;
+    /// Remove the node with the given `id`.  Silently succeeds if absent.
     async fn delete(&self, id: &str) -> Result<()>;
+    /// Return all nodes currently held by this storage engine.
     async fn list(&self) -> Result<Vec<StoredNode>>;
 }
 
@@ -81,6 +101,15 @@ pub struct SledStorage {
 }
 
 impl SledStorage {
+    /// Open (or create) a sled database at `path`.
+    ///
+    /// The directory and any parent directories are created automatically by
+    /// sled if they do not exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if sled cannot open the database (e.g. due to
+    /// filesystem permissions or a corrupted data file).
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         info!(path = %path.as_ref().display(), "opening sled storage");
         let db = sled::open(path)?;
