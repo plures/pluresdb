@@ -1,5 +1,5 @@
 import js from "@eslint/js";
-import importPlugin from "eslint-plugin-import";
+import importPlugin from "eslint-plugin-import-x";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 import prettierConfig from "eslint-config-prettier";
@@ -86,6 +86,8 @@ export default [
       "@typescript-eslint/no-require-imports": "off",
       "no-case-declarations": "off",
       "no-undef": "off",
+      "no-useless-assignment": "off",
+      "preserve-caught-error": "off",
     },
   },
   prettierConfig,
