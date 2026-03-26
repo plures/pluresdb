@@ -1,3 +1,10 @@
+## [2.15.5] - 2026-03-26
+
+### Developer Experience
+
+- auto-close stale ci-feedback issues for merged PRs (#198)
+
+
 ## [2.15.4] - 2026-03-26
 
 ### Developer Experience
