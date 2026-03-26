@@ -1,3 +1,10 @@
+## [2.15.8] - 2026-03-26
+
+### Fixed
+
+- remediate brace-expansion ReDoS/DoS vulnerabilities in dev toolchain (GHSA-f886-m6hf-6m8v) (#206)
+
+
 ## [2.15.7] - 2026-03-26
 
 ### Documentation
