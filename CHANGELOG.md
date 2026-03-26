@@ -1,3 +1,10 @@
+## [2.15.6] - 2026-03-26
+
+### Fixed
+
+- bump ajv 6.12.6 → 6.14.0 (GHSA-2g4f-4pwh-qvx6 ReDoS) (#199)
+
+
 ## [2.15.5] - 2026-03-26
 
 ### Developer Experience
