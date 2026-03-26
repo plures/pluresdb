@@ -144,24 +144,46 @@ jobs:
               }
 
               if (failing.length > 0) {
-                // CI failing — create issue for Copilot to fix
-                const failNames = failing.map(f => f.name).join(', ');
-                const existing = await github.rest.issues.listForRepo({
-                  owner, repo, state: 'open', labels: 'ci-failure', per_page: 20
-                });
-                if (!existing.data.some(i => i.title.includes(`PR #${pr.number}`))) {
-                  const issue = await github.rest.issues.create({
-                    owner, repo,
-                    title: `[ci-feedback] Fix CI failures on PR #${pr.number}`,
-                    body: `PR #${pr.number} has failing CI checks: ${failNames}\n\nPlease fix the failures and push to the PR branch.\n\n@copilot`,
-                    labels: ['ci-failure', 'bug']
-                  });
-                  try {
-                    await github.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
-                      owner, repo, issue_number: issue.data.number, type: 'Bug'
+                // Auto-fix: if "Conventional commit title" is failing, update the PR title
+                const titleCheckFailing = failing.find(c => c.name === 'Conventional commit title');
+                if (titleCheckFailing) {
+                  const currentTitle = pr.title;
+                  const conventionalPattern = /^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?!?: .{3,}/;
+                  if (!conventionalPattern.test(currentTitle)) {
+                    // Strip all bracket prefixes (e.g. [WIP], [ci-feedback]) and convert to conventional format
+                    let newTitle = currentTitle.replace(/^(\[.*?\]\s*)+/, '').trim();
+                    if (newTitle.length > 0 && !conventionalPattern.test(newTitle)) {
+                      newTitle = `ci: ${newTitle.charAt(0).toLowerCase()}${newTitle.slice(1)}`;
+                    }
+                    await github.rest.pulls.update({
+                      owner, repo, pull_number: pr.number, title: newTitle
                     });
-                  } catch (e) {}
-                  console.log(`🐛 Created CI fix issue #${issue.data.number} for PR #${pr.number}`);
+                    console.log(`📝 Auto-corrected PR title: "${currentTitle}" → "${newTitle}"`);
+                  }
+                }
+
+                // Only create a CI failure issue for checks other than the title format check
+                const nonTitleFailing = failing.filter(c => c.name !== 'Conventional commit title');
+                if (nonTitleFailing.length > 0) {
+                  // CI failing — create issue for Copilot to fix
+                  const failNames = nonTitleFailing.map(f => f.name).join(', ');
+                  const existing = await github.rest.issues.listForRepo({
+                    owner, repo, state: 'open', labels: 'ci-failure', per_page: 20
+                  });
+                  if (!existing.data.some(i => i.title.includes(`PR #${pr.number}`))) {
+                    const issue = await github.rest.issues.create({
+                      owner, repo,
+                      title: `[ci-feedback] Fix CI failures on PR #${pr.number}`,
+                      body: `PR #${pr.number} has failing CI checks: ${failNames}\n\nPlease fix the failures and push to the PR branch.\n\n@copilot`,
+                      labels: ['ci-failure', 'bug']
+                    });
+                    try {
+                      await github.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
+                        owner, repo, issue_number: issue.data.number, type: 'Bug'
+                      });
+                    } catch (e) {}
+                    console.log(`🐛 Created CI fix issue #${issue.data.number} for PR #${pr.number}`);
+                  }
                 }
               }
 
