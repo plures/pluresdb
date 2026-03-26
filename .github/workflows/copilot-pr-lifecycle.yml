@@ -208,7 +208,36 @@ jobs:
               return;
             }
 
-            // Phase 2: No open PRs — assign next issue
+            // Phase 2: Close stale ci-feedback issues for already-merged PRs
+            // Note: processes up to 100 open ci-failure issues per run
+            const staleIssues = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', labels: 'ci-failure', per_page: 100
+            });
+            for (const issue of staleIssues.data) {
+              if (issue.pull_request) continue;
+              const match = issue.title.match(/PR #(\d+)/);
+              if (!match) continue;
+              const refPrNumber = parseInt(match[1], 10);
+              let refPr;
+              try {
+                const resp = await github.rest.pulls.get({ owner, repo, pull_number: refPrNumber });
+                refPr = resp.data;
+              } catch (e) {
+                continue;
+              }
+              if (refPr.merged) {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: issue.number,
+                  body: `PR #${refPrNumber} has been merged. Closing this stale ci-feedback issue automatically.`
+                });
+                await github.rest.issues.update({
+                  owner, repo, issue_number: issue.number, state: 'closed'
+                });
+                console.log(`🧹 Closed stale ci-feedback issue #${issue.number} (PR #${refPrNumber} already merged)`);
+              }
+            }
+
+            // Phase 3: No open PRs — assign next issue
             const allIssues = await github.rest.issues.listForRepo({
               owner, repo, state: 'open', per_page: 100
             });
@@ -325,7 +354,7 @@ jobs:
               }
             }
 
-            // Phase 3: Stall detection — if Copilot assigned but no PR after 30min, re-ping
+            // Phase 4: Stall detection — if Copilot assigned but no PR after 30min, re-ping
             const assigned = allIssues.data.filter(i =>
               !i.pull_request && i.assignees.some(a => a.login === 'Copilot')
             );
