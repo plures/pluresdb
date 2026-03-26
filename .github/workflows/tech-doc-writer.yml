@@ -47,7 +47,7 @@ jobs:
         if: steps.context.outputs.skip != 'true'
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.COPILOT_PAT }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             const owner = context.repo.owner;
