@@ -1,3 +1,10 @@
+## [2.15.4] - 2026-03-26
+
+### Developer Experience
+
+- auto-correct PR titles that fail conventional commit check (#196)
+
+
 ## [2.15.3] - 2026-03-26
 
 ### Other
