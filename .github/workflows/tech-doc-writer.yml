@@ -14,7 +14,9 @@ jobs:
     if: >-
       github.event.pull_request.merged == true &&
       !contains(github.event.pull_request.title, '[docs]') &&
-      !contains(github.event.pull_request.title, 'chore(docs)')
+      !contains(github.event.pull_request.title, 'chore(docs)') &&
+      !startsWith(github.event.pull_request.title, 'docs:') &&
+      !startsWith(github.event.pull_request.title, 'docs(')
     steps:
       - uses: actions/checkout@v4
         with:
