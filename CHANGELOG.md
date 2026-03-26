@@ -1,3 +1,10 @@
+## [2.15.7] - 2026-03-26
+
+### Documentation
+
+- improve api-documented coverage from 0% → 90%+ (#202)
+
+
 ## [2.15.6] - 2026-03-26
 
 ### Fixed
