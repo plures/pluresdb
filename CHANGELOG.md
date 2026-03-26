@@ -1,3 +1,10 @@
+## [2.15.2] - 2026-03-26
+
+### Developer Experience
+
+- bump the npm_and_yarn group across 2 directories with 1 update (#195)
+
+
 ## [2.15.1] - 2026-03-26
 
 ### Documentation
