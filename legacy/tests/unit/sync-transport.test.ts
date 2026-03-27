@@ -6,7 +6,6 @@
 
 import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
 
-import type { SyncTransport as _SyncTransport, SyncConnection as _SyncConnection } from "../../sync/transport.ts";
 import { DirectTransport } from "../../sync/transports/direct.ts";
 import { AzureRelayTransport } from "../../sync/transports/azure-relay.ts";
 import { AutoTransport, createTransport } from "../../sync/transports/auto.ts";
