@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run -A --unstable-kv
 
-// @ts-nocheck
+// @ts-nocheck — Deno test runner; Node tsc not used
 
 interface TestSuite {
   name: string;

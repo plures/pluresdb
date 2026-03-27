@@ -3,6 +3,7 @@
  */
 
 import { assertEquals, assertExists } from "jsr:@std/assert@1.0.14";
+
 import { PluresDBLocalFirst } from "../../local-first/unified-api.ts";
 
 Deno.test("PluresDBLocalFirst - Runtime detection", () => {

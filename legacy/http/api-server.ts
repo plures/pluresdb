@@ -313,7 +313,7 @@ export function startApiServer(
             return json({ id, publicKey, name: body.name, email: body.email });
           }
           case "/api/peers/search": {
-            const q = url.searchParams.get("q") ?? "";
+            const _q = url.searchParams.get("q") ?? "";
             // Stub implementation - return empty array for now
             // In a real implementation, this would search for peers in the network
             return json([]);

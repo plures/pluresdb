@@ -1,5 +1,6 @@
-// @ts-nocheck
+// @ts-nocheck — Deno test; Node tsc not used
 import { assertEquals, assertExists } from "jsr:@std/assert@1.0.14";
+
 import { PluresDB } from "../../core/database.ts";
 import { type ApiServerHandle, startApiServer } from "../../http/api-server.ts";
 

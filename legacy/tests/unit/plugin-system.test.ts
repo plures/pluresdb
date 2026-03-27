@@ -1,10 +1,11 @@
-// @ts-nocheck
+// @ts-nocheck — Deno test; Node tsc not used
 import {
   assertEquals,
   assertExists,
   assertRejects,
   assert,
 } from "jsr:@std/assert@1.0.14";
+
 import {
   pluginManager,
   type Plugin,
@@ -19,7 +20,7 @@ class TestEmbeddingProvider implements EmbeddingProvider {
   name = "test-embeddings";
   dimensions = 128;
 
-  async embed(text: string): Promise<number[]> {
+  async embed(_text: string): Promise<number[]> {
     return new Array(this.dimensions).fill(0.1);
   }
 }
