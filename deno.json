@@ -1,6 +1,6 @@
 {
   "name": "@plures/pluresdb",
-  "version": "2.15.14",
+  "version": "2.15.15",
   "exports": {
     ".": "./mod.ts",
     "./cli": "./legacy/main.ts",

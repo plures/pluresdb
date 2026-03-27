@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial changelog
 
+## [2.15.15] - 2026-03-27
+
+### Developer Experience
+
+- standardize changelog format
+
+
 ## [2.15.14] - 2026-03-27
 
 ### Developer Experience
