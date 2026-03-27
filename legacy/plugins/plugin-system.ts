@@ -283,11 +283,11 @@ class PluginManager {
    * Apply all query transformers to a query
    */
   async transformQuery<T = Record<string, unknown>>(query: T): Promise<T> {
-    let transformed = query;
+    let transformed: unknown = query;
     for (const transformer of this.queryTransformers.values()) {
-      transformed = await transformer.transform(transformed as any) as T;
+      transformed = await transformer.transform(transformed as Record<string, unknown>);
     }
-    return transformed;
+    return transformed as T;
   }
 
   /**

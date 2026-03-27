@@ -61,7 +61,7 @@ export default [
         },
       ],
       "import/no-unresolved": "off",
-      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {
@@ -83,4 +83,15 @@ export default [
     },
   },
   prettierConfig,
+  {
+    files: [
+      "legacy/tests/**/*.{ts,tsx}",
+      "legacy/benchmarks/**/*.{ts,tsx}",
+      "examples/**/*.{ts,tsx,d.ts}",
+      "scripts/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+    },
+  },
 ];

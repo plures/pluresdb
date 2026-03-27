@@ -161,7 +161,7 @@ export function normalizeQueryResult(raw: unknown): QueryResult {
   ) {
     const result = raw as Partial<QueryResult> & Record<string, unknown>;
     const columnsValue = Array.isArray(result.columns) ? result.columns : [];
-    const rowsValue = Array.isArray(result.rows) ? result.rows : [];
+    const rowsValue = Array.isArray(result.rows) ? result.rows as Record<string, unknown>[] : [];
     const changesValue = typeof result.changes === "number"
       ? result.changes
       : 0;
@@ -181,7 +181,7 @@ export function normalizeQueryResult(raw: unknown): QueryResult {
 
   if (Array.isArray(raw)) {
     return {
-      rows: raw,
+      rows: raw as Record<string, unknown>[],
       columns: [],
       changes: 0,
       lastInsertRowId: 0,
@@ -193,7 +193,7 @@ export function normalizeQueryResult(raw: unknown): QueryResult {
   }
 
   return {
-    rows: [raw],
+    rows: [raw as Record<string, unknown>],
     columns: [],
     changes: 0,
     lastInsertRowId: 0,

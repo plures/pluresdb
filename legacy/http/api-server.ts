@@ -1,4 +1,5 @@
 import { PluresDB } from "../core/database.ts";
+import type { NodeRecord } from "../types/index.ts";
 import { loadConfig, saveConfig } from "../config.ts";
 
 /**
@@ -166,14 +167,14 @@ export function startApiServer(
               const line = `data: ${JSON.stringify(evt)}\n\n`;
               controller.enqueue(enc.encode(line));
             };
-            const cb = (e: { id: string; node: unknown | null }) => send(e);
-            db.onAny(cb as any);
+            const cb = (e: { id: string; node: NodeRecord | null }) => send(e);
+            db.onAny(cb);
             (async () => {
               for await (const n of db.list()) {
                 send({ id: n.id, node: { id: n.id, data: n.data } });
               }
             })();
-            return () => db.offAny(cb as any);
+            return () => db.offAny(cb);
           },
         });
         return new Response(stream, {
@@ -409,7 +410,7 @@ export function startApiServer(
               return json({ success: true });
             } catch (error) {
               const msg = error && typeof error === "object" && "message" in error
-                ? String((error as any).message)
+                ? String((error as { message: unknown }).message)
                 : String(error);
               return json({ error: msg }, 400);
             }
@@ -421,7 +422,7 @@ export function startApiServer(
               return json({ success: true });
             } catch (error) {
               const msg = error && typeof error === "object" && "message" in error
-                ? String((error as any).message)
+                ? String((error as { message: unknown }).message)
                 : String(error);
               return json({ error: msg }, 400);
             }
@@ -493,7 +494,7 @@ export function startApiServer(
       return new Response("Not Found", { status: 404, headers: corsHeaders() });
     } catch (e) {
       const msg = e && typeof e === "object" && "message" in e
-        ? String((e as any).message)
+        ? String((e as { message: unknown }).message)
         : String(e);
       return json({ error: msg }, 500);
     }

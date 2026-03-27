@@ -283,7 +283,7 @@ export class PluresNode extends EventEmitter {
    * @param params - Bound parameter values in placeholder order.
    * @returns Query result from the server.
    */
-  async query(sql: string, params: any[] = []): Promise<any> {
+  async query(sql: string, params: unknown[] = []): Promise<Record<string, unknown>> {
     const response = await fetch(`${this.apiUrl}/api/query`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -294,7 +294,7 @@ export class PluresNode extends EventEmitter {
       throw new Error(`Query failed: ${response.statusText}`);
     }
 
-    return response.json();
+    return response.json() as Promise<Record<string, unknown>>;
   }
 
   /**
@@ -303,7 +303,7 @@ export class PluresNode extends EventEmitter {
    * @param key   - Node identifier.
    * @param value - Arbitrary JSON value to store.
    */
-  async put(key: string, value: any): Promise<void> {
+  async put(key: string, value: Record<string, unknown>): Promise<void> {
     const response = await fetch(`${this.apiUrl}/api/data`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -321,7 +321,7 @@ export class PluresNode extends EventEmitter {
    * @param key - Node identifier.
    * @returns The stored value, or `null` if not found.
    */
-  async get(key: string): Promise<any> {
+  async get(key: string): Promise<Record<string, unknown> | null> {
     const response = await fetch(
       `${this.apiUrl}/api/data/${encodeURIComponent(key)}`,
     );
@@ -333,7 +333,7 @@ export class PluresNode extends EventEmitter {
       throw new Error(`Get failed: ${response.statusText}`);
     }
 
-    return response.json();
+    return response.json() as Promise<Record<string, unknown>>;
   }
 
   /**
@@ -354,7 +354,7 @@ export class PluresNode extends EventEmitter {
     }
   }
 
-  async vectorSearch(query: string, limit = 10): Promise<any[]> {
+  async vectorSearch(query: string, limit = 10): Promise<Record<string, unknown>[]> {
     const response = await fetch(`${this.apiUrl}/api/vsearch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -365,7 +365,7 @@ export class PluresNode extends EventEmitter {
       throw new Error(`Vector search failed: ${response.statusText}`);
     }
 
-    return response.json() as Promise<any[]>;
+    return response.json() as Promise<Record<string, unknown>[]>;
   }
 
   async list(prefix?: string): Promise<string[]> {
@@ -381,17 +381,17 @@ export class PluresNode extends EventEmitter {
     return response.json() as Promise<string[]>;
   }
 
-  async getConfig(): Promise<any> {
+  async getConfig(): Promise<Record<string, unknown>> {
     const response = await fetch(`${this.apiUrl}/api/config`);
 
     if (!response.ok) {
       throw new Error(`Get config failed: ${response.statusText}`);
     }
 
-    return response.json();
+    return response.json() as Promise<Record<string, unknown>>;
   }
 
-  async setConfig(config: any): Promise<void> {
+  async setConfig(config: Record<string, unknown>): Promise<void> {
     const response = await fetch(`${this.apiUrl}/api/config`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -607,18 +607,19 @@ export class SQLiteCompatibleAPI {
   }
 
   // SQLite-compatible methods
-  async run(sql: string, params: any[] = []) {
+  async run(sql: string, params: unknown[] = []) {
     return this.plures.query(sql, params);
   }
 
-  async get(sql: string, params: any[] = []) {
+  async get(sql: string, params: unknown[] = []) {
     const result = await this.plures.query(sql, params);
-    return result.rows?.[0] || null;
+    const rows = result.rows as Record<string, unknown>[] | undefined;
+    return rows?.[0] || null;
   }
 
-  async all(sql: string, params: any[] = []) {
+  async all(sql: string, params: unknown[] = []) {
     const result = await this.plures.query(sql, params);
-    return result.rows || [];
+    return (result.rows as Record<string, unknown>[] | undefined) || [];
   }
 
   async exec(sql: string) {
@@ -626,7 +627,7 @@ export class SQLiteCompatibleAPI {
   }
 
   // Additional PluresDB specific methods
-  async put(key: string, value: any) {
+  async put(key: string, value: Record<string, unknown>) {
     return this.plures.put(key, value);
   }
 

@@ -632,7 +632,7 @@ export class PluresDB {
               // Broadcast to all Hyperswarm peers except the sender
               this.hyperswarmSync?.broadcast(obj, peerId);
             },
-            source: null as any, // Not needed for Hyperswarm
+            source: null, // Not needed for Hyperswarm
           });
         },
       });
@@ -698,7 +698,7 @@ export class PluresDB {
     ctx: {
       send: (obj: unknown) => void;
       broadcast: (obj: unknown, exclude?: WebSocket) => void;
-      source: WebSocket;
+      source: WebSocket | null;
     },
   ): Promise<void> {
     if (this.closed) return;
@@ -729,7 +729,7 @@ export class PluresDB {
         } else this.vectorIndex.remove(node.id);
         await this.evaluateRules(merged);
         try {
-          ctx.broadcast(msg, ctx.source);
+          ctx.broadcast(msg, ctx.source ?? undefined);
         } catch {
           /* ignore */
         }
@@ -740,7 +740,7 @@ export class PluresDB {
         await this.storage.deleteNode(msg.id);
         this.emit(msg.id, null);
         try {
-          ctx.broadcast(msg, ctx.source);
+          ctx.broadcast(msg, ctx.source ?? undefined);
         } catch {
           /* ignore */
         }

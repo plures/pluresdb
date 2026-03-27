@@ -35,7 +35,7 @@ export interface PluresDBOptions {
  */
 export interface QueryResult {
   /** Array of row objects matching the query. */
-  rows: any[];
+  rows: Record<string, unknown>[];
   /** Column names in result order. */
   columns: string[];
   /** Number of rows affected by the last DML statement. */
@@ -83,7 +83,7 @@ export interface VectorSearchResult {
   /** Cosine similarity score in `[0, 1]`; higher is more similar. */
   score: number;
   /** Optional arbitrary metadata associated with the node. */
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 /**

@@ -186,7 +186,7 @@ if (import.meta.main) {
         Deno.exit(1);
       }
       const cfg = await loadConfig();
-      (cfg as any)[key] = /^[0-9]+$/.test(value) ? Number(value) : value;
+      (cfg as Record<string, unknown>)[key] = /^[0-9]+$/.test(value) ? Number(value) : value;
       await saveConfig(cfg);
       console.log("ok");
       break;

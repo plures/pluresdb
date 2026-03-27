@@ -12,7 +12,7 @@ export interface SQLiteConfig {
   /** Path to the SQLite database file. */
   filename: string;
   /** SQLite driver (accepted for API compatibility but ignored by PluresDB). */
-  driver: any; // SQLite driver (ignored, but kept for compatibility)
+  driver: unknown; // SQLite driver (ignored, but kept for compatibility)
   /** Open mode flags (accepted for API compatibility but not enforced). */
   mode?: number;
   /** When `true`, log SQL statements and row counts to `console.log`. */
@@ -26,7 +26,7 @@ export interface DatabaseOptions {
   /** Path to the SQLite database file. */
   filename: string;
   /** SQLite driver (accepted for API compatibility but ignored by PluresDB). */
-  driver?: any;
+  driver?: unknown;
   /** Open mode flags (accepted for API compatibility but not enforced). */
   mode?: number;
   /** When `true`, log SQL statements and row counts to `console.log`. */
@@ -170,7 +170,7 @@ export class Database {
    */
   async run(
     sql: string,
-    params: any[] = [],
+    params: unknown[] = [],
   ): Promise<{ lastID: number; changes: number }> {
     if (!this.isOpen) {
       throw new Error("Database is not open");
@@ -195,7 +195,7 @@ export class Database {
    * @returns The first row as a plain object, or `undefined` if none found.
    * @throws {Error} If the database is not open or the query fails.
    */
-  async get(sql: string, params: any[] = []): Promise<any> {
+  async get(sql: string, params: unknown[] = []): Promise<RowRecord | undefined> {
     if (!this.isOpen) {
       throw new Error("Database is not open");
     }
@@ -216,7 +216,7 @@ export class Database {
    * @returns Array of row objects (may be empty).
    * @throws {Error} If the database is not open or the query fails.
    */
-  async all(sql: string, params: any[] = []): Promise<any[]> {
+  async all(sql: string, params: unknown[] = []): Promise<RowRecord[]> {
     if (!this.isOpen) {
       throw new Error("Database is not open");
     }
@@ -239,8 +239,8 @@ export class Database {
    */
   async each(
     sql: string,
-    params: any[] = [],
-    callback: (row: any) => void,
+    params: unknown[] = [],
+    callback: (row: RowRecord) => void,
   ): Promise<number> {
     if (!this.isOpen) {
       throw new Error("Database is not open");
@@ -300,7 +300,7 @@ export class Database {
   }
 
   // Private helper methods
-  private parseSQL(sql: string): Array<{ sql: string; params?: any[] }> {
+  private parseSQL(sql: string): Array<{ sql: string; params?: unknown[] }> {
     // Simple SQL parser - split by semicolon and trim
     const statements = sql
       .split(";")
@@ -311,8 +311,8 @@ export class Database {
   }
 
   private async executeStatement(
-    statement: { sql: string; params?: any[] },
-  ): Promise<any> {
+    statement: { sql: string; params?: unknown[] },
+  ): Promise<{ lastID?: number; changes?: number }> {
     const sql = statement.sql.toLowerCase().trim();
 
     if (sql.startsWith("create table")) {
@@ -336,7 +336,7 @@ export class Database {
     }
   }
 
-  private async executeQuery(sql: string, params: any[]): Promise<RowRecord[]> {
+  private async executeQuery(sql: string, params: unknown[]): Promise<RowRecord[]> {
     const sqlLower = sql.toLowerCase().trim();
 
     if (sqlLower.startsWith("select")) {
@@ -394,7 +394,7 @@ export class Database {
 
   private async insert(
     sql: string,
-    params: any[],
+    params: unknown[],
   ): Promise<{ lastID: number; changes: number }> {
     const insertMatch = sql.match(
       /INSERT\s+(?:INTO\s+)?(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i,
@@ -419,7 +419,7 @@ export class Database {
     });
 
     // Create row object
-    const row: any = {};
+    const row: RowRecord = {};
     columns.forEach((col, index) => {
       row[col] = actualValues[index];
     });
@@ -443,7 +443,7 @@ export class Database {
 
   private async update(
     sql: string,
-    params: any[],
+    params: unknown[],
   ): Promise<{ changes: number }> {
     const updateMatch = sql.match(
       /UPDATE\s+(\w+)\s+SET\s+([^WHERE]+)(?:\s+WHERE\s+(.+))?/i,
@@ -458,7 +458,7 @@ export class Database {
 
     // Parse SET clause
     const setPairs = setClause.split(",").map((pair) => pair.trim());
-    const updates: any = {};
+    const updates: RowRecord = {};
 
     setPairs.forEach((pair, index) => {
       const [column, value] = pair.split("=").map((s) => s.trim());
@@ -508,7 +508,7 @@ export class Database {
 
   private async delete(
     sql: string,
-    params: any[],
+    params: unknown[],
   ): Promise<{ changes: number }> {
     const deleteMatch = sql.match(/DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?/i);
     if (!deleteMatch) {
@@ -543,7 +543,7 @@ export class Database {
     return { changes };
   }
 
-  private async select(sql: string, params: any[]): Promise<RowRecord[]> {
+  private async select(sql: string, params: unknown[]): Promise<RowRecord[]> {
     const selectMatch = sql.match(
       /SELECT\s+(.+?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?(?:\s+ORDER\s+BY\s+(.+))?(?:\s+LIMIT\s+(\d+))?/i,
     );
@@ -602,7 +602,7 @@ export class Database {
   private evaluateWhereClause(
     row: RowRecord,
     whereClause: string,
-    params: any[],
+    params: unknown[],
   ): boolean {
     // Simple WHERE clause evaluation
     // This is a basic implementation - in production, you'd want a proper SQL parser
@@ -708,7 +708,7 @@ export class PreparedStatement {
    * @param params - Parameter bindings for `?` placeholders.
    * @returns Object with `lastID` and `changes`.
    */
-  async run(params: any[] = []): Promise<{ lastID: number; changes: number }> {
+  async run(params: unknown[] = []): Promise<{ lastID: number; changes: number }> {
     return await this.db.run(this.sql, params);
   }
 
@@ -718,7 +718,7 @@ export class PreparedStatement {
    * @param params - Parameter bindings for `?` placeholders.
    * @returns The first matching row, or `undefined` if none found.
    */
-  async get(params: any[] = []): Promise<any> {
+  async get(params: unknown[] = []): Promise<RowRecord | undefined> {
     return await this.db.get(this.sql, params);
   }
 
@@ -728,7 +728,7 @@ export class PreparedStatement {
    * @param params - Parameter bindings for `?` placeholders.
    * @returns Array of matching row objects.
    */
-  async all(params: any[] = []): Promise<any[]> {
+  async all(params: unknown[] = []): Promise<RowRecord[]> {
     return await this.db.all(this.sql, params);
   }
 
@@ -740,8 +740,8 @@ export class PreparedStatement {
    * @returns Total number of rows processed.
    */
   async each(
-    params: any[] = [],
-    callback: (row: any) => void,
+    params: unknown[] = [],
+    callback: (row: RowRecord) => void,
   ): Promise<number> {
     return await this.db.each(this.sql, params, callback);
   }

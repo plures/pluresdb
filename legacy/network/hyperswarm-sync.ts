@@ -152,9 +152,9 @@ export class HyperswarmSync {
     debugLog("hyperswarm:enableSync", { keyPrefix: key.slice(0, 8) });
 
     // Dynamically import Hyperswarm (Node.js only)
-    let Hyperswarm: any;
+    let HyperswarmCtor: { new(): HyperswarmInstance };
     try {
-      Hyperswarm = (await import("hyperswarm")).default;
+      HyperswarmCtor = (await import("hyperswarm")).default;
     } catch (_error) {
       throw new Error(
         "Hyperswarm is only available in Node.js environment. Cannot enable P2P sync in Deno/Browser.",
@@ -162,7 +162,7 @@ export class HyperswarmSync {
     }
 
     // Create Hyperswarm instance
-    this.swarm = new Hyperswarm() as HyperswarmInstance;
+    this.swarm = new HyperswarmCtor();
 
     // Handle incoming connections
     this.swarm.on("connection", (connection: HyperswarmConnection) => {

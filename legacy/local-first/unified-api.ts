@@ -59,36 +59,43 @@ export interface LocalFirstBackend {
  */
 class RuntimeDetector {
   static isBrowser(): boolean {
+    const g = globalThis as Record<string, unknown>;
     return typeof globalThis !== "undefined" &&
-      typeof (globalThis as any).window !== "undefined" &&
-      typeof (globalThis as any).document !== "undefined" &&
-      typeof (globalThis as any).WebAssembly !== "undefined";
+      typeof g.window !== "undefined" &&
+      typeof g.document !== "undefined" &&
+      typeof g.WebAssembly !== "undefined";
   }
 
   static isTauri(): boolean {
+    const g = globalThis as Record<string, unknown>;
     return typeof globalThis !== "undefined" &&
-      typeof (globalThis as any).window !== "undefined" &&
-      (globalThis as any).window?.__TAURI__ !== undefined;
+      typeof g.window !== "undefined" &&
+      (g.window as Record<string, unknown> | undefined)?.__TAURI__ !== undefined;
   }
 
   static isNode(): boolean {
-    const globalProcess = (globalThis as any).process;
+    const g = globalThis as Record<string, unknown>;
+    const globalProcess = g.process as
+      | { versions?: { node?: string } }
+      | undefined;
     return typeof globalProcess !== "undefined" &&
-      globalProcess.versions?.node != null;
+      globalProcess?.versions?.node != null;
   }
 
   static isDeno(): boolean {
+    const g = globalThis as Record<string, unknown>;
     return typeof globalThis !== "undefined" &&
-      (globalThis as any).Deno !== undefined;
+      g.Deno !== undefined;
   }
 
   static hasIPCEnvironment(): boolean {
+    const g = globalThis as Record<string, unknown>;
     if (this.isNode()) {
-      return (globalThis as any).process?.env?.PLURESDB_IPC === "true";
+      return (g.process as { env?: Record<string, string | undefined> } | undefined)?.env?.PLURESDB_IPC === "true";
     }
     if (this.isDeno()) {
-      const Deno = (globalThis as any).Deno;
-      return Deno?.env?.get?.("PLURESDB_IPC") === "true";
+      const DenoRef = g.Deno as { env?: { get?: (k: string) => string | undefined } } | undefined;
+      return DenoRef?.env?.get?.("PLURESDB_IPC") === "true";
     }
     return false;
   }
@@ -121,7 +128,7 @@ class RuntimeDetector {
  * Data is persisted in IndexedDB.
  */
 class WasmBackend implements LocalFirstBackend {
-  private db: unknown = null;
+  private db: LocalFirstBackend | null = null;
   private dbName: string;
 
   constructor(dbName: string = "pluresdb") {
@@ -138,32 +145,32 @@ class WasmBackend implements LocalFirstBackend {
 
   async put(id: string, data: unknown): Promise<string> {
     if (!this.db) await this.initialize();
-    return (this.db as any).put(id, data);
+    return this.db!.put(id, data);
   }
 
   async get(id: string): Promise<unknown> {
     if (!this.db) await this.initialize();
-    return (this.db as any).get(id);
+    return this.db!.get(id);
   }
 
   async delete(id: string): Promise<void> {
     if (!this.db) await this.initialize();
-    return (this.db as any).delete(id);
+    return this.db!.delete(id);
   }
 
   async list(): Promise<unknown[]> {
     if (!this.db) await this.initialize();
-    return (this.db as any).list();
+    return this.db!.list();
   }
 
   async vectorSearch(query: string, limit: number): Promise<unknown[]> {
     if (!this.db) await this.initialize();
-    return (this.db as any).vectorSearch(query, limit);
+    return this.db!.vectorSearch!(query, limit);
   }
 
   async close(): Promise<void> {
     if (this.db) {
-      await (this.db as any).close();
+      await this.db.close?.();
       this.db = null;
     }
   }
@@ -176,18 +183,19 @@ class WasmBackend implements LocalFirstBackend {
  * Provides native performance with no network overhead.
  */
 class TauriBackend implements LocalFirstBackend {
-  private invoke: any;
+  private invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
 
   constructor() {
-    const win = typeof globalThis !== "undefined" ? (globalThis as any).window : undefined;
+    const g = globalThis as Record<string, unknown>;
+    const win = typeof globalThis !== "undefined" ? g.window as Record<string, unknown> | undefined : undefined;
     if (!win || !win.__TAURI__) {
       throw new Error("Tauri backend requires Tauri environment");
     }
-    this.invoke = win.__TAURI__.invoke;
+    this.invoke = (win.__TAURI__ as { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown> }).invoke;
   }
 
   async put(id: string, data: unknown): Promise<string> {
-    return await this.invoke("pluresdb_put", { id, data });
+    return await this.invoke("pluresdb_put", { id, data }) as string;
   }
 
   async get(id: string): Promise<unknown> {
@@ -199,11 +207,11 @@ class TauriBackend implements LocalFirstBackend {
   }
 
   async list(): Promise<unknown[]> {
-    return await this.invoke("pluresdb_list");
+    return await this.invoke("pluresdb_list") as unknown[];
   }
 
   async vectorSearch(query: string, limit: number): Promise<unknown[]> {
-    return await this.invoke("pluresdb_vector_search", { query, limit });
+    return await this.invoke("pluresdb_vector_search", { query, limit }) as unknown[];
   }
 }
 

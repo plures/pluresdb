@@ -220,7 +220,7 @@ export class PluresNode extends EventEmitter {
   }
 
   // SQLite-compatible API methods
-  async query(sql: string, params: any[] = []): Promise<any> {
+  async query(sql: string, params: unknown[] = []): Promise<Record<string, unknown>> {
     const response = await fetch(`${this.apiUrl}/api/query`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -231,10 +231,10 @@ export class PluresNode extends EventEmitter {
       throw new Error(`Query failed: ${response.statusText}`);
     }
 
-    return response.json();
+    return response.json() as Promise<Record<string, unknown>>;
   }
 
-  async put(key: string, value: any): Promise<void> {
+  async put(key: string, value: Record<string, unknown>): Promise<void> {
     const response = await fetch(`${this.apiUrl}/api/data`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -246,7 +246,7 @@ export class PluresNode extends EventEmitter {
     }
   }
 
-  async get(key: string): Promise<any> {
+  async get(key: string): Promise<Record<string, unknown> | null> {
     const response = await fetch(
       `${this.apiUrl}/api/data/${encodeURIComponent(key)}`,
     );
@@ -258,7 +258,7 @@ export class PluresNode extends EventEmitter {
       throw new Error(`Get failed: ${response.statusText}`);
     }
 
-    return response.json();
+    return response.json() as Promise<Record<string, unknown>>;
   }
 
   async delete(key: string): Promise<void> {
@@ -274,7 +274,7 @@ export class PluresNode extends EventEmitter {
     }
   }
 
-  async vectorSearch(query: string, limit = 10): Promise<any[]> {
+  async vectorSearch(query: string, limit = 10): Promise<Record<string, unknown>[]> {
     const response = await fetch(`${this.apiUrl}/api/vsearch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -285,7 +285,7 @@ export class PluresNode extends EventEmitter {
       throw new Error(`Vector search failed: ${response.statusText}`);
     }
 
-    return response.json() as Promise<any[]>;
+    return response.json() as Promise<Record<string, unknown>[]>;
   }
 
   async list(prefix?: string): Promise<string[]> {
@@ -301,17 +301,17 @@ export class PluresNode extends EventEmitter {
     return response.json() as Promise<string[]>;
   }
 
-  async getConfig(): Promise<any> {
+  async getConfig(): Promise<Record<string, unknown>> {
     const response = await fetch(`${this.apiUrl}/api/config`);
 
     if (!response.ok) {
       throw new Error(`Get config failed: ${response.statusText}`);
     }
 
-    return response.json();
+    return response.json() as Promise<Record<string, unknown>>;
   }
 
-  async setConfig(config: any): Promise<void> {
+  async setConfig(config: Record<string, unknown>): Promise<void> {
     const response = await fetch(`${this.apiUrl}/api/config`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

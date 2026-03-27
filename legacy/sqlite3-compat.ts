@@ -74,7 +74,7 @@ export class Database extends PluresDBDatabase {
    * In the real sqlite3 package this sets low-level driver options.  PluresDB
    * has no equivalent configuration surface.
    */
-  configure(_option: string, _value: any): void {
+  configure(_option: string, _value: unknown): void {
     // No-op for compatibility
   }
 

@@ -142,7 +142,7 @@ export class PluresVSCodeExtension {
     return this.plures.getWebUrl();
   }
 
-  async storeSetting(key: string, value: unknown) {
+  async storeSetting(key: string, value: Record<string, unknown>) {
     return this.sqlite.put(`settings:${key}`, value);
   }
 

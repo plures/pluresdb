@@ -10,6 +10,7 @@ import * as fs from "fs";
 import process from "node:process";
 
 import { PluresNode } from "./node-wrapper";
+import type { PluresDBConfig } from "./types/node-types";
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -82,7 +83,7 @@ Examples:
 }
 
 // Parse options
-const options: any = {};
+const options: Record<string, string | boolean> = {};
 let i = 1;
 while (i < args.length) {
   const arg = args[i];
@@ -104,13 +105,17 @@ while (i < args.length) {
 async function main() {
   try {
     if (command === "serve") {
+      const logLevelRaw = typeof options["log-level"] === "string" ? options["log-level"] : "info";
+      const validLogLevels = ["debug", "info", "warn", "error"] as const;
       const config = {
-        port: options.port ? parseInt(options.port) : 34567,
-        host: options.host || "localhost",
-        dataDir: options["data-dir"] ||
+        port: typeof options.port === "string" ? parseInt(options.port) : 34567,
+        host: typeof options.host === "string" ? options.host : "localhost",
+        dataDir: typeof options["data-dir"] === "string" ? options["data-dir"] :
           path.join(require("os").homedir(), ".pluresdb"),
-        webPort: options["web-port"] ? parseInt(options["web-port"]) : 34568,
-        logLevel: options["log-level"] || "info",
+        webPort: typeof options["web-port"] === "string" ? parseInt(options["web-port"]) : 34568,
+        logLevel: (validLogLevels.includes(logLevelRaw as typeof validLogLevels[number])
+          ? logLevelRaw as typeof validLogLevels[number]
+          : "info") as PluresDBConfig["logLevel"],
       };
 
       const plures = new PluresNode({ config, autoStart: true });
@@ -187,7 +192,7 @@ async function main() {
               process.exit(1);
             }
             const searchQuery = args[1];
-            const limit = options.limit ? parseInt(options.limit) : 10;
+            const limit = typeof options.limit === "string" ? parseInt(options.limit) : 10;
             const searchResult = await plures.vectorSearch(searchQuery, limit);
             console.log(JSON.stringify(searchResult, null, 2));
             break;

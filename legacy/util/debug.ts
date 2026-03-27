@@ -5,15 +5,18 @@
 export const DEBUG_ENABLED: boolean = (() => {
   try {
     let v = "";
+    const g = globalThis as Record<string, unknown>;
     // Check for Deno environment
-    if (typeof (globalThis as any).Deno !== "undefined") {
-      const Deno = (globalThis as any).Deno;
-      if (Deno.env && Deno.env.get) {
-        v = Deno.env.get("PLURESDB_DEBUG") ?? "";
+    if (typeof g.Deno !== "undefined") {
+      const DenoRef = g.Deno as { env?: { get?: (k: string) => string | undefined } };
+      if (DenoRef.env && DenoRef.env.get) {
+        v = DenoRef.env.get("PLURESDB_DEBUG") ?? "";
       }
     } else {
       // Check for Node.js environment
-      const globalProcess = (globalThis as any).process;
+      const globalProcess = g.process as
+        | { env?: Record<string, string | undefined> }
+        | undefined;
       if (typeof globalProcess !== "undefined" && globalProcess?.env) {
         v = globalProcess.env.PLURESDB_DEBUG ?? "";
       }
