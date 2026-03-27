@@ -2914,7 +2914,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb"
-version = "2.15.9"
+version = "2.15.11"
 dependencies = [
  "anyhow",
  "pluresdb-core",
@@ -2925,7 +2925,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-cli"
-version = "2.15.9"
+version = "2.15.11"
 dependencies = [
  "anyhow",
  "axum",
@@ -2945,7 +2945,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-core"
-version = "2.15.9"
+version = "2.15.11"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2967,7 +2967,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-node"
-version = "2.15.9"
+version = "2.15.11"
 dependencies = [
  "napi",
  "napi-build",
@@ -2983,7 +2983,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures"
-version = "2.15.9"
+version = "2.15.11"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3001,7 +3001,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures-macros"
-version = "2.15.9"
+version = "2.15.11"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3010,7 +3010,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sea"
-version = "2.15.9"
+version = "2.15.11"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3026,7 +3026,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-storage"
-version = "2.15.9"
+version = "2.15.11"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3050,7 +3050,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sync"
-version = "2.15.9"
+version = "2.15.11"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3069,7 +3069,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-wasm"
-version = "2.15.9"
+version = "2.15.11"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -3706,15 +3706,15 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.145"
+version = "1.0.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
+checksum = "83fc039473c5595ace860d8c4fafa220ff474b3fc6bfdb4293327f1a37e94d86"
 dependencies = [
  "itoa",
  "memchr",
- "ryu",
  "serde",
  "serde_core",
+ "zmij",
 ]
 
 [[package]]
@@ -5224,6 +5224,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "zmij"
+version = "1.0.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
 
 [[package]]
 name = "zune-core"
