@@ -18,7 +18,7 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "AGPL-3.0"
-version = "2.15.13"
+version = "2.15.14"
 authors = ["Plures Organization"]
 description = "P2P Graph Database — Local-first, offline-first database for modern applications"
 repository = "https://github.com/plures/pluresdb"

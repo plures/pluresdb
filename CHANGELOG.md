@@ -1,3 +1,10 @@
+## [2.15.14] - 2026-03-27
+
+### Developer Experience
+
+- standardize CI workflow
+
+
 ## [2.15.13] - 2026-03-27
 
 ### Fixed
