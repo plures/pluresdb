@@ -36,6 +36,23 @@ class SimpleEmbeddingProvider implements EmbeddingProvider {
   }
 }
 
+/**
+ * Example PluresDB plugin that registers a simple character-based embedding provider.
+ *
+ * Demonstrates the minimum required shape for a {@link Plugin} that supplies a
+ * custom {@link EmbeddingProvider}.  The provider maps character codes to a
+ * 256-dimensional normalised vector — useful for testing and prototyping but
+ * **not** suitable for production semantic search.
+ *
+ * @example
+ * ```typescript
+ * import { PluresDB } from "pluresdb";
+ * import { customEmbeddingsPlugin } from "./plugins/example-embedding-plugin";
+ *
+ * const db = new PluresDB({ plugins: [customEmbeddingsPlugin] });
+ * await db.ready();
+ * ```
+ */
 export const customEmbeddingsPlugin: Plugin = {
   id: "custom-embeddings",
   name: "Custom Embeddings Provider",
