@@ -28,12 +28,12 @@ sqlite-compat = ["dep:rusqlite"]
 anyhow.workspace = true
 chrono.workspace = true
 dashmap.workspace = true
-fastembed = { version = "5.11.0", optional = true }
+fastembed = { version = "5.13.0", optional = true }
 futures = { workspace = true }
 hnsw_rs.workspace = true
 parking_lot.workspace = true
 pluresdb-storage = { path = "../pluresdb-storage" }
-rusqlite = { version = "0.32", features = ["bundled", "chrono"], optional = true }
+rusqlite = { version = "0.39", features = ["bundled", "chrono"], optional = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -42,7 +42,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 criterion = { workspace = true, features = ["html_reports"] }
-tempfile = "3.10"
+tempfile = "3.27"
 
 [[bench]]
 name = "crdt_benchmarks"

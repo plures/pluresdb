@@ -18,7 +18,7 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "AGPL-3.0"
-version = "2.15.9"
+version = "2.15.11"
 authors = ["Plures Organization"]
 description = "P2P Graph Database — Local-first, offline-first database for modern applications"
 repository = "https://github.com/plures/pluresdb"
@@ -34,7 +34,7 @@ async-trait = "0.1"
 axum = { version = "0.8", features = ["ws", "macros"] }
 bincode = { version = "2", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-clap = { version = "4.0", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
 console = "0.15"
 criterion = "0.5"
 dashmap = "5.5"
@@ -52,19 +52,19 @@ rcgen = "0.12"
 ring = "0.17"
 rocksdb = "0.21"
 rustls = "0.21"
-rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
+rusqlite = { version = "0.39", features = ["bundled", "chrono"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde-wasm-bindgen = "0.6"
 sled = "0.34"
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
-thiserror = "1.0"
+thiserror = "2.0"
 tokio = { version = "1.0", features = ["full"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
-uuid = { version = "1.0", features = ["v4", "v5", "serde"] }
+uuid = { version = "1.23", features = ["v4", "v5", "serde"] }
 warp = "0.3"
 wasm-bindgen = "0.2"
 wasm-pack = "0.12"
