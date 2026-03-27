@@ -33,7 +33,7 @@ futures = { workspace = true }
 hnsw_rs.workspace = true
 parking_lot.workspace = true
 pluresdb-storage = { path = "../pluresdb-storage" }
-rusqlite = { version = "0.32", features = ["bundled", "chrono"], optional = true }
+rusqlite = { version = "0.39", features = ["bundled", "chrono"], optional = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
