@@ -200,11 +200,12 @@ impl IPCServer {
         };
 
         if let Some(request_data) = layout.read_request() {
-            let message: IPCMessage = bincode::deserialize(&request_data)
-                .context("Failed to deserialize request")?;
+            let message: IPCMessage = bincode::serde::decode_from_slice(&request_data, bincode::config::standard())
+                .context("Failed to deserialize request")
+                .map(|(v, _)| v)?;
 
             let response = self.handle_message(message);
-            let response_data = bincode::serialize(&response)
+            let response_data = bincode::serde::encode_to_vec(&response, bincode::config::standard())
                 .context("Failed to serialize response")?;
 
             layout.write_response(&response_data)
@@ -303,7 +304,7 @@ impl IPCClient {
         };
 
         // Serialize and send request
-        let request_data = bincode::serialize(&message)
+        let request_data = bincode::serde::encode_to_vec(&message, bincode::config::standard())
             .context("Failed to serialize message")?;
         layout.write_request(&request_data)
             .context("Failed to write request")?;
@@ -314,8 +315,9 @@ impl IPCClient {
 
         loop {
             if let Some(response_data) = layout.read_response() {
-                let response: IPCMessage = bincode::deserialize(&response_data)
-                    .context("Failed to deserialize response")?;
+                let response: IPCMessage = bincode::serde::decode_from_slice(&response_data, bincode::config::standard())
+                    .context("Failed to deserialize response")
+                    .map(|(v, _)| v)?;
                 return Ok(response);
             }
 
