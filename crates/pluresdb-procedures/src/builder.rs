@@ -144,6 +144,7 @@ pub struct MutateBuilder {
 }
 
 impl MutateBuilder {
+    /// Create an empty builder.
     pub fn new() -> Self {
         MutateBuilder::default()
     }
@@ -154,6 +155,7 @@ impl MutateBuilder {
         self
     }
 
+    /// Append a `put` operation to upsert `data` at `id`.
     pub fn put(mut self, id: impl Into<String>, data: serde_json::Value) -> Self {
         self.ops.push(MutateOp::Put {
             id: id.into(),
@@ -162,11 +164,13 @@ impl MutateBuilder {
         self
     }
 
+    /// Append a `delete` operation that removes the node at `id`.
     pub fn delete(mut self, id: impl Into<String>) -> Self {
         self.ops.push(MutateOp::Delete { id: id.into() });
         self
     }
 
+    /// Append a `merge` operation that shallow-merges `patch` into the node at `id`.
     pub fn merge(mut self, id: impl Into<String>, patch: serde_json::Value) -> Self {
         self.ops.push(MutateOp::Merge {
             id: id.into(),
@@ -175,6 +179,9 @@ impl MutateBuilder {
         self
     }
 
+    /// Append a `put_edge` operation that creates a directed edge from `from` to `to`.
+    ///
+    /// `label` names the relationship (e.g. `Some("follows")`, `Some("parent")`).
     pub fn put_edge(
         mut self,
         from: impl Into<String>,
@@ -189,6 +196,7 @@ impl MutateBuilder {
         self
     }
 
+    /// Append a `delete_edge` operation that removes the directed edge from `from` to `to`.
     pub fn delete_edge(mut self, from: impl Into<String>, to: impl Into<String>) -> Self {
         self.ops.push(MutateOp::DeleteEdge {
             from: from.into(),
