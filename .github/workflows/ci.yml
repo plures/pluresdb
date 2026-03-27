@@ -75,6 +75,10 @@ jobs:
       - name: Build
         run: npm run build:lib
 
+      - name: Check example type safety
+        run: deno check examples/sync-configuration.ts examples/storage-encryption.ts
+        continue-on-error: true
+
       - name: Run tests
         run: npm test
         continue-on-error: true
