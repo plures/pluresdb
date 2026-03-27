@@ -33,7 +33,7 @@ fn request_to_promise(request: IdbRequest) -> Promise {
                 .error()
                 .ok()
                 .flatten()
-                .map(|e| JsValue::from(e))
+                .map(JsValue::from)
                 .unwrap_or_else(|| JsValue::from_str("IdbRequest error"));
             let _ = reject.call1(&JsValue::NULL, &err);
         }) as Box<dyn FnOnce()>);

@@ -72,7 +72,7 @@ impl RadAdapter for MemoryStorage {
             .await?
             .into_iter()
             .filter(|n| {
-                n.id.as_str() >= start && end.map_or(true, |e| n.id.as_str() < e)
+                n.id.as_str() >= start && end.is_none_or(|e| n.id.as_str() < e)
             })
             .collect();
         nodes.sort_by(|a, b| a.id.cmp(&b.id));

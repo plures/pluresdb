@@ -409,7 +409,7 @@ pub fn graph_path(
     visited.insert(from.to_string());
 
     while let Some((current, path)) = queue.pop_front() {
-        if path.len() >= max_hops + 1 {
+        if path.len() > max_hops {
             continue;
         }
         if let Some(nbrs) = neighbours.get(&current) {

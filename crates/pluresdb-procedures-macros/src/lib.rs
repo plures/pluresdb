@@ -31,6 +31,7 @@ enum ValueNode {
     Float(f64),
     Int(i64),
     Bool(bool),
+    #[allow(dead_code)]
     Null,
 }
 

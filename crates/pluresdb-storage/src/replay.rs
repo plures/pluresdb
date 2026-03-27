@@ -58,8 +58,10 @@ pub async fn replay_wal(
         .context("Failed to read WAL entries")?;
     
     let mut state = HashMap::new();
-    let mut stats = ReplayStats::default();
-    stats.total_entries = entries.len() as u64;
+    let mut stats = ReplayStats {
+        total_entries: entries.len() as u64,
+        ..Default::default()
+    };
     
     for entry in entries {
         // Apply actor filter if specified

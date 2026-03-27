@@ -4,10 +4,11 @@
  * Run with: node tests/test-hyperswarm.js
  */
 
-const { PluresDB } = require("../dist/core/database.js");
-const { generateSyncKey } = require("../dist/network/hyperswarm-sync.js");
 const fs = require("fs").promises;
 const path = require("path");
+
+const { PluresDB } = require("../dist/core/database.js");
+const { generateSyncKey } = require("../dist/network/hyperswarm-sync.js");
 
 let testsPassed = 0;
 let testsFailed = 0;

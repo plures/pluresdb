@@ -56,7 +56,7 @@ fn compare_eq(field_val: Option<&serde_json::Value>, rhs: &IrValue) -> bool {
         (Some(serde_json::Value::Null), IrValue::Null) => true,
         (Some(serde_json::Value::String(s)), IrValue::String(r)) => s == r,
         (Some(serde_json::Value::Number(n)), IrValue::Number(r)) => {
-            n.as_f64().map_or(false, |f| f == *r)
+            n.as_f64() == Some(*r)
         }
         (Some(serde_json::Value::Bool(b)), IrValue::Bool(r)) => b == r,
         _ => false,

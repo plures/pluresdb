@@ -5,10 +5,11 @@
  * This allows VSCode extensions to use pluresdb as a regular npm package
  */
 
-import { PluresNode } from "./node-wrapper";
 import * as path from "path";
 import * as fs from "fs";
 import process from "node:process";
+
+import { PluresNode } from "./node-wrapper";
 
 // Parse command line arguments
 const args = process.argv.slice(2);

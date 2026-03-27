@@ -401,8 +401,7 @@ fn init_logging(cli: &Cli) {
 }
 
 fn load_payload(data: &str) -> Result<serde_json::Value> {
-    if data.starts_with('@') {
-        let path = &data[1..];
+    if let Some(path) = data.strip_prefix('@') {
         let content = fs::read_to_string(path)
             .with_context(|| format!("failed to read file: {}", path))?;
         serde_json::from_str(&content)
@@ -435,6 +434,7 @@ fn create_database(data_dir: Option<&PathBuf>) -> Result<Option<Arc<Database>>> 
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_put(
     storage: Arc<dyn StorageEngine>,
     store: Arc<CrdtStore>,
@@ -581,8 +581,8 @@ async fn handle_list(
                 println!("{}", node.id);
             }
         }
-        "table" | _ => {
-            println!("{:<40} {:<20} {}", "ID", "Type", "Data Preview");
+        _ => {
+            println!("{:<40} {:<20} Data Preview", "ID", "Type");
             println!("{}", "-".repeat(80));
             for node in nodes {
                 let node_type = node

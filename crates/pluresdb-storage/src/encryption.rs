@@ -4,7 +4,7 @@
 //! with support for key rotation and device revocation.
 
 use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
+    aead::{Aead, KeyInit, OsRng, generic_array::typenum},
     Aes256Gcm, Nonce,
 };
 use anyhow::{Context, Result};
@@ -65,7 +65,7 @@ impl EncryptionConfig {
         }
         
         // Create salt string for Argon2
-        let salt_string = SaltString::encode_b64(&salt_bytes)
+        let salt_string = SaltString::encode_b64(salt_bytes)
             .map_err(|e| anyhow::anyhow!("Failed to encode salt: {}", e))?;
         
         // Derive key from password using Argon2id
@@ -124,7 +124,7 @@ impl EncryptionConfig {
         // Generate random nonce
         let mut nonce_bytes = [0u8; NONCE_SIZE];
         OsRng.fill_bytes(&mut nonce_bytes);
-        let nonce = Nonce::clone_from_slice(&nonce_bytes);
+        let nonce: Nonce<typenum::U12> = nonce_bytes.into();
         
         // Encrypt the plaintext
         let ciphertext = cipher
@@ -151,7 +151,8 @@ impl EncryptionConfig {
         
         // Extract nonce and ciphertext
         let (nonce_bytes, ciphertext) = ciphertext_with_nonce.split_at(NONCE_SIZE);
-        let nonce = Nonce::clone_from_slice(nonce_bytes);
+        let nonce_arr: [u8; NONCE_SIZE] = nonce_bytes.try_into().expect("slice is exactly NONCE_SIZE bytes");
+        let nonce: Nonce<typenum::U12> = nonce_arr.into();
         
         // Create cipher
         let cipher = Aes256Gcm::new(&self.master_key.into());
@@ -228,7 +229,7 @@ impl Default for EncryptionMetadata {
 impl EncryptionMetadata {
     /// Creates metadata from an encryption config.
     pub fn from_config(config: &EncryptionConfig) -> Self {
-        let salt_b64 = BASE64.encode(&config.salt);
+        let salt_b64 = BASE64.encode(config.salt);
         Self {
             version: 1,
             kdf: "argon2id".to_string(),

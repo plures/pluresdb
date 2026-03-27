@@ -906,10 +906,8 @@ impl CrdtStore {
         // Normalize min_score to the documented [0.0, 1.0] range and ensure it is finite.
         if !min_score.is_finite() {
             min_score = 0.0;
-        } else if min_score < 0.0 {
-            min_score = 0.0;
-        } else if min_score > 1.0 {
-            min_score = 1.0;
+        } else {
+            min_score = min_score.clamp(0.0, 1.0);
         }
 
         // Lazily populate the HNSW index from SQLite on the first search call
@@ -1641,7 +1639,7 @@ impl EmbedText for FastEmbedder {
     fn embed(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
         let owned: Vec<String> = texts.iter().map(|t| t.to_string()).collect();
         let mut model = self.model.lock().map_err(|e| anyhow::anyhow!("lock poisoned: {}", e))?;
-        model.embed(owned, None).map_err(Into::into)
+        model.embed(owned, None)
     }
 
     fn dimension(&self) -> usize {
