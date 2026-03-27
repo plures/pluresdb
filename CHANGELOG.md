@@ -1,3 +1,30 @@
+## [2.15.12] - 2026-03-27
+
+### Fixed
+
+- downgrade typescript to ^5.8.0 to unblock CI and release pipeline (#231)
+
+### Developer Experience
+
+- bump proc-macro2 from 1.0.101 to 1.0.106 (#230)
+- bump tempfile from 3.23.0 to 3.27.0 (#228)
+- bump serde_json from 1.0.145 to 1.0.149 (#227)
+- bump clap from 4.5.48 to 4.5.60 (#226)
+- bump uuid from 1.18.1 to 1.23.0 (#224)
+- bump axum from 0.8.6 to 0.8.8 (#225)
+- bump hyperswarm from 4.16.0 to 4.17.0 (#223)
+- bump typescript from 5.9.3 to 6.0.2 (#222)
+- bump rusqlite from 0.32.1 to 0.39.0 (#221)
+- bump ws from 8.18.3 to 8.20.0 (#220)
+- bump fastembed from 5.11.0 to 5.13.0 (#219)
+- bump @types/vscode from 1.104.0 to 1.110.0 (#218)
+- bump prettier-plugin-svelte from 3.4.0 to 3.5.1 (#217)
+- bump thiserror from 1.0.69 to 2.0.17 (#216)
+- bump @types/node from 22.19.11 to 25.5.0 (#215)
+- bump @plures/praxis from 1.4.0 to 2.4.35 (#214)
+- bump cors from 2.8.5 to 2.8.6 (#213)
+
+
 ## [2.15.11] - 2026-03-27
 
 ### Developer Experience
