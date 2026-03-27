@@ -1,3 +1,11 @@
+## [2.15.10] - 2026-03-27
+
+### Fixed
+
+- remediate no-known-vulns dimension — dependabot, audit CI, bincode 1→2 (#207)
+- lint-clean 0% → 100% (ESLint + Clippy) (#210)
+
+
 ## [2.15.9] - 2026-03-26
 
 ### Developer Experience
