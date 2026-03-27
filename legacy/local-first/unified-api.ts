@@ -165,7 +165,10 @@ class WasmBackend implements LocalFirstBackend {
 
   async vectorSearch(query: string, limit: number): Promise<unknown[]> {
     if (!this.db) await this.initialize();
-    return this.db!.vectorSearch!(query, limit);
+    if (!this.db?.vectorSearch) {
+      throw new Error("Vector search not supported in WASM backend");
+    }
+    return this.db.vectorSearch(query, limit);
   }
 
   async close(): Promise<void> {

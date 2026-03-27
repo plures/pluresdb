@@ -102,20 +102,24 @@ while (i < args.length) {
   }
 }
 
+function parseLogLevel(raw: string): PluresDBConfig["logLevel"] {
+  const valid: PluresDBConfig["logLevel"][] = ["debug", "info", "warn", "error"];
+  return valid.includes(raw as PluresDBConfig["logLevel"])
+    ? (raw as PluresDBConfig["logLevel"])
+    : "info";
+}
+
 async function main() {
   try {
     if (command === "serve") {
       const logLevelRaw = typeof options["log-level"] === "string" ? options["log-level"] : "info";
-      const validLogLevels = ["debug", "info", "warn", "error"] as const;
       const config = {
         port: typeof options.port === "string" ? parseInt(options.port) : 34567,
         host: typeof options.host === "string" ? options.host : "localhost",
         dataDir: typeof options["data-dir"] === "string" ? options["data-dir"] :
           path.join(require("os").homedir(), ".pluresdb"),
         webPort: typeof options["web-port"] === "string" ? parseInt(options["web-port"]) : 34568,
-        logLevel: (validLogLevels.includes(logLevelRaw as typeof validLogLevels[number])
-          ? logLevelRaw as typeof validLogLevels[number]
-          : "info") as PluresDBConfig["logLevel"],
+        logLevel: parseLogLevel(logLevelRaw),
       };
 
       const plures = new PluresNode({ config, autoStart: true });
