@@ -1,3 +1,11 @@
+## [2.15.11] - 2026-03-27
+
+### Developer Experience
+
+- bump prettier from 3.6.2 to 3.8.1 (#212)
+- bump @types/express from 5.0.5 to 5.0.6 (#211)
+
+
 ## [2.15.10] - 2026-03-27
 
 ### Fixed
