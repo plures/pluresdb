@@ -1,3 +1,10 @@
+## [2.15.13] - 2026-03-27
+
+### Fixed
+
+- lint-clean 0% → 100% — expand ESLint scope to full codebase (#233)
+
+
 ## [2.15.12] - 2026-03-27
 
 ### Fixed
