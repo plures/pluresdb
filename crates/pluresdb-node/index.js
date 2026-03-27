@@ -16,7 +16,7 @@ function isMusl() {
         .toString()
         .trim();
       return readFileSync(lddPath, "utf8").includes("musl");
-    } catch (e) {
+    } catch (_e) {
       return true;
     }
   } else {
@@ -119,7 +119,9 @@ switch (platform) {
         nativeBinding = require("@plures/pluresdb-native-darwin-universal");
       }
       break;
-    } catch {}
+    } catch {
+      // fall through to architecture-specific binding
+    }
     switch (arch) {
       case "x64":
         localFileExisted = existsSync(

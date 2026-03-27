@@ -126,14 +126,14 @@ impl PluresDatabase {
                 None
             };
 
-            return Ok(Self {
+            Ok(Self {
                 store: Arc::new(Mutex::new(store)),
                 storage,
                 #[cfg(feature = "sqlite-compat")]
                 db,
                 broadcaster: Arc::new(SyncBroadcaster::default()),
                 actor_id,
-            });
+            })
         }
 
         #[cfg(not(feature = "embeddings"))]
@@ -551,7 +551,7 @@ impl PluresDatabase {
     #[napi]
     pub fn exec_dsl(&self, query: String) -> Result<serde_json::Value> {
         let store = self.store.lock();
-        let engine = ProcedureEngine::new(&*store, self.actor_id.as_str());
+        let engine = ProcedureEngine::new(&store, self.actor_id.as_str());
         let result = engine
             .exec_dsl(&query)
             .map_err(|e| Error::from_reason(format!("exec_dsl error: {}", e)))?;
@@ -575,7 +575,7 @@ impl PluresDatabase {
     #[napi]
     pub fn exec_ir(&self, steps: serde_json::Value) -> Result<serde_json::Value> {
         let store = self.store.lock();
-        let engine = ProcedureEngine::new(&*store, self.actor_id.as_str());
+        let engine = ProcedureEngine::new(&store, self.actor_id.as_str());
         let result = engine
             .exec_ir(&steps)
             .map_err(|e| Error::from_reason(format!("exec_ir error: {}", e)))?;

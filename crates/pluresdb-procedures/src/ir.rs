@@ -162,6 +162,7 @@ impl Predicate {
     }
 
     /// Convenience constructor for `NOT`.
+    #[allow(clippy::should_implement_trait)]
     pub fn not(inner: Predicate) -> Self {
         Predicate::Not {
             not: Box::new(inner),
@@ -175,16 +176,13 @@ impl Predicate {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum SortDir {
+    #[default]
     Asc,
     Desc,
 }
 
-impl Default for SortDir {
-    fn default() -> Self {
-        SortDir::Asc
-    }
-}
 
 impl SortDir {
     pub fn as_str(&self) -> &'static str {

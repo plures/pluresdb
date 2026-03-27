@@ -14,10 +14,6 @@ interface NodeInfo {
   apiPort: number;
 }
 
-interface TestContext {
-  environment: string;
-  nodes: NodeInfo[];
-}
 
 /**
  * Get node information from Azure deployment

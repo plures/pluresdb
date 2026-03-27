@@ -228,15 +228,15 @@ class IPCBackend implements LocalFirstBackend {
     );
   }
 
-  async put(id: string, data: unknown): Promise<string> {
+  async put(_id: string, _data: unknown): Promise<string> {
     throw new Error("IPC backend not yet implemented");
   }
 
-  async get(id: string): Promise<unknown> {
+  async get(_id: string): Promise<unknown> {
     throw new Error("IPC backend not yet implemented");
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(_id: string): Promise<void> {
     throw new Error("IPC backend not yet implemented");
   }
 
@@ -244,7 +244,7 @@ class IPCBackend implements LocalFirstBackend {
     throw new Error("IPC backend not yet implemented");
   }
 
-  async vectorSearch(query: string, limit: number): Promise<unknown[]> {
+  async vectorSearch(_query: string, _limit: number): Promise<unknown[]> {
     throw new Error("IPC backend not yet implemented");
   }
 }

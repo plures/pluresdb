@@ -17,22 +17,19 @@ use tracing::{debug, info, warn, instrument};
 
 /// Durability level for write operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 pub enum DurabilityLevel {
     /// No fsync - fastest, least durable (for testing only)
     None,
     
     /// Fsync WAL only - balanced (default)
+    #[default]
     Wal,
     
     /// Fsync WAL and data - slowest, most durable
     Full,
 }
 
-impl Default for DurabilityLevel {
-    fn default() -> Self {
-        Self::Wal
-    }
-}
 
 /// A single entry in the write-ahead log.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -380,7 +377,7 @@ impl WalSegment {
         
         let file = OpenOptions::new()
             .create(true)
-            .write(true)
+            
             .append(true)
             .open(&path)
             .with_context(|| format!("failed to create WAL segment: {}", path.display()))?;

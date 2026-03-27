@@ -372,7 +372,7 @@ pub fn chronos_extract_trajectories(
 /// * `store`        — the CRDT store to read from and write into.
 /// * `actor`        — logical actor / author identifier.
 /// * `correction_id`— ID of the `chronos:correction` node to process, or
-///                    `None` to process all correction nodes in the store.
+///   `None` to process all correction nodes in the store.
 ///
 /// # Returns
 ///
@@ -662,9 +662,9 @@ pub fn chronos_reward_signal(
 /// * `store`     — the CRDT store to read from and write into.
 /// * `actor`     — logical actor / author identifier.
 /// * `threshold` — minimum acceptable accuracy (default 0.7).  Routes below
-///                 this value are flagged as underperforming.
+///   this value are flagged as underperforming.
 /// * `auto_apply`— when `true`, apply weight suggestions if human approval
-///                 has been granted in the store.
+///   has been granted in the store.
 ///
 /// # Returns
 ///
@@ -799,7 +799,7 @@ pub fn cerebellum_tune(
 /// * `store`       — the CRDT store to read from and write into.
 /// * `actor`       — logical actor / author identifier.
 /// * `threshold`   — minimum relevance score; categories below are flagged
-///                   (default 0.3).
+///   (default 0.3).
 /// * `auto_update` — when `true` and approval granted, persist the scores.
 ///
 /// # Returns
@@ -955,7 +955,7 @@ pub fn memory_relevance_tune(
 /// * `actor`            — logical actor / author identifier.
 /// * `chain_root_id`    — ID of the root node of the causal chain to replay.
 /// * `param_overrides`  — parameter overrides applied during replay,
-///                        e.g. `{"route": "analytical"}`.
+///   e.g. `{"route": "analytical"}`.
 ///
 /// # Returns
 ///

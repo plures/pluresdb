@@ -9,23 +9,16 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import process from "node:process";
-import {
-  MessageChannel,
-  receiveMessageOnPort,
-  Worker,
-} from "node:worker_threads";
+
 import {
   BetterSQLite3Options,
   BetterSQLite3RunResult,
-  Device,
   Peer,
   PluresDBConfig,
   PluresDBOptions,
   QueryResult,
-  SharedNode,
 } from "./types/node-types";
 import {
-  isPlainObject,
   normalizeParameterInput,
   normalizeQueryResult,
   sanitizeDataDirName,

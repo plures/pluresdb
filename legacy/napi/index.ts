@@ -93,7 +93,6 @@ export interface NativePluresDatabase {
 // via the "files" field in package.json).
 const nativeLoaderPath = path.resolve(__dirname, "../../crates/pluresdb-node/index.js");
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const native = require(nativeLoaderPath) as {
   PluresDatabase: NativePluresDatabaseConstructor;
 };

@@ -112,7 +112,7 @@ async function runTests() {
       await db.close();
       try {
         await fs.unlink(kvPath);
-      } catch (e) {
+      } catch (_e) {
         /* ignore */
       }
     }
@@ -164,7 +164,7 @@ async function runTests() {
       try {
         await fs.unlink(kvPathA);
         await fs.unlink(kvPathB);
-      } catch (e) {
+      } catch (_e) {
         /* ignore */
       }
     }
@@ -219,7 +219,7 @@ async function runTests() {
       try {
         await fs.unlink(kvPathA);
         await fs.unlink(kvPathB);
-      } catch (e) {
+      } catch (_e) {
         /* ignore */
       }
     }
@@ -286,7 +286,7 @@ async function runTests() {
       try {
         await fs.unlink(kvPathA);
         await fs.unlink(kvPathB);
-      } catch (e) {
+      } catch (_e) {
         /* ignore */
       }
     }
@@ -325,7 +325,7 @@ async function runTests() {
       try {
         await fs.unlink(kvPathA);
         await fs.unlink(kvPathB);
-      } catch (e) {
+      } catch (_e) {
         /* ignore */
       }
     }

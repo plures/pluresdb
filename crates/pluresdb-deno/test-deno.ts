@@ -1,8 +1,9 @@
 // Comprehensive test script for Deno bindings
 // Run with: deno run --allow-read --allow-write --allow-ffi test-deno.ts (after building)
 
+import { exists } from "https://deno.land/std@0.208.0/fs/mod.ts";
+
 import { PluresDatabase } from "./bindings/bindings.ts";
-import { ensureFile, exists } from "https://deno.land/std@0.208.0/fs/mod.ts";
 
 const testDbPath = "./test-deno.db";
 

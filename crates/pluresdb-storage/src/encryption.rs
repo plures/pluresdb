@@ -65,7 +65,7 @@ impl EncryptionConfig {
         }
         
         // Create salt string for Argon2
-        let salt_string = SaltString::encode_b64(&salt_bytes)
+        let salt_string = SaltString::encode_b64(salt_bytes)
             .map_err(|e| anyhow::anyhow!("Failed to encode salt: {}", e))?;
         
         // Derive key from password using Argon2id
@@ -113,6 +113,7 @@ impl EncryptionConfig {
     }
     
     /// Encrypts data using AES-256-GCM.
+    #[allow(deprecated)]
     pub fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
         if !self.enabled {
             return Ok(plaintext.to_vec());
@@ -140,6 +141,7 @@ impl EncryptionConfig {
     }
     
     /// Decrypts data using AES-256-GCM.
+    #[allow(deprecated)]
     pub fn decrypt(&self, ciphertext_with_nonce: &[u8]) -> Result<Vec<u8>> {
         if !self.enabled {
             return Ok(ciphertext_with_nonce.to_vec());
@@ -228,7 +230,7 @@ impl Default for EncryptionMetadata {
 impl EncryptionMetadata {
     /// Creates metadata from an encryption config.
     pub fn from_config(config: &EncryptionConfig) -> Self {
-        let salt_b64 = BASE64.encode(&config.salt);
+        let salt_b64 = BASE64.encode(config.salt);
         Self {
             version: 1,
             kdf: "argon2id".to_string(),
