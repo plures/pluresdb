@@ -10,7 +10,7 @@ const http = require("http");
 const { performance } = require("perf_hooks");
 
 // Test configuration
-const PLURESDB_URL = "http://localhost:34568";
+const _PLURESDB_URL = "http://localhost:34568";
 const TEST_ITERATIONS = 50;
 
 // Utility functions
@@ -119,7 +119,7 @@ async function testPluresDBEndpoints() {
 async function testPluresDBMemoryUsage() {
   try {
     // Try to get memory info from the server
-    const response = await makeRequest({
+    const _response = await makeRequest({
       hostname: "localhost",
       port: 34568,
       path: "/api/config",

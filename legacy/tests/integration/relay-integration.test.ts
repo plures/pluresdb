@@ -5,6 +5,7 @@
  */
 
 import { assertEquals, assertExists } from "https://deno.land/std@0.208.0/assert/mod.ts";
+
 import { AzureRelayTransport } from "../../sync/transports/azure-relay.ts";
 import type { SyncConnection } from "../../sync/transport.ts";
 
@@ -37,7 +38,7 @@ relayTest("Azure Relay - connect and communicate", async () => {
   try {
     // Start listening on transport B
     let receivedConnection = false;
-    await transportB.listen((conn: SyncConnection) => {
+    await transportB.listen((_conn: SyncConnection) => {
       receivedConnection = true;
     });
 

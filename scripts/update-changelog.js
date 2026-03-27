@@ -14,7 +14,7 @@ const path = require('path');
 function run(cmd) {
   try {
     return execSync(cmd, { encoding: 'utf8', stdio: 'pipe' }).trim();
-  } catch (e) {
+  } catch (_e) {
     return null;
   }
 }

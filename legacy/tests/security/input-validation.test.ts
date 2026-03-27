@@ -1,9 +1,10 @@
-// @ts-nocheck
+// @ts-nocheck — Deno test; Node tsc not used
 import {
   assertEquals,
   assertExists,
   assertRejects,
 } from "jsr:@std/assert@1.0.14";
+
 import { PluresDB } from "../../core/database.ts";
 
 Deno.test("Security - SQL Injection Prevention", async () => {

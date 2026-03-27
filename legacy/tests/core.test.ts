@@ -1,9 +1,10 @@
-// @ts-nocheck
+// @ts-nocheck — Deno test; Node tsc not used
 import { assertEquals } from "jsr:@std/assert@1.0.14";
+
 import { PluresDB } from "../core/database.ts";
 import { mergeNodes } from "../core/crdt.ts";
 import type { NodeRecord } from "../types/index.ts";
-import type { Rule } from "../logic/rules.ts";
+import type { Rule as _Rule } from "../logic/rules.ts";
 
 Deno.test("put and get returns stored data", async () => {
   const db = new PluresDB();

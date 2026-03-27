@@ -1,5 +1,6 @@
-// @ts-nocheck
+// @ts-nocheck — Deno test; Node tsc not used
 import { assertEquals, assertExists } from "jsr:@std/assert@1.0.14";
+
 import { PluresDB } from "../../core/database.ts";
 
 interface PerformanceMetrics {
@@ -10,30 +11,28 @@ interface PerformanceMetrics {
   operationsPerSecond: number;
 }
 
-function measureOperation(
+async function measureOperation(
   operation: () => Promise<void>,
   count: number,
 ): Promise<PerformanceMetrics> {
-  return new Promise(async (resolve) => {
-    const startTime = performance.now();
+  const startTime = performance.now();
 
-    for (let i = 0; i < count; i++) {
-      await operation();
-    }
+  for (let i = 0; i < count; i++) {
+    await operation();
+  }
 
-    const endTime = performance.now();
-    const totalTime = endTime - startTime;
-    const averageTime = totalTime / count;
-    const operationsPerSecond = (count / totalTime) * 1000;
+  const endTime = performance.now();
+  const totalTime = endTime - startTime;
+  const averageTime = totalTime / count;
+  const operationsPerSecond = (count / totalTime) * 1000;
 
-    resolve({
-      operation: "unknown",
-      count,
-      totalTime,
-      averageTime,
-      operationsPerSecond,
-    });
-  });
+  return {
+    operation: "unknown",
+    count,
+    totalTime,
+    averageTime,
+    operationsPerSecond,
+  };
 }
 
 Deno.test("Performance - Bulk Insert Operations", async () => {

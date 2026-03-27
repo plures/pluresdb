@@ -14,6 +14,7 @@
  */
 
 import { assertEquals, assertExists, assertMatch } from "jsr:@std/assert@1.0.14";
+
 import { generateSyncKey } from "../../network/hyperswarm-sync.ts";
 import { PluresDB } from "../../core/database.ts";
 

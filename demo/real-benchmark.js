@@ -11,12 +11,12 @@ const http = require("http");
 const { performance } = require("perf_hooks");
 
 // Test configuration
-const PLURESDB_URL = "http://localhost:34568";
+const _PLURESDB_URL = "http://localhost:34568";
 const TEST_ITERATIONS = 100;
 const CONCURRENT_USERS = 50;
 
 // Test data
-const testData = {
+const _testData = {
   users: Array.from({ length: 1000 }, (_, i) => ({
     id: i,
     name: `User${i}`,

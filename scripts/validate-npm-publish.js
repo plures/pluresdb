@@ -51,7 +51,7 @@ function runCommand(command, description) {
     execSync(command, { stdio: "inherit", cwd: process.cwd() });
     success(description);
     return true;
-  } catch (err) {
+  } catch (_err) {
     error(`${description} failed`);
     return false;
   }
@@ -137,7 +137,7 @@ async function main() {
   try {
     execSync(`${denoPath} --version`, { stdio: "pipe" });
     denoAvailable = true;
-  } catch (err) {
+  } catch (_err) {
     info("Deno not available - skipping Deno type checks");
   }
 
@@ -185,7 +185,7 @@ async function main() {
     try {
       execSync("npm test", { stdio: "inherit", cwd: process.cwd(), env: testEnv });
       success("Deno tests");
-    } catch (err) {
+    } catch (_err) {
       error("Tests failed");
       allChecksPassed = false;
     }
@@ -210,7 +210,7 @@ async function main() {
         );
       }
     }
-  } catch (err) {
+  } catch (_err) {
     info("Could not determine package size");
   }
 

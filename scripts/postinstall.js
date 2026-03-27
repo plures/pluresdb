@@ -3,12 +3,12 @@
  * This script ensures Deno is available and sets up the environment
  */
 
-const { spawn, exec } = require("child_process");
+const { exec } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
-const DENO_VERSION = "1.40.0";
+const _DENO_VERSION = "1.40.0";
 
 function log(message) {
   console.log(`[pluresdb] ${message}`);
@@ -29,7 +29,7 @@ function isDenoInstalled() {
 function installDeno() {
   return new Promise((resolve, reject) => {
     const platform = os.platform();
-    const arch = os.arch();
+    const _arch = os.arch();
 
     log("Installing Deno...");
 
@@ -47,7 +47,7 @@ function installDeno() {
       installCommand = "curl -fsSL https://deno.land/install.sh | sh";
     }
 
-    exec(installCommand, (error, stdout, stderr) => {
+    exec(installCommand, (error, _stdout, _stderr) => {
       if (error) {
         logError(`Failed to install Deno: ${error.message}`);
         logError("Please install Deno manually from https://deno.land/");

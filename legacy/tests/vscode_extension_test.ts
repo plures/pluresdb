@@ -1,9 +1,10 @@
-// @ts-nocheck
+// @ts-nocheck — Deno test; Node tsc not used
 import { assert, assertEquals, assertMatch } from "jsr:@std/assert@1.0.14";
+
 import {
   createPluresExtension,
   ExtensionContextLike,
-  PluresVSCodeExtension,
+  PluresVSCodeExtension as _PluresVSCodeExtension,
   VSCodeAPI,
 } from "../vscode/extension.ts";
 

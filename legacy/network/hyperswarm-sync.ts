@@ -155,7 +155,7 @@ export class HyperswarmSync {
     let Hyperswarm: any;
     try {
       Hyperswarm = (await import("hyperswarm")).default;
-    } catch (error) {
+    } catch (_error) {
       throw new Error(
         "Hyperswarm is only available in Node.js environment. Cannot enable P2P sync in Deno/Browser.",
       );
