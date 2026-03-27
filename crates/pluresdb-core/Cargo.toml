@@ -42,7 +42,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 criterion = { workspace = true, features = ["html_reports"] }
-tempfile = "3.10"
+tempfile = "3.27"
 
 [[bench]]
 name = "crdt_benchmarks"
