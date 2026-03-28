@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial changelog
 
+## [2.15.18] - 2026-03-28
+
+### Developer Experience
+
+- standardize copilot-pr-lifecycle.yml to canonical version
+
+
 ## [2.15.17] - 2026-03-27
 
 ### Documentation
