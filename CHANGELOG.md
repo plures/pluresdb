@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial changelog
 
+## [2.15.20] - 2026-03-28
+
+### Developer Experience
+
+- standardize license to MIT
+- standardize license to MIT
+
+
 ## [2.15.19] - 2026-03-28
 
 ### Fixed
