@@ -1,72 +1,22 @@
-PluresDB - Open Source License
+MIT License
 
-Copyright (c) 2024 Plures Organization
+Copyright (c) 2026 Plures
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-You should have received a copy of the GNU Affero General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
-===============================================================================
-LICENSE COMPLIANCE
-===============================================================================
-
-AGPL v3 requires that:
-- All modifications to PluresDB must be open source
-- If you provide PluresDB as a service, you must offer source code to users
-- Derivative works must be licensed under AGPL v3
-- You cannot add additional restrictions
-
-===============================================================================
-THIRD-PARTY LICENSES
-===============================================================================
-
-This software includes third-party components with the following licenses:
-
-Dependencies (MIT License):
-- tokio: https://github.com/tokio-rs/tokio
-- serde: https://github.com/serde-rs/serde
-- axum: https://github.com/tokio-rs/axum
-- sqlx: https://github.com/launchbadge/sqlx
-- hnsw_rs: https://github.com/plures/hnsw_rs
-
-JavaScript Dependencies (MIT License):
-- axios: https://github.com/axios/axios
-- cytoscape: https://github.com/cytoscape/cytoscape.js
-- monaco-editor: https://github.com/microsoft/monaco-editor
-
-All third-party components maintain their original licenses and copyrights.
-
-===============================================================================
-CONTACT INFORMATION
-===============================================================================
-
-GitHub: https://github.com/plures/pluresdb
-Issues: https://github.com/plures/pluresdb/issues
-Discussions: https://github.com/plures/pluresdb/discussions
-
-For security issues, please see SECURITY.md
-
-===============================================================================
-LEGAL NOTICE
-===============================================================================
-
-This license ensures that:
-- PluresDB remains free and open source
-- All modifications must be shared with the community
-- Network use triggers the requirement to share source code
-- The software and community benefit from all improvements
-- Commercial users can still build businesses on top of PluresDB
-- We can generate revenue through services and support
-- The ecosystem benefits from shared improvements
-
-By using this software, you agree to the terms of the GNU Affero General
-Public License v3.0.

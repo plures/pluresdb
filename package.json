@@ -93,7 +93,7 @@
     "encryption"
   ],
   "author": "Plures Organization",
-  "license": "AGPL-3.0",
+  "license": "MIT",
   "homepage": "https://github.com/plures/pluresdb#readme",
   "repository": {
     "type": "git",
