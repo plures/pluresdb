@@ -134,11 +134,14 @@ encrypted. Report vulnerabilities privately — see [SECURITY.md](SECURITY.md).
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
-All contributions are licensed under AGPL v3.
+Contributions to Rust crates are licensed under BSL 1.1. Contributions to TypeScript code are licensed under MIT.
 
 ## License
 
-GNU Affero General Public License v3.0. See [LICENSE](LICENSE).
+Dual-licensed:
+
+- **Rust crates** (`crates/`): [BSL 1.1](LICENSE) — personal/non-commercial use free, commercial requires license. Converts to Apache 2.0 on March 28, 2030.
+- **TypeScript code** (legacy modules, web, tests): [MIT](LICENSE-MIT)
 
 ---
 
