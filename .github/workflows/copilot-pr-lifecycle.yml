@@ -63,8 +63,30 @@ jobs:
             });
             const copilotPRs = openPRs.data.filter(p => p.user.login === 'Copilot');
 
+            // Conventional Commits pattern
+            const ccPattern = /^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?!?: .{3,}/;
+
             for (const pr of copilotPRs) {
               const sha = pr.head.sha;
+
+              // Auto-fix PR title if it doesn't follow Conventional Commits
+              if (!ccPattern.test(pr.title)) {
+                const commits = await github.rest.pulls.listCommits({
+                  owner, repo, pull_number: pr.number, per_page: 10
+                });
+                // Find the latest commit message that follows Conventional Commits
+                const ccCommit = [...commits.data].reverse().find(c =>
+                  ccPattern.test(c.commit.message.split('\n')[0])
+                );
+                if (ccCommit) {
+                  const newTitle = ccCommit.commit.message.split('\n')[0];
+                  await github.rest.pulls.update({
+                    owner, repo, pull_number: pr.number, title: newTitle
+                  });
+                  console.log(`✏️ Updated PR #${pr.number} title to: ${newTitle}`);
+                  pr.title = newTitle;
+                }
+              }
 
               // Check CI
               const checks = await github.rest.checks.listForRef({
