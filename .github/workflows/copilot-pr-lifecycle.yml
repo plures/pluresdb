@@ -75,7 +75,7 @@ jobs:
                   owner, repo, pull_number: pr.number, per_page: 10
                 });
                 // Find the latest commit message that follows Conventional Commits
-                const ccCommit = [...commits.data].reverse().find(c =>
+                const ccCommit = commits.data.findLast(c =>
                   ccPattern.test(c.commit.message.split('\n')[0])
                 );
                 if (ccCommit) {
