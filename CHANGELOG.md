@@ -1,3 +1,7 @@
+## [2.16.2] — 2026-03-30
+
+- fix(ci): auto-fix Copilot PR titles to follow Conventional Commits format (#263) (ade7f2a)
+
 ## [2.16.1] - 2026-03-30
 
 ### Fixed
