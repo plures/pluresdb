@@ -8,6 +8,7 @@
 ## [2.16.0] — 2026-03-29
 
 - feat: performance benchmark suite for CRUD/query/sync (#256) (91a2a31)
+- fix(ci): resolve conventional commit title check failure (#261) (bee772a)
 - chore(deps-dev): bump typescript from 5.9.3 to 6.0.2 (#260) (2843b1c)
 - chore(deps): bump @plures/praxis from 2.4.35 to 2.4.39 (#259) (67036ec)
 
