@@ -15,6 +15,7 @@ jobs:
       - name: Validate PR title follows Conventional Commits
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
         run: |
           # Conventional Commits pattern: type(scope)!: description
           # Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert
@@ -37,5 +38,9 @@ jobs:
             echo "See CONTRIBUTING.md (Pull Request Process section) for details."
             echo ""
             echo "Got: $PR_TITLE"
+            if [ "$IS_DRAFT" = "true" ]; then
+              echo ""
+              echo "Note: this PR is already a draft. Please update its title before marking it ready for review."
+            fi
             exit 1
           fi
