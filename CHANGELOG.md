@@ -1,3 +1,10 @@
+## [2.16.3] - 2026-03-31
+
+### Fixed
+
+- document PR #263 lifecycle auto-title-fix in CHANGELOG 2.16.1 (#265)
+
+
 ## [2.16.2] — 2026-03-30
 
 - fix(ci): auto-fix Copilot PR titles to follow Conventional Commits format (#263) (ade7f2a)
