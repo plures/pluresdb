@@ -1,3 +1,10 @@
+## [2.16.9] - 2026-03-31
+
+### Fixed
+
+- v9.1 — fix QA dispatch (client_payload as JSON object)
+
+
 ## [2.16.8] - 2026-03-31
 
 ### Fixed
