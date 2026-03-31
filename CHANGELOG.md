@@ -1,3 +1,7 @@
+## [2.16.6] — 2026-03-31
+
+- fix(ci): rebase release commit on remote changes before retrying push (#271) (b5cb8de)
+
 ## [2.16.5] - 2026-03-31
 
 ### Fixed
