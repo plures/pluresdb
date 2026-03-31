@@ -2,9 +2,10 @@
 
 ### Fixed
 
-- document PR #265 lifecycle auto-title-fix to unblock conventional commit title CI check (#268)
+- document PR #263 lifecycle auto-title-fix in CHANGELOG 2.16.1 (#265)
 
-## [2.16.2] - 2026-03-30
+
+## [2.16.2] — 2026-03-30
 
 - fix(ci): auto-fix Copilot PR titles to follow Conventional Commits format (#263) (ade7f2a)
 
