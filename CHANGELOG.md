@@ -7,6 +7,7 @@
 ### Fixed
 
 - resolve conventional commit title check failure (#261)
+- auto-fix Copilot PR titles to follow Conventional Commits format via lifecycle workflow (#263)
 
 
 ## [2.16.0] — 2026-03-29
