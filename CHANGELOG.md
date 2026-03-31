@@ -1,3 +1,10 @@
+## [2.16.7] - 2026-03-31
+
+### Fixed
+
+- fail explicitly when rebase fails during version-bump retry (#273)
+
+
 ## [2.16.6] — 2026-03-31
 
 - fix(ci): rebase release commit on remote changes before retrying push (#271) (b5cb8de)
