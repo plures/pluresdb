@@ -4,7 +4,7 @@
 
 - document PR #265 lifecycle auto-title-fix to unblock conventional commit title CI check (#268)
 
-## [2.16.2] — 2026-03-30
+## [2.16.2] - 2026-03-30
 
 - fix(ci): auto-fix Copilot PR titles to follow Conventional Commits format (#263) (ade7f2a)
 
@@ -16,7 +16,7 @@
 - auto-fix Copilot PR titles to follow Conventional Commits format via lifecycle workflow (#263)
 
 
-## [2.16.0] — 2026-03-29
+## [2.16.0] - 2026-03-29
 
 - feat: performance benchmark suite for CRUD/query/sync (#256) (91a2a31)
 - fix(ci): resolve conventional commit title check failure (#261) (bee772a)
