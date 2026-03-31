@@ -1,3 +1,10 @@
+## [2.16.4] - 2026-03-31
+
+### Fixed
+
+- document PR #265 lifecycle auto-title-fix in CHANGELOG 2.16.3 (#268)
+
+
 ## [2.16.3] - 2026-03-31
 
 ### Fixed
