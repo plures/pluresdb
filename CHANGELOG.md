@@ -17,7 +17,7 @@
 - auto-fix Copilot PR titles to follow Conventional Commits format via lifecycle workflow (#263)
 
 
-## [2.16.0] — 2026-03-29
+## [2.16.0] - 2026-03-29
 
 - feat: performance benchmark suite for CRUD/query/sync (#256) (91a2a31)
 - fix(ci): resolve conventional commit title check failure (#261) (bee772a)
