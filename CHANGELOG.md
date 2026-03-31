@@ -1,3 +1,10 @@
+## [2.16.8] - 2026-03-31
+
+### Fixed
+
+- rewrite v9 — apply suggestions, merge, no nudges
+
+
 ## [2.16.7] - 2026-03-31
 
 ### Fixed
