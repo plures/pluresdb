@@ -216,7 +216,7 @@ jobs:
               # Remove local tag, rebase release commit on top of latest remote
               # changes, then re-tag the rebased HEAD before retrying the push
               git tag -d "v$new_version"
-              git pull --rebase origin main
+              git pull --rebase origin main || { echo "ERROR: Rebase failed — manual intervention required"; exit 1; }
               git tag "v$new_version"
             fi
           done
