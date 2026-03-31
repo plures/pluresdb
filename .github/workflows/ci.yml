@@ -211,8 +211,13 @@ jobs:
                 echo "ERROR: Failed to push after 3 attempts"
                 exit 1
               fi
-              echo "Retrying in 5 seconds..."
+              echo "Pulling remote changes before retrying in 5 seconds..."
               sleep 5
+              # Remove local tag, rebase release commit on top of latest remote
+              # changes, then re-tag the rebased HEAD before retrying the push
+              git tag -d "v$new_version"
+              git pull --rebase origin main
+              git tag "v$new_version"
             fi
           done
 
