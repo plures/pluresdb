@@ -1,3 +1,7 @@
+## [3.1.1] — 2026-04-01
+
+- refactor: centralize lifecycle — call reusable from plures/repo-template (8802bbe)
+
 ## [3.1.0] — 2026-04-01
 
 - feat: unify PluresDB to Rust-first v3.0.0 (#281) (b629e22)
