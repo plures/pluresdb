@@ -183,7 +183,6 @@ pub enum SortDir {
     Desc,
 }
 
-
 impl SortDir {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -427,7 +426,6 @@ pub enum Step {
     // -----------------------------------------------------------------------
     // Cognitive architecture steps
     // -----------------------------------------------------------------------
-
     /// Perform a vector similarity search against the store's HNSW index.
     ///
     /// The `query` field contains the raw text to embed (the engine calls the
@@ -691,7 +689,14 @@ mod tests {
         // Deserialise with only required fields; depth and bidirectional should use defaults.
         let json = r#"{"op":"graph_neighbors","root":"n1"}"#;
         let step: Step = serde_json::from_str(json).unwrap();
-        if let Step::GraphNeighbors { depth, bidirectional, min_strength, link_type, .. } = step {
+        if let Step::GraphNeighbors {
+            depth,
+            bidirectional,
+            min_strength,
+            link_type,
+            ..
+        } = step
+        {
             assert_eq!(depth, 1);
             assert!(!bidirectional);
             assert!(min_strength.is_none());
@@ -727,10 +732,12 @@ mod tests {
 
     #[test]
     fn step_auto_link_empty_algorithms_roundtrip() {
-        let step = Step::AutoLink { algorithms: vec![], min_strength: None };
+        let step = Step::AutoLink {
+            algorithms: vec![],
+            min_strength: None,
+        };
         let json = serde_json::to_string(&step).unwrap();
         let back: Step = serde_json::from_str(&json).unwrap();
         assert_eq!(step, back);
     }
-
 }

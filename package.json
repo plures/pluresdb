@@ -1,148 +1,51 @@
 {
   "name": "@plures/pluresdb",
-  "version": "2.17.4",
-  "description": "P2P Graph Database with SQLite Compatibility - Local-first, offline-first database for modern applications",
-  "main": "dist/napi/index.js",
-  "types": "dist/napi/index.d.ts",
+  "version": "3.0.0",
+  "description": "P2P Graph Database — Local-first, offline-first. One codebase: native Rust, Node.js (N-API), browser (WASM), Deno (WASM).",
+  "type": "module",
+  "main": "dist/node/index.js",
+  "types": "dist/node/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/napi/index.d.ts",
-      "require": "./dist/napi/index.js",
-      "default": "./dist/napi/index.js"
+      "types": "./dist/types/index.d.ts",
+      "node": {
+        "import": "./dist/node/index.mjs",
+        "require": "./dist/node/index.js"
+      },
+      "browser": "./dist/wasm/pluresdb.js",
+      "deno": "./dist/wasm/pluresdb.js",
+      "default": "./dist/node/index.js"
     },
-    "./legacy": {
-      "types": "./dist/node-index.d.ts",
-      "require": "./dist/node-index.js",
-      "default": "./dist/node-index.js"
-    },
-    "./node": {
-      "types": "./dist/node-index.d.ts",
-      "require": "./dist/node-index.js",
-      "default": "./dist/node-index.js"
-    },
-    "./better-sqlite3": {
-      "types": "./dist/better-sqlite3.d.ts",
-      "require": "./dist/better-sqlite3.js",
-      "default": "./dist/better-sqlite3.js"
-    },
-    "./embedded": {
-      "types": "./embedded.d.ts",
-      "require": "./embedded.js",
-      "default": "./embedded.js"
-    },
-    "./vscode": {
-      "types": "./dist/vscode/extension.d.ts",
-      "require": "./dist/vscode/extension.js",
-      "default": "./dist/vscode/extension.js"
-    },
-    "./cli": {
-      "types": "./dist/cli.d.ts",
-      "require": "./dist/cli.js",
-      "default": "./dist/cli.js"
-    },
-    "./types": {
-      "types": "./dist/types/node-types.d.ts",
-      "require": "./dist/types/node-types.js",
-      "default": "./dist/types/node-types.js"
-    },
-    "./local-first": {
-      "types": "./dist/local-first/unified-api.d.ts",
-      "require": "./dist/local-first/unified-api.js",
-      "default": "./dist/local-first/unified-api.js"
-    },
-    "./package.json": "./package.json"
-  },
-  "bin": {
-    "pluresdb": "dist/cli.js"
-  },
-  "scripts": {
-    "build": "npm run build:lib && npm run build:web",
-    "build:lib": "tsc -p tsconfig.json",
-    "build:web": "cd web/svelte && npm install && npm run build",
-    "dev": "deno run -A --unstable-kv --watch src/main.ts serve --port 34567",
-    "start": "node dist/cli.js serve",
-    "test": "deno test -A --unstable-kv --sloppy-imports",
-    "test:azure:relay": "deno test --allow-net --allow-env azure/tests/relay-tests.ts",
-    "test:azure:full": "npm run test:azure:relay",
-    "lint": "eslint . --ext .js,.ts,.tsx",
-    "fmt:check": "prettier --check .",
-    "fmt": "prettier --write .",
-    "verify": "npm run build:lib && npm test",
-    "prepare": "npm run build:lib",
-    "prepublishOnly": "npm run verify && npm run build:web",
-    "validate-publish": "node scripts/validate-npm-publish.js",
-    "postinstall": "node scripts/postinstall.js",
-    "release-check": "node scripts/release-check.js",
-    "update-changelog": "node scripts/update-changelog.js"
-  },
-  "keywords": [
-    "database",
-    "graph-database",
-    "p2p",
-    "sqlite",
-    "local-first",
-    "offline-first",
-    "crdt",
-    "vector-search",
-    "deno",
-    "typescript",
-    "vscode",
-    "extension",
-    "embedded",
-    "sync",
-    "encryption"
-  ],
-  "author": "Plures Organization",
-  "license": "MIT",
-  "homepage": "https://github.com/plures/pluresdb#readme",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/plures/pluresdb.git"
-  },
-  "bugs": {
-    "url": "https://github.com/plures/pluresdb/issues"
-  },
-  "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
+    "./wasm": {
+      "types": "./dist/types/wasm.d.ts",
+      "import": "./dist/wasm/pluresdb.js",
+      "default": "./dist/wasm/pluresdb.js"
+    }
   },
   "files": [
     "dist/",
-    "embedded.js",
-    "embedded.d.ts",
-    "crates/pluresdb-node/index.d.ts",
-    "crates/pluresdb-node/index.js",
-    "crates/pluresdb-node/*.node",
-    "scripts/postinstall.js",
     "README.md",
-    "LICENSE",
-    "package.json"
+    "LICENSE"
   ],
-  "dependencies": {
-    "@plures/praxis": "^2.4.35",
-    "cors": "^2.8.5",
-    "express": "^5.1.0",
-    "hyperswarm": "^4.8.4",
-    "ws": "^8.18.3"
+  "scripts": {
+    "build:node": "cd crates/pluresdb-node && napi build --release",
+    "build:wasm": "cd crates/pluresdb-wasm && wasm-pack build --target web --out-dir ../../dist/wasm",
+    "build": "npm run build:node && npm run build:wasm",
+    "test": "cargo test --workspace",
+    "test:wasm": "wasm-pack test --headless --chrome crates/pluresdb-wasm"
   },
-  "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.0",
-    "@types/node": "^25.5.0",
-    "@types/vscode": "^1.104.0",
-    "@types/ws": "^8.18.1",
-    "@typescript-eslint/eslint-plugin": "^8.57.2",
-    "@typescript-eslint/parser": "^8.57.2",
-    "@eslint/js": "^10.0.1",
-    "eslint": "^10.1.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-import-x": "^4.16.2",
-    "prettier": "^3.6.2",
-    "prettier-plugin-svelte": "^3.4.0",
-    "typescript": "^6.0.2"
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
+  "keywords": [
+    "database",
+    "crdt",
+    "local-first",
+    "p2p",
+    "graph",
+    "wasm",
+    "rust"
+  ],
+  "license": "BSL-1.1",
+  "repository": "https://github.com/plures/pluresdb",
+  "engines": {
+    "node": ">=18"
   }
 }

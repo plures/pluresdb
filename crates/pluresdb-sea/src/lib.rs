@@ -42,7 +42,9 @@ mod key;
 mod sign;
 mod work;
 
-pub use encrypt::{sea_decrypt, sea_decrypt_wire, sea_encrypt, sea_encrypt_wire, SeaEncryptedEnvelope};
+pub use encrypt::{
+    sea_decrypt, sea_decrypt_wire, sea_encrypt, sea_encrypt_wire, SeaEncryptedEnvelope,
+};
 pub use key::SeaKeyPair;
 pub use sign::{sea_sign, sea_sign_wire, sea_verify, sea_verify_wire, SeaSignedEnvelope};
 pub use work::{sea_work, sea_work_random, sea_work_verify};

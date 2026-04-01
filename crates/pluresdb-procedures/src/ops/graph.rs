@@ -44,7 +44,12 @@ fn read_edges(store: &CrdtStore) -> Vec<Edge> {
     let mut edges: Vec<Edge> = Vec::new();
 
     for n in all {
-        if !n.data.get("_edge").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if !n
+            .data
+            .get("_edge")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             continue;
         }
         let from = match n.data.get("from").and_then(|v| v.as_str()) {
@@ -137,15 +142,20 @@ fn louvain_communities(adj: &[Vec<(usize, f64)>]) -> Vec<usize> {
         return Vec::new();
     }
 
-    let total_weight: f64 =
-        adj.iter().flat_map(|row| row.iter().map(|(_, w)| w)).sum::<f64>() / 2.0;
+    let total_weight: f64 = adj
+        .iter()
+        .flat_map(|row| row.iter().map(|(_, w)| w))
+        .sum::<f64>()
+        / 2.0;
 
     // Start: every node in its own community.
     let mut community: Vec<usize> = (0..n).collect();
 
     // Node strength (sum of incident edge weights).
-    let strength: Vec<f64> =
-        adj.iter().map(|row| row.iter().map(|(_, w)| w).sum()).collect();
+    let strength: Vec<f64> = adj
+        .iter()
+        .map(|row| row.iter().map(|(_, w)| w).sum())
+        .collect();
 
     // Maintain total strength per community for O(1) lookup; updated
     // incrementally when nodes change communities.
@@ -232,7 +242,10 @@ fn semantic_communities(store: &CrdtStore, nodes: &[String]) -> Vec<usize> {
             let cat = store
                 .get(id)
                 .and_then(|n| {
-                    n.data.get("category").and_then(|v| v.as_str()).map(|s| s.to_string())
+                    n.data
+                        .get("category")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
                 })
                 .unwrap_or_else(|| "unknown".to_string());
             *cat_index.entry(cat).or_insert_with(|| {
@@ -394,8 +407,14 @@ pub fn graph_path(
     // Build undirected neighbour list.
     let mut neighbours: HashMap<String, Vec<String>> = HashMap::new();
     for e in &edges {
-        neighbours.entry(e.from.clone()).or_default().push(e.to.clone());
-        neighbours.entry(e.to.clone()).or_default().push(e.from.clone());
+        neighbours
+            .entry(e.from.clone())
+            .or_default()
+            .push(e.to.clone());
+        neighbours
+            .entry(e.to.clone())
+            .or_default()
+            .push(e.from.clone());
     }
 
     if from == to {
@@ -462,7 +481,12 @@ pub fn graph_pagerank(
         node_set.insert(e.to.clone());
     }
     for n in store.list() {
-        if !n.data.get("_edge").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if !n
+            .data
+            .get("_edge")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             node_set.insert(n.id.clone());
         }
     }
@@ -477,15 +501,19 @@ pub fn graph_pagerank(
         return Ok(vec![]);
     }
 
-    let node_index: HashMap<&str, usize> =
-        nodes.iter().enumerate().map(|(i, id)| (id.as_str(), i)).collect();
+    let node_index: HashMap<&str, usize> = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (id.as_str(), i))
+        .collect();
 
     // Build directed adjacency: outgoing links.
     let mut out_links: Vec<Vec<usize>> = vec![Vec::new(); n];
     for e in &edges {
-        if let (Some(&i), Some(&j)) =
-            (node_index.get(e.from.as_str()), node_index.get(e.to.as_str()))
-        {
+        if let (Some(&i), Some(&j)) = (
+            node_index.get(e.from.as_str()),
+            node_index.get(e.to.as_str()),
+        ) {
             out_links[i].push(j);
         }
     }
@@ -534,8 +562,7 @@ pub fn graph_pagerank(
                 obj.insert(
                     "pagerank_score".to_string(),
                     serde_json::Value::Number(
-                        serde_json::Number::from_f64(score)
-                            .unwrap_or(serde_json::Number::from(0)),
+                        serde_json::Number::from_f64(score).unwrap_or(serde_json::Number::from(0)),
                     ),
                 );
             }
@@ -560,11 +587,21 @@ pub fn graph_stats(store: &CrdtStore) -> anyhow::Result<Vec<NodeRecord>> {
     let all_nodes: Vec<NodeRecord> = store.list();
     let edges: Vec<&NodeRecord> = all_nodes
         .iter()
-        .filter(|n| n.data.get("_edge").and_then(|v| v.as_bool()).unwrap_or(false))
+        .filter(|n| {
+            n.data
+                .get("_edge")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+        })
         .collect();
     let data_nodes: Vec<&NodeRecord> = all_nodes
         .iter()
-        .filter(|n| !n.data.get("_edge").and_then(|v| v.as_bool()).unwrap_or(false))
+        .filter(|n| {
+            !n.data
+                .get("_edge")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+        })
         .collect();
 
     let node_count = data_nodes.len();
@@ -635,15 +672,47 @@ mod tests {
     fn make_graph() -> CrdtStore {
         let store = CrdtStore::default();
         // Three interconnected nodes forming a triangle + one node connected by a tail.
-        store.put("n1", "a", serde_json::json!({"category": "decision", "label": "Alpha"}));
-        store.put("n2", "a", serde_json::json!({"category": "decision", "label": "Beta"}));
-        store.put("n3", "a", serde_json::json!({"category": "note",     "label": "Gamma"}));
-        store.put("n4", "a", serde_json::json!({"category": "task",     "label": "Delta"}));
+        store.put(
+            "n1",
+            "a",
+            serde_json::json!({"category": "decision", "label": "Alpha"}),
+        );
+        store.put(
+            "n2",
+            "a",
+            serde_json::json!({"category": "decision", "label": "Beta"}),
+        );
+        store.put(
+            "n3",
+            "a",
+            serde_json::json!({"category": "note",     "label": "Gamma"}),
+        );
+        store.put(
+            "n4",
+            "a",
+            serde_json::json!({"category": "task",     "label": "Delta"}),
+        );
         // Edges: n1-n2, n2-n3, n1-n3 (triangle) and n3-n4.
-        store.put("edge:n1:n2", "a", serde_json::json!({"_edge": true, "from": "n1", "to": "n2", "weight": 0.9}));
-        store.put("edge:n2:n3", "a", serde_json::json!({"_edge": true, "from": "n2", "to": "n3", "weight": 0.8}));
-        store.put("edge:n1:n3", "a", serde_json::json!({"_edge": true, "from": "n1", "to": "n3", "weight": 0.7}));
-        store.put("edge:n3:n4", "a", serde_json::json!({"_edge": true, "from": "n3", "to": "n4", "weight": 0.5}));
+        store.put(
+            "edge:n1:n2",
+            "a",
+            serde_json::json!({"_edge": true, "from": "n1", "to": "n2", "weight": 0.9}),
+        );
+        store.put(
+            "edge:n2:n3",
+            "a",
+            serde_json::json!({"_edge": true, "from": "n2", "to": "n3", "weight": 0.8}),
+        );
+        store.put(
+            "edge:n1:n3",
+            "a",
+            serde_json::json!({"_edge": true, "from": "n1", "to": "n3", "weight": 0.7}),
+        );
+        store.put(
+            "edge:n3:n4",
+            "a",
+            serde_json::json!({"_edge": true, "from": "n3", "to": "n4", "weight": 0.5}),
+        );
         store
     }
 
@@ -702,7 +771,11 @@ mod tests {
         let clusters = graph_clusters(&store, "louvain", Some(2), None).unwrap();
         for c in &clusters {
             let score = c.data["coherence_score"].as_f64().unwrap();
-            assert!((0.0..=1.0).contains(&score), "coherence out of [0,1]: {}", score);
+            assert!(
+                (0.0..=1.0).contains(&score),
+                "coherence out of [0,1]: {}",
+                score
+            );
         }
     }
 
@@ -803,7 +876,11 @@ mod tests {
         let store = CrdtStore::default();
         store.put("n1", "a", serde_json::json!({"label": "connected"}));
         store.put("n2", "a", serde_json::json!({"label": "orphan"}));
-        store.put("edge:n1:n1", "a", serde_json::json!({"_edge": true, "from": "n1", "to": "n1"}));
+        store.put(
+            "edge:n1:n1",
+            "a",
+            serde_json::json!({"_edge": true, "from": "n1", "to": "n1"}),
+        );
         let stats = graph_stats(&store).unwrap();
         assert_eq!(stats[0].data["orphan_count"].as_u64().unwrap(), 1);
     }
@@ -814,11 +891,19 @@ mod tests {
         // n1 connected to itself (degree 2 in undirected), n2 orphan (degree 0).
         store.put("n1", "a", serde_json::json!({}));
         store.put("n2", "a", serde_json::json!({}));
-        store.put("edge:n1:n1", "a", serde_json::json!({"_edge": true, "from": "n1", "to": "n1"}));
+        store.put(
+            "edge:n1:n1",
+            "a",
+            serde_json::json!({"_edge": true, "from": "n1", "to": "n1"}),
+        );
         let stats = graph_stats(&store).unwrap();
         let avg = stats[0].data["avg_degree"].as_f64().unwrap();
         // n1 has degree 2, n2 has degree 0 → avg = (2+0)/2 = 1.0
-        assert!((avg - 1.0).abs() < 1e-9, "expected avg_degree=1.0 got {}", avg);
+        assert!(
+            (avg - 1.0).abs() < 1e-9,
+            "expected avg_degree=1.0 got {}",
+            avg
+        );
     }
 }
 
@@ -828,17 +913,26 @@ mod tests {
 
 /// Return `true` if `node` represents an edge.
 fn is_edge(node: &NodeRecord) -> bool {
-    node.data.get("_edge").and_then(|v| v.as_bool()).unwrap_or(false)
+    node.data
+        .get("_edge")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
 }
 
 /// Extract the numeric strength from an edge node, defaulting to `1.0`.
 fn edge_strength(node: &NodeRecord) -> f64 {
-    node.data.get("strength").and_then(|v| v.as_f64()).unwrap_or(1.0)
+    node.data
+        .get("strength")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(1.0)
 }
 
 /// Extract the label/type from an edge node.
 fn edge_label(node: &NodeRecord) -> &str {
-    node.data.get("label").and_then(|v| v.as_str()).unwrap_or("")
+    node.data
+        .get("label")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
 }
 
 // ---------------------------------------------------------------------------
@@ -1177,10 +1271,26 @@ mod tests_phase2a {
     fn make_store_with_edges() -> CrdtStore {
         let store = CrdtStore::default();
         // Nodes
-        store.put("n1", "actor", serde_json::json!({"category": "dev", "text": "rust async code"}));
-        store.put("n2", "actor", serde_json::json!({"category": "dev", "text": "rust sync code"}));
-        store.put("n3", "actor", serde_json::json!({"category": "design", "text": "ui layout"}));
-        store.put("n4", "actor", serde_json::json!({"category": "dev", "text": "python async script"}));
+        store.put(
+            "n1",
+            "actor",
+            serde_json::json!({"category": "dev", "text": "rust async code"}),
+        );
+        store.put(
+            "n2",
+            "actor",
+            serde_json::json!({"category": "dev", "text": "rust sync code"}),
+        );
+        store.put(
+            "n3",
+            "actor",
+            serde_json::json!({"category": "design", "text": "ui layout"}),
+        );
+        store.put(
+            "n4",
+            "actor",
+            serde_json::json!({"category": "dev", "text": "python async script"}),
+        );
         // Edges: n1→n2 (strength 0.9), n2→n3 (strength 0.5), n3→n4 (strength 0.8)
         store.put("edge:n1:n2", "actor", serde_json::json!({"_edge": true, "from": "n1", "to": "n2", "label": "related", "strength": 0.9}));
         store.put("edge:n2:n3", "actor", serde_json::json!({"_edge": true, "from": "n2", "to": "n3", "label": "related", "strength": 0.5}));
@@ -1351,9 +1461,21 @@ mod tests_phase2a {
     fn auto_link_semantic_creates_edges_for_similar_nodes() {
         let store = CrdtStore::default();
         let nodes = vec![
-            store.put("a", "actor", serde_json::json!({"text": "rust async programming concurrent"})),
-            store.put("b", "actor", serde_json::json!({"text": "rust async programming parallel"})),
-            store.put("c", "actor", serde_json::json!({"text": "python machine learning data"})),
+            store.put(
+                "a",
+                "actor",
+                serde_json::json!({"text": "rust async programming concurrent"}),
+            ),
+            store.put(
+                "b",
+                "actor",
+                serde_json::json!({"text": "rust async programming parallel"}),
+            ),
+            store.put(
+                "c",
+                "actor",
+                serde_json::json!({"text": "python machine learning data"}),
+            ),
         ];
         let _ = nodes;
         let input: Vec<NodeRecord> = store.list().into_iter().filter(|n| !is_edge(n)).collect();
@@ -1373,8 +1495,16 @@ mod tests_phase2a {
     fn auto_link_semantic_similarity_above_threshold() {
         // Nodes with more than 60% keyword overlap should link with strength > 0.6
         let store = CrdtStore::default();
-        store.put("a", "actor", serde_json::json!({"text": "alpha beta gamma delta epsilon"}));
-        store.put("b", "actor", serde_json::json!({"text": "alpha beta gamma delta zeta"}));
+        store.put(
+            "a",
+            "actor",
+            serde_json::json!({"text": "alpha beta gamma delta epsilon"}),
+        );
+        store.put(
+            "b",
+            "actor",
+            serde_json::json!({"text": "alpha beta gamma delta zeta"}),
+        );
         let input: Vec<NodeRecord> = store.list().into_iter().filter(|n| !is_edge(n)).collect();
         let created = auto_link(&store, "actor", &input, &["semantic"], 0.0);
         assert_eq!(created.len(), 1);
@@ -1431,8 +1561,16 @@ mod tests_phase2a {
     #[test]
     fn auto_link_multiple_algorithms() {
         let store = CrdtStore::default();
-        store.put("a", "actor", serde_json::json!({"category": "dev", "text": "rust code"}));
-        store.put("b", "actor", serde_json::json!({"category": "dev", "text": "rust language"}));
+        store.put(
+            "a",
+            "actor",
+            serde_json::json!({"category": "dev", "text": "rust code"}),
+        );
+        store.put(
+            "b",
+            "actor",
+            serde_json::json!({"category": "dev", "text": "rust language"}),
+        );
         let input: Vec<NodeRecord> = store.list().into_iter().filter(|n| !is_edge(n)).collect();
         // Running semantic and category together; category will overwrite semantic edge since
         // they share the same edge:a:b key (latest write wins).
@@ -1454,7 +1592,13 @@ mod tests_phase2a {
     #[test]
     fn auto_link_empty_input_returns_empty() {
         let store = CrdtStore::default();
-        let created = auto_link(&store, "actor", &[], &["semantic", "category", "temporal"], 0.5);
+        let created = auto_link(
+            &store,
+            "actor",
+            &[],
+            &["semantic", "category", "temporal"],
+            0.5,
+        );
         assert!(created.is_empty());
     }
 
@@ -1463,7 +1607,13 @@ mod tests_phase2a {
         let store = CrdtStore::default();
         store.put("a", "actor", serde_json::json!({"text": "hello world"}));
         let input: Vec<NodeRecord> = store.list().into_iter().filter(|n| !is_edge(n)).collect();
-        let created = auto_link(&store, "actor", &input, &["semantic", "category", "temporal"], 0.0);
+        let created = auto_link(
+            &store,
+            "actor",
+            &input,
+            &["semantic", "category", "temporal"],
+            0.0,
+        );
         assert!(created.is_empty());
     }
 
@@ -1475,9 +1625,11 @@ mod tests_phase2a {
         let input: Vec<NodeRecord> = store.list().into_iter().filter(|n| !is_edge(n)).collect();
         auto_link(&store, "actor", &input, &["category"], 0.5);
         // Auto-linked edges use the double-colon format edge::{from}::{to}.
-        let has_edge =
-            store.get("edge::a::b").is_some() || store.get("edge::b::a").is_some();
-        assert!(has_edge, "expected either edge::a::b or edge::b::a to exist");
+        let has_edge = store.get("edge::a::b").is_some() || store.get("edge::b::a").is_some();
+        assert!(
+            has_edge,
+            "expected either edge::a::b or edge::b::a to exist"
+        );
     }
 
     // ── performance / larger dataset ─────────────────────────────────────────
@@ -1499,7 +1651,12 @@ mod tests_phase2a {
         }
         // BFS from n0 with depth 5 should find n1…n5
         let neighbors = graph_neighbors(&store, "n0", 5, None, None, false);
-        assert_eq!(neighbors.len(), 5, "expected 5 neighbors, got {}", neighbors.len());
+        assert_eq!(
+            neighbors.len(),
+            5,
+            "expected 5 neighbors, got {}",
+            neighbors.len()
+        );
     }
 
     #[test]
@@ -1532,9 +1689,17 @@ mod tests_phase2a {
         store.put("a", "actor", serde_json::json!({}));
         store.put("b", "actor", serde_json::json!({}));
         // Malformed edge: has `from` but no `to`
-        store.put("edge:a:x", "actor", serde_json::json!({"_edge": true, "from": "a"}));
+        store.put(
+            "edge:a:x",
+            "actor",
+            serde_json::json!({"_edge": true, "from": "a"}),
+        );
         // Valid edge: a → b
-        store.put("edge:a:b", "actor", serde_json::json!({"_edge": true, "from": "a", "to": "b", "strength": 1.0}));
+        store.put(
+            "edge:a:b",
+            "actor",
+            serde_json::json!({"_edge": true, "from": "a", "to": "b", "strength": 1.0}),
+        );
         let neighbors = graph_neighbors(&store, "a", 1, None, None, false);
         // Only b should be reachable; the malformed edge must not enqueue an empty id
         let ids: Vec<&str> = neighbors.iter().map(|n| n.id.as_str()).collect();
@@ -1547,9 +1712,17 @@ mod tests_phase2a {
         store.put("a", "actor", serde_json::json!({}));
         store.put("b", "actor", serde_json::json!({}));
         // Malformed edge: `from` is empty string, `to` is "a"
-        store.put("bad_edge", "actor", serde_json::json!({"_edge": true, "from": "", "to": "a"}));
+        store.put(
+            "bad_edge",
+            "actor",
+            serde_json::json!({"_edge": true, "from": "", "to": "a"}),
+        );
         // Valid edge: a → b
-        store.put("edge:a:b", "actor", serde_json::json!({"_edge": true, "from": "a", "to": "b"}));
+        store.put(
+            "edge:a:b",
+            "actor",
+            serde_json::json!({"_edge": true, "from": "a", "to": "b"}),
+        );
         // BFS from a should only reach b, not enqueue ""
         let neighbors = graph_neighbors(&store, "a", 1, None, None, false);
         let ids: Vec<&str> = neighbors.iter().map(|n| n.id.as_str()).collect();
@@ -1615,11 +1788,17 @@ pub fn chronicle_trace(
         if let Some(parent_id) = n.data.get("causal_parent").and_then(|v| v.as_str()) {
             if !parent_id.is_empty() {
                 backward_map.insert(n.id.clone(), parent_id.to_owned());
-                forward_map.entry(parent_id.to_owned()).or_default().push(n.id.clone());
+                forward_map
+                    .entry(parent_id.to_owned())
+                    .or_default()
+                    .push(n.id.clone());
             }
         }
         // Ingest causal edge nodes (_edge: true, link_type: "causal").
-        if n.data.get("_edge").and_then(|v| v.as_bool()).unwrap_or(false)
+        if n.data
+            .get("_edge")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
             && n.data.get("link_type").and_then(|v| v.as_str()) == Some("causal")
         {
             let from = n.data.get("from").and_then(|v| v.as_str()).unwrap_or("");
@@ -1670,10 +1849,8 @@ pub fn chronicle_trace(
         }
 
         // Determine which neighbours to visit based on direction.
-        let go_backward =
-            direction == "backward" || direction == "both";
-        let go_forward =
-            direction == "forward" || direction == "both";
+        let go_backward = direction == "backward" || direction == "both";
+        let go_forward = direction == "forward" || direction == "both";
 
         if go_backward {
             if let Some(parent_id) = backward_map.get(&current_id) {
@@ -1781,8 +1958,16 @@ mod chronicle_tests {
     #[test]
     fn causal_edge_nodes_are_traversed() {
         let store = CrdtStore::default();
-        store.put("n1", "actor", serde_json::json!({"_type": "chronos:decision"}));
-        store.put("n2", "actor", serde_json::json!({"_type": "chronos:decision"}));
+        store.put(
+            "n1",
+            "actor",
+            serde_json::json!({"_type": "chronos:decision"}),
+        );
+        store.put(
+            "n2",
+            "actor",
+            serde_json::json!({"_type": "chronos:decision"}),
+        );
         // Edge stored as a separate node with link_type: "causal"
         store.put(
             "edge:n1:n2",

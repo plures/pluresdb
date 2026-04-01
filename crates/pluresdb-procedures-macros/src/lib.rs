@@ -7,8 +7,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
     parse::{Parse, ParseStream},
-    parse_macro_input, Expr, ExprBinary, ExprLit, ExprPath, ExprUnary, Lit, Result,
-    UnOp,
+    parse_macro_input, Expr, ExprBinary, ExprLit, ExprPath, ExprUnary, Lit, Result, UnOp,
 };
 
 // ---------------------------------------------------------------------------
@@ -43,11 +42,7 @@ enum ValueNode {
 fn expr_to_field(expr: &Expr) -> Option<String> {
     match expr {
         Expr::Path(ExprPath { path, .. }) => {
-            let segs: Vec<_> = path
-                .segments
-                .iter()
-                .map(|s| s.ident.to_string())
-                .collect();
+            let segs: Vec<_> = path.segments.iter().map(|s| s.ident.to_string()).collect();
             Some(segs.join("."))
         }
         Expr::Field(f) => {

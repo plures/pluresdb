@@ -234,14 +234,46 @@ fn chain_5_step_dsl_pipeline() {
 
 fn make_graph_store() -> CrdtStore {
     let store = CrdtStore::default();
-    store.put("n1", "actor", serde_json::json!({"category": "decision", "label": "Alpha"}));
-    store.put("n2", "actor", serde_json::json!({"category": "decision", "label": "Beta"}));
-    store.put("n3", "actor", serde_json::json!({"category": "note",     "label": "Gamma"}));
-    store.put("n4", "actor", serde_json::json!({"category": "task",     "label": "Delta"}));
-    store.put("edge:n1:n2", "actor", serde_json::json!({"_edge": true, "from": "n1", "to": "n2", "weight": 0.9}));
-    store.put("edge:n2:n3", "actor", serde_json::json!({"_edge": true, "from": "n2", "to": "n3", "weight": 0.8}));
-    store.put("edge:n1:n3", "actor", serde_json::json!({"_edge": true, "from": "n1", "to": "n3", "weight": 0.7}));
-    store.put("edge:n3:n4", "actor", serde_json::json!({"_edge": true, "from": "n3", "to": "n4", "weight": 0.5}));
+    store.put(
+        "n1",
+        "actor",
+        serde_json::json!({"category": "decision", "label": "Alpha"}),
+    );
+    store.put(
+        "n2",
+        "actor",
+        serde_json::json!({"category": "decision", "label": "Beta"}),
+    );
+    store.put(
+        "n3",
+        "actor",
+        serde_json::json!({"category": "note",     "label": "Gamma"}),
+    );
+    store.put(
+        "n4",
+        "actor",
+        serde_json::json!({"category": "task",     "label": "Delta"}),
+    );
+    store.put(
+        "edge:n1:n2",
+        "actor",
+        serde_json::json!({"_edge": true, "from": "n1", "to": "n2", "weight": 0.9}),
+    );
+    store.put(
+        "edge:n2:n3",
+        "actor",
+        serde_json::json!({"_edge": true, "from": "n2", "to": "n3", "weight": 0.8}),
+    );
+    store.put(
+        "edge:n1:n3",
+        "actor",
+        serde_json::json!({"_edge": true, "from": "n1", "to": "n3", "weight": 0.7}),
+    );
+    store.put(
+        "edge:n3:n4",
+        "actor",
+        serde_json::json!({"_edge": true, "from": "n3", "to": "n4", "weight": 0.5}),
+    );
     store
 }
 
@@ -272,7 +304,9 @@ fn dsl_graph_pagerank() {
 fn dsl_graph_pagerank_with_params() {
     let store = make_graph_store();
     let engine = ProcedureEngine::new(&store, "test");
-    let result = engine.exec_dsl("graph_pagerank(damping: 0.85, iterations: 50)").unwrap();
+    let result = engine
+        .exec_dsl("graph_pagerank(damping: 0.85, iterations: 50)")
+        .unwrap();
     assert_eq!(result.nodes.len(), 4);
 }
 

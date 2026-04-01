@@ -61,10 +61,10 @@ pub trait Transport: Send + Sync {
 pub struct PeerInfo {
     /// Unique peer identifier
     pub id: PeerId,
-    
+
     /// Optional network address (IP:port or multiaddr)
     pub address: Option<String>,
-    
+
     /// Whether the peer is currently connected
     pub connected: bool,
 }
@@ -74,13 +74,13 @@ pub struct PeerInfo {
 pub struct TransportConfig {
     /// Transport mode
     pub mode: TransportMode,
-    
+
     /// Optional relay server URL for relay mode
     pub relay_url: Option<String>,
-    
+
     /// Connection timeout in milliseconds
     pub timeout_ms: u64,
-    
+
     /// Enable/disable encryption (should always be true in production)
     pub encryption: bool,
 }
@@ -91,10 +91,10 @@ pub struct TransportConfig {
 pub enum TransportMode {
     /// Hyperswarm DHT-based P2P (best for home networks)
     Hyperswarm,
-    
+
     /// WebSocket relay (corporate-friendly, port 443)
     Relay,
-    
+
     /// No sync (local-only mode)
     Disabled,
 }
@@ -112,13 +112,13 @@ impl Default for TransportConfig {
 
 /// Derive a topic hash from a database ID using BLAKE2b-256
 pub fn derive_topic(database_id: &str) -> TopicHash {
-    use blake2::{Blake2b, Digest};
     use blake2::digest::consts::U32;
-    
+    use blake2::{Blake2b, Digest};
+
     let mut hasher = Blake2b::<U32>::new();
     hasher.update(database_id.as_bytes());
     let result = hasher.finalize();
-    
+
     let mut topic = [0u8; 32];
     topic.copy_from_slice(&result);
     topic
@@ -126,8 +126,8 @@ pub fn derive_topic(database_id: &str) -> TopicHash {
 
 /// Create a transport instance based on configuration
 pub fn create_transport(config: TransportConfig) -> Box<dyn Transport> {
-    use crate::{DisabledTransport, HyperswarmTransport, HyperswarmConfig, RelayTransport};
-    
+    use crate::{DisabledTransport, HyperswarmConfig, HyperswarmTransport, RelayTransport};
+
     match config.mode {
         TransportMode::Hyperswarm => {
             let hyperswarm_config = HyperswarmConfig {
@@ -138,14 +138,12 @@ pub fn create_transport(config: TransportConfig) -> Box<dyn Transport> {
             Box::new(HyperswarmTransport::new(hyperswarm_config))
         }
         TransportMode::Relay => {
-            let relay_url = config.relay_url.unwrap_or_else(|| {
-                "wss://pluresdb-relay.azurewebsites.net".to_string()
-            });
+            let relay_url = config
+                .relay_url
+                .unwrap_or_else(|| "wss://pluresdb-relay.azurewebsites.net".to_string());
             Box::new(RelayTransport::new(relay_url, config.timeout_ms))
         }
-        TransportMode::Disabled => {
-            Box::new(DisabledTransport::new())
-        }
+        TransportMode::Disabled => Box::new(DisabledTransport::new()),
     }
 }
 
@@ -157,14 +155,14 @@ mod tests {
     fn test_derive_topic() {
         let db_id = "my-database-123";
         let topic = derive_topic(db_id);
-        
+
         // Should always produce 32 bytes
         assert_eq!(topic.len(), 32);
-        
+
         // Same input should produce same output
         let topic2 = derive_topic(db_id);
         assert_eq!(topic, topic2);
-        
+
         // Different input should produce different output
         let topic3 = derive_topic("different-database");
         assert_ne!(topic, topic3);
@@ -183,11 +181,11 @@ mod tests {
         let mode = TransportMode::Hyperswarm;
         let json = serde_json::to_string(&mode).unwrap();
         assert_eq!(json, r#""hyperswarm""#);
-        
+
         let mode = TransportMode::Relay;
         let json = serde_json::to_string(&mode).unwrap();
         assert_eq!(json, r#""relay""#);
-        
+
         let mode = TransportMode::Disabled;
         let json = serde_json::to_string(&mode).unwrap();
         assert_eq!(json, r#""disabled""#);

@@ -124,7 +124,9 @@ mod tests {
     fn mutate_delete() {
         let store = CrdtStore::default();
         store.put("n1", "test", serde_json::json!({"x": 1}));
-        let op = MutateOp::Delete { id: "n1".to_string() };
+        let op = MutateOp::Delete {
+            id: "n1".to_string(),
+        };
         let count = apply_mutate(&store, "test", &[op], false).unwrap();
         assert_eq!(count, 1);
         assert!(store.get("n1").is_none());
@@ -175,7 +177,9 @@ mod tests {
     #[test]
     fn mutate_atomic_aborts_on_missing() {
         let store = CrdtStore::default();
-        let op = MutateOp::Delete { id: "nonexistent".to_string() };
+        let op = MutateOp::Delete {
+            id: "nonexistent".to_string(),
+        };
         let result = apply_mutate(&store, "test", &[op], true);
         assert!(result.is_err());
     }
@@ -184,8 +188,14 @@ mod tests {
     fn mutate_batch_multiple_ops() {
         let store = CrdtStore::default();
         let ops = vec![
-            MutateOp::Put { id: "a".to_string(), data: serde_json::json!({"v": 1}) },
-            MutateOp::Put { id: "b".to_string(), data: serde_json::json!({"v": 2}) },
+            MutateOp::Put {
+                id: "a".to_string(),
+                data: serde_json::json!({"v": 1}),
+            },
+            MutateOp::Put {
+                id: "b".to_string(),
+                data: serde_json::json!({"v": 2}),
+            },
         ];
         let count = apply_mutate(&store, "test", &ops, false).unwrap();
         assert_eq!(count, 2);

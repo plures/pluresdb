@@ -143,8 +143,7 @@ async fn test_gun_protocol_push_all() {
 
     // Peer B should have all three nodes from A.
     assert_eq!(received.len(), 3);
-    let souls: std::collections::HashSet<&str> =
-        received.iter().map(|(s, _)| s.as_str()).collect();
+    let souls: std::collections::HashSet<&str> = received.iter().map(|(s, _)| s.as_str()).collect();
     assert!(souls.contains("user:alice"));
     assert!(souls.contains("user:bob"));
     assert!(souls.contains("post:1"));
@@ -205,7 +204,11 @@ async fn test_gun_protocol_crdt_store_integration() {
 
     // Write nodes to store A.
     store_a.put("user:alice", "peer-a", json!({"name": "Alice", "age": 30}));
-    store_a.put("task:1", "peer-a", json!({"title": "Write docs", "done": false}));
+    store_a.put(
+        "task:1",
+        "peer-a",
+        json!({"title": "Write docs", "done": false}),
+    );
 
     // Collect nodes from store A and convert to (soul, data) pairs.
     let nodes_a: Vec<(String, serde_json::Value)> = store_a
@@ -237,7 +240,9 @@ async fn test_gun_protocol_crdt_store_integration() {
     }
 
     // Verify store B has store A's data.
-    let alice = store_b.get("user:alice").expect("user:alice should be in store B");
+    let alice = store_b
+        .get("user:alice")
+        .expect("user:alice should be in store B");
     assert_eq!(alice.data["name"], json!("Alice"));
     assert_eq!(alice.data["age"], json!(30));
 
@@ -271,4 +276,3 @@ async fn test_relay_transport_integration() {
     // 4. Send/receive messages through relay
     panic!("Not yet implemented - waiting for relay implementation");
 }
-

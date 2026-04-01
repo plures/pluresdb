@@ -12,15 +12,15 @@ struct Args {
     /// Path to WAL directory
     #[arg(short, long)]
     wal_dir: PathBuf,
-    
+
     /// Filter operations by actor
     #[arg(short, long)]
     actor: Option<String>,
-    
+
     /// Skip checksum validation during replay (faster but less safe)
     #[arg(long)]
     no_validate: bool,
-    
+
     /// Output format (json or summary)
     #[arg(short, long, default_value = "summary")]
     output: String,
@@ -30,25 +30,25 @@ struct Args {
 async fn main() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt::init();
-    
+
     let args = Args::parse();
-    
+
     println!("PluresDB WAL Replay Tool");
     println!("========================");
     println!("WAL directory: {}", args.wal_dir.display());
-    
+
     let validate = !args.no_validate;
     if validate {
         println!("Validating checksums...");
     }
-    
+
     // Perform replay
     let (state, stats) = if validate {
         rebuild_from_wal(&args.wal_dir, true).await?
     } else {
         replay_wal(&args.wal_dir, args.actor.as_deref()).await?
     };
-    
+
     // Output results
     match args.output.as_str() {
         "json" => {
@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
             println!("  Errors: {}", stats.errors);
             println!("  Final node count: {}", stats.final_node_count);
             println!("  Success rate: {:.2}%", stats.success_rate() * 100.0);
-            
+
             println!("\nFinal State:");
             for (id, data) in state.iter().take(10) {
                 println!("  {} -> {}", id, data);
@@ -87,6 +87,6 @@ async fn main() -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }

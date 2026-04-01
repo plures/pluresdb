@@ -61,22 +61,22 @@ mod tests {
     #[tokio::test]
     async fn test_disabled_transport() {
         let mut transport = DisabledTransport::new();
-        
+
         assert_eq!(transport.name(), "disabled");
-        
+
         // Connect should fail
         let topic = [0u8; 32];
         let result = transport.connect(topic).await;
         assert!(result.is_err());
-        
+
         // Announce should succeed silently
         let result = transport.announce(topic).await;
         assert!(result.is_ok());
-        
+
         // Lookup should return empty list
         let peers = transport.lookup(topic).await.unwrap();
         assert!(peers.is_empty());
-        
+
         // Disconnect should succeed
         let result = transport.disconnect().await;
         assert!(result.is_ok());

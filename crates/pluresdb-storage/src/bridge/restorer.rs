@@ -9,8 +9,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use tracing::{info, instrument};
 
-use crate::StoredNode;
 use super::{Manifest, ObjectBridge};
+use crate::StoredNode;
 
 // ---------------------------------------------------------------------------
 // ObjectRestorer

@@ -36,9 +36,8 @@
 
 // Re-export core types
 pub use pluresdb_core::{
-    ActorId, CrdtOperation, CrdtStore, EmbedText,
-    NodeData, NodeId, NodeRecord, NoOpPlugin, PluresLmPlugin,
-    VectorClock, VectorIndex, VectorSearchResult, DEFAULT_EMBEDDING_DIM,
+    ActorId, CrdtOperation, CrdtStore, EmbedText, NoOpPlugin, NodeData, NodeId, NodeRecord,
+    PluresLmPlugin, VectorClock, VectorIndex, VectorSearchResult, DEFAULT_EMBEDDING_DIM,
 };
 
 #[cfg(feature = "sqlite-compat")]
@@ -49,17 +48,17 @@ pub use pluresdb_core::FastEmbedder;
 
 // Re-export storage types
 pub use pluresdb_storage::{
-    EncryptionConfig, EncryptionMetadata, MemoryStorage, ReplayStats, SledStorage,
-    StorageEngine, StoredNode, WalEntry, WalOperation, WriteAheadLog,
+    EncryptionConfig, EncryptionMetadata, MemoryStorage, ReplayStats, SledStorage, StorageEngine,
+    StoredNode, WalEntry, WalOperation, WriteAheadLog,
 };
 
 // Re-export sync types
 pub use pluresdb_sync::{GunRelayServer, SyncBroadcaster, SyncEvent};
 
 // Re-export commonly used error types
-pub use pluresdb_core::StoreError as CoreError;
 #[cfg(feature = "sqlite-compat")]
 pub use pluresdb_core::DatabaseError;
+pub use pluresdb_core::StoreError as CoreError;
 
 // Re-export storage replay utilities
 pub use pluresdb_storage::{metadata_pruning, rebuild_from_wal, replay_wal};
@@ -132,10 +131,18 @@ mod tests {
 
         store.put("node-1", "actor", NodeData::Null);
         store.put("node-2", "actor", NodeData::Null);
-        assert_eq!(writes.load(Ordering::Relaxed), 2, "on_node_written should be called twice");
+        assert_eq!(
+            writes.load(Ordering::Relaxed),
+            2,
+            "on_node_written should be called twice"
+        );
 
         store.delete("node-1").unwrap();
-        assert_eq!(deletes.load(Ordering::Relaxed), 1, "on_node_deleted should be called once");
+        assert_eq!(
+            deletes.load(Ordering::Relaxed),
+            1,
+            "on_node_deleted should be called once"
+        );
 
         // NoOpPlugin compiles and attaches without error.
         let _store2 = CrdtStore::default().with_lm_plugin(Arc::new(NoOpPlugin));
@@ -148,4 +155,3 @@ mod tests {
         let _router = server.build_router();
     }
 }
-

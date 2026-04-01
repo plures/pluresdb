@@ -1,17 +1,15 @@
-# Multi-stage build: build Svelte UI, then run PluresDB with Deno
+# Multi-stage build: Rust binary for PluresDB v3.0.0
 
-FROM node:20-bullseye AS webbuild
-WORKDIR /app/web
-COPY web/svelte/ ./svelte/
-RUN cd svelte && npm i --no-fund --no-audit && npm run build
-
-FROM denoland/deno:alpine-2.4.2
+FROM rust:1.85-bookworm AS builder
 WORKDIR /app
 COPY . .
-COPY --from=webbuild /app/web/dist ./web/dist
+RUN cargo build --release --bin pluresdb
 
-# Default ports: 34567 (API) and 34568 (Web UI)
-EXPOSE 34567 34568
+FROM debian:bookworm-slim
+WORKDIR /app
+COPY --from=builder /app/target/release/pluresdb /usr/local/bin/pluresdb
 
-CMD ["run", "-A", "--unstable-kv", "legacy/main.ts", "serve", "--port", "34567", "--web-port", "34568"]
+# Default port: 34567 (API)
+EXPOSE 34567
 
+CMD ["pluresdb", "serve", "--port", "34567"]

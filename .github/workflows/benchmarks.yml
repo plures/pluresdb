@@ -10,25 +10,17 @@ on:
         type: choice
         options:
           - all
-          - rust
-          - deno
           - crud
           - sync
-          - vector
+          - sql
 
 permissions:
   contents: read
 
 jobs:
-  # ── Rust Criterion benchmarks ──────────────────────────────────────────────
   rust-benchmarks:
     name: Rust Benchmarks (Criterion)
     runs-on: ubuntu-latest
-    if: >
-      github.event.inputs.suite == 'all' ||
-      github.event.inputs.suite == 'rust' ||
-      github.event.inputs.suite == 'crud' ||
-      github.event.inputs.suite == 'sync'
     timeout-minutes: 60
 
     steps:
@@ -54,12 +46,21 @@ jobs:
           restore-keys: bench-target-${{ runner.os }}-
 
       - name: Run CRDT benchmarks
+        if: >
+          github.event.inputs.suite == 'all' ||
+          github.event.inputs.suite == 'crud'
         run: cargo bench --bench crdt_benchmarks -p pluresdb-core 2>&1 | tee /tmp/crdt_bench.txt
 
       - name: Run Sync benchmarks
+        if: >
+          github.event.inputs.suite == 'all' ||
+          github.event.inputs.suite == 'sync'
         run: cargo bench --bench sync_benchmarks -p pluresdb-core 2>&1 | tee /tmp/sync_bench.txt
 
       - name: Run SQL benchmarks
+        if: >
+          github.event.inputs.suite == 'all' ||
+          github.event.inputs.suite == 'sql'
         run: cargo bench --bench sql_benchmarks -p pluresdb-core 2>&1 | tee /tmp/sql_bench.txt
 
       - name: Upload Criterion HTML reports
@@ -76,59 +77,4 @@ jobs:
         with:
           name: rust-bench-output
           path: /tmp/*.txt
-          retention-days: 30
-
-  # ── Deno benchmark suites ──────────────────────────────────────────────────
-  deno-benchmarks:
-    name: Deno Benchmarks
-    runs-on: ubuntu-latest
-    if: >
-      github.event.inputs.suite == 'all' ||
-      github.event.inputs.suite == 'deno' ||
-      github.event.inputs.suite == 'crud' ||
-      github.event.inputs.suite == 'sync' ||
-      github.event.inputs.suite == 'vector'
-    timeout-minutes: 60
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Deno
-        uses: denoland/setup-deno@v1
-        with:
-          deno-version: v2.x
-
-      - name: Run core CRUD benchmarks
-        run: deno run -A --unstable-kv legacy/benchmarks/run-benchmarks.ts 2>&1 | tee /tmp/crud_bench.txt
-        if: >
-          github.event.inputs.suite == 'all' ||
-          github.event.inputs.suite == 'deno' ||
-          github.event.inputs.suite == 'crud'
-
-      - name: Run sync benchmarks
-        run: deno run -A --unstable-kv legacy/benchmarks/sync-benchmarks.ts 2>&1 | tee /tmp/sync_deno_bench.txt
-        if: >
-          github.event.inputs.suite == 'all' ||
-          github.event.inputs.suite == 'deno' ||
-          github.event.inputs.suite == 'sync'
-
-      - name: Run vector search benchmarks
-        run: deno run -A --unstable-kv legacy/benchmarks/vector-benchmarks.ts 2>&1 | tee /tmp/vector_bench.txt
-        if: >
-          github.event.inputs.suite == 'all' ||
-          github.event.inputs.suite == 'deno' ||
-          github.event.inputs.suite == 'vector'
-
-      - name: Run memory benchmarks
-        run: deno run -A --unstable-kv legacy/benchmarks/memory-benchmarks.ts 2>&1 | tee /tmp/memory_bench.txt
-        if: >
-          github.event.inputs.suite == 'all' ||
-          github.event.inputs.suite == 'deno'
-
-      - name: Upload benchmark output
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: deno-bench-output
-          path: /tmp/*_bench.txt
           retention-days: 30

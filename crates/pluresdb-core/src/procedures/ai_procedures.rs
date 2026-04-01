@@ -59,8 +59,7 @@ const DEFAULT_AUDIT_HOURS: i64 = 24;
 /// node IDs stored in the CRDT store) are reproducible and idempotent.  Do not
 /// change this value once data has been written to production stores.
 const AI_PROC_NS: Uuid = Uuid::from_bytes([
-    0xae, 0x7f, 0x1c, 0x3b, 0x5d, 0x92, 0x4e, 0x11, 0x9a, 0x7d, 0x02, 0x42, 0xac, 0x14, 0x00,
-    0x07,
+    0xae, 0x7f, 0x1c, 0x3b, 0x5d, 0x92, 0x4e, 0x11, 0x9a, 0x7d, 0x02, 0x42, 0xac, 0x14, 0x00, 0x07,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -197,7 +196,10 @@ pub fn chronos_decision_audit(
     actor: &str,
     hours: Option<i64>,
 ) -> anyhow::Result<DecisionAuditReport> {
-    anyhow::ensure!(!actor.is_empty(), "chronos_decision_audit: actor must not be empty");
+    anyhow::ensure!(
+        !actor.is_empty(),
+        "chronos_decision_audit: actor must not be empty"
+    );
     let hours = hours.unwrap_or(DEFAULT_AUDIT_HOURS);
     let cutoff = Utc::now() - Duration::hours(hours);
 
@@ -219,7 +221,11 @@ pub fn chronos_decision_audit(
 
     for node in &decisions {
         total += 1;
-        let outcome = node.data.get("outcome").and_then(|v| v.as_str()).unwrap_or("unknown");
+        let outcome = node
+            .data
+            .get("outcome")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
         let route = node
             .data
             .get("route")
@@ -241,9 +247,20 @@ pub fn chronos_decision_audit(
         }
     }
 
-    let accuracy = if total > 0 { accepted as f64 / total as f64 } else { 0.0 };
+    let accuracy = if total > 0 {
+        accepted as f64 / total as f64
+    } else {
+        0.0
+    };
 
-    Ok(DecisionAuditReport { total_decisions: total, accepted, corrected, abandoned, accuracy, failure_patterns })
+    Ok(DecisionAuditReport {
+        total_decisions: total,
+        accepted,
+        corrected,
+        abandoned,
+        accuracy,
+        failure_patterns,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -296,7 +313,10 @@ pub fn chronos_extract_trajectories(
     store: &CrdtStore,
     actor: &str,
 ) -> anyhow::Result<Vec<Trajectory>> {
-    anyhow::ensure!(!actor.is_empty(), "chronos_extract_trajectories: actor must not be empty");
+    anyhow::ensure!(
+        !actor.is_empty(),
+        "chronos_extract_trajectories: actor must not be empty"
+    );
 
     let decisions: Vec<_> = store
         .list()
@@ -314,8 +334,17 @@ pub fn chronos_extract_trajectories(
             .unwrap_or("unknown")
             .to_owned();
 
-        let raw_outcome = node.data.get("outcome").and_then(|v| v.as_str()).unwrap_or("unknown");
-        let outcome = if raw_outcome == "accepted" { "success" } else { "failure" }.to_owned();
+        let raw_outcome = node
+            .data
+            .get("outcome")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        let outcome = if raw_outcome == "accepted" {
+            "success"
+        } else {
+            "failure"
+        }
+        .to_owned();
 
         let state = node
             .data
@@ -410,7 +439,10 @@ pub fn chronos_preference_pairs(
     actor: &str,
     correction_id: Option<&str>,
 ) -> anyhow::Result<Vec<PreferencePair>> {
-    anyhow::ensure!(!actor.is_empty(), "chronos_preference_pairs: actor must not be empty");
+    anyhow::ensure!(
+        !actor.is_empty(),
+        "chronos_preference_pairs: actor must not be empty"
+    );
     if let Some(id) = correction_id {
         anyhow::ensure!(
             !id.is_empty(),
@@ -424,9 +456,7 @@ pub fn chronos_preference_pairs(
         store
             .list()
             .into_iter()
-            .filter(|n| {
-                n.data.get("_type").and_then(|v| v.as_str()) == Some("chronos:correction")
-            })
+            .filter(|n| n.data.get("_type").and_then(|v| v.as_str()) == Some("chronos:correction"))
             .collect()
     };
 
@@ -456,8 +486,12 @@ pub fn chronos_preference_pairs(
         }
 
         // Resolve the decision node to extract the prompt context.
-        let decision_id =
-            corr.data.get("decision_id").and_then(|v| v.as_str()).unwrap_or("").to_owned();
+        let decision_id = corr
+            .data
+            .get("decision_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_owned();
         let prompt = if !decision_id.is_empty() {
             store
                 .get(&decision_id)
@@ -467,7 +501,10 @@ pub fn chronos_preference_pairs(
                         .get("input_context")
                         .map(|v| v.to_string())
                         .or_else(|| {
-                            d.data.get("route").and_then(|v| v.as_str()).map(str::to_owned)
+                            d.data
+                                .get("route")
+                                .and_then(|v| v.as_str())
+                                .map(str::to_owned)
                         })
                 })
                 .unwrap_or_default()
@@ -557,8 +594,14 @@ pub fn chronos_reward_signal(
     actor: &str,
     session_id: &str,
 ) -> anyhow::Result<serde_json::Value> {
-    anyhow::ensure!(!actor.is_empty(), "chronos_reward_signal: actor must not be empty");
-    anyhow::ensure!(!session_id.is_empty(), "chronos_reward_signal: session_id must not be empty");
+    anyhow::ensure!(
+        !actor.is_empty(),
+        "chronos_reward_signal: actor must not be empty"
+    );
+    anyhow::ensure!(
+        !session_id.is_empty(),
+        "chronos_reward_signal: session_id must not be empty"
+    );
 
     // Collect all decision nodes for this session.
     let session_decisions: Vec<_> = store
@@ -574,7 +617,11 @@ pub fn chronos_reward_signal(
 
     // Assign terminal rewards based on outcome and then propagate backward.
     for node in &session_decisions {
-        let outcome = node.data.get("outcome").and_then(|v| v.as_str()).unwrap_or("unknown");
+        let outcome = node
+            .data
+            .get("outcome")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
         let terminal_reward = outcome_to_reward(outcome);
         reward_map.insert(node.id.clone(), terminal_reward);
     }
@@ -589,8 +636,7 @@ pub fn chronos_reward_signal(
         let updates: Vec<(String, f64)> = session_decisions
             .iter()
             .filter_map(|node| {
-                let parent_id =
-                    node.data.get("causal_parent").and_then(|v| v.as_str())?;
+                let parent_id = node.data.get("causal_parent").and_then(|v| v.as_str())?;
                 // Only propagate if the parent is also in this session.
                 let child_reward = *reward_map.get(&node.id)?;
                 let parent_reward = reward_map.get(parent_id).copied().unwrap_or(0.0);
@@ -692,7 +738,10 @@ pub fn cerebellum_tune(
     threshold: Option<f64>,
     auto_apply: bool,
 ) -> anyhow::Result<CerebellumTuneReport> {
-    anyhow::ensure!(!actor.is_empty(), "cerebellum_tune: actor must not be empty");
+    anyhow::ensure!(
+        !actor.is_empty(),
+        "cerebellum_tune: actor must not be empty"
+    );
     let min_acc = threshold.unwrap_or(0.7).clamp(0.0, 1.0);
 
     let decisions: Vec<_> = store
@@ -712,7 +761,11 @@ pub fn cerebellum_tune(
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
             .to_owned();
-        let outcome = node.data.get("outcome").and_then(|v| v.as_str()).unwrap_or("unknown");
+        let outcome = node
+            .data
+            .get("outcome")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
 
         *total_per_route.entry(route.clone()).or_insert(0) += 1;
         if outcome == "accepted" {
@@ -751,7 +804,10 @@ pub fn cerebellum_tune(
         .map(|n| {
             n.data.get("_type").and_then(|v| v.as_str()) == Some("chronos:approval")
                 && n.data.get("procedure").and_then(|v| v.as_str()) == Some("cerebellum_tune")
-                && n.data.get("approved").and_then(|v| v.as_bool()).unwrap_or(false)
+                && n.data
+                    .get("approved")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
         })
         .unwrap_or(false);
 
@@ -825,7 +881,10 @@ pub fn memory_relevance_tune(
     threshold: Option<f64>,
     auto_update: bool,
 ) -> anyhow::Result<MemoryRelevanceTuneReport> {
-    anyhow::ensure!(!actor.is_empty(), "memory_relevance_tune: actor must not be empty");
+    anyhow::ensure!(
+        !actor.is_empty(),
+        "memory_relevance_tune: actor must not be empty"
+    );
     let min_rel = threshold.unwrap_or(0.3).clamp(0.0, 1.0);
 
     let all = store.list();
@@ -875,8 +934,11 @@ pub fn memory_relevance_tune(
             .get("recalled_text")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        let session_id =
-            node.data.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+        let session_id = node
+            .data
+            .get("session_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
 
         *recalled_per_cat.entry(category.clone()).or_insert(0) += 1;
 
@@ -898,7 +960,11 @@ pub fn memory_relevance_tune(
 
     for (cat, total) in &recalled_per_cat {
         let used = *used_per_cat.get(cat).unwrap_or(&0);
-        let score = if *total > 0 { used as f64 / *total as f64 } else { 0.0 };
+        let score = if *total > 0 {
+            used as f64 / *total as f64
+        } else {
+            0.0
+        };
         category_scores.insert(cat.clone(), score);
         if score < min_rel {
             low_relevance.push(cat.clone());
@@ -910,9 +976,11 @@ pub fn memory_relevance_tune(
     // Human approval gate.
     let approval_granted = all.iter().any(|n| {
         n.data.get("_type").and_then(|v| v.as_str()) == Some("chronos:approval")
-            && n.data.get("procedure").and_then(|v| v.as_str())
-                == Some("memory_relevance_tune")
-            && n.data.get("approved").and_then(|v| v.as_bool()).unwrap_or(false)
+            && n.data.get("procedure").and_then(|v| v.as_str()) == Some("memory_relevance_tune")
+            && n.data
+                .get("approved")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
     });
 
     let weights_updated = auto_update && approval_granted;
@@ -929,7 +997,11 @@ pub fn memory_relevance_tune(
         );
     }
 
-    Ok(MemoryRelevanceTuneReport { category_scores, low_relevance_categories: low_relevance, weights_updated })
+    Ok(MemoryRelevanceTuneReport {
+        category_scores,
+        low_relevance_categories: low_relevance,
+        weights_updated,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -999,17 +1071,19 @@ pub fn chronos_replay(
     let chain: Vec<_> = store
         .list()
         .into_iter()
-        .filter(|n| {
-            n.data.get("_type").and_then(|v| v.as_str()) == Some("chronos:decision")
-        })
+        .filter(|n| n.data.get("_type").and_then(|v| v.as_str()) == Some("chronos:decision"))
         .collect();
 
     // Build forward adjacency via causal_parent to walk from root.
-    let mut forward_map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    let mut forward_map: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
     for n in &chain {
         if let Some(parent_id) = n.data.get("causal_parent").and_then(|v| v.as_str()) {
             if !parent_id.is_empty() {
-                forward_map.entry(parent_id.to_owned()).or_default().push(n.id.clone());
+                forward_map
+                    .entry(parent_id.to_owned())
+                    .or_default()
+                    .push(n.id.clone());
             }
         }
     }
@@ -1046,10 +1120,16 @@ pub fn chronos_replay(
     let mut diffs: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
     for node in &ordered_chain {
-        let original_route =
-            node.data.get("route").and_then(|v| v.as_str()).unwrap_or("unknown");
-        let original_outcome =
-            node.data.get("outcome").and_then(|v| v.as_str()).unwrap_or("unknown");
+        let original_route = node
+            .data
+            .get("route")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        let original_outcome = node
+            .data
+            .get("outcome")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
 
         // Apply route override if specified.
         if let Some(new_route) = override_route {
@@ -1468,8 +1548,12 @@ mod tests {
         // creative:   0/1 = 0.0 → underperforming
         assert!((report.route_accuracy["analytical"] - 1.0).abs() < 1e-9);
         assert_eq!(report.route_accuracy["creative"], 0.0);
-        assert!(report.underperforming_routes.contains(&"creative".to_string()));
-        assert!(!report.underperforming_routes.contains(&"analytical".to_string()));
+        assert!(report
+            .underperforming_routes
+            .contains(&"creative".to_string()));
+        assert!(!report
+            .underperforming_routes
+            .contains(&"analytical".to_string()));
     }
 
     #[test]
@@ -1538,7 +1622,9 @@ mod tests {
         let report = memory_relevance_tune(&store, "actor", Some(0.5), false).unwrap();
         // "fact" category was recalled once and used once → score 1.0
         assert_eq!(report.category_scores["fact"], 1.0);
-        assert!(!report.low_relevance_categories.contains(&"fact".to_string()));
+        assert!(!report
+            .low_relevance_categories
+            .contains(&"fact".to_string()));
     }
 
     #[test]

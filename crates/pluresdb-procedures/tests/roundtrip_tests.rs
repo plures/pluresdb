@@ -5,7 +5,12 @@ use pluresdb_procedures::parser::parse_query;
 
 fn assert_roundtrip(dsl: &str, expected_steps: usize) {
     let steps = parse_query(dsl).expect("parse failed");
-    assert_eq!(steps.len(), expected_steps, "step count mismatch for: {}", dsl);
+    assert_eq!(
+        steps.len(),
+        expected_steps,
+        "step count mismatch for: {}",
+        dsl
+    );
 
     // Serialise to JSON and deserialise back to steps.
     let json = serde_json::to_string(&steps).expect("to_string failed");
@@ -59,7 +64,10 @@ fn roundtrip_and_predicate() {
     let dsl = r#"filter(category == "decision" and data.score > 0.7)"#;
     let steps = parse_query(dsl).unwrap();
     assert_eq!(steps.len(), 1);
-    if let Step::Filter { predicate: Predicate::And { and } } = &steps[0] {
+    if let Step::Filter {
+        predicate: Predicate::And { and },
+    } = &steps[0]
+    {
         assert_eq!(and.len(), 2);
     } else {
         panic!("expected AND predicate");
@@ -74,7 +82,10 @@ fn roundtrip_and_predicate() {
 fn roundtrip_or_predicate() {
     let dsl = r#"filter(status == "open" or status == "pending")"#;
     let steps = parse_query(dsl).unwrap();
-    if let Step::Filter { predicate: Predicate::Or { or } } = &steps[0] {
+    if let Step::Filter {
+        predicate: Predicate::Or { or },
+    } = &steps[0]
+    {
         assert_eq!(or.len(), 2);
     } else {
         panic!("expected OR predicate");
@@ -88,7 +99,10 @@ fn roundtrip_or_predicate() {
 fn roundtrip_not_predicate() {
     let dsl = r#"filter(not (archived == true))"#;
     let steps = parse_query(dsl).unwrap();
-    if let Step::Filter { predicate: Predicate::Not { .. } } = &steps[0] {
+    if let Step::Filter {
+        predicate: Predicate::Not { .. },
+    } = &steps[0]
+    {
         // ok
     } else {
         panic!("expected NOT predicate");

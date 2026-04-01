@@ -55,9 +55,7 @@ fn compare_eq(field_val: Option<&serde_json::Value>, rhs: &IrValue) -> bool {
         (None, IrValue::Null) => true,
         (Some(serde_json::Value::Null), IrValue::Null) => true,
         (Some(serde_json::Value::String(s)), IrValue::String(r)) => s == r,
-        (Some(serde_json::Value::Number(n)), IrValue::Number(r)) => {
-            n.as_f64() == Some(*r)
-        }
+        (Some(serde_json::Value::Number(n)), IrValue::Number(r)) => n.as_f64() == Some(*r),
         (Some(serde_json::Value::Bool(b)), IrValue::Bool(r)) => b == r,
         _ => false,
     }
@@ -141,8 +139,14 @@ mod tests {
     #[test]
     fn filter_and() {
         let nodes = vec![
-            make_node("a", serde_json::json!({"category": "decision", "score": 0.9})),
-            make_node("b", serde_json::json!({"category": "decision", "score": 0.2})),
+            make_node(
+                "a",
+                serde_json::json!({"category": "decision", "score": 0.9}),
+            ),
+            make_node(
+                "b",
+                serde_json::json!({"category": "decision", "score": 0.2}),
+            ),
             make_node("c", serde_json::json!({"category": "note", "score": 0.9})),
         ];
         let pred = Predicate::and(vec![

@@ -126,7 +126,12 @@ pub fn on_memory_insert_enrich(
     })?;
     ensure_memory_type(&node.data, memory_id, "on_memory_insert_enrich")?;
 
-    let text = node.data.get("text").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let text = node
+        .data
+        .get("text")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
 
     let word_count = text.split_whitespace().count();
     let char_count = text.chars().count();
@@ -226,14 +231,21 @@ pub fn on_memory_insert_detect_contradictions(
             memory_id
         )
     })?;
-    ensure_memory_type(&node.data, memory_id, "on_memory_insert_detect_contradictions")?;
+    ensure_memory_type(
+        &node.data,
+        memory_id,
+        "on_memory_insert_detect_contradictions",
+    )?;
 
     let mut contradicts: Vec<String> = Vec::new();
     let mut reinforces: Vec<String> = Vec::new();
 
     if let Some(embedding) = &node.embedding {
-        let candidates =
-            store.vector_search(embedding, CONTRADICTION_SEARCH_LIMIT, CONTRADICTION_MIN_SCORE);
+        let candidates = store.vector_search(
+            embedding,
+            CONTRADICTION_SEARCH_LIMIT,
+            CONTRADICTION_MIN_SCORE,
+        );
 
         let self_text = node.data.get("text").and_then(|v| v.as_str()).unwrap_or("");
         let self_negated = is_negated(self_text);
@@ -248,8 +260,12 @@ pub fn on_memory_insert_detect_contradictions(
                 continue;
             }
 
-            let other_text =
-                result.record.data.get("text").and_then(|v| v.as_str()).unwrap_or("");
+            let other_text = result
+                .record
+                .data
+                .get("text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let other_negated = is_negated(other_text);
 
             if self_negated != other_negated {
@@ -405,7 +421,10 @@ pub fn on_memory_insert_attach_context(
     // Write back — idempotent.
     let mut updated = node.data.clone();
     if let Some(obj) = updated.as_object_mut() {
-        obj.insert("context_window".to_owned(), serde_json::json!(context_window));
+        obj.insert(
+            "context_window".to_owned(),
+            serde_json::json!(context_window),
+        );
     }
     store.put(memory_id, actor, updated);
 
@@ -481,7 +500,10 @@ pub fn consolidate_training_pairs(
     store: &CrdtStore,
     actor: &str,
 ) -> anyhow::Result<Vec<TrainingPair>> {
-    anyhow::ensure!(!actor.is_empty(), "consolidate_training_pairs: actor must not be empty");
+    anyhow::ensure!(
+        !actor.is_empty(),
+        "consolidate_training_pairs: actor must not be empty"
+    );
 
     let memories: Vec<_> = store
         .list()
@@ -496,14 +518,22 @@ pub fn consolidate_training_pairs(
             .data
             .get("reinforces")
             .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(str::to_owned))
+                    .collect()
+            })
             .unwrap_or_default();
 
         let contradicts: Vec<String> = mem
             .data
             .get("contradicts")
             .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(str::to_owned))
+                    .collect()
+            })
             .unwrap_or_default();
 
         let mem_text = mem.data.get("text").and_then(|v| v.as_str()).unwrap_or("");
@@ -511,12 +541,14 @@ pub fn consolidate_training_pairs(
         // SFT pair: prompt = first reinforcing memory, chosen = this memory.
         if let Some(reinforce_id) = reinforces.first() {
             if let Some(reinforce_node) = store.get(reinforce_id) {
-                let prompt_text =
-                    reinforce_node.data.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                let prompt_text = reinforce_node
+                    .data
+                    .get("text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
 
                 if !prompt_text.is_empty() && !mem_text.is_empty() {
-                    let pair_id =
-                        deterministic_pair_id(&["sft", reinforce_id, mem.id.as_str()]);
+                    let pair_id = deterministic_pair_id(&["sft", reinforce_id, mem.id.as_str()]);
                     let pair = TrainingPair {
                         id: pair_id.clone(),
                         format: "sft".to_owned(),
@@ -547,16 +579,21 @@ pub fn consolidate_training_pairs(
         }
 
         // DPO pair: chosen = reinforcing memory, rejected = contradicting memory.
-        if let (Some(reinforce_id), Some(contradict_id)) =
-            (reinforces.first(), contradicts.first())
+        if let (Some(reinforce_id), Some(contradict_id)) = (reinforces.first(), contradicts.first())
         {
             if let (Some(reinforce_node), Some(contradict_node)) =
                 (store.get(reinforce_id), store.get(contradict_id))
             {
-                let chosen_text =
-                    reinforce_node.data.get("text").and_then(|v| v.as_str()).unwrap_or("");
-                let rejected_text =
-                    contradict_node.data.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                let chosen_text = reinforce_node
+                    .data
+                    .get("text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let rejected_text = contradict_node
+                    .data
+                    .get("text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
 
                 if !chosen_text.is_empty() && !rejected_text.is_empty() {
                     let pair_id = deterministic_pair_id(&[
@@ -648,10 +685,7 @@ pub fn consolidate_training_pairs(
 /// let scores = score_quality(&store, "actor").unwrap();
 /// assert!(scores["mem1"].as_f64().unwrap() > 0.0);
 /// ```
-pub fn score_quality(
-    store: &CrdtStore,
-    actor: &str,
-) -> anyhow::Result<serde_json::Value> {
+pub fn score_quality(store: &CrdtStore, actor: &str) -> anyhow::Result<serde_json::Value> {
     anyhow::ensure!(!actor.is_empty(), "score_quality: actor must not be empty");
 
     let memories: Vec<_> = store
@@ -666,7 +700,11 @@ pub fn score_quality(
         let mut score: f64 = 0.0;
 
         // Component 1: sufficient word count.
-        let word_count = mem.data.get("word_count").and_then(|v| v.as_u64()).unwrap_or(0);
+        let word_count = mem
+            .data
+            .get("word_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
         if word_count >= 5 {
             score += 0.2;
         }
@@ -785,7 +823,11 @@ pub fn export_training_set(
     for pair_node in pairs {
         // Optional format filter.
         if let Some(fmt) = format_filter {
-            let node_fmt = pair_node.data.get("format").and_then(|v| v.as_str()).unwrap_or("");
+            let node_fmt = pair_node
+                .data
+                .get("format")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             if node_fmt != fmt {
                 continue;
             }
@@ -863,16 +905,16 @@ fn conv_index_id(conv_key: &str) -> String {
 /// procedures.
 fn validate_common(actor: &str, memory_id: &str, ctx: &str) -> anyhow::Result<()> {
     anyhow::ensure!(!actor.is_empty(), "{}: actor must not be empty", ctx);
-    anyhow::ensure!(!memory_id.is_empty(), "{}: memory_id must not be empty", ctx);
+    anyhow::ensure!(
+        !memory_id.is_empty(),
+        "{}: memory_id must not be empty",
+        ctx
+    );
     Ok(())
 }
 
 /// Assert that a node's `_type` field is `"memory"`.
-fn ensure_memory_type(
-    data: &serde_json::Value,
-    id: &str,
-    ctx: &str,
-) -> anyhow::Result<()> {
+fn ensure_memory_type(data: &serde_json::Value, id: &str, ctx: &str) -> anyhow::Result<()> {
     anyhow::ensure!(
         data.get("_type").and_then(|v| v.as_str()) == Some("memory"),
         "{}: node '{}' is not a memory",
@@ -919,8 +961,8 @@ fn detect_language_hint(text: &str) -> &'static str {
 const STOP_WORDS: &[&str] = &[
     "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
     "from", "is", "it", "its", "this", "that", "be", "as", "are", "was", "were", "has", "have",
-    "had", "not", "no", "so", "if", "do", "did", "he", "she", "we", "you", "they", "i", "me",
-    "my", "your", "our", "their", "his", "her", "up", "out", "will", "can", "may", "all",
+    "had", "not", "no", "so", "if", "do", "did", "he", "she", "we", "you", "they", "i", "me", "my",
+    "your", "our", "their", "his", "her", "up", "out", "will", "can", "may", "all",
 ];
 
 /// Returns `true` if `c` is a word-separator character for keyword extraction:
@@ -969,8 +1011,8 @@ fn deterministic_pair_id(components: &[&str]) -> String {
     // project-specific namespace ensures pair IDs do not collide with UUIDs
     // generated by other parts of the system.
     const PAIR_NS: Uuid = Uuid::from_bytes([
-        0x7c, 0x9e, 0x6e, 0x1a, 0x3f, 0x2b, 0x11, 0xee, 0x8f, 0x3d, 0x02, 0x42, 0xac, 0x13,
-        0x00, 0x02,
+        0x7c, 0x9e, 0x6e, 0x1a, 0x3f, 0x2b, 0x11, 0xee, 0x8f, 0x3d, 0x02, 0x42, 0xac, 0x13, 0x00,
+        0x02,
     ]);
     Uuid::new_v5(&PAIR_NS, combined.as_bytes()).to_string()
 }
@@ -1012,7 +1054,12 @@ mod tests {
     #[test]
     fn enrich_adds_keywords() {
         let store = CrdtStore::default();
-        make_memory(&store, "m1", "Rust programming language performance memory", "fact");
+        make_memory(
+            &store,
+            "m1",
+            "Rust programming language performance memory",
+            "fact",
+        );
         let meta = on_memory_insert_enrich(&store, "actor", "m1").unwrap();
         assert!(meta["keywords"].is_array());
         let kw = meta["keywords"].as_array().unwrap();
@@ -1090,7 +1137,11 @@ mod tests {
     #[test]
     fn enrich_rejects_non_memory_node() {
         let store = CrdtStore::default();
-        store.put("doc1", "actor", serde_json::json!({"_type": "document", "text": "hi"}));
+        store.put(
+            "doc1",
+            "actor",
+            serde_json::json!({"_type": "document", "text": "hi"}),
+        );
         let err = on_memory_insert_enrich(&store, "actor", "doc1").unwrap_err();
         assert!(err.to_string().contains("not a memory"));
     }
@@ -1110,8 +1161,7 @@ mod tests {
     fn detect_contradictions_returns_empty_when_no_embedding() {
         let store = CrdtStore::default();
         make_memory(&store, "m1", "The sky is blue", "fact");
-        let result =
-            on_memory_insert_detect_contradictions(&store, "actor", "m1").unwrap();
+        let result = on_memory_insert_detect_contradictions(&store, "actor", "m1").unwrap();
         assert_eq!(result["contradicts"].as_array().unwrap().len(), 0);
         assert_eq!(result["reinforces"].as_array().unwrap().len(), 0);
     }
@@ -1129,9 +1179,12 @@ mod tests {
     #[test]
     fn detect_contradictions_rejects_non_memory_node() {
         let store = CrdtStore::default();
-        store.put("doc1", "actor", serde_json::json!({"_type": "document", "text": "hi"}));
-        let err =
-            on_memory_insert_detect_contradictions(&store, "actor", "doc1").unwrap_err();
+        store.put(
+            "doc1",
+            "actor",
+            serde_json::json!({"_type": "document", "text": "hi"}),
+        );
+        let err = on_memory_insert_detect_contradictions(&store, "actor", "doc1").unwrap_err();
         assert!(err.to_string().contains("not a memory"));
     }
 
@@ -1208,12 +1261,9 @@ mod tests {
             on_memory_insert_attach_context(&store, "actor", &format!("m{}", i)).unwrap();
         }
         // The last memory should see at most CONTEXT_WINDOW_SIZE predecessors.
-        let result = on_memory_insert_attach_context(
-            &store,
-            "actor",
-            &format!("m{}", CONTEXT_WINDOW_SIZE),
-        )
-        .unwrap();
+        let result =
+            on_memory_insert_attach_context(&store, "actor", &format!("m{}", CONTEXT_WINDOW_SIZE))
+                .unwrap();
         let window = result["context_window"].as_array().unwrap();
         assert!(window.len() <= CONTEXT_WINDOW_SIZE);
     }
@@ -1272,7 +1322,11 @@ mod tests {
     #[test]
     fn consolidate_generates_dpo_pair() {
         let store = CrdtStore::default();
-        store.put("m1", "actor", serde_json::json!({"_type": "memory", "text": "Rust is fast"}));
+        store.put(
+            "m1",
+            "actor",
+            serde_json::json!({"_type": "memory", "text": "Rust is fast"}),
+        );
         store.put(
             "m2",
             "actor",
@@ -1364,7 +1418,11 @@ mod tests {
     #[test]
     fn score_quality_persists_to_node() {
         let store = CrdtStore::default();
-        store.put("m1", "actor", serde_json::json!({"_type": "memory", "text": "hello world"}));
+        store.put(
+            "m1",
+            "actor",
+            serde_json::json!({"_type": "memory", "text": "hello world"}),
+        );
         score_quality(&store, "actor").unwrap();
         let node = store.get("m1").unwrap();
         assert!(node.data["quality_score"].as_f64().is_some());
@@ -1567,6 +1625,9 @@ mod tests {
         // Same reinforce+contradict but different prompt → different DPO pair IDs.
         let id1 = deterministic_pair_id(&["dpo", "prompt-a", "chosen", "rejected"]);
         let id2 = deterministic_pair_id(&["dpo", "prompt-b", "chosen", "rejected"]);
-        assert_ne!(id1, id2, "different prompt memories must yield different DPO pair IDs");
+        assert_ne!(
+            id1, id2,
+            "different prompt memories must yield different DPO pair IDs"
+        );
     }
 }

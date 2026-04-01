@@ -77,9 +77,7 @@ pub fn validate_hash(hash: &str) -> anyhow::Result<()> {
         );
     }
     if !hash.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')) {
-        anyhow::bail!(
-            "invalid blob hash: must contain only lowercase hex digits [0-9a-f]"
-        );
+        anyhow::bail!("invalid blob hash: must contain only lowercase hex digits [0-9a-f]");
     }
     Ok(())
 }
@@ -171,12 +169,10 @@ impl BlobStore for FileBlobStore {
         let path = self.blob_path(&hash);
         if !path.exists() {
             if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent).with_context(|| {
-                    format!("create blob directory: {}", parent.display())
-                })?;
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("create blob directory: {}", parent.display()))?;
             }
-            fs::write(&path, data)
-                .with_context(|| format!("write blob {}", path.display()))?;
+            fs::write(&path, data).with_context(|| format!("write blob {}", path.display()))?;
         }
         Ok(hash)
     }
@@ -185,8 +181,7 @@ impl BlobStore for FileBlobStore {
         validate_hash(hash)?;
         let path = self.blob_path(hash);
         if path.exists() {
-            let data = fs::read(&path)
-                .with_context(|| format!("read blob {}", path.display()))?;
+            let data = fs::read(&path).with_context(|| format!("read blob {}", path.display()))?;
             Ok(Some(data))
         } else {
             Ok(None)
@@ -197,8 +192,7 @@ impl BlobStore for FileBlobStore {
         validate_hash(hash)?;
         let path = self.blob_path(hash);
         if path.exists() {
-            fs::remove_file(&path)
-                .with_context(|| format!("delete blob {}", path.display()))?;
+            fs::remove_file(&path).with_context(|| format!("delete blob {}", path.display()))?;
         }
         Ok(())
     }
@@ -301,7 +295,7 @@ mod tests {
             "/etc/passwd",
             "00000000000000000000000000000000000000000000000000000000000000GG", // uppercase
             "0000000000000000000000000000000000000000000000000000000000000000XX", // too long
-            "short", // too short
+            "short",                                                            // too short
         ]
     }
 
@@ -328,16 +322,15 @@ mod tests {
 
     #[test]
     fn test_validate_hash_accepts_valid_sha256() {
-        validate_hash("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-            .unwrap();
+        validate_hash("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855").unwrap();
     }
 
     #[test]
     fn test_validate_hash_rejects_uppercase() {
-        assert!(validate_hash(
-            "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
-        )
-        .is_err());
+        assert!(
+            validate_hash("E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855")
+                .is_err()
+        );
     }
 
     #[test]

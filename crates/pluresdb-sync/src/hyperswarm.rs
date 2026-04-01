@@ -10,7 +10,7 @@
 //! a separate repository (plures/hyperswarm). Once published to crates.io,
 //! uncomment the implementation below.
 
-use crate::transport::{Connection, PeerInfo, PeerId, TopicHash, Transport, MessagePayload};
+use crate::transport::{Connection, MessagePayload, PeerId, PeerInfo, TopicHash, Transport};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use tokio::sync::mpsc;
@@ -32,10 +32,10 @@ pub struct HyperswarmTransport {
 pub struct HyperswarmConfig {
     /// Bootstrap nodes for DHT
     pub bootstrap_nodes: Vec<String>,
-    
+
     /// Enable encryption (should always be true)
     pub encryption: bool,
-    
+
     /// Connection timeout in milliseconds
     pub timeout_ms: u64,
 }
@@ -70,7 +70,7 @@ impl Transport for HyperswarmTransport {
         // 1. Join the DHT topic
         // 2. Listen for incoming connections
         // 3. Return a channel that receives Connection objects
-        
+
         Err(anyhow!(
             "Hyperswarm transport not yet implemented. \
              This requires the hyperswarm-rs crate from plures/hyperswarm. \
@@ -150,10 +150,10 @@ impl Connection for HyperswarmConnection {
  * impl Transport for HyperswarmTransport {
  *     async fn connect(&mut self, topic: TopicHash) -> Result<mpsc::Receiver<Box<dyn Connection>>> {
  *         let (tx, rx) = mpsc::channel(100);
- *         
+ *
  *         // Join the topic on the DHT
  *         self.swarm.join(topic, true, true).await?;
- *         
+ *
  *         // Spawn task to handle incoming connections
  *         let swarm = self.swarm.clone();
  *         tokio::spawn(async move {
@@ -166,14 +166,14 @@ impl Connection for HyperswarmConnection {
  *                 let _ = tx.send(wrapped).await;
  *             }
  *         });
- *         
+ *
  *         Ok(rx)
  *     }
- *     
+ *
  *     async fn announce(&mut self, topic: TopicHash) -> Result<()> {
  *         self.swarm.join(topic, true, false).await
  *     }
- *     
+ *
  *     async fn lookup(&self, topic: TopicHash) -> Result<Vec<PeerInfo>> {
  *         let peers = self.swarm.lookup(topic).await?;
  *         Ok(peers.into_iter().map(|p| PeerInfo {
@@ -201,12 +201,12 @@ mod tests {
     async fn test_hyperswarm_transport_not_implemented() {
         let config = HyperswarmConfig::default();
         let mut transport = HyperswarmTransport::new(config);
-        
+
         // Should return error since hyperswarm-rs is not yet integrated
         let topic = [0u8; 32];
         let result = transport.connect(topic).await;
         assert!(result.is_err());
-        
+
         assert_eq!(transport.name(), "hyperswarm");
     }
 }

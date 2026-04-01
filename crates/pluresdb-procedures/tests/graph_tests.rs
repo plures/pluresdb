@@ -4,11 +4,7 @@
 //! through the [`ProcedureEngine`] using both the builder API and the DSL.
 
 use pluresdb_core::CrdtStore;
-use pluresdb_procedures::{
-    engine::ProcedureEngine,
-    ir::*,
-    parser::parse_query,
-};
+use pluresdb_procedures::{engine::ProcedureEngine, ir::*, parser::parse_query};
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -25,19 +21,63 @@ use pluresdb_procedures::{
 /// ```
 fn make_graph_store() -> CrdtStore {
     let store = CrdtStore::default();
-    store.put("n1", "actor", serde_json::json!({"category": "dev",    "text": "rust async programming", "score": 0.9}));
-    store.put("n2", "actor", serde_json::json!({"category": "dev",    "text": "rust sync programming",  "score": 0.7}));
-    store.put("n3", "actor", serde_json::json!({"category": "design", "text": "ui layout wireframe",    "score": 0.5}));
-    store.put("n4", "actor", serde_json::json!({"category": "dev",    "text": "python async scripting", "score": 0.6}));
-    store.put("n5", "actor", serde_json::json!({"category": "ops",    "text": "kubernetes deployment",  "score": 0.8}));
-    store.put("n6", "actor", serde_json::json!({"category": "ops",    "text": "docker compose setup",   "score": 0.4}));
+    store.put(
+        "n1",
+        "actor",
+        serde_json::json!({"category": "dev",    "text": "rust async programming", "score": 0.9}),
+    );
+    store.put(
+        "n2",
+        "actor",
+        serde_json::json!({"category": "dev",    "text": "rust sync programming",  "score": 0.7}),
+    );
+    store.put(
+        "n3",
+        "actor",
+        serde_json::json!({"category": "design", "text": "ui layout wireframe",    "score": 0.5}),
+    );
+    store.put(
+        "n4",
+        "actor",
+        serde_json::json!({"category": "dev",    "text": "python async scripting", "score": 0.6}),
+    );
+    store.put(
+        "n5",
+        "actor",
+        serde_json::json!({"category": "ops",    "text": "kubernetes deployment",  "score": 0.8}),
+    );
+    store.put(
+        "n6",
+        "actor",
+        serde_json::json!({"category": "ops",    "text": "docker compose setup",   "score": 0.4}),
+    );
 
     // Edges
-    store.put("edge:n1:n2", "actor", serde_json::json!({"_edge":true,"from":"n1","to":"n2","label":"related","strength":0.9}));
-    store.put("edge:n2:n3", "actor", serde_json::json!({"_edge":true,"from":"n2","to":"n3","label":"related","strength":0.5}));
-    store.put("edge:n3:n4", "actor", serde_json::json!({"_edge":true,"from":"n3","to":"n4","label":"blocks","strength":0.8}));
-    store.put("edge:n1:n4", "actor", serde_json::json!({"_edge":true,"from":"n1","to":"n4","label":"depends","strength":0.7}));
-    store.put("edge:n5:n6", "actor", serde_json::json!({"_edge":true,"from":"n5","to":"n6","label":"related","strength":0.9}));
+    store.put(
+        "edge:n1:n2",
+        "actor",
+        serde_json::json!({"_edge":true,"from":"n1","to":"n2","label":"related","strength":0.9}),
+    );
+    store.put(
+        "edge:n2:n3",
+        "actor",
+        serde_json::json!({"_edge":true,"from":"n2","to":"n3","label":"related","strength":0.5}),
+    );
+    store.put(
+        "edge:n3:n4",
+        "actor",
+        serde_json::json!({"_edge":true,"from":"n3","to":"n4","label":"blocks","strength":0.8}),
+    );
+    store.put(
+        "edge:n1:n4",
+        "actor",
+        serde_json::json!({"_edge":true,"from":"n1","to":"n4","label":"depends","strength":0.7}),
+    );
+    store.put(
+        "edge:n5:n6",
+        "actor",
+        serde_json::json!({"_edge":true,"from":"n5","to":"n6","label":"related","strength":0.9}),
+    );
     store
 }
 
@@ -50,7 +90,12 @@ fn engine_graph_links_returns_all_edges() {
     let store = make_graph_store();
     let engine = ProcedureEngine::new(&store, "test");
     let result = engine
-        .exec(&[Step::GraphLinks { from: None, to: None, min_strength: None, link_type: None }])
+        .exec(&[Step::GraphLinks {
+            from: None,
+            to: None,
+            min_strength: None,
+            link_type: None,
+        }])
         .unwrap();
     assert_eq!(result.nodes.len(), 5);
     for node in &result.nodes {
@@ -131,7 +176,11 @@ fn engine_graph_neighbors_depth_1() {
         .unwrap();
     // n1 → n2 (via related), n1 → n4 (via depends)
     assert_eq!(result.nodes.len(), 2);
-    let ids: Vec<&str> = result.nodes.iter().map(|n| n["id"].as_str().unwrap()).collect();
+    let ids: Vec<&str> = result
+        .nodes
+        .iter()
+        .map(|n| n["id"].as_str().unwrap())
+        .collect();
     assert!(ids.contains(&"n2"));
     assert!(ids.contains(&"n4"));
 }
@@ -150,7 +199,11 @@ fn engine_graph_neighbors_depth_2() {
         }])
         .unwrap();
     // Depth 2: n2, n4 (depth 1) + n3 (via n2→n3, depth 2)
-    let ids: Vec<&str> = result.nodes.iter().map(|n| n["id"].as_str().unwrap()).collect();
+    let ids: Vec<&str> = result
+        .nodes
+        .iter()
+        .map(|n| n["id"].as_str().unwrap())
+        .collect();
     assert!(ids.contains(&"n2"));
     assert!(ids.contains(&"n3"));
     assert!(ids.contains(&"n4"));
@@ -171,11 +224,21 @@ fn engine_graph_neighbors_strength_filter() {
             bidirectional: false,
         }])
         .unwrap();
-    let ids: Vec<&str> = result.nodes.iter().map(|n| n["id"].as_str().unwrap()).collect();
+    let ids: Vec<&str> = result
+        .nodes
+        .iter()
+        .map(|n| n["id"].as_str().unwrap())
+        .collect();
     assert!(ids.contains(&"n2"));
-    assert!(!ids.contains(&"n4"), "n4 should be excluded by min_strength");
+    assert!(
+        !ids.contains(&"n4"),
+        "n4 should be excluded by min_strength"
+    );
     // n2→n3 has strength 0.5 → also excluded
-    assert!(!ids.contains(&"n3"), "n3 should be excluded via weak n2→n3 edge");
+    assert!(
+        !ids.contains(&"n3"),
+        "n3 should be excluded via weak n2→n3 edge"
+    );
 }
 
 #[test]
@@ -192,10 +255,17 @@ fn engine_graph_neighbors_type_filter() {
             bidirectional: false,
         }])
         .unwrap();
-    let ids: Vec<&str> = result.nodes.iter().map(|n| n["id"].as_str().unwrap()).collect();
+    let ids: Vec<&str> = result
+        .nodes
+        .iter()
+        .map(|n| n["id"].as_str().unwrap())
+        .collect();
     assert!(ids.contains(&"n2"));
     assert!(ids.contains(&"n3")); // via n2→n3 (related)
-    assert!(!ids.contains(&"n4"), "n4 reachable only via 'depends'/'blocks', not 'related'");
+    assert!(
+        !ids.contains(&"n4"),
+        "n4 reachable only via 'depends'/'blocks', not 'related'"
+    );
 }
 
 #[test]
@@ -212,7 +282,11 @@ fn engine_graph_neighbors_bidirectional() {
             bidirectional: true,
         }])
         .unwrap();
-    let ids: Vec<&str> = result.nodes.iter().map(|n| n["id"].as_str().unwrap()).collect();
+    let ids: Vec<&str> = result
+        .nodes
+        .iter()
+        .map(|n| n["id"].as_str().unwrap())
+        .collect();
     assert!(ids.contains(&"n2"), "n2 should be found via incoming edge");
     assert!(ids.contains(&"n4"), "n4 should be found via outgoing edge");
 }
@@ -260,9 +334,21 @@ fn engine_auto_link_category_creates_edges() {
 #[test]
 fn engine_auto_link_semantic_creates_edges() {
     let store = CrdtStore::default();
-    store.put("a", "test", serde_json::json!({"text": "machine learning model training"}));
-    store.put("b", "test", serde_json::json!({"text": "machine learning inference serving"}));
-    store.put("c", "test", serde_json::json!({"text": "frontend css styling"}));
+    store.put(
+        "a",
+        "test",
+        serde_json::json!({"text": "machine learning model training"}),
+    );
+    store.put(
+        "b",
+        "test",
+        serde_json::json!({"text": "machine learning inference serving"}),
+    );
+    store.put(
+        "c",
+        "test",
+        serde_json::json!({"text": "frontend css styling"}),
+    );
 
     let engine = ProcedureEngine::new(&store, "test");
     let result = engine
@@ -332,8 +418,15 @@ fn engine_auto_link_then_graph_neighbors() {
             bidirectional: true,
         }])
         .unwrap();
-    let ids: Vec<&str> = result.nodes.iter().map(|n| n["id"].as_str().unwrap()).collect();
-    assert!(ids.contains(&"x2"), "x2 should be a neighbor of x1 via auto-link");
+    let ids: Vec<&str> = result
+        .nodes
+        .iter()
+        .map(|n| n["id"].as_str().unwrap())
+        .collect();
+    assert!(
+        ids.contains(&"x2"),
+        "x2 should be a neighbor of x1 via auto-link"
+    );
 }
 
 #[test]
@@ -350,7 +443,9 @@ fn engine_graph_neighbors_then_filter() {
                 link_type: None,
                 bidirectional: false,
             },
-            Step::Filter { predicate: Predicate::eq("category", "dev") },
+            Step::Filter {
+                predicate: Predicate::eq("category", "dev"),
+            },
         ])
         .unwrap();
     // n2 (dev), n4 (dev) are dev; n3 (design) is not
@@ -373,7 +468,11 @@ fn engine_graph_neighbors_then_sort_and_limit() {
                 link_type: None,
                 bidirectional: false,
             },
-            Step::Sort { by: "score".to_string(), dir: SortDir::Desc, after: None },
+            Step::Sort {
+                by: "score".to_string(),
+                dir: SortDir::Desc,
+                after: None,
+            },
             Step::Limit { n: 2 },
         ])
         .unwrap();
@@ -393,8 +492,17 @@ fn engine_graph_links_then_sort() {
     let engine = ProcedureEngine::new(&store, "test");
     let result = engine
         .exec(&[
-            Step::GraphLinks { from: None, to: None, min_strength: None, link_type: None },
-            Step::Sort { by: "strength".to_string(), dir: SortDir::Desc, after: None },
+            Step::GraphLinks {
+                from: None,
+                to: None,
+                min_strength: None,
+                link_type: None,
+            },
+            Step::Sort {
+                by: "strength".to_string(),
+                dir: SortDir::Desc,
+                after: None,
+            },
             Step::Limit { n: 3 },
         ])
         .unwrap();
@@ -414,8 +522,13 @@ fn engine_filter_then_auto_link_pipeline() {
     let engine = ProcedureEngine::new(&store, "test");
     // filter dev nodes, then auto-link them by category
     let steps = vec![
-        Step::Filter { predicate: Predicate::eq("category", "dev") },
-        Step::AutoLink { algorithms: vec!["category".to_string()], min_strength: None },
+        Step::Filter {
+            predicate: Predicate::eq("category", "dev"),
+        },
+        Step::AutoLink {
+            algorithms: vec!["category".to_string()],
+            min_strength: None,
+        },
     ];
     let result = engine.exec(&steps).unwrap();
     // dev nodes: n1, n2, n4 → 3 pairs
@@ -433,7 +546,9 @@ fn engine_filter_then_auto_link_pipeline() {
 fn dsl_graph_neighbors_minimal() {
     let store = make_graph_store();
     let engine = ProcedureEngine::new(&store, "test");
-    let result = engine.exec_dsl(r#"graph_neighbors("n1", depth: 1)"#).unwrap();
+    let result = engine
+        .exec_dsl(r#"graph_neighbors("n1", depth: 1)"#)
+        .unwrap();
     assert_eq!(result.nodes.len(), 2); // n2, n4
 }
 
@@ -449,9 +564,7 @@ fn dsl_graph_links_all() {
 fn dsl_graph_links_with_min_strength() {
     let store = make_graph_store();
     let engine = ProcedureEngine::new(&store, "test");
-    let result = engine
-        .exec_dsl("graph_links(min_strength: 0.8)")
-        .unwrap();
+    let result = engine.exec_dsl("graph_links(min_strength: 0.8)").unwrap();
     assert_eq!(result.nodes.len(), 3);
 }
 
@@ -634,7 +747,11 @@ fn engine_auto_link_many_nodes_category() {
     let store = CrdtStore::default();
     for i in 0..50usize {
         let cat = if i < 25 { "alpha" } else { "beta" };
-        store.put(format!("m{}", i), "test", serde_json::json!({"category": cat}));
+        store.put(
+            format!("m{}", i),
+            "test",
+            serde_json::json!({"category": cat}),
+        );
     }
     let engine = ProcedureEngine::new(&store, "test");
     let result = engine

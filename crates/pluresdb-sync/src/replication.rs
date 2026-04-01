@@ -274,10 +274,7 @@ impl Replicator {
     /// Preserving the full [`GunNode`] (rather than just `fields`) lets
     /// callers perform correct HAM merges and maintain conflict-resolution
     /// state downstream.
-    pub async fn receive_all<C: Connection>(
-        &self,
-        conn: &mut C,
-    ) -> Result<Vec<(Soul, GunNode)>> {
+    pub async fn receive_all<C: Connection>(&self, conn: &mut C) -> Result<Vec<(Soul, GunNode)>> {
         let mut received: Vec<(Soul, GunNode)> = Vec::new();
         loop {
             match conn.receive().await? {
@@ -477,12 +474,14 @@ mod tests {
         let rep_a = Replicator::new("peer-a");
         let rep_b = Replicator::new("peer-b");
 
-        let nodes_a = vec![
-            ("user:alice".to_string(), json!({"name": "Alice", "age": 30})),
-        ];
-        let nodes_b = vec![
-            ("user:bob".to_string(), json!({"name": "Bob", "role": "admin"})),
-        ];
+        let nodes_a = vec![(
+            "user:alice".to_string(),
+            json!({"name": "Alice", "age": 30}),
+        )];
+        let nodes_b = vec![(
+            "user:bob".to_string(),
+            json!({"name": "Bob", "role": "admin"}),
+        )];
 
         let (from_b, from_a) = tokio::join!(
             rep_a.sync(&mut conn_a, &nodes_a),
@@ -503,4 +502,3 @@ mod tests {
         assert_eq!(from_a[0].1.fields["name"], json!("Alice"));
     }
 }
-

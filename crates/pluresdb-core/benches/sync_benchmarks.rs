@@ -179,11 +179,13 @@ fn benchmark_mixed_workload(c: &mut Criterion) {
                     // Pre-seed targets for updates / deletes
                     let store = CrdtStore::default();
                     for i in 0..(size / 2 + 1) {
-                        store.apply(CrdtOperation::Put {
-                            id: format!("node:{}", i),
-                            actor: "seed".to_string(),
-                            data: make_payload(i),
-                        }).unwrap();
+                        store
+                            .apply(CrdtOperation::Put {
+                                id: format!("node:{}", i),
+                                actor: "seed".to_string(),
+                                data: make_payload(i),
+                            })
+                            .unwrap();
                     }
                     store
                 },

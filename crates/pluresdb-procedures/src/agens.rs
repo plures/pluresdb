@@ -47,8 +47,8 @@ use parking_lot::RwLock;
 use pluresdb_core::CrdtStore;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
-use uuid::Uuid;
 use tracing::warn;
+use uuid::Uuid;
 
 // Node type tags used to namespace Agens data inside the CRDT store.
 const TYPE_COMMAND: &str = "agens:command";
@@ -262,12 +262,7 @@ impl<'a> StateTable<'a> {
     pub fn get(&self, key: &str) -> Option<JsonValue> {
         let node = self.store.get(format!("state:{}", key))?;
         // Ensure we only return values from Agens state records.
-        if node
-            .data
-            .get("_type")
-            .and_then(|v| v.as_str())
-            != Some(TYPE_STATE)
-        {
+        if node.data.get("_type").and_then(|v| v.as_str()) != Some(TYPE_STATE) {
             return None;
         }
         node.data.get("value").cloned()
@@ -406,8 +401,7 @@ impl<'a> TimerTable<'a> {
             i64::try_from(interval_secs).expect("TimerTable::schedule: interval_secs too large");
 
         let id = format!("timer:{}", Uuid::new_v4());
-        let next_fire_at =
-            Utc::now() + chrono::Duration::seconds(interval_secs_i64);
+        let next_fire_at = Utc::now() + chrono::Duration::seconds(interval_secs_i64);
         self.store.put(
             id.clone(),
             self.actor.as_str(),
@@ -437,9 +431,7 @@ impl<'a> TimerTable<'a> {
         self.store
             .list()
             .into_iter()
-            .filter(|n| {
-                n.data.get("_type").and_then(|v| v.as_str()) == Some(TYPE_TIMER)
-            })
+            .filter(|n| n.data.get("_type").and_then(|v| v.as_str()) == Some(TYPE_TIMER))
             .filter_map(|n| self.entry_from_data(&n.id, &n.data))
             .collect()
     }
@@ -449,7 +441,10 @@ impl<'a> TimerTable<'a> {
     /// Delegates to [`list`][Self::list]; see its documentation for
     /// performance characteristics.
     pub fn due_timers(&self, now: DateTime<Utc>) -> Vec<TimerEntry> {
-        self.list().into_iter().filter(|t| t.next_fire_at <= now).collect()
+        self.list()
+            .into_iter()
+            .filter(|t| t.next_fire_at <= now)
+            .collect()
     }
 
     /// Advance a timer's `next_fire_at` by one interval.
@@ -465,8 +460,7 @@ impl<'a> TimerTable<'a> {
             debug_assert!(
                 false,
                 "TimerTable::reschedule called with non-timer node id `{}` (type: {:?})",
-                timer_id,
-                node_type,
+                timer_id, node_type,
             );
             return false;
         }
@@ -478,8 +472,7 @@ impl<'a> TimerTable<'a> {
             eprintln!(
                 "Agens timer reschedule failed: interval_secs '{}' for timer '{}' \
                  exceeds i64::MAX",
-                entry.interval_secs,
-                entry.name
+                entry.interval_secs, entry.name
             );
             return false;
         };
@@ -714,8 +707,7 @@ impl<'a> AgensRuntime<'a> {
                     && n.timestamp > since
             })
             .filter_map(|n| {
-                let ev: AgensEvent =
-                    serde_json::from_value(n.data.get("event")?.clone()).ok()?;
+                let ev: AgensEvent = serde_json::from_value(n.data.get("event")?.clone()).ok()?;
                 Some((n.timestamp, ev))
             })
             .collect();
@@ -772,7 +764,10 @@ mod tests {
 
     #[test]
     fn event_type_strings() {
-        let ev = AgensEvent::Message { id: "1".to_string(), payload: json!({}) };
+        let ev = AgensEvent::Message {
+            id: "1".to_string(),
+            payload: json!({}),
+        };
         assert_eq!(ev.event_type(), "message");
 
         let ev = AgensEvent::Timer {
@@ -790,7 +785,10 @@ mod tests {
         };
         assert_eq!(ev.event_type(), "state_change");
 
-        let ev = AgensEvent::ModelResponse { id: "4".to_string(), payload: json!({}) };
+        let ev = AgensEvent::ModelResponse {
+            id: "4".to_string(),
+            payload: json!({}),
+        };
         assert_eq!(ev.event_type(), "model_response");
 
         let ev = AgensEvent::ToolResult {
@@ -924,7 +922,10 @@ mod tests {
     fn poll_events_excludes_old() {
         let store = CrdtStore::default();
         let runtime = AgensRuntime::new(&store, "actor");
-        let ev = AgensEvent::Message { id: "m0".to_string(), payload: json!({}) };
+        let ev = AgensEvent::Message {
+            id: "m0".to_string(),
+            payload: json!({}),
+        };
         runtime.emit_event(&ev);
         let after = Utc::now();
         let polled = runtime.poll_events(after);
@@ -945,7 +946,10 @@ mod tests {
                 Ok(())
             }),
         );
-        let ev = AgensEvent::Message { id: "m2".to_string(), payload: json!({}) };
+        let ev = AgensEvent::Message {
+            id: "m2".to_string(),
+            payload: json!({}),
+        };
         runtime.execute_procedure(&ev).unwrap();
         assert!(called.load(Ordering::SeqCst));
     }
@@ -954,7 +958,10 @@ mod tests {
     fn execute_procedure_missing_handler_returns_error() {
         let store = CrdtStore::default();
         let runtime = AgensRuntime::new(&store, "actor");
-        let ev = AgensEvent::ModelResponse { id: "r1".to_string(), payload: json!({}) };
+        let ev = AgensEvent::ModelResponse {
+            id: "r1".to_string(),
+            payload: json!({}),
+        };
         let result = runtime.execute_procedure(&ev);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("model_response"));
@@ -995,7 +1002,10 @@ mod tests {
         let store = CrdtStore::default();
         let runtime = AgensRuntime::new(&store, "actor");
         let before = Utc::now();
-        let ev = AgensEvent::Message { id: "dup".to_string(), payload: json!({}) };
+        let ev = AgensEvent::Message {
+            id: "dup".to_string(),
+            payload: json!({}),
+        };
         runtime.emit_event(&ev);
         runtime.emit_event(&ev);
         let polled = runtime.poll_events(before);
@@ -1012,7 +1022,12 @@ mod tests {
         let polled = runtime.poll_events(before);
         assert_eq!(polled.len(), 1);
         match &polled[0] {
-            AgensEvent::StateChange { key, new_value, old_value, .. } => {
+            AgensEvent::StateChange {
+                key,
+                new_value,
+                old_value,
+                ..
+            } => {
                 assert_eq!(key, "mood");
                 assert_eq!(new_value, &json!("happy"));
                 assert!(old_value.is_none());
@@ -1034,7 +1049,11 @@ mod tests {
         // Only the second set should appear (the first is before `before`).
         assert_eq!(polled.len(), 1);
         match &polled[0] {
-            AgensEvent::StateChange { old_value, new_value, .. } => {
+            AgensEvent::StateChange {
+                old_value,
+                new_value,
+                ..
+            } => {
                 assert_eq!(old_value, &Some(json!(1)));
                 assert_eq!(new_value, &json!(2));
             }
@@ -1152,11 +1171,18 @@ mod tests {
 
         // Both calls must return the same deterministic node ID.
         assert_eq!(node_id_1, node_id_2);
-        assert_eq!(node_id_1, format!("{}{}", PRAXIS_CMD_PREFIX, "praxis-ready:a1"));
+        assert_eq!(
+            node_id_1,
+            format!("{}{}", PRAXIS_CMD_PREFIX, "praxis-ready:a1")
+        );
 
         // poll_events must return exactly one event (not two).
         let polled = runtime.poll_events(before);
-        assert_eq!(polled.len(), 1, "idempotent emission must not create duplicate events");
+        assert_eq!(
+            polled.len(),
+            1,
+            "idempotent emission must not create duplicate events"
+        );
         assert_eq!(polled[0], ev);
     }
 
@@ -1168,7 +1194,10 @@ mod tests {
     /// to registered procedure handlers.
     #[test]
     fn praxis_lifecycle_success_sequence() {
-        use std::sync::{atomic::{AtomicUsize, Ordering}, Arc};
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
 
         let store = CrdtStore::default();
         let runtime = AgensRuntime::new(&store, "pluresLM");
@@ -1226,7 +1255,10 @@ mod tests {
     /// Verify the event is polled and handler is called once.
     #[test]
     fn praxis_lifecycle_failure_sequence() {
-        use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+        use std::sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        };
 
         let store = CrdtStore::default();
         let runtime = AgensRuntime::new(&store, "pluresLM");
@@ -1306,7 +1338,11 @@ mod tests {
                     && n.id.starts_with(PRAXIS_CMD_PREFIX)
             })
             .collect();
-        assert_eq!(store_commands.len(), 1, "exactly one praxis command node in store");
+        assert_eq!(
+            store_commands.len(),
+            1,
+            "exactly one praxis command node in store"
+        );
 
         // The second poll with the advanced cursor reflects the re-emit
         // (LWW timestamp update), but the event id is stable.

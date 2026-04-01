@@ -395,17 +395,15 @@ fn init_runtime() -> Runtime {
 
 fn init_logging(cli: &Cli) {
     let log_level = if cli.verbose { "debug" } else { &cli.log_level };
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(log_level));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(log_level));
     fmt().with_env_filter(filter).init();
 }
 
 fn load_payload(data: &str) -> Result<serde_json::Value> {
     if let Some(path) = data.strip_prefix('@') {
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("failed to read file: {}", path))?;
-        serde_json::from_str(&content)
-            .with_context(|| format!("invalid JSON in file: {}", path))
+        let content =
+            fs::read_to_string(path).with_context(|| format!("failed to read file: {}", path))?;
+        serde_json::from_str(&content).with_context(|| format!("invalid JSON in file: {}", path))
     } else {
         serde_json::from_str(data).context("invalid JSON data")
     }
@@ -468,11 +466,12 @@ async fn handle_put(
 
     // Parse and index embedding if provided.
     if let Some(emb_json) = embedding {
-        let emb_values: Vec<f64> = serde_json::from_str(&emb_json)
-            .with_context(|| format!(
+        let emb_values: Vec<f64> = serde_json::from_str(&emb_json).with_context(|| {
+            format!(
                 "embedding must be a JSON array of numbers (e.g. '[0.1,0.2,...]'): {}",
                 emb_json
-            ))?;
+            )
+        })?;
         let emb_f32: Vec<f32> = emb_values.iter().map(|&v| v as f32).collect();
         store.put_with_embedding(id.clone(), actor.clone(), payload.clone(), emb_f32);
     } else {
@@ -486,8 +485,7 @@ async fn handle_put(
         })
         .await?;
 
-    broadcaster
-        .publish(pluresdb_sync::SyncEvent::NodeUpsert { id: id.clone() })?;
+    broadcaster.publish(pluresdb_sync::SyncEvent::NodeUpsert { id: id.clone() })?;
 
     println!("{{\"success\":true,\"id\":\"{}\"}}", id);
     Ok(())
@@ -706,11 +704,7 @@ async fn handle_query(
     Ok(())
 }
 
-async fn handle_search(
-    storage: Arc<dyn StorageEngine>,
-    query: String,
-    limit: usize,
-) -> Result<()> {
+async fn handle_search(storage: Arc<dyn StorageEngine>, query: String, limit: usize) -> Result<()> {
     let nodes = storage.list().await?;
     let query_lower = query.to_lowercase();
 
@@ -953,11 +947,7 @@ async fn handle_config_get(data_dir: Option<&PathBuf>, key: String) -> Result<()
     Ok(())
 }
 
-async fn handle_config_set(
-    data_dir: Option<&PathBuf>,
-    key: String,
-    value: String,
-) -> Result<()> {
+async fn handle_config_set(data_dir: Option<&PathBuf>, key: String, value: String) -> Result<()> {
     let mut config = load_config(data_dir)?;
     config.insert(key.clone(), value.clone());
     save_config(data_dir, &config)?;
@@ -1012,11 +1002,7 @@ async fn handle_backup(
     Ok(())
 }
 
-async fn handle_restore(
-    storage: Arc<dyn StorageEngine>,
-    path: PathBuf,
-    force: bool,
-) -> Result<()> {
+async fn handle_restore(storage: Arc<dyn StorageEngine>, path: PathBuf, force: bool) -> Result<()> {
     if !force {
         print!("Restore will overwrite existing data. Continue? [y/N]: ");
         io::stdout().flush()?;
@@ -1098,10 +1084,7 @@ async fn handle_migrate(db: Option<Arc<Database>>, version: Option<u32>) -> Resu
     Ok(())
 }
 
-async fn handle_stats(
-    storage: Arc<dyn StorageEngine>,
-    detailed: bool,
-) -> Result<()> {
+async fn handle_stats(storage: Arc<dyn StorageEngine>, detailed: bool) -> Result<()> {
     let nodes = storage.list().await?;
     println!("Database Statistics:");
     println!("  Total nodes: {}", nodes.len());
@@ -1132,7 +1115,7 @@ async fn handle_stats(
 /// `NodeRecord`'s payload.  Requires the `sqlite-compat` cargo feature.
 #[cfg(feature = "sqlite-compat")]
 async fn handle_migrate_from_sqlite(source: PathBuf, target: PathBuf) -> Result<()> {
-    use pluresdb_core::{DatabaseOptions, Database, SqlValue, NodeRecord};
+    use pluresdb_core::{Database, DatabaseOptions, NodeRecord, SqlValue};
 
     info!("Migrating from SQLite: {:?} → {:?}", source, target);
 
@@ -1146,10 +1129,13 @@ async fn handle_migrate_from_sqlite(source: PathBuf, target: PathBuf) -> Result<
         "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='crdt_nodes'",
         &[],
     )?;
-    let has_table = table_check.rows.first()
+    let has_table = table_check
+        .rows
+        .first()
         .and_then(|row| row.first())
         .and_then(|v| v.as_i64())
-        .unwrap_or(0) > 0;
+        .unwrap_or(0)
+        > 0;
 
     if !has_table {
         anyhow::bail!("Source database does not contain a 'crdt_nodes' table");
@@ -1163,10 +1149,9 @@ async fn handle_migrate_from_sqlite(source: PathBuf, target: PathBuf) -> Result<
         .with_context(|| format!("Failed to open target sled store at {:?}", sled_db_path))?;
 
     // Read all rows.
-    let rows = src_db.query(
-        "SELECT id, data, embedding FROM crdt_nodes",
-        &[],
-    ).context("Failed to query crdt_nodes")?;
+    let rows = src_db
+        .query("SELECT id, data, embedding FROM crdt_nodes", &[])
+        .context("Failed to query crdt_nodes")?;
 
     let total = rows.rows.len();
     let mut migrated = 0usize;
@@ -1182,16 +1167,21 @@ async fn handle_migrate_from_sqlite(source: PathBuf, target: PathBuf) -> Result<
             }
         };
         let data: serde_json::Value = match row.get(1) {
-            Some(SqlValue::Text(s)) => match serde_json::from_str(s) {
-                Ok(v) => v,
-                Err(e) => {
-                    warn!("migrate-from-sqlite: skipping node '{}' — invalid JSON in data column: {}", id, e);
-                    skipped += 1;
-                    continue;
+            Some(SqlValue::Text(s)) => {
+                match serde_json::from_str(s) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        warn!("migrate-from-sqlite: skipping node '{}' — invalid JSON in data column: {}", id, e);
+                        skipped += 1;
+                        continue;
+                    }
                 }
-            },
+            }
             _ => {
-                warn!("migrate-from-sqlite: skipping node '{}' — missing or non-text data column", id);
+                warn!(
+                    "migrate-from-sqlite: skipping node '{}' — missing or non-text data column",
+                    id
+                );
                 skipped += 1;
                 continue;
             }
@@ -1228,12 +1218,17 @@ async fn handle_migrate_from_sqlite(source: PathBuf, target: PathBuf) -> Result<
             payload: serde_json::to_value(&record)
                 .with_context(|| format!("Failed to serialize node '{}'", id))?,
         };
-        storage.put(stored).await
+        storage
+            .put(stored)
+            .await
             .with_context(|| format!("Failed to write node '{}' to sled", id))?;
         migrated += 1;
     }
 
-    println!("Migration complete: {} migrated, {} skipped, {} total rows", migrated, skipped, total);
+    println!(
+        "Migration complete: {} migrated, {} skipped, {} total rows",
+        migrated, skipped, total
+    );
     if migrated > 0 {
         println!("Target sled store: {:?}", sled_db_path);
     }
@@ -1243,8 +1238,14 @@ async fn handle_migrate_from_sqlite(source: PathBuf, target: PathBuf) -> Result<
 async fn create_api_server(state: AppState, bind: String, port: u16) -> Result<()> {
     let app = Router::new()
         .route("/health", get(health_handler))
-        .route("/api/nodes", get(list_nodes_handler).post(create_node_handler))
-        .route("/api/nodes/:id", get(get_node_handler).delete(delete_node_handler))
+        .route(
+            "/api/nodes",
+            get(list_nodes_handler).post(create_node_handler),
+        )
+        .route(
+            "/api/nodes/:id",
+            get(get_node_handler).delete(delete_node_handler),
+        )
         .route("/api/nodes/:id/embedding", post(node_embedding_handler))
         .route("/api/vector-search", post(vector_search_handler))
         .layer(
@@ -1334,10 +1335,16 @@ async fn create_node_handler(
 
     // If the request body contains a valid "embedding" array, index it in the
     // CRDT store so that POST /api/vector-search can find this node.
-    let embedding: Option<Vec<f32>> = payload
-        .get("embedding")
-        .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_f64()).map(|f| f as f32).collect());
+    let embedding: Option<Vec<f32>> =
+        payload
+            .get("embedding")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_f64())
+                    .map(|f| f as f32)
+                    .collect()
+            });
 
     if let Some(emb) = embedding {
         if !emb.is_empty() && emb.iter().all(|v| v.is_finite()) {
@@ -1350,10 +1357,14 @@ async fn create_node_handler(
         } else {
             // Embedding was provided but invalid; still register the node so it
             // is consistent with storage.
-            state.store.put(id.to_string(), "rest-actor".to_string(), payload.clone());
+            state
+                .store
+                .put(id.to_string(), "rest-actor".to_string(), payload.clone());
         }
     } else {
-        state.store.put(id.to_string(), "rest-actor".to_string(), payload.clone());
+        state
+            .store
+            .put(id.to_string(), "rest-actor".to_string(), payload.clone());
     }
 
     let node = StoredNode {
@@ -1363,9 +1374,9 @@ async fn create_node_handler(
 
     match state.storage.put(node).await {
         Ok(_) => {
-            let _ = state.broadcaster.publish(pluresdb_sync::SyncEvent::NodeUpsert {
-                id: id.to_string(),
-            });
+            let _ = state
+                .broadcaster
+                .publish(pluresdb_sync::SyncEvent::NodeUpsert { id: id.to_string() });
             Ok(Json(json!({
                 "success": true,
                 "id": id
@@ -1381,9 +1392,9 @@ async fn delete_node_handler(
 ) -> Result<Json<Value>, StatusCode> {
     match state.storage.delete(&id).await {
         Ok(_) => {
-            let _ = state.broadcaster.publish(pluresdb_sync::SyncEvent::NodeDelete {
-                id: id.clone(),
-            });
+            let _ = state
+                .broadcaster
+                .publish(pluresdb_sync::SyncEvent::NodeDelete { id: id.clone() });
             Ok(Json(json!({
                 "success": true,
                 "id": id
@@ -1427,7 +1438,9 @@ async fn node_embedding_handler(
         }
     };
 
-    state.store.put_with_embedding(id.clone(), "rest-actor".to_string(), data, emb_f32);
+    state
+        .store
+        .put_with_embedding(id.clone(), "rest-actor".to_string(), data, emb_f32);
 
     Ok(Json(json!({
         "success": true,

@@ -41,8 +41,8 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{BlobStore, StoredNode};
 use crate::wal::WalEntry;
+use crate::{BlobStore, StoredNode};
 
 pub use restorer::ObjectRestorer;
 pub use snapshot::SnapshotManager;
@@ -313,8 +313,14 @@ mod tests {
         let bridge = make_bridge();
         let nodes = sample_nodes(3);
 
-        let manifest1 = bridge.snapshot(nodes.clone(), Some("snap-1".to_string())).await.unwrap();
-        let manifest2 = bridge.snapshot(nodes.clone(), Some("snap-2".to_string())).await.unwrap();
+        let manifest1 = bridge
+            .snapshot(nodes.clone(), Some("snap-1".to_string()))
+            .await
+            .unwrap();
+        let manifest2 = bridge
+            .snapshot(nodes.clone(), Some("snap-2".to_string()))
+            .await
+            .unwrap();
 
         // Same content produces the same chunk hashes (dedup).
         assert_eq!(manifest1.chunks, manifest2.chunks);
@@ -354,7 +360,9 @@ mod tests {
             WalEntry::new(
                 2,
                 "actor-1".to_string(),
-                WalOperation::Delete { id: "n2".to_string() },
+                WalOperation::Delete {
+                    id: "n2".to_string(),
+                },
             ),
         ];
 
@@ -397,7 +405,10 @@ mod tests {
     #[test]
     fn test_manifest_round_trip_bytes() {
         let manifest = Manifest::new(
-            vec![ChunkRef { hash: "a".repeat(64), size: 128 }],
+            vec![ChunkRef {
+                hash: "a".repeat(64),
+                size: 128,
+            }],
             10,
             Some("test".to_string()),
         );

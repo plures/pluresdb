@@ -233,7 +233,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
                     }
                     if ws_tx
                         .send(Message::Text(
-                            String::from_utf8_lossy(&envelope.payload).to_string().into(),
+                            String::from_utf8_lossy(&envelope.payload)
+                                .to_string()
+                                .into(),
                         ))
                         .await
                         .is_err()
@@ -334,9 +336,7 @@ mod tests {
     fn test_relay_state_peer_count_starts_zero() {
         let state = RelayState::new(64);
         assert_eq!(
-            state
-                .peer_count
-                .load(std::sync::atomic::Ordering::Relaxed),
+            state.peer_count.load(std::sync::atomic::Ordering::Relaxed),
             0
         );
         assert!(state.peers.is_empty());
@@ -359,9 +359,7 @@ mod tests {
 
         // Verify initial peer count.
         assert_eq!(
-            state
-                .peer_count
-                .load(std::sync::atomic::Ordering::Relaxed),
+            state.peer_count.load(std::sync::atomic::Ordering::Relaxed),
             0
         );
 

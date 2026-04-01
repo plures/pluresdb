@@ -71,10 +71,7 @@ pub fn sea_encrypt(
     let our_secret = sender_pair.epriv_secret()?;
 
     // ECDH: derive shared secret from our private key and their public key.
-    let shared = ecdh::diffie_hellman(
-        our_secret.to_nonzero_scalar(),
-        their_pub.as_affine(),
-    );
+    let shared = ecdh::diffie_hellman(our_secret.to_nonzero_scalar(), their_pub.as_affine());
     let shared_bytes = shared.raw_secret_bytes();
 
     // Random salt and IV.
@@ -85,7 +82,12 @@ pub fn sea_encrypt(
 
     // PBKDF2-SHA256 key derivation.
     let mut key_bytes = [0u8; KEY_LEN];
-    pbkdf2_hmac::<Sha256>(shared_bytes.as_slice(), &salt, PBKDF2_ITERATIONS, &mut key_bytes);
+    pbkdf2_hmac::<Sha256>(
+        shared_bytes.as_slice(),
+        &salt,
+        PBKDF2_ITERATIONS,
+        &mut key_bytes,
+    );
 
     // AES-256-GCM encryption.
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key_bytes));
@@ -112,10 +114,7 @@ pub fn sea_decrypt(
     let their_pub = crate::key::decode_epub(sender_epub_b64)?;
     let our_secret = recipient_pair.epriv_secret()?;
 
-    let shared = ecdh::diffie_hellman(
-        our_secret.to_nonzero_scalar(),
-        their_pub.as_affine(),
-    );
+    let shared = ecdh::diffie_hellman(our_secret.to_nonzero_scalar(), their_pub.as_affine());
     let shared_bytes = shared.raw_secret_bytes();
 
     let salt = URL_SAFE_NO_PAD
@@ -129,7 +128,12 @@ pub fn sea_decrypt(
         .context("decode ciphertext base64url")?;
 
     let mut key_bytes = [0u8; KEY_LEN];
-    pbkdf2_hmac::<Sha256>(shared_bytes.as_slice(), &salt, PBKDF2_ITERATIONS, &mut key_bytes);
+    pbkdf2_hmac::<Sha256>(
+        shared_bytes.as_slice(),
+        &salt,
+        PBKDF2_ITERATIONS,
+        &mut key_bytes,
+    );
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key_bytes));
     let plaintext = cipher
@@ -240,8 +244,9 @@ mod tests {
         let alice = SeaKeyPair::generate();
         let bob = SeaKeyPair::generate();
         let envelope = sea_encrypt("test", &alice, &bob.epub).unwrap();
-        let iv_bytes =
-            base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(&envelope.iv).unwrap();
+        let iv_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(&envelope.iv)
+            .unwrap();
         assert_eq!(iv_bytes.len(), IV_LEN);
     }
 
@@ -250,8 +255,9 @@ mod tests {
         let alice = SeaKeyPair::generate();
         let bob = SeaKeyPair::generate();
         let envelope = sea_encrypt("test", &alice, &bob.epub).unwrap();
-        let salt_bytes =
-            base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(&envelope.s).unwrap();
+        let salt_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(&envelope.s)
+            .unwrap();
         assert_eq!(salt_bytes.len(), SALT_LEN);
     }
 }
