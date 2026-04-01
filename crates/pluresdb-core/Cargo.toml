@@ -36,6 +36,9 @@ thiserror.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+uuid = { workspace = true, features = ["js"] }
+
 [dev-dependencies]
 criterion = { workspace = true, features = ["html_reports"] }
 tempfile = "3.27"
