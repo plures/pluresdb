@@ -235,7 +235,7 @@ jobs:
           # Push commit and tags with retry logic
           for i in {1..3}; do
             echo "Attempt $i: Pushing commit and tags..."
-            if git push origin main && git push origin --tags; then
+            if git push origin main && git push origin "refs/tags/v$new_version"; then
               echo "✅ Push successful on attempt $i"
               break
             else
@@ -244,12 +244,49 @@ jobs:
                 echo "ERROR: Failed to push after 3 attempts"
                 exit 1
               fi
-              echo "Pulling remote changes before retrying in 5 seconds..."
+              echo "Fetching remote changes before retrying in 5 seconds..."
               sleep 5
-              # Remove local tag, rebase release commit on top of latest remote
-              # changes, then re-tag the rebased HEAD before retrying the push
-              git tag -d "v$new_version"
-              git pull --rebase origin main || { echo "ERROR: Rebase failed — manual intervention required"; exit 1; }
+              # Remove local tag and reset to the current remote HEAD to avoid
+              # rebase conflicts (e.g. concurrent release commits both modifying
+              # CHANGELOG.md).  We regenerate the full release commit on top of
+              # whatever is now on origin/main instead of rebasing.
+              git tag -d "v$new_version" 2>/dev/null || true
+              git fetch origin main || { echo "ERROR: Failed to fetch from origin"; exit 1; }
+              git reset --hard origin/main
+
+              # If a concurrent job already released this exact version (the one
+              # we originally computed before the reset), our trigger commit is
+              # covered and there is nothing left to do.  We intentionally check
+              # the pre-reset $new_version here — after recalculation below the
+              # version may be different (e.g. 2.17.2 vs 2.17.1).
+              if git log --format=%s origin/main | grep -qF "chore(release): $new_version"; then
+                echo "✅ Version $new_version was already released by a concurrent job, skipping"
+                exit 0
+              fi
+
+              # Re-sync to the globally highest tag (may have advanced due to a
+              # concurrent release) and re-calculate the new version.
+              new_global_tag=$(git tag --list 'v[0-9]*' --sort=-v:refname 2>/dev/null | head -1)
+              if [ -n "$new_global_tag" ]; then
+                new_global_base="${new_global_tag#v}"
+                npm version "$new_global_base" --no-git-tag-version --allow-same-version >/dev/null 2>&1
+              fi
+              npm version "$bump" --no-git-tag-version
+              new_version=$(node -p "require('./package.json').version")
+              echo "📦 Retry: will release v$new_version"
+
+              # If the recalculated version already has a tag, another job pushed it.
+              if [ -n "$(git tag -l "v$new_version")" ]; then
+                echo "✅ Tag v$new_version already exists (released by concurrent job), skipping"
+                exit 0
+              fi
+
+              # Regenerate all release artifacts on the new base.
+              sed -i "s/^version = \".*\"/version = \"$new_version\"/" Cargo.toml
+              sed -i "s/\"version\": \".*\"/\"version\": \"$new_version\"/" deno.json
+              npm run update-changelog "$new_version"
+              git add CHANGELOG.md package.json package-lock.json Cargo.toml deno.json
+              git commit --no-verify -m "chore(release): $new_version"
               git tag "v$new_version"
             fi
           done
