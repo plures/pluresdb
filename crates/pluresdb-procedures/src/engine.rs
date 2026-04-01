@@ -107,8 +107,7 @@ impl<'a> ProcedureEngine<'a> {
                     });
                 }
                 Step::Aggregate { func, field } => {
-                    let result =
-                        aggregate::apply_aggregate(&nodes, func, field.as_deref());
+                    let result = aggregate::apply_aggregate(&nodes, func, field.as_deref());
                     return Ok(ProcedureResult {
                         nodes: vec![],
                         aggregate: Some(result),
@@ -117,21 +116,32 @@ impl<'a> ProcedureEngine<'a> {
                 }
                 // Graph steps replace the working node set and continue through the
                 // pipeline, enabling downstream sort / filter / limit / project steps.
-                Step::GraphClusters { algorithm, min_size, min_strength } => {
-                    nodes = graph::graph_clusters(
-                        self.store, algorithm, *min_size, *min_strength,
-                    )?;
+                Step::GraphClusters {
+                    algorithm,
+                    min_size,
+                    min_strength,
+                } => {
+                    nodes = graph::graph_clusters(self.store, algorithm, *min_size, *min_strength)?;
                 }
                 Step::GraphPath { from, to, max_hops } => {
                     nodes = graph::graph_path(self.store, from, to, *max_hops)?;
                 }
-                Step::GraphPagerank { damping, iterations } => {
+                Step::GraphPagerank {
+                    damping,
+                    iterations,
+                } => {
                     nodes = graph::graph_pagerank(self.store, *damping, *iterations)?;
                 }
                 Step::GraphStats => {
                     nodes = graph::graph_stats(self.store)?;
                 }
-                Step::GraphNeighbors { root, depth, min_strength, link_type, bidirectional } => {
+                Step::GraphNeighbors {
+                    root,
+                    depth,
+                    min_strength,
+                    link_type,
+                    bidirectional,
+                } => {
                     nodes = crate::ops::graph::graph_neighbors(
                         self.store,
                         root.as_str(),
@@ -141,7 +151,12 @@ impl<'a> ProcedureEngine<'a> {
                         *bidirectional,
                     );
                 }
-                Step::GraphLinks { from, to, min_strength, link_type } => {
+                Step::GraphLinks {
+                    from,
+                    to,
+                    min_strength,
+                    link_type,
+                } => {
                     nodes = crate::ops::graph::graph_links(
                         self.store,
                         from.as_deref(),
@@ -150,7 +165,10 @@ impl<'a> ProcedureEngine<'a> {
                         link_type.as_deref(),
                     );
                 }
-                Step::AutoLink { algorithms, min_strength } => {
+                Step::AutoLink {
+                    algorithms,
+                    min_strength,
+                } => {
                     // When no algorithms are specified default to all three so
                     // that `auto_link()` is a useful no-arg shorthand.
                     let defaults: Vec<String>;
@@ -174,7 +192,11 @@ impl<'a> ProcedureEngine<'a> {
                         strength,
                     );
                 }
-                Step::ChronicleTrace { root, max_depth, direction } => {
+                Step::ChronicleTrace {
+                    root,
+                    max_depth,
+                    direction,
+                } => {
                     nodes = crate::ops::graph::chronicle_trace(
                         self.store,
                         root.as_str(),
@@ -184,8 +206,12 @@ impl<'a> ProcedureEngine<'a> {
                 }
 
                 // ---- Cognitive architecture steps ----
-
-                Step::VectorSearch { query, limit, min_score, category } => {
+                Step::VectorSearch {
+                    query,
+                    limit,
+                    min_score,
+                    category,
+                } => {
                     nodes = search::apply_vector_search(
                         self.store,
                         query,
@@ -194,18 +220,21 @@ impl<'a> ProcedureEngine<'a> {
                         category.as_deref(),
                     );
                 }
-                Step::TextSearch { query, limit, field } => {
-                    nodes = search::apply_text_search(
-                        self.store,
-                        query,
-                        *limit,
-                        field,
-                    );
+                Step::TextSearch {
+                    query,
+                    limit,
+                    field,
+                } => {
+                    nodes = search::apply_text_search(self.store, query, *limit, field);
                 }
                 Step::Transform { format, max_chars } => {
                     nodes = transform::apply_transform(nodes, format, *max_chars);
                 }
-                Step::Conditional { condition, then_steps, else_steps } => {
+                Step::Conditional {
+                    condition,
+                    then_steps,
+                    else_steps,
+                } => {
                     let take_then = nodes
                         .first()
                         .map(|n| filter::eval_predicate(condition, &n.data))
@@ -271,8 +300,8 @@ impl<'a> ProcedureEngine<'a> {
     /// Parses the string with [`crate::parser::parse_query`] then calls
     /// [`exec`][Self::exec].
     pub fn exec_dsl(&self, query: &str) -> anyhow::Result<ProcedureResult> {
-        let steps = crate::parser::parse_query(query)
-            .map_err(|e| anyhow::anyhow!("parse error: {}", e))?;
+        let steps =
+            crate::parser::parse_query(query).map_err(|e| anyhow::anyhow!("parse error: {}", e))?;
         self.exec(&steps)
     }
 
@@ -457,11 +486,31 @@ mod tests {
     use pluresdb_core::CrdtStore;
 
     fn populate(store: &CrdtStore) {
-        store.put("n1", "actor", serde_json::json!({"category": "decision", "score": 0.9, "status": "open"}));
-        store.put("n2", "actor", serde_json::json!({"category": "note",     "score": 0.2, "status": "open"}));
-        store.put("n3", "actor", serde_json::json!({"category": "decision", "score": 0.5, "status": "closed"}));
-        store.put("n4", "actor", serde_json::json!({"category": "task",     "score": 0.7, "status": "open"}));
-        store.put("n5", "actor", serde_json::json!({"category": "decision", "score": 0.3, "status": "pending"}));
+        store.put(
+            "n1",
+            "actor",
+            serde_json::json!({"category": "decision", "score": 0.9, "status": "open"}),
+        );
+        store.put(
+            "n2",
+            "actor",
+            serde_json::json!({"category": "note",     "score": 0.2, "status": "open"}),
+        );
+        store.put(
+            "n3",
+            "actor",
+            serde_json::json!({"category": "decision", "score": 0.5, "status": "closed"}),
+        );
+        store.put(
+            "n4",
+            "actor",
+            serde_json::json!({"category": "task",     "score": 0.7, "status": "open"}),
+        );
+        store.put(
+            "n5",
+            "actor",
+            serde_json::json!({"category": "decision", "score": 0.3, "status": "pending"}),
+        );
     }
 
     #[test]
@@ -543,7 +592,9 @@ mod tests {
         populate(&store);
         let engine = ProcedureEngine::new(&store, "test");
         let result = engine
-            .exec_dsl(r#"filter(category == "decision") |> sort(by: "score", dir: "desc") |> limit(2)"#)
+            .exec_dsl(
+                r#"filter(category == "decision") |> sort(by: "score", dir: "desc") |> limit(2)"#,
+            )
             .unwrap();
         assert_eq!(result.nodes.len(), 2);
     }
@@ -632,9 +683,15 @@ mod tests {
         populate(&store);
         let engine = ProcedureEngine::new(&store, "test");
         let result = engine
-            .exec(&[Step::AutoLink { algorithms: vec![], min_strength: None }])
+            .exec(&[Step::AutoLink {
+                algorithms: vec![],
+                min_strength: None,
+            }])
             .unwrap();
         // With all three algorithms, some edges must be created (temporal at minimum).
-        assert!(!result.nodes.is_empty(), "expected edges from default algorithms");
+        assert!(
+            !result.nodes.is_empty(),
+            "expected edges from default algorithms"
+        );
     }
 }

@@ -5,13 +5,13 @@
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
+use parking_lot::Mutex;
 use pluresdb_core::{CrdtStore, NodeRecord};
 use pluresdb_procedures::engine::ProcedureEngine;
 use pluresdb_storage::{SledStorage, StorageEngine};
 use pluresdb_sync::{SyncBroadcaster, SyncEvent};
 use std::collections::HashMap;
 use std::sync::Arc;
-use parking_lot::Mutex;
 
 #[cfg(feature = "sqlite-compat")]
 use pluresdb_core::{Database, DatabaseOptions, SqlValue};
@@ -52,10 +52,9 @@ impl PluresDatabase {
         #[cfg(feature = "sqlite-compat")]
         let db = if let Some(path) = db_path {
             let options = DatabaseOptions::with_file(path).create_if_missing(true);
-            Some(Arc::new(
-                Database::open(options)
-                    .map_err(|e| Error::from_reason(format!("Failed to open database: {}", e)))?,
-            ))
+            Some(Arc::new(Database::open(options).map_err(|e| {
+                Error::from_reason(format!("Failed to open database: {}", e))
+            })?))
         } else {
             None
         };
@@ -89,7 +88,11 @@ impl PluresDatabase {
     /// const results = db.vectorSearch([...queryEmbedding], 5, 0.3);
     /// ```
     #[napi(factory)]
-    pub fn new_with_embeddings(model: String, actor_id: Option<String>, db_path: Option<String>) -> Result<Self> {
+    pub fn new_with_embeddings(
+        model: String,
+        actor_id: Option<String>,
+        db_path: Option<String>,
+    ) -> Result<Self> {
         let actor_id = actor_id.unwrap_or_else(|| "node-actor".to_string());
 
         #[cfg(feature = "embeddings")]
@@ -105,10 +108,10 @@ impl PluresDatabase {
 
             // Open persistent storage if db_path provided.
             let storage: Option<Arc<dyn StorageEngine>> = if let Some(ref path) = db_path {
-                let sled_storage = Arc::new(
-                    SledStorage::open(path)
-                        .map_err(|e| Error::from_reason(format!("Failed to open storage: {}", e)))?
-                );
+                let sled_storage =
+                    Arc::new(SledStorage::open(path).map_err(|e| {
+                        Error::from_reason(format!("Failed to open storage: {}", e))
+                    })?);
                 store = store.with_persistence(sled_storage.clone() as Arc<dyn StorageEngine>);
                 Some(sled_storage as Arc<dyn StorageEngine>)
             } else {
@@ -118,10 +121,9 @@ impl PluresDatabase {
             #[cfg(feature = "sqlite-compat")]
             let db = if let Some(ref path) = db_path {
                 let options = DatabaseOptions::with_file(path).create_if_missing(true);
-                Some(Arc::new(
-                    Database::open(options)
-                        .map_err(|e| Error::from_reason(format!("Failed to open database: {}", e)))?
-                ))
+                Some(Arc::new(Database::open(options).map_err(|e| {
+                    Error::from_reason(format!("Failed to open database: {}", e))
+                })?))
             } else {
                 None
             };
@@ -141,7 +143,8 @@ impl PluresDatabase {
             let _ = (model, db_path, actor_id);
             Err(Error::from_reason(
                 "auto-embedding is not available: pluresdb-node was compiled without \
-                 the 'embeddings' cargo feature".to_string()
+                 the 'embeddings' cargo feature"
+                    .to_string(),
             ))
         }
     }
@@ -152,15 +155,17 @@ impl PluresDatabase {
         let store = self.store.clone();
         let broadcaster = self.broadcaster.clone();
         let actor_id = self.actor_id.clone();
-        
+
         let node_id = {
             let store = store.lock();
             store.put(id.clone(), actor_id, data)
         };
-        
+
         // Publish sync event
-        let _ = broadcaster.publish(SyncEvent::NodeUpsert { id: node_id.clone() });
-        
+        let _ = broadcaster.publish(SyncEvent::NodeUpsert {
+            id: node_id.clone(),
+        });
+
         Ok(node_id)
     }
 
@@ -168,12 +173,12 @@ impl PluresDatabase {
     #[napi]
     pub fn get(&self, id: String) -> Result<Option<serde_json::Value>> {
         let store = self.store.clone();
-        
+
         let record = {
             let store = store.lock();
             store.get(id)
         };
-        
+
         match record {
             Some(record) => {
                 // Return the data portion as JSON
@@ -187,21 +192,19 @@ impl PluresDatabase {
     #[napi]
     pub fn get_with_metadata(&self, id: String) -> Result<Option<serde_json::Value>> {
         let store = self.store.clone();
-        
+
         let record = {
             let store = store.lock();
             store.get(id)
         };
-        
+
         match record {
-            Some(record) => {
-                Ok(Some(serde_json::json!({
-                    "id": record.id,
-                    "data": record.data,
-                    "clock": record.clock,
-                    "timestamp": record.timestamp.to_rfc3339(),
-                })))
-            }
+            Some(record) => Ok(Some(serde_json::json!({
+                "id": record.id,
+                "data": record.data,
+                "clock": record.clock,
+                "timestamp": record.timestamp.to_rfc3339(),
+            }))),
             None => Ok(None),
         }
     }
@@ -211,16 +214,17 @@ impl PluresDatabase {
     pub fn delete(&self, id: String) -> Result<()> {
         let store = self.store.clone();
         let broadcaster = self.broadcaster.clone();
-        
+
         {
             let store = store.lock();
-            store.delete(&id)
+            store
+                .delete(&id)
                 .map_err(|e| Error::from_reason(format!("Delete error: {}", e)))?;
         }
-        
+
         // Publish sync event
         let _ = broadcaster.publish(SyncEvent::NodeDelete { id: id.clone() });
-        
+
         Ok(())
     }
 
@@ -228,12 +232,12 @@ impl PluresDatabase {
     #[napi]
     pub fn list(&self) -> Result<Vec<serde_json::Value>> {
         let store = self.store.clone();
-        
+
         let records = {
             let store = store.lock();
             store.list()
         };
-        
+
         // Convert records to JSON objects with id and data
         let result: Vec<serde_json::Value> = records
             .into_iter()
@@ -245,7 +249,7 @@ impl PluresDatabase {
                 })
             })
             .collect();
-        
+
         Ok(result)
     }
 
@@ -253,16 +257,17 @@ impl PluresDatabase {
     #[napi]
     pub fn list_by_type(&self, node_type: String) -> Result<Vec<serde_json::Value>> {
         let store = self.store.clone();
-        
+
         let records = {
             let store = store.lock();
             store.list()
         };
-        
+
         let result: Vec<serde_json::Value> = records
             .into_iter()
             .filter(|record| {
-                record.data
+                record
+                    .data
                     .get("type")
                     .and_then(|v| v.as_str())
                     .map(|t| t == node_type)
@@ -276,7 +281,7 @@ impl PluresDatabase {
                 })
             })
             .collect();
-        
+
         Ok(result)
     }
 
@@ -284,11 +289,18 @@ impl PluresDatabase {
     ///
     /// Requires the `sqlite-compat` cargo feature to be enabled.
     #[napi]
-    pub fn query(&self, sql: String, params: Option<Vec<serde_json::Value>>) -> Result<serde_json::Value> {
+    pub fn query(
+        &self,
+        sql: String,
+        params: Option<Vec<serde_json::Value>>,
+    ) -> Result<serde_json::Value> {
         #[cfg(feature = "sqlite-compat")]
         {
-            let db = self.db.as_ref()
-                .ok_or_else(|| Error::from_reason("SQL queries require a database (provide db_path in constructor)".to_string()))?;
+            let db = self.db.as_ref().ok_or_else(|| {
+                Error::from_reason(
+                    "SQL queries require a database (provide db_path in constructor)".to_string(),
+                )
+            })?;
 
             let sql_params: Vec<SqlValue> = if let Some(p) = params {
                 p.into_iter()
@@ -305,8 +317,9 @@ impl PluresDatabase {
                             serde_json::Value::String(s) => SqlValue::Text(s),
                             serde_json::Value::Bool(b) => SqlValue::Integer(if b { 1 } else { 0 }),
                             serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
-                                SqlValue::Text(serde_json::to_string(&v)
-                                    .map_err(|e| Error::from_reason(format!("Failed to serialize param: {}", e)))?)
+                                SqlValue::Text(serde_json::to_string(&v).map_err(|e| {
+                                    Error::from_reason(format!("Failed to serialize param: {}", e))
+                                })?)
                             }
                         })
                     })
@@ -315,7 +328,8 @@ impl PluresDatabase {
                 vec![]
             };
 
-            let result = db.query(&sql, &sql_params)
+            let result = db
+                .query(&sql, &sql_params)
                 .map_err(|e| Error::from_reason(format!("Query error: {}", e)))?;
 
             return Ok(serde_json::json!({
@@ -330,7 +344,7 @@ impl PluresDatabase {
         {
             let _ = (sql, params);
             Err(Error::from_reason(
-                "SQL queries require the 'sqlite-compat' cargo feature to be enabled".to_string()
+                "SQL queries require the 'sqlite-compat' cargo feature to be enabled".to_string(),
             ))
         }
     }
@@ -342,10 +356,15 @@ impl PluresDatabase {
     pub fn exec(&self, sql: String) -> Result<serde_json::Value> {
         #[cfg(feature = "sqlite-compat")]
         {
-            let db = self.db.as_ref()
-                .ok_or_else(|| Error::from_reason("SQL execution requires a database (provide db_path in constructor)".to_string()))?;
+            let db = self.db.as_ref().ok_or_else(|| {
+                Error::from_reason(
+                    "SQL execution requires a database (provide db_path in constructor)"
+                        .to_string(),
+                )
+            })?;
 
-            let result = db.exec(&sql)
+            let result = db
+                .exec(&sql)
                 .map_err(|e| Error::from_reason(format!("Execution error: {}", e)))?;
 
             return Ok(serde_json::json!({
@@ -358,7 +377,8 @@ impl PluresDatabase {
         {
             let _ = sql;
             Err(Error::from_reason(
-                "SQL execution requires the 'sqlite-compat' cargo feature to be enabled".to_string()
+                "SQL execution requires the 'sqlite-compat' cargo feature to be enabled"
+                    .to_string(),
             ))
         }
     }
@@ -368,12 +388,12 @@ impl PluresDatabase {
     pub fn search(&self, query: String, limit: Option<u32>) -> Result<Vec<serde_json::Value>> {
         let store = self.store.clone();
         let limit = limit.unwrap_or(10) as usize;
-        
+
         let records = {
             let store = store.lock();
             store.list()
         };
-        
+
         let query_lower = query.to_lowercase();
         let mut matches: Vec<(NodeRecord, usize)> = records
             .into_iter()
@@ -387,10 +407,10 @@ impl PluresDatabase {
                 }
             })
             .collect();
-        
+
         matches.sort_by(|a, b| b.1.cmp(&a.1));
         matches.truncate(limit);
-        
+
         let result: Vec<serde_json::Value> = matches
             .into_iter()
             .map(|(record, score)| {
@@ -402,7 +422,7 @@ impl PluresDatabase {
                 })
             })
             .collect();
-        
+
         Ok(result)
     }
 
@@ -490,7 +510,9 @@ impl PluresDatabase {
             store.put_with_embedding(id, actor_id, data, emb_f32)
         };
 
-        let _ = broadcaster.publish(SyncEvent::NodeUpsert { id: node_id.clone() });
+        let _ = broadcaster.publish(SyncEvent::NodeUpsert {
+            id: node_id.clone(),
+        });
 
         Ok(node_id)
     }
@@ -513,15 +535,18 @@ impl PluresDatabase {
     #[napi]
     pub fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f64>>> {
         let store = self.store.lock();
-        let embedder = store.embedder()
-            .ok_or_else(|| Error::from_reason(
-                "embed() requires a database created with newWithEmbeddings()"
-            ))?;
+        let embedder = store.embedder().ok_or_else(|| {
+            Error::from_reason("embed() requires a database created with newWithEmbeddings()")
+        })?;
         let refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
-        let vecs = embedder.embed(&refs)
+        let vecs = embedder
+            .embed(&refs)
             .map_err(|e| Error::from_reason(format!("embedding failed: {}", e)))?;
         // Convert f32 → f64 for JS compatibility
-        Ok(vecs.into_iter().map(|v| v.into_iter().map(|x| x as f64).collect()).collect())
+        Ok(vecs
+            .into_iter()
+            .map(|v| v.into_iter().map(|x| x as f64).collect())
+            .collect())
     }
 
     /// Get the embedding dimension, or null if no embedder is configured.
@@ -595,19 +620,19 @@ impl PluresDatabase {
     #[napi]
     pub fn stats(&self) -> Result<serde_json::Value> {
         let store = self.store.clone();
-        
+
         let records = {
             let store = store.lock();
             store.list()
         };
-        
+
         let mut type_counts: HashMap<String, u32> = HashMap::new();
         for record in &records {
             if let Some(t) = record.data.get("type").and_then(|v| v.as_str()) {
                 *type_counts.entry(t.to_string()).or_insert(0) += 1;
             }
         }
-        
+
         Ok(serde_json::json!({
             "totalNodes": records.len(),
             "typeCounts": type_counts,

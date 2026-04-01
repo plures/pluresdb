@@ -126,17 +126,13 @@ pub fn obj_soul(repo_id: &str, oid: &str) -> Soul {
 /// - One manifest node (lists all ref names and object OIDs).
 /// - One node per [`GitRef`].
 /// - One node per [`GitObject`].
-pub fn encode_manifest_nodes(
-    manifest: &GitManifest,
-) -> Vec<(Soul, serde_json::Value)> {
+pub fn encode_manifest_nodes(manifest: &GitManifest) -> Vec<(Soul, serde_json::Value)> {
     let ts = crate::gun_protocol::now_ms();
     let mut nodes = Vec::new();
 
     // Manifest node: lists ref names and object OIDs.
-    let ref_names: Vec<serde_json::Value> =
-        manifest.refs.iter().map(|r| json!(&r.name)).collect();
-    let obj_oids: Vec<serde_json::Value> =
-        manifest.objects.iter().map(|o| json!(&o.oid)).collect();
+    let ref_names: Vec<serde_json::Value> = manifest.refs.iter().map(|r| json!(&r.name)).collect();
+    let obj_oids: Vec<serde_json::Value> = manifest.objects.iter().map(|o| json!(&o.oid)).collect();
     let manifest_node = GunNode::from_data(
         manifest_soul(&manifest.repo_id),
         [
@@ -149,7 +145,10 @@ pub fn encode_manifest_nodes(
         .collect(),
         ts,
     );
-    nodes.push((manifest_soul(&manifest.repo_id), node_to_value(manifest_node)));
+    nodes.push((
+        manifest_soul(&manifest.repo_id),
+        node_to_value(manifest_node),
+    ));
 
     // One node per ref.
     for r in &manifest.refs {
@@ -164,7 +163,10 @@ pub fn encode_manifest_nodes(
             .collect(),
             ts,
         );
-        nodes.push((ref_soul(&manifest.repo_id, &r.name), node_to_value(ref_node)));
+        nodes.push((
+            ref_soul(&manifest.repo_id, &r.name),
+            node_to_value(ref_node),
+        ));
     }
 
     // One node per object descriptor.
@@ -180,7 +182,10 @@ pub fn encode_manifest_nodes(
             .collect(),
             ts,
         );
-        nodes.push((obj_soul(&manifest.repo_id, &obj.oid), node_to_value(obj_node)));
+        nodes.push((
+            obj_soul(&manifest.repo_id, &obj.oid),
+            node_to_value(obj_node),
+        ));
     }
 
     nodes
@@ -203,13 +208,9 @@ fn node_to_value(node: GunNode) -> serde_json::Value {
 /// `sync` equivalents after a [`Replicator::push_all`][crate::Replicator::push_all]).
 ///
 /// Returns `None` if no manifest node for `repo_id` is present in `nodes`.
-pub fn decode_manifest_nodes(
-    repo_id: &str,
-    nodes: &[(Soul, GunNode)],
-) -> Option<GitManifest> {
+pub fn decode_manifest_nodes(repo_id: &str, nodes: &[(Soul, GunNode)]) -> Option<GitManifest> {
     // Index nodes by soul for O(1) lookup.
-    let by_soul: HashMap<&str, &GunNode> =
-        nodes.iter().map(|(s, n)| (s.as_str(), n)).collect();
+    let by_soul: HashMap<&str, &GunNode> = nodes.iter().map(|(s, n)| (s.as_str(), n)).collect();
 
     // Check manifest node exists.
     let msoul = manifest_soul(repo_id);
@@ -305,7 +306,10 @@ mod tests {
     #[test]
     fn test_soul_helpers() {
         assert_eq!(manifest_soul("repo"), "git:repo:manifest");
-        assert_eq!(ref_soul("repo", "refs/heads/main"), "git:repo:ref:refs/heads/main");
+        assert_eq!(
+            ref_soul("repo", "refs/heads/main"),
+            "git:repo:ref:refs/heads/main"
+        );
         assert_eq!(obj_soul("repo", "abc123"), "git:repo:obj:abc123");
     }
 
@@ -333,7 +337,10 @@ mod tests {
                         HashMap::new()
                     };
                 let ts = crate::gun_protocol::now_ms();
-                (soul.clone(), crate::gun_protocol::GunNode::from_data(soul.as_str(), fields, ts))
+                (
+                    soul.clone(),
+                    crate::gun_protocol::GunNode::from_data(soul.as_str(), fields, ts),
+                )
             })
             .collect();
 
@@ -366,7 +373,10 @@ mod tests {
                         HashMap::new()
                     };
                 let ts = crate::gun_protocol::now_ms();
-                (soul.clone(), crate::gun_protocol::GunNode::from_data(soul.as_str(), fields, ts))
+                (
+                    soul.clone(),
+                    crate::gun_protocol::GunNode::from_data(soul.as_str(), fields, ts),
+                )
             })
             .collect();
 

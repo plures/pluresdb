@@ -68,7 +68,10 @@ mod tests {
 
     #[test]
     fn project_nested_field() {
-        let node = make_node("a", serde_json::json!({ "data": { "text": "hello", "score": 0.9 } }));
+        let node = make_node(
+            "a",
+            serde_json::json!({ "data": { "text": "hello", "score": 0.9 } }),
+        );
         let specs = vec![FieldSpec::Plain("data.text".to_string())];
         let result = apply_project(vec![node], &specs);
         assert_eq!(result[0].data["text"], "hello");

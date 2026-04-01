@@ -66,9 +66,7 @@ pub fn sea_verify(envelope: &SeaSignedEnvelope, pub_key_b64: &str) -> Result<boo
         .context("decode signature base64url")?;
     let sig = Signature::try_from(sig_bytes.as_slice()).context("parse P-256 signature bytes")?;
 
-    Ok(verifying_key
-        .verify(envelope.m.as_bytes(), &sig)
-        .is_ok())
+    Ok(verifying_key.verify(envelope.m.as_bytes(), &sig).is_ok())
 }
 
 /// Sign `data` and return the full GUN SEA wire string (`"SEA{...}"`).

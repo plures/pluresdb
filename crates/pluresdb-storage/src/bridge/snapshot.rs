@@ -9,10 +9,10 @@ use std::time::Duration;
 
 use anyhow::Result;
 use parking_lot::RwLock;
-use tracing::{info, warn, instrument};
+use tracing::{info, instrument, warn};
 
-use crate::StoredNode;
 use super::{Manifest, ObjectBridge};
+use crate::StoredNode;
 
 // ---------------------------------------------------------------------------
 // SnapshotConfig
@@ -106,10 +106,7 @@ impl SnapshotManager {
         let manifest = self.bridge.snapshot(nodes, label).await?;
         let hash = self.bridge.store_manifest(&manifest).await?;
 
-        let record = ManifestRecord {
-            manifest,
-            hash,
-        };
+        let record = ManifestRecord { manifest, hash };
 
         // Append to history, evicting oldest if full.
         {
@@ -208,7 +205,9 @@ mod tests {
         let mgr = make_manager(10);
         assert!(mgr.latest().is_none());
 
-        mgr.snapshot(nodes(4), Some("first".to_string())).await.unwrap();
+        mgr.snapshot(nodes(4), Some("first".to_string()))
+            .await
+            .unwrap();
         let record = mgr.latest().unwrap();
         assert_eq!(record.manifest.node_count, 4);
         assert_eq!(record.manifest.label.as_deref(), Some("first"));

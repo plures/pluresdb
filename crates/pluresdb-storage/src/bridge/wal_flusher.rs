@@ -10,8 +10,8 @@ use anyhow::Result;
 use parking_lot::Mutex;
 use tracing::{debug, info, instrument, warn};
 
-use crate::wal::WalEntry;
 use super::{ChunkRef, ObjectBridge};
+use crate::wal::WalEntry;
 
 // ---------------------------------------------------------------------------
 // WalFlusherConfig

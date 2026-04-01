@@ -118,7 +118,10 @@ mod tests {
             make_node("a", serde_json::json!({})),
             make_node("b", serde_json::json!({})),
         ];
-        assert_eq!(apply_aggregate(&nodes, &AggFn::Count, None), AggResult::Count(2));
+        assert_eq!(
+            apply_aggregate(&nodes, &AggFn::Count, None),
+            AggResult::Count(2)
+        );
     }
 
     #[test]
@@ -193,18 +196,39 @@ mod tests {
     #[test]
     fn aggregate_min_max_avg_empty_returns_null() {
         let nodes: Vec<NodeRecord> = vec![];
-        assert_eq!(apply_aggregate(&nodes, &AggFn::Min, Some("n")), AggResult::Null);
-        assert_eq!(apply_aggregate(&nodes, &AggFn::Max, Some("n")), AggResult::Null);
-        assert_eq!(apply_aggregate(&nodes, &AggFn::Avg, Some("n")), AggResult::Null);
-        assert_eq!(apply_aggregate(&nodes, &AggFn::Sum, Some("n")), AggResult::Null);
+        assert_eq!(
+            apply_aggregate(&nodes, &AggFn::Min, Some("n")),
+            AggResult::Null
+        );
+        assert_eq!(
+            apply_aggregate(&nodes, &AggFn::Max, Some("n")),
+            AggResult::Null
+        );
+        assert_eq!(
+            apply_aggregate(&nodes, &AggFn::Avg, Some("n")),
+            AggResult::Null
+        );
+        assert_eq!(
+            apply_aggregate(&nodes, &AggFn::Sum, Some("n")),
+            AggResult::Null
+        );
     }
 
     #[test]
     fn aggregate_min_max_missing_field_returns_null() {
         // Field "n" absent on all nodes → empty numeric set → Null
         let nodes = vec![make_node("a", serde_json::json!({"other": 5.0}))];
-        assert_eq!(apply_aggregate(&nodes, &AggFn::Min, Some("n")), AggResult::Null);
-        assert_eq!(apply_aggregate(&nodes, &AggFn::Max, Some("n")), AggResult::Null);
-        assert_eq!(apply_aggregate(&nodes, &AggFn::Sum, Some("n")), AggResult::Null);
+        assert_eq!(
+            apply_aggregate(&nodes, &AggFn::Min, Some("n")),
+            AggResult::Null
+        );
+        assert_eq!(
+            apply_aggregate(&nodes, &AggFn::Max, Some("n")),
+            AggResult::Null
+        );
+        assert_eq!(
+            apply_aggregate(&nodes, &AggFn::Sum, Some("n")),
+            AggResult::Null
+        );
     }
 }

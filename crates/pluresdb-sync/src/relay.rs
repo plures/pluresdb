@@ -7,7 +7,7 @@
 //! The relay server is stateless and only acts as a message router - all
 //! data remains end-to-end encrypted and the relay cannot read message contents.
 
-use crate::transport::{Connection, PeerInfo, PeerId, TopicHash, Transport, MessagePayload};
+use crate::transport::{Connection, MessagePayload, PeerId, PeerInfo, TopicHash, Transport};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use tokio::sync::mpsc;
@@ -22,7 +22,7 @@ pub struct RelayTransport {
     /// WebSocket relay server URL (wss://...)
     #[allow(dead_code)]
     relay_url: String,
-    
+
     /// Connection timeout in milliseconds
     #[allow(dead_code)]
     timeout_ms: u64,
@@ -46,7 +46,7 @@ impl Transport for RelayTransport {
         // 1. Connect to the relay server via WebSocket
         // 2. Subscribe to the topic
         // 3. Return a channel that receives Connection objects for matching peers
-        
+
         Err(anyhow!(
             "Relay transport not yet implemented. \
              Use hyperswarm transport or local-only mode instead."
@@ -115,16 +115,16 @@ impl Connection for RelayConnection {
  * impl RelayTransport {
  *     pub async fn connect(&mut self, topic: TopicHash) -> Result<mpsc::Receiver<Box<dyn Connection>>> {
  *         let (tx, rx) = mpsc::channel(100);
- *         
+ *
  *         // Connect to relay server
  *         let url = format!("{}/topic/{}", self.relay_url, hex::encode(topic));
  *         let (ws_stream, _) = connect_async(&url).await?;
- *         
+ *
  *         // Spawn task to handle WebSocket messages
  *         tokio::spawn(async move {
  *             // Parse incoming messages and create connections
  *         });
- *         
+ *
  *         Ok(rx)
  *     }
  * }
@@ -136,20 +136,15 @@ mod tests {
 
     #[test]
     fn test_relay_transport_creation() {
-        let transport = RelayTransport::new(
-            "wss://pluresdb-relay.example.com".to_string(),
-            30000,
-        );
+        let transport = RelayTransport::new("wss://pluresdb-relay.example.com".to_string(), 30000);
         assert_eq!(transport.name(), "relay");
     }
 
     #[tokio::test]
     async fn test_relay_transport_not_implemented() {
-        let mut transport = RelayTransport::new(
-            "wss://pluresdb-relay.example.com".to_string(),
-            30000,
-        );
-        
+        let mut transport =
+            RelayTransport::new("wss://pluresdb-relay.example.com".to_string(), 30000);
+
         // Should return error since relay is not yet implemented
         let topic = [0u8; 32];
         let result = transport.connect(topic).await;

@@ -29,11 +29,7 @@ pub fn apply_vector_search(
     };
     let query_embedding = &embeddings[0];
 
-    let results = store.vector_search(
-        query_embedding,
-        limit.saturating_mul(2),
-        min_score as f32,
-    );
+    let results = store.vector_search(query_embedding, limit.saturating_mul(2), min_score as f32);
 
     let mut nodes: Vec<NodeRecord> = results
         .into_iter()
@@ -89,10 +85,7 @@ pub fn apply_text_search(
     limit: usize,
     field: &str,
 ) -> Vec<NodeRecord> {
-    let terms: Vec<String> = query
-        .split_whitespace()
-        .map(|t| t.to_lowercase())
-        .collect();
+    let terms: Vec<String> = query.split_whitespace().map(|t| t.to_lowercase()).collect();
 
     if terms.is_empty() {
         return Vec::new();

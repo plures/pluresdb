@@ -47,8 +47,7 @@ use crate::CrdtStore;
 /// hashes produced by this library do not collide with those computed by
 /// other applications using the same algorithm.
 const CONTENT_NS: Uuid = Uuid::from_bytes([
-    0x6b, 0xa7, 0xb8, 0x14, 0x9d, 0xad, 0x11, 0xd1, 0x80, 0xb4, 0x00, 0xc0, 0x4f, 0xd4, 0x30,
-    0xc8,
+    0x6b, 0xa7, 0xb8, 0x14, 0x9d, 0xad, 0x11, 0xd1, 0x80, 0xb4, 0x00, 0xc0, 0x4f, 0xd4, 0x30, 0xc8,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -98,7 +97,10 @@ pub fn store_document(
     let title = title.trim();
     let content = content.trim();
     anyhow::ensure!(!title.is_empty(), "store_document: title must not be empty");
-    anyhow::ensure!(!content.is_empty(), "store_document: content must not be empty");
+    anyhow::ensure!(
+        !content.is_empty(),
+        "store_document: content must not be empty"
+    );
     anyhow::ensure!(!actor.is_empty(), "store_document: actor must not be empty");
 
     if let Some(ref meta) = metadata {
@@ -183,9 +185,18 @@ pub fn store_document_chunk(
 ) -> anyhow::Result<String> {
     // --- input validation ---
     let content = content.trim();
-    anyhow::ensure!(!content.is_empty(), "store_document_chunk: content must not be empty");
-    anyhow::ensure!(!parent_id.is_empty(), "store_document_chunk: parent_id must not be empty");
-    anyhow::ensure!(!actor.is_empty(), "store_document_chunk: actor must not be empty");
+    anyhow::ensure!(
+        !content.is_empty(),
+        "store_document_chunk: content must not be empty"
+    );
+    anyhow::ensure!(
+        !parent_id.is_empty(),
+        "store_document_chunk: parent_id must not be empty"
+    );
+    anyhow::ensure!(
+        !actor.is_empty(),
+        "store_document_chunk: actor must not be empty"
+    );
     anyhow::ensure!(
         store.get(parent_id).is_some(),
         "store_document_chunk: parent document '{}' not found",
@@ -279,7 +290,10 @@ pub fn link_document_chunks(
         !to_chunk.is_empty(),
         "link_document_chunks: to_chunk must not be empty"
     );
-    anyhow::ensure!(!actor.is_empty(), "link_document_chunks: actor must not be empty");
+    anyhow::ensure!(
+        !actor.is_empty(),
+        "link_document_chunks: actor must not be empty"
+    );
     anyhow::ensure!(
         from_chunk != to_chunk,
         "link_document_chunks: from_chunk and to_chunk must be different"
@@ -437,7 +451,11 @@ pub fn enrich_document_metadata(
 fn find_node_by_content_hash(store: &CrdtStore, hash: &str) -> Option<String> {
     store.list().into_iter().find_map(|n| {
         let h = n.data.get("content_hash")?.as_str()?;
-        if h == hash { Some(n.id) } else { None }
+        if h == hash {
+            Some(n.id)
+        } else {
+            None
+        }
     })
 }
 
@@ -461,8 +479,8 @@ fn count_sentences(text: &str) -> usize {
 const STOP_WORDS: &[&str] = &[
     "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
     "from", "is", "it", "its", "this", "that", "be", "as", "are", "was", "were", "has", "have",
-    "had", "not", "no", "so", "if", "do", "did", "he", "she", "we", "you", "they", "i", "me",
-    "my", "your", "our", "their", "his", "her", "up", "out", "will", "can", "may", "all",
+    "had", "not", "no", "so", "if", "do", "did", "he", "she", "we", "you", "they", "i", "me", "my",
+    "your", "our", "their", "his", "her", "up", "out", "will", "can", "may", "all",
 ];
 
 /// Return the top `limit` most frequent non-stop-word tokens from `text`,
@@ -476,7 +494,9 @@ fn extract_top_keywords(text: &str, limit: usize) -> Vec<String> {
     use std::collections::HashMap;
 
     let mut freq: HashMap<String, usize> = HashMap::new();
-    for word in text.split(|c: char| c.is_whitespace() || (c.is_ascii_punctuation() && c != '\'' && c != '-')) {
+    for word in text
+        .split(|c: char| c.is_whitespace() || (c.is_ascii_punctuation() && c != '\'' && c != '-'))
+    {
         let lower = word.to_lowercase();
         let w = lower.trim_matches(|c: char| !c.is_alphanumeric());
         // Skip short tokens (single chars, "be", "go", etc.) — rarely meaningful as keywords.
@@ -569,8 +589,8 @@ mod tests {
     #[test]
     fn store_document_rejects_non_object_metadata() {
         let store = CrdtStore::default();
-        let err =
-            store_document(&store, "a", "T", "content", Some(serde_json::json!([1, 2]))).unwrap_err();
+        let err = store_document(&store, "a", "T", "content", Some(serde_json::json!([1, 2])))
+            .unwrap_err();
         assert!(err.to_string().contains("metadata"));
     }
 
@@ -609,8 +629,7 @@ mod tests {
     #[test]
     fn store_document_chunk_rejects_missing_parent() {
         let store = CrdtStore::default();
-        let err =
-            store_document_chunk(&store, "a", "nonexistent", "chunk", 0).unwrap_err();
+        let err = store_document_chunk(&store, "a", "nonexistent", "chunk", 0).unwrap_err();
         assert!(err.to_string().contains("not found"));
     }
 
@@ -715,8 +734,7 @@ mod tests {
     #[test]
     fn enrich_document_metadata_adds_fields() {
         let store = CrdtStore::default();
-        let id =
-            store_document(&store, "a", "Doc", "Hello world. Foo bar baz.", None).unwrap();
+        let id = store_document(&store, "a", "Doc", "Hello world. Foo bar baz.", None).unwrap();
         let meta = enrich_document_metadata(&store, "a", &id).unwrap();
 
         assert_eq!(meta["word_count"], 5);

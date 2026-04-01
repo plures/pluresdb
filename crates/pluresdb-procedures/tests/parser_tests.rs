@@ -178,7 +178,11 @@ fn parse_all_agg_functions() {
     for func_str in &["count", "sum", "avg", "min", "max", "distinct", "collect"] {
         let dsl = format!("aggregate({})", func_str);
         let steps = parse_query(&dsl).unwrap();
-        assert!(matches!(steps[0], Step::Aggregate { .. }), "failed for: {}", func_str);
+        assert!(
+            matches!(steps[0], Step::Aggregate { .. }),
+            "failed for: {}",
+            func_str
+        );
     }
 }
 
@@ -191,7 +195,8 @@ fn parse_pipe_chain_5_steps() {
 
 #[test]
 fn parse_multiline_with_whitespace() {
-    let dsl = "filter(category == \"decision\")\n|>\nsort(by: \"score\", dir: \"desc\")\n|>\nlimit(10)";
+    let dsl =
+        "filter(category == \"decision\")\n|>\nsort(by: \"score\", dir: \"desc\")\n|>\nlimit(10)";
     let steps = parse_query(dsl).unwrap();
     assert_eq!(steps.len(), 3);
 }
@@ -223,7 +228,10 @@ fn parse_filter_with_negative_float() {
 fn parse_string_with_backslash_and_quote_escapes() {
     // Basic escapes already in the grammar: \" and \\
     let steps = parse_query(r#"filter(path == "a\\b\"c")"#).unwrap();
-    if let Step::Filter { predicate: Predicate::Comparison { value, .. } } = &steps[0] {
+    if let Step::Filter {
+        predicate: Predicate::Comparison { value, .. },
+    } = &steps[0]
+    {
         assert_eq!(*value, IrValue::String(r#"a\b"c"#.to_string()));
     } else {
         panic!("expected Comparison");
@@ -233,7 +241,10 @@ fn parse_string_with_backslash_and_quote_escapes() {
 #[test]
 fn parse_string_with_newline_and_tab_escapes() {
     let steps = parse_query("filter(msg == \"line1\\nline2\\ttab\")").unwrap();
-    if let Step::Filter { predicate: Predicate::Comparison { value, .. } } = &steps[0] {
+    if let Step::Filter {
+        predicate: Predicate::Comparison { value, .. },
+    } = &steps[0]
+    {
         assert_eq!(*value, IrValue::String("line1\nline2\ttab".to_string()));
     } else {
         panic!("expected Comparison");
@@ -244,7 +255,10 @@ fn parse_string_with_newline_and_tab_escapes() {
 fn parse_string_with_backspace_and_formfeed_escapes() {
     // \b and \f are in the grammar since the escape-sequence update
     let steps = parse_query("filter(x == \"\\b\\f\")").unwrap();
-    if let Step::Filter { predicate: Predicate::Comparison { value, .. } } = &steps[0] {
+    if let Step::Filter {
+        predicate: Predicate::Comparison { value, .. },
+    } = &steps[0]
+    {
         assert_eq!(*value, IrValue::String("\u{0008}\u{000C}".to_string()));
     } else {
         panic!("expected Comparison");
@@ -255,7 +269,10 @@ fn parse_string_with_backspace_and_formfeed_escapes() {
 fn parse_string_with_unicode_escape() {
     // \uXXXX Unicode escape
     let steps = parse_query(r#"filter(icon == "\u2665")"#).unwrap();
-    if let Step::Filter { predicate: Predicate::Comparison { value, .. } } = &steps[0] {
+    if let Step::Filter {
+        predicate: Predicate::Comparison { value, .. },
+    } = &steps[0]
+    {
         assert_eq!(*value, IrValue::String("♥".to_string()));
     } else {
         panic!("expected Comparison");

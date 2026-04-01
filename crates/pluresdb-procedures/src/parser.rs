@@ -2,10 +2,10 @@
 //!
 //! Uses the `pest` crate with the grammar defined in `query.pest`.
 
+use pest::error::{Error as PestError, ErrorVariant};
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
-use pest::error::{Error as PestError, ErrorVariant};
 
 use crate::ir::{AggFn, CmpOp, FieldSpec, IrValue, MutateOp, Predicate, SortDir, Step};
 
@@ -72,10 +72,7 @@ fn parse_step(pair: Pair<Rule>) -> Result<Step, ParseError> {
 // ---- filter ----
 
 fn parse_filter(pair: Pair<Rule>) -> Result<Step, ParseError> {
-    let pred = pair
-        .into_inner()
-        .next()
-        .expect("filter has predicate");
+    let pred = pair.into_inner().next().expect("filter has predicate");
     Ok(Step::Filter {
         predicate: parse_predicate(pred)?,
     })
@@ -314,7 +311,12 @@ fn parse_sort(pair: Pair<Rule>) -> Result<Step, ParseError> {
                 };
             }
             Rule::sort_after_kv => {
-                let val_raw = kv.into_inner().next().expect("after string").as_str().to_string();
+                let val_raw = kv
+                    .into_inner()
+                    .next()
+                    .expect("after string")
+                    .as_str()
+                    .to_string();
                 after = Some(val_raw[1..val_raw.len() - 1].to_string());
             }
             _ => {}
@@ -520,7 +522,11 @@ fn parse_graph_clusters(pair: Pair<Rule>) -> Result<Step, ParseError> {
         }
     }
 
-    Ok(Step::GraphClusters { algorithm, min_size, min_strength })
+    Ok(Step::GraphClusters {
+        algorithm,
+        min_size,
+        min_strength,
+    })
 }
 
 // ---- graph_path ----
@@ -589,7 +595,10 @@ fn parse_graph_pagerank(pair: Pair<Rule>) -> Result<Step, ParseError> {
         }
     }
 
-    Ok(Step::GraphPagerank { damping, iterations })
+    Ok(Step::GraphPagerank {
+        damping,
+        iterations,
+    })
 }
 // ---- graph_neighbors ----
 
@@ -627,10 +636,7 @@ fn parse_graph_neighbors(pair: Pair<Rule>) -> Result<Step, ParseError> {
                     if n < 0.0 || n.fract() != 0.0 || n > usize::MAX as f64 {
                         return Err(ParseError(pest::error::Error::new_from_span(
                             pest::error::ErrorVariant::CustomError {
-                                message: format!(
-                                    "depth must be a non-negative integer, got {}",
-                                    n
-                                ),
+                                message: format!("depth must be a non-negative integer, got {}", n),
                             },
                             key_pair.as_span(),
                         )));
@@ -670,7 +676,13 @@ fn parse_graph_neighbors(pair: Pair<Rule>) -> Result<Step, ParseError> {
         }
     }
 
-    Ok(Step::GraphNeighbors { root, depth, min_strength, link_type, bidirectional })
+    Ok(Step::GraphNeighbors {
+        root,
+        depth,
+        min_strength,
+        link_type,
+        bidirectional,
+    })
 }
 
 // ---- graph_links ----
@@ -713,7 +725,12 @@ fn parse_graph_links(pair: Pair<Rule>) -> Result<Step, ParseError> {
         }
     }
 
-    Ok(Step::GraphLinks { from, to, min_strength, link_type })
+    Ok(Step::GraphLinks {
+        from,
+        to,
+        min_strength,
+        link_type,
+    })
 }
 
 // ---- auto_link ----
@@ -759,7 +776,10 @@ fn parse_auto_link(pair: Pair<Rule>) -> Result<Step, ParseError> {
         }
     }
 
-    Ok(Step::AutoLink { algorithms, min_strength })
+    Ok(Step::AutoLink {
+        algorithms,
+        min_strength,
+    })
 }
 
 // ---- cognitive architecture steps ----
@@ -810,9 +830,7 @@ fn parse_string_atom(pair: Pair<Rule>) -> String {
 
 fn parse_vector_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
     let mut children = pair.into_inner();
-    let query_pair = children
-        .next()
-        .expect("vector_search query string");
+    let query_pair = children.next().expect("vector_search query string");
     let query = if query_pair.as_rule() == Rule::string {
         // The grammar currently passes a `string` atom; parse it directly to avoid
         // calling `parse_value` on a non-`value` rule (which can panic).
@@ -850,14 +868,17 @@ fn parse_vector_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
         }
     }
 
-    Ok(Step::VectorSearch { query, limit, min_score, category })
+    Ok(Step::VectorSearch {
+        query,
+        limit,
+        min_score,
+        category,
+    })
 }
 
 fn parse_text_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
     let mut children = pair.into_inner();
-    let query_pair = children
-        .next()
-        .expect("text_search query string");
+    let query_pair = children.next().expect("text_search query string");
     let query = if query_pair.as_rule() == Rule::string {
         // The grammar currently passes a `string` atom; parse it directly to avoid
         // calling `parse_value` on a non-`value` rule (which can panic).
@@ -888,7 +909,11 @@ fn parse_text_search(pair: Pair<Rule>) -> Result<Step, ParseError> {
         }
     }
 
-    Ok(Step::TextSearch { query, limit, field })
+    Ok(Step::TextSearch {
+        query,
+        limit,
+        field,
+    })
 }
 
 fn parse_transform(pair: Pair<Rule>) -> Result<Step, ParseError> {
@@ -1096,17 +1121,14 @@ fn parse_value_as_usize(pair: Pair<Rule>) -> Result<usize, ParseError> {
         ))
     })?;
 
-    inner
-        .as_str()
-        .parse::<usize>()
-        .map_err(|_| {
-            ParseError(PestError::new_from_span(
-                ErrorVariant::CustomError {
-                    message: "invalid unsigned integer in value".into(),
-                },
-                inner.as_span(),
-            ))
-        })
+    inner.as_str().parse::<usize>().map_err(|_| {
+        ParseError(PestError::new_from_span(
+            ErrorVariant::CustomError {
+                message: "invalid unsigned integer in value".into(),
+            },
+            inner.as_span(),
+        ))
+    })
 }
 
 // Helper: extract f64 from a value pair
@@ -1122,17 +1144,14 @@ fn parse_value_as_f64(pair: Pair<Rule>) -> Result<f64, ParseError> {
         ))
     })?;
 
-    inner
-        .as_str()
-        .parse::<f64>()
-        .map_err(|_| {
-            ParseError(PestError::new_from_span(
-                ErrorVariant::CustomError {
-                    message: "invalid float in value".into(),
-                },
-                inner.as_span(),
-            ))
-        })
+    inner.as_str().parse::<f64>().map_err(|_| {
+        ParseError(PestError::new_from_span(
+            ErrorVariant::CustomError {
+                message: "invalid float in value".into(),
+            },
+            inner.as_span(),
+        ))
+    })
 }
 
 // Helper: extract String from a value pair (expects a string literal)
@@ -1198,7 +1217,8 @@ mod tests {
 
     #[test]
     fn parse_pipe_chain() {
-        let input = r#"filter(category == "decision") |> sort(by: "updated_at", dir: "desc") |> limit(10)"#;
+        let input =
+            r#"filter(category == "decision") |> sort(by: "updated_at", dir: "desc") |> limit(10)"#;
         let steps = parse_query(input).unwrap();
         assert_eq!(steps.len(), 3);
     }
@@ -1238,10 +1258,9 @@ mod tests {
         let input = "filter(data.score >= 0.5)";
         let steps = parse_query(input).unwrap();
         if let Step::Filter {
-            predicate:
-                Predicate::Comparison {
-                    field, cmp, value, ..
-                },
+            predicate: Predicate::Comparison {
+                field, cmp, value, ..
+            },
         } = &steps[0]
         {
             assert_eq!(field, "data.score");
@@ -1254,7 +1273,13 @@ mod tests {
     fn parse_aggregate_count() {
         let input = "aggregate(count)";
         let steps = parse_query(input).unwrap();
-        assert_eq!(steps[0], Step::Aggregate { func: AggFn::Count, field: None });
+        assert_eq!(
+            steps[0],
+            Step::Aggregate {
+                func: AggFn::Count,
+                field: None
+            }
+        );
     }
 
     #[test]
@@ -1292,7 +1317,12 @@ mod tests {
         let input = r#"graph_clusters(algorithm: "louvain", min_size: 3, min_strength: 0.5)"#;
         let steps = parse_query(input).unwrap();
         assert_eq!(steps.len(), 1);
-        if let Step::GraphClusters { algorithm, min_size, min_strength } = &steps[0] {
+        if let Step::GraphClusters {
+            algorithm,
+            min_size,
+            min_strength,
+        } = &steps[0]
+        {
             assert_eq!(algorithm, "louvain");
             assert_eq!(*min_size, Some(3));
             assert!((min_strength.unwrap() - 0.5).abs() < 1e-9);
@@ -1307,8 +1337,13 @@ mod tests {
     fn parse_graph_neighbors_minimal() {
         let steps = parse_query(r#"graph_neighbors("memory:123", depth: 2)"#).unwrap();
         assert_eq!(steps.len(), 1);
-        if let Step::GraphNeighbors { root, depth, min_strength, link_type, bidirectional } =
-            &steps[0]
+        if let Step::GraphNeighbors {
+            root,
+            depth,
+            min_strength,
+            link_type,
+            bidirectional,
+        } = &steps[0]
         {
             assert_eq!(root, "memory:123");
             assert_eq!(*depth, 2);
@@ -1324,7 +1359,12 @@ mod tests {
     fn parse_graph_clusters_minimal() {
         let input = r#"graph_clusters(algorithm: "semantic")"#;
         let steps = parse_query(input).unwrap();
-        if let Step::GraphClusters { algorithm, min_size, min_strength } = &steps[0] {
+        if let Step::GraphClusters {
+            algorithm,
+            min_size,
+            min_strength,
+        } = &steps[0]
+        {
             assert_eq!(algorithm, "semantic");
             assert!(min_size.is_none());
             assert!(min_strength.is_none());
@@ -1339,8 +1379,13 @@ mod tests {
             r#"graph_neighbors("memory:123", depth: 3, min_strength: 0.8, type: "related", bidirectional: true)"#,
         )
         .unwrap();
-        if let Step::GraphNeighbors { root, depth, min_strength, link_type, bidirectional } =
-            &steps[0]
+        if let Step::GraphNeighbors {
+            root,
+            depth,
+            min_strength,
+            link_type,
+            bidirectional,
+        } = &steps[0]
         {
             assert_eq!(root, "memory:123");
             assert_eq!(*depth, 3);
@@ -1356,7 +1401,13 @@ mod tests {
     fn parse_graph_links_from_only() {
         let steps = parse_query(r#"graph_links(from: "memory:123")"#).unwrap();
         assert_eq!(steps.len(), 1);
-        if let Step::GraphLinks { from, to, min_strength, link_type } = &steps[0] {
+        if let Step::GraphLinks {
+            from,
+            to,
+            min_strength,
+            link_type,
+        } = &steps[0]
+        {
             assert_eq!(from.as_deref(), Some("memory:123"));
             assert!(to.is_none());
             assert!(min_strength.is_none());
@@ -1385,7 +1436,13 @@ mod tests {
             r#"graph_links(from: "n1", to: "n2", min_strength: 0.5, type: "semantic")"#,
         )
         .unwrap();
-        if let Step::GraphLinks { from, to, min_strength, link_type } = &steps[0] {
+        if let Step::GraphLinks {
+            from,
+            to,
+            min_strength,
+            link_type,
+        } = &steps[0]
+        {
             assert_eq!(from.as_deref(), Some("n1"));
             assert_eq!(to.as_deref(), Some("n2"));
             assert_eq!(*min_strength, Some(0.5));
@@ -1410,7 +1467,13 @@ mod tests {
     fn parse_graph_links_empty() {
         let steps = parse_query("graph_links()").unwrap();
         assert_eq!(steps.len(), 1);
-        if let Step::GraphLinks { from, to, min_strength, link_type } = &steps[0] {
+        if let Step::GraphLinks {
+            from,
+            to,
+            min_strength,
+            link_type,
+        } = &steps[0]
+        {
             assert!(from.is_none());
             assert!(to.is_none());
             assert!(min_strength.is_none());
@@ -1424,7 +1487,11 @@ mod tests {
     fn parse_graph_pagerank_full() {
         let input = "graph_pagerank(damping: 0.85, iterations: 50)";
         let steps = parse_query(input).unwrap();
-        if let Step::GraphPagerank { damping, iterations } = &steps[0] {
+        if let Step::GraphPagerank {
+            damping,
+            iterations,
+        } = &steps[0]
+        {
             assert!((damping.unwrap() - 0.85).abs() < 1e-9);
             assert_eq!(*iterations, Some(50));
         } else {
@@ -1436,7 +1503,11 @@ mod tests {
     fn parse_auto_link_empty() {
         let steps = parse_query("auto_link()").unwrap();
         assert_eq!(steps.len(), 1);
-        if let Step::AutoLink { algorithms, min_strength } = &steps[0] {
+        if let Step::AutoLink {
+            algorithms,
+            min_strength,
+        } = &steps[0]
+        {
             assert!(algorithms.is_empty());
             assert!(min_strength.is_none());
         } else {
@@ -1448,7 +1519,11 @@ mod tests {
     fn parse_graph_pagerank_empty() {
         let input = "graph_pagerank()";
         let steps = parse_query(input).unwrap();
-        if let Step::GraphPagerank { damping, iterations } = &steps[0] {
+        if let Step::GraphPagerank {
+            damping,
+            iterations,
+        } = &steps[0]
+        {
             assert!(damping.is_none());
             assert!(iterations.is_none());
         } else {
@@ -1458,8 +1533,7 @@ mod tests {
 
     #[test]
     fn parse_auto_link_with_algorithms() {
-        let steps =
-            parse_query(r#"auto_link(algorithms: ["semantic", "category"])"#).unwrap();
+        let steps = parse_query(r#"auto_link(algorithms: ["semantic", "category"])"#).unwrap();
         if let Step::AutoLink { algorithms, .. } = &steps[0] {
             assert_eq!(algorithms, &["semantic", "category"]);
         } else {
@@ -1485,9 +1559,13 @@ mod tests {
 
     #[test]
     fn parse_auto_link_with_min_strength() {
-        let steps = parse_query(r#"auto_link(algorithms: ["temporal"], min_strength: 0.6)"#)
-            .unwrap();
-        if let Step::AutoLink { algorithms, min_strength } = &steps[0] {
+        let steps =
+            parse_query(r#"auto_link(algorithms: ["temporal"], min_strength: 0.6)"#).unwrap();
+        if let Step::AutoLink {
+            algorithms,
+            min_strength,
+        } = &steps[0]
+        {
             assert_eq!(algorithms, &["temporal"]);
             assert_eq!(*min_strength, Some(0.6));
         } else {
@@ -1507,7 +1585,8 @@ mod tests {
 
     #[test]
     fn parse_graph_neighbors_in_pipeline() {
-        let input = r#"graph_neighbors("memory:123", depth: 2) |> filter(category == "dev") |> limit(10)"#;
+        let input =
+            r#"graph_neighbors("memory:123", depth: 2) |> filter(category == "dev") |> limit(10)"#;
         let steps = parse_query(input).unwrap();
         assert_eq!(steps.len(), 3);
     }
@@ -1561,8 +1640,7 @@ mod tests {
     #[test]
     fn parse_auto_link_algorithm_escape_sequences() {
         // Algorithm strings with escape sequences must be unescaped.
-        let steps =
-            parse_query(r#"auto_link(algorithms: ["sem\u0061ntic"])"#).unwrap();
+        let steps = parse_query(r#"auto_link(algorithms: ["sem\u0061ntic"])"#).unwrap();
         if let Step::AutoLink { algorithms, .. } = &steps[0] {
             assert_eq!(algorithms, &["semantic"]); // \u0061 = 'a'
         } else {

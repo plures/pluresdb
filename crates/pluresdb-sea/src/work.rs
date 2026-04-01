@@ -55,7 +55,10 @@ pub fn sea_work_verify(data: &str, salt_b64: &str, expected_key_b64: &str) -> Re
         .map_err(|e| anyhow::anyhow!("decode salt base64url: {e}"))?;
     let derived = sea_work(data, &salt);
     // Constant-time comparison to avoid timing attacks.
-    Ok(constant_time_eq(derived.as_bytes(), expected_key_b64.as_bytes()))
+    Ok(constant_time_eq(
+        derived.as_bytes(),
+        expected_key_b64.as_bytes(),
+    ))
 }
 
 /// Constant-time byte-slice equality (avoid timing side-channels).

@@ -18,17 +18,19 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+#[cfg(feature = "native")]
 use parking_lot::Mutex;
-use pluresdb_storage::StoredNode;
 #[cfg(feature = "native")]
 use pluresdb_storage::StorageEngine;
+use pluresdb_storage::StoredNode;
 #[cfg(not(feature = "native"))]
 use pluresdb_storage::SyncStorageEngine;
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
 #[cfg(feature = "sqlite-compat")]
 use serde_json::json;
+use serde_json::Value as JsonValue;
 use thiserror::Error;
+#[cfg(feature = "native")]
 use tracing::debug;
 use uuid::Uuid;
 
@@ -38,13 +40,13 @@ use futures::executor::block_on;
 use hnsw_rs::prelude::*;
 
 #[cfg(feature = "sqlite-compat")]
-use std::path::PathBuf;
-#[cfg(feature = "sqlite-compat")]
-use std::time::Duration;
-#[cfg(feature = "sqlite-compat")]
 use rusqlite::types::{Value as SqliteValue, ValueRef};
 #[cfg(feature = "sqlite-compat")]
 use rusqlite::{params_from_iter, Connection, OpenFlags, Transaction};
+#[cfg(feature = "sqlite-compat")]
+use std::path::PathBuf;
+#[cfg(feature = "sqlite-compat")]
+use std::time::Duration;
 
 /// Unique identifier for a stored node.
 pub type NodeId = String;
@@ -522,7 +524,10 @@ impl CrdtStore {
     }
 
     #[cfg(not(feature = "native"))]
-    fn storage_get(storage: &dyn SyncStorageEngine, id: &str) -> anyhow::Result<Option<StoredNode>> {
+    fn storage_get(
+        storage: &dyn SyncStorageEngine,
+        id: &str,
+    ) -> anyhow::Result<Option<StoredNode>> {
         storage.get(id)
     }
 
@@ -571,7 +576,10 @@ impl CrdtStore {
 
     fn unpersist_node(&self, id: &str) -> bool {
         if let Some(storage) = &self.persistence {
-            let exists = Self::storage_get(storage.as_ref(), id).ok().flatten().is_some();
+            let exists = Self::storage_get(storage.as_ref(), id)
+                .ok()
+                .flatten()
+                .is_some();
             if exists {
                 if let Err(e) = Self::storage_delete(storage.as_ref(), id) {
                     tracing::error!("[CrdtStore] unpersist failed for {}: {}", id, e);
@@ -591,12 +599,7 @@ impl CrdtStore {
         serde_json::from_value::<NodeRecord>(stored.payload).ok()
     }
 
-    pub fn put(
-        &self,
-        id: impl Into<NodeId>,
-        actor: impl Into<ActorId>,
-        data: NodeData,
-    ) -> NodeId {
+    pub fn put(&self, id: impl Into<NodeId>, actor: impl Into<ActorId>, data: NodeData) -> NodeId {
         let id = id.into();
         let actor = actor.into();
         self.nodes
@@ -683,6 +686,7 @@ impl CrdtStore {
         id
     }
 
+    #[cfg(feature = "native")]
     fn set_embedding_for_node(&self, node_id: &str, embedding: Vec<f32>) {
         let emb_valid = !embedding.is_empty()
             && embedding.iter().all(|v| v.is_finite())
@@ -1289,6 +1293,7 @@ fn read_row(
 // Text extraction helper
 // ---------------------------------------------------------------------------
 
+#[cfg(feature = "native")]
 fn extract_text_from_data(data: &JsonValue) -> Option<String> {
     match data {
         JsonValue::String(s) => {
@@ -1377,9 +1382,7 @@ impl EmbedText for FastEmbedder {
 }
 
 #[cfg(feature = "embeddings")]
-fn model_id_to_fastembed(
-    model_id: &str,
-) -> anyhow::Result<(fastembed::EmbeddingModel, usize)> {
+fn model_id_to_fastembed(model_id: &str) -> anyhow::Result<(fastembed::EmbeddingModel, usize)> {
     use fastembed::EmbeddingModel;
     match model_id {
         "BAAI/bge-small-en-v1.5" => Ok((EmbeddingModel::BGESmallENV15, 384)),
@@ -1563,12 +1566,7 @@ mod tests {
         let emb_v2: Vec<f32> = vec![0.0, 1.0, 0.0];
 
         store.put_with_embedding("node", "actor", serde_json::json!({"v": 1}), emb_v1);
-        store.put_with_embedding(
-            "node",
-            "actor",
-            serde_json::json!({"v": 2}),
-            emb_v2.clone(),
-        );
+        store.put_with_embedding("node", "actor", serde_json::json!({"v": 2}), emb_v2.clone());
 
         let record = store.get("node").expect("node should exist");
         assert_eq!(record.embedding, Some(emb_v2.clone()));
@@ -1639,11 +1637,7 @@ mod tests {
             }
         }
 
-        fn wait_for_embedding(
-            store: &CrdtStore,
-            node_id: &str,
-            attempts: usize,
-        ) -> NodeRecord {
+        fn wait_for_embedding(store: &CrdtStore, node_id: &str, attempts: usize) -> NodeRecord {
             (0..attempts)
                 .find_map(|_| {
                     std::thread::sleep(std::time::Duration::from_millis(10));
@@ -1974,8 +1968,7 @@ mod tests {
 
         #[test]
         fn database_options_with_embedding_model() {
-            let opts =
-                DatabaseOptions::default().with_embedding_model("BAAI/bge-small-en-v1.5");
+            let opts = DatabaseOptions::default().with_embedding_model("BAAI/bge-small-en-v1.5");
             assert_eq!(
                 opts.embedding_model.as_deref(),
                 Some("BAAI/bge-small-en-v1.5")

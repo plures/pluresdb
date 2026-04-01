@@ -69,7 +69,12 @@ impl QueryBuilder {
     }
 
     /// Append a `sort` step with a cursor for pagination.
-    pub fn sort_after(mut self, by: impl Into<String>, dir: SortDir, after: impl Into<String>) -> Self {
+    pub fn sort_after(
+        mut self,
+        by: impl Into<String>,
+        dir: SortDir,
+        after: impl Into<String>,
+    ) -> Self {
         self.steps.push(Step::Sort {
             by: by.into(),
             dir,
@@ -273,10 +278,14 @@ mod tests {
 
     #[test]
     fn builder_aggregate() {
-        let steps = QueryBuilder::new()
-            .aggregate(AggFn::Count, None)
-            .to_steps();
+        let steps = QueryBuilder::new().aggregate(AggFn::Count, None).to_steps();
         assert_eq!(steps.len(), 1);
-        assert!(matches!(steps[0], Step::Aggregate { func: AggFn::Count, .. }));
+        assert!(matches!(
+            steps[0],
+            Step::Aggregate {
+                func: AggFn::Count,
+                ..
+            }
+        ));
     }
 }

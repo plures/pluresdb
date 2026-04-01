@@ -28,9 +28,9 @@ use tracing::instrument;
 #[cfg(feature = "native")]
 use async_trait::async_trait;
 #[cfg(feature = "native")]
-use std::path::Path;
-#[cfg(feature = "native")]
 use sled::IVec;
+#[cfg(feature = "native")]
+use std::path::Path;
 #[cfg(feature = "native")]
 use tracing::info;
 
@@ -38,15 +38,14 @@ use tracing::info;
 pub use blob::{sha256_hex, validate_hash, BlobStore, FileBlobStore, MemoryBlobStore};
 #[cfg(feature = "native")]
 pub use bridge::{
-    BlobObjectBridge, ChunkRef, Manifest, ObjectBridge, ObjectRestorer, SnapshotManager,
-    WalFlusher,
+    BlobObjectBridge, ChunkRef, Manifest, ObjectBridge, ObjectRestorer, SnapshotManager, WalFlusher,
 };
 #[cfg(feature = "native")]
 pub use encryption::{EncryptionConfig, EncryptionMetadata};
 #[cfg(feature = "native")]
 pub use rad::{RadAdapter, SledRadAdapter};
 #[cfg(feature = "native")]
-pub use replay::{ReplayStats, metadata_pruning, rebuild_from_wal, replay_wal};
+pub use replay::{metadata_pruning, rebuild_from_wal, replay_wal, ReplayStats};
 #[cfg(feature = "native")]
 pub use wal::{DurabilityLevel, WalEntry, WalOperation, WalValidation, WriteAheadLog};
 

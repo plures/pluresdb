@@ -71,9 +71,7 @@ impl RadAdapter for MemoryStorage {
             .list()
             .await?
             .into_iter()
-            .filter(|n| {
-                n.id.as_str() >= start && end.is_none_or(|e| n.id.as_str() < e)
-            })
+            .filter(|n| n.id.as_str() >= start && end.is_none_or(|e| n.id.as_str() < e))
             .collect();
         nodes.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(nodes)
@@ -124,11 +122,7 @@ impl RadAdapter for SledRadAdapter {
                 .db()
                 .range(start.as_bytes()..e.as_bytes())
                 .collect::<Vec<_>>(),
-            None => self
-                .0
-                .db()
-                .range(start.as_bytes()..)
-                .collect::<Vec<_>>(),
+            None => self.0.db().range(start.as_bytes()..).collect::<Vec<_>>(),
         };
         let mut nodes = Vec::new();
         for entry in iter {
@@ -219,11 +213,7 @@ mod tests {
     #[tokio::test]
     async fn test_prefix_scan_empty_returns_all() {
         let storage = MemoryStorage::default();
-        populate(
-            &storage,
-            &[("x", json!(1)), ("y", json!(2))],
-        )
-        .await;
+        populate(&storage, &[("x", json!(1)), ("y", json!(2))]).await;
         let all = storage.prefix_scan("").await.unwrap();
         assert_eq!(all.len(), 2);
     }

@@ -122,12 +122,9 @@ mod tests {
             }
         }
 
-        fn schema_version_for(
-            &self,
-            _id: &NodeId,
-            data: &NodeData,
-        ) -> Option<&'static str> {
-            if data.get("_type")
+        fn schema_version_for(&self, _id: &NodeId, data: &NodeData) -> Option<&'static str> {
+            if data
+                .get("_type")
                 .and_then(|t| t.as_str())
                 .map_or(false, |t| t.starts_with("pluresLM:"))
             {
@@ -181,7 +178,9 @@ mod tests {
         let p = NoOpPlugin;
         assert_eq!(p.plugin_id(), "no-op");
         assert!(p.validate_node(&"id".to_string(), &json!({})).is_ok());
-        assert!(p.schema_version_for(&"id".to_string(), &json!({})).is_none());
+        assert!(p
+            .schema_version_for(&"id".to_string(), &json!({}))
+            .is_none());
     }
 
     #[test]

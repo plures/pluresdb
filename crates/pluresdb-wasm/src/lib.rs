@@ -63,9 +63,9 @@ impl PluresDBBrowser {
     ) -> Result<String, JsValue> {
         let json: serde_json::Value =
             from_value(data).map_err(|e| JsValue::from_str(&e.to_string()))?;
-        let node_id =
-            self.store
-                .put_with_embedding(id, &self.actor_id, json, embedding);
+        let node_id = self
+            .store
+            .put_with_embedding(id, &self.actor_id, json, embedding);
         Ok(node_id)
     }
 
@@ -97,17 +97,15 @@ impl PluresDBBrowser {
         limit: usize,
         min_score: Option<f32>,
     ) -> Result<JsValue, JsValue> {
-        let results =
-            self.store
-                .vector_search(&query_embedding, limit, min_score.unwrap_or(0.0));
+        let results = self
+            .store
+            .vector_search(&query_embedding, limit, min_score.unwrap_or(0.0));
         // VectorSearchResult doesn't derive Serialize, so build JS array manually.
         let arr = js_sys::Array::new();
         for r in results {
             let obj = js_sys::Object::new();
-            let record_js =
-                to_value(&r.record).map_err(|e| JsValue::from_str(&e.to_string()))?;
-            js_sys::Reflect::set(&obj, &JsValue::from_str("record"), &record_js)
-                .map_err(|e| e)?;
+            let record_js = to_value(&r.record).map_err(|e| JsValue::from_str(&e.to_string()))?;
+            js_sys::Reflect::set(&obj, &JsValue::from_str("record"), &record_js).map_err(|e| e)?;
             js_sys::Reflect::set(
                 &obj,
                 &JsValue::from_str("score"),
