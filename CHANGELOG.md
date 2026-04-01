@@ -1,3 +1,7 @@
+## [3.1.0] — 2026-04-01
+
+- feat: unify PluresDB to Rust-first v3.0.0 (#281) (b629e22)
+
 ## [2.17.4] — 2026-04-01
 
 - fix: lifecycle v4.4 — catch self-approval error, don't crash on own PRs (b8c9419)
