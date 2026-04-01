@@ -1,3 +1,7 @@
+## [2.17.3] — 2026-04-01
+
+- fix: lifecycle v4.3 — guard notify step, escape PR title in JSON (a5c3b98)
+
 ## [2.17.2] - 2026-04-01
 
 ### Fixed
