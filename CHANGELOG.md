@@ -1,3 +1,7 @@
+## [2.16.10] — 2026-04-01
+
+- fix(ci): skip PR title lint for draft PRs to prevent spurious failures (#276) (9aa58f5)
+
 ## [2.16.9] - 2026-03-31
 
 ### Fixed
