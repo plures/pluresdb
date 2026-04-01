@@ -9,30 +9,26 @@ description = "Core CRDTs, data structures, and query primitives for PluresDB."
 keywords = ["database", "crdt", "local-first"]
 
 [features]
+default = ["native"]
+
+## Native target support (threading, HNSW, async storage, embedding worker).
+native = ["dep:hnsw_rs", "dep:futures", "pluresdb-storage/native"]
+
 ## Enable automatic text-embedding support via fastembed (ONNX Runtime backend).
-##
-## When this feature is active the `FastEmbedder` type becomes available and
-## `CrdtStore::put()` will automatically embed text content when an embedder
-## has been attached via `CrdtStore::with_embedder()`.
-embeddings = ["dep:fastembed"]
+embeddings = ["dep:fastembed", "native"]
 
 ## Enable legacy SQLite compatibility layer.
-##
-## When this feature is active, the `Database`, `SqlValue`, `QueryResult`,
-## `ExecutionResult`, `DatabasePath`, `DatabaseOptions`, and `DatabaseError`
-## types are available.  The `rusqlite` C library is only compiled when this
-## feature is enabled.
-sqlite-compat = ["dep:rusqlite"]
+sqlite-compat = ["dep:rusqlite", "native"]
 
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
 dashmap.workspace = true
 fastembed = { version = "5.13.0", optional = true }
-futures = { workspace = true }
-hnsw_rs.workspace = true
+futures = { workspace = true, optional = true }
+hnsw_rs = { workspace = true, optional = true }
 parking_lot.workspace = true
-pluresdb-storage = { path = "../pluresdb-storage" }
+pluresdb-storage = { path = "../pluresdb-storage", default-features = false }
 rusqlite = { version = "0.39", features = ["bundled", "chrono"], optional = true }
 serde.workspace = true
 serde_json.workspace = true
@@ -51,4 +47,3 @@ harness = false
 [[bench]]
 name = "sql_benchmarks"
 harness = false
-

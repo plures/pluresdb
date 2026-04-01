@@ -1,9 +1,0 @@
-dist/
-node_modules/
-target/
-web/svelte/.svelte-kit/
-web/svelte/build/
-web/dist/
-temp-kv/
-coverage/
-**/*.d.ts
