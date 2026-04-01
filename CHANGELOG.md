@@ -1,3 +1,7 @@
+## [2.17.1] — 2026-04-01
+
+- fix: lifecycle v4.1 — process all PRs independently, add Path F debug logging (4bfc41d)
+
 ## [2.17.0] — 2026-04-01
 
 - feat: lifecycle v4 — merge all PRs, Copilot default reviewer, no nudges (ac36328)
