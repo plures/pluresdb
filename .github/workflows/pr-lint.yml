@@ -16,10 +16,24 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           IS_DRAFT: ${{ github.event.pull_request.draft }}
+          AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
         run: |
-          # Skip check for draft PRs — they are explicitly WIP
+          # Skip check for draft PRs — they are explicitly WIP.
+          # Rationale: requiring a conventional title on draft PRs creates a
+          # feedback loop where auto-generated "[WIP]" titles trigger a CI
+          # failure, which spawns a fix issue, which opens another "[WIP]" PR,
+          # which fails again.  Defer the check until the PR is ready for review.
           if [ "$IS_DRAFT" = "true" ]; then
             echo "⏭️  Draft PR — skipping title check (update title before marking ready for review)."
+            exit 0
+          fi
+
+          # Skip check for bot-authored PRs (e.g. Copilot SWE agent).
+          # Bots cannot easily rename their auto-generated PR titles, so
+          # enforcing the rule on them recreates the same feedback loop as
+          # draft PRs above.  Human reviewers should rename before merging.
+          if [ "$AUTHOR_TYPE" = "Bot" ]; then
+            echo "⏭️  Bot-authored PR — skipping title check (rename title before merging)."
             exit 0
           fi
 
