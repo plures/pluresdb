@@ -139,14 +139,22 @@ jobs:
             exit 0
           fi
 
-          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          # Find the globally highest version tag (not just reachable from HEAD).
+          # A previous partial run may have pushed a tag whose release commit is
+          # not reachable from HEAD, causing "tag already exists" on git tag.
+          global_last_tag=$(git tag --list 'v[0-9]*' --sort=-v:refname 2>/dev/null | head -1)
+          # Use the last reachable tag for commit range (changelog entries).
+          reachable_last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           range=""
-          if [ -n "$last_tag" ]; then
-            range="$last_tag..HEAD"
-            echo "📋 Analyzing commits since $last_tag"
+          if [ -n "$reachable_last_tag" ]; then
+            range="$reachable_last_tag..HEAD"
+            echo "📋 Analyzing commits since $reachable_last_tag"
           else
             echo "📋 No previous tags found, will create initial tag"
             range="--all"
+          fi
+          if [ -n "$global_last_tag" ] && [ "$global_last_tag" != "$reachable_last_tag" ]; then
+            echo "⚠️  Global highest tag ($global_last_tag) differs from last reachable tag ($reachable_last_tag) — will sync version baseline"
           fi
 
           subjects=$(git log --format=%s $range)
@@ -179,6 +187,16 @@ jobs:
           
           echo "✅ Determined bump type: $bump"
 
+          # Sync package.json to the globally highest existing tag before bumping.
+          # This ensures the version bump targets a new version that has no existing tag,
+          # avoiding collisions when a previous run created a higher tag than what is
+          # currently in package.json (e.g., after a partial push failure).
+          if [ -n "$global_last_tag" ]; then
+            global_base="${global_last_tag#v}"
+            npm version "$global_base" --no-git-tag-version --allow-same-version 2>/dev/null || true
+            echo "📋 Synced package.json to global base version: $global_base"
+          fi
+
           # Bump version in package.json
           npm version "$bump" --no-git-tag-version
           new_version=$(node -p "require('./package.json').version")
@@ -197,6 +215,18 @@ jobs:
 
           # Create commit and tag
           git commit --no-verify -m "chore(release): $new_version"
+          # If the tag exists locally (fetched from remote as an orphan from a previous
+          # partial run), delete it so we can re-tag on the new release commit.
+          if git tag -l "v$new_version" | grep -qF "v$new_version"; then
+            tag_commit=$(git rev-list -n 1 "v$new_version" 2>/dev/null || echo "")
+            if [ -n "$tag_commit" ] && ! git merge-base --is-ancestor "$tag_commit" HEAD 2>/dev/null; then
+              echo "⚠️  Tag v$new_version exists but points to an unreachable commit — deleting orphaned tag before re-tagging"
+              git tag -d "v$new_version"
+            else
+              echo "❌ ERROR: Tag v$new_version already exists on a reachable commit — version conflict, manual intervention required"
+              exit 1
+            fi
+          fi
           git tag "v$new_version"
 
           # Push commit and tags with retry logic
