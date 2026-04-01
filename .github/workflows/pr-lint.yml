@@ -17,6 +17,12 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           IS_DRAFT: ${{ github.event.pull_request.draft }}
         run: |
+          # Skip check for draft PRs — they are explicitly WIP
+          if [ "$IS_DRAFT" = "true" ]; then
+            echo "⏭️  Draft PR — skipping title check (update title before marking ready for review)."
+            exit 0
+          fi
+
           # Conventional Commits pattern: type(scope)!: description
           # Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert
           PATTERN='^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?!?: .{3,}'
@@ -38,9 +44,5 @@ jobs:
             echo "See CONTRIBUTING.md (Pull Request Process section) for details."
             echo ""
             echo "Got: $PR_TITLE"
-            if [ "$IS_DRAFT" = "true" ]; then
-              echo ""
-              echo "Note: this PR is already a draft. Please update its title before marking it ready for review."
-            fi
             exit 1
           fi
