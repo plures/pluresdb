@@ -193,7 +193,10 @@ jobs:
           # currently in package.json (e.g., after a partial push failure).
           if [ -n "$global_last_tag" ]; then
             global_base="${global_last_tag#v}"
-            npm version "$global_base" --no-git-tag-version --allow-same-version 2>/dev/null || true
+            if ! npm version "$global_base" --no-git-tag-version --allow-same-version; then
+              echo "Failed to sync package.json to global base version: $global_base"
+              exit 1
+            fi
             echo "📋 Synced package.json to global base version: $global_base"
           fi
 
