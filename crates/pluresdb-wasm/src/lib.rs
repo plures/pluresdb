@@ -105,13 +105,13 @@ impl PluresDBBrowser {
         for r in results {
             let obj = js_sys::Object::new();
             let record_js = to_value(&r.record).map_err(|e| JsValue::from_str(&e.to_string()))?;
-            js_sys::Reflect::set(&obj, &JsValue::from_str("record"), &record_js).map_err(|e| e)?;
+            js_sys::Reflect::set(&obj, &JsValue::from_str("record"), &record_js)?;
             js_sys::Reflect::set(
                 &obj,
                 &JsValue::from_str("score"),
                 &JsValue::from_f64(r.score as f64),
             )
-            .map_err(|e| e)?;
+            ?;
             arr.push(&obj);
         }
         Ok(arr.into())
