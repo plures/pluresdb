@@ -76,10 +76,11 @@ jobs:
               const isCopilotPR = pr.user.login === 'Copilot' || pr.user.type === 'Bot';
               const sha = pr.head.sha;
 
-              // Check CI status
+              // Check CI status — only count CI workflow checks, not release/publish jobs
               const checks = await github.rest.checks.listForRef({ owner, repo, ref: sha });
+              const skipChecks = ['lifecycle', 'queue-advance', 'Copilot code review', 'Publish to npm', 'Conventional commit title'];
               const relevant = checks.data.check_runs.filter(c =>
-                !['lifecycle', 'queue-advance', 'Copilot code review'].includes(c.name)
+                !skipChecks.includes(c.name) && !c.name.startsWith('Build -')
               );
               const allDone = relevant.length === 0 || relevant.every(c => c.status === 'completed');
               const allGreen = allDone && (relevant.length === 0 || relevant.every(c =>
