@@ -17,7 +17,11 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           IS_DRAFT: ${{ github.event.pull_request.draft }}
         run: |
-          # Skip check for draft PRs — they are explicitly WIP
+          # Skip check for draft PRs — they are explicitly WIP.
+          # Rationale: requiring a conventional title on draft PRs creates a
+          # feedback loop where auto-generated "[WIP]" titles trigger a CI
+          # failure, which spawns a fix issue, which opens another "[WIP]" PR,
+          # which fails again.  Defer the check until the PR is ready for review.
           if [ "$IS_DRAFT" = "true" ]; then
             echo "⏭️  Draft PR — skipping title check (update title before marking ready for review)."
             exit 0
