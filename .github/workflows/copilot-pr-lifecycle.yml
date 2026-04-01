@@ -70,7 +70,7 @@ jobs:
             );
             const allPRs = openPRs.data;
             console.log(`Open PRs: ${allPRs.length} total, ${copilotPRs.length} Copilot`);
-            let prHandled = false;
+            let copilotPRBusy = false; // Only blocks Phase 2 if a Copilot PR needs attention
 
             for (const pr of allPRs) {
               const isCopilotPR = pr.user.login === 'Copilot' || pr.user.type === 'Bot';
@@ -102,7 +102,7 @@ jobs:
                   const applied = await applySuggestions(github, owner, repo, pr);
                   if (applied) {
                     console.log(`📝 Applied suggestions on PR #${pr.number} — waiting for CI re-run`);
-                    prHandled = true;
+                    copilotPRBusy = true;
                     continue;
                   }
                 }
@@ -122,7 +122,7 @@ jobs:
                   console.log(`✅ Merged PR #${pr.number} (author: ${pr.user.login})`);
                 } catch (e) {
                   console.log(`⚠️ Merge failed for #${pr.number}: ${e.message}`);
-                  prHandled = true;
+                  if (isCopilotPR) copilotPRBusy = true;
                   continue;
                 }
                 continue;
@@ -147,7 +147,7 @@ jobs:
                     console.log(`⚠️ Could not request review on #${pr.number}: ${e.message}`);
                   }
                 }
-                prHandled = true;
+                if (isCopilotPR) copilotPRBusy = true;
                 continue;
               }
 
@@ -184,26 +184,29 @@ jobs:
                   } catch (e) {}
                   console.log(`🐛 Created CI fix issue #${issue.data.number} for PR #${pr.number}`);
                 }
-                prHandled = true;
+                copilotPRBusy = true;
                 continue;
               }
 
               // ── Path D: CI still running — wait ──
               if (!allDone) {
                 console.log(`⏳ PR #${pr.number} waiting (CI running)`);
-                prHandled = true;
+                if (isCopilotPR) copilotPRBusy = true;
                 continue;
               }
 
-              // ── Path E: Non-Copilot PR with CI failures — skip (human handles) ──
+              // ── Path E: Non-Copilot PR with CI failures — log and skip ──
               if (!isCopilotPR && failing.length > 0) {
-                console.log(`⏭️ PR #${pr.number} (${pr.user.login}) has CI failures — skipping (human-owned)`);
+                console.log(`⏭️ PR #${pr.number} (${pr.user.login}) has CI failures — skipping`);
                 continue;
               }
+
+              // ── Path F: No path matched — log state for debugging ──
+              console.log(`❓ PR #${pr.number} (${pr.user.login}) unhandled: CI done=${allDone}, green=${allGreen}, reviewed=${reviewComplete}, failing=${failing.length}`);
             }
 
-            // ── Phase 2: No blocking PRs → assign next issue to Copilot ──
-            if (prHandled) return;
+            // ── Phase 2: No blocking Copilot PRs → assign next issue ──
+            if (copilotPRBusy) return;
 
             // Check if Copilot already has work
             const allIssues = await github.rest.issues.listForRepo({
