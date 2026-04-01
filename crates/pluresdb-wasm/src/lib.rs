@@ -110,8 +110,7 @@ impl PluresDBBrowser {
                 &obj,
                 &JsValue::from_str("score"),
                 &JsValue::from_f64(r.score as f64),
-            )
-            ?;
+            )?;
             arr.push(&obj);
         }
         Ok(arr.into())
