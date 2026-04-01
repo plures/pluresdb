@@ -77,28 +77,76 @@ export type CrdtOperation =
   | { type: 'put'; id: NodeId; actor: ActorId; data: unknown }
   | { type: 'delete'; id: NodeId };
 
+/** Simplified node data returned by list() and search operations. */
+export interface NodeListItem {
+  /** Unique node identifier. */
+  id: NodeId;
+  /** Arbitrary JSON payload stored with this node. */
+  data: unknown;
+  /** ISO 8601 timestamp of the last write that touched this node. */
+  timestamp: string;
+  /** Optional: Similarity score (for vector_search results). */
+  score?: number;
+}
+
 /** The main PluresDB database interface. */
 export interface PluresDB {
-  /** Insert or update a node using CRDT semantics. */
+  /** Insert or update a node using CRDT semantics. Returns the node ID. */
   put(id: string, data: unknown): string;
   
-  /** Insert or update a node with an embedding vector. */
+  /** Insert or update a node with an embedding vector. Returns the node ID. */
   putWithEmbedding(id: string, data: unknown, embedding: number[]): string;
   
-  /** Fetch a node by identifier. */
-  get(id: string): NodeRecord | null;
+  /** Fetch a node by identifier. Returns only the data payload. */
+  get(id: string): unknown | null;
+  
+  /** Fetch a node with full metadata (clock, timestamp). */
+  getWithMetadata(id: string): NodeRecord | null;
   
   /** Remove a node from the store. */
   delete(id: string): void;
   
   /** List all nodes currently stored. */
-  list(): NodeRecord[];
+  list(): NodeListItem[];
+  
+  /** List nodes filtered by a specific type field value. */
+  listByType(nodeType: string): NodeListItem[];
   
   /** Perform vector similarity search. */
-  vectorSearch(queryEmbedding: number[], limit: number, minScore?: number): VectorSearchResult[];
+  vectorSearch(embedding: number[], limit?: number, threshold?: number): NodeListItem[];
   
-  /** Apply a CRDT operation. */
-  apply(op: CrdtOperation): string | null;
+  /** Search nodes by text content (simple string matching). */
+  search(query: string, limit?: number): NodeListItem[];
+  
+  /** Subscribe to node changes. Returns a subscription ID. */
+  subscribe(): string;
+  
+  /** Embed text using the configured embedding model (only if created with newWithEmbeddings). */
+  embed(texts: string[]): number[][];
+  
+  /** Get the embedding dimension, or null if no embedder is configured. */
+  embeddingDimension(): number | null;
+  
+  /** Get the actor ID for this database instance. */
+  getActorId(): string;
+  
+  /** Execute a DSL query string against the CRDT store. */
+  execDsl(query: string): unknown;
+  
+  /** Execute a JSON IR query against the CRDT store. */
+  execIr(steps: unknown): unknown;
+  
+  /** Build the HNSW vector index from hydrated embeddings. */
+  buildVectorIndex(): number;
+  
+  /** Get database statistics. */
+  stats(): { totalNodes: number; typeCounts: Record<string, number> };
+  
+  /** Execute a SQL query with optional parameters (requires sqlite-compat feature). */
+  query(sql: string, params?: unknown[]): QueryResult;
+  
+  /** Execute SQL statements (requires sqlite-compat feature). */
+  exec(sql: string): ExecutionResult;
 }
 
 /** SQLite-compatible database interface. */

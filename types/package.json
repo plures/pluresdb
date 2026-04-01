@@ -3,6 +3,6 @@
   "version": "3.0.0",
   "description": "TypeScript type definitions for PluresDB",
   "types": "index.d.ts",
-  "files": ["index.d.ts", "wasm.d.ts"],
+  "files": ["index.d.ts", "node.d.ts", "wasm.d.ts"],
   "license": "BSL-1.1"
 }
