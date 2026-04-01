@@ -7,6 +7,8 @@ on:
     types: [submitted]
   check_suite:
     types: [completed]
+  issues:
+    types: [opened, labeled]
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
