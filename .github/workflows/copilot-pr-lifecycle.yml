@@ -63,13 +63,17 @@ jobs:
             const repo = context.repo.repo;
             const botId = 'BOT_kgDOC9w8XQ';
 
-            // ── Phase 1: Process open Copilot PRs ──
+            // ── Phase 1: Process ALL open PRs (not just Copilot) ──
             const openPRs = await github.rest.pulls.list({ owner, repo, state: 'open', per_page: 10 });
-            const copilotPRs = openPRs.data.filter(p => p.user.login === 'Copilot');
+            const copilotPRs = openPRs.data.filter(p =>
+              p.user.login === 'Copilot' || p.user.type === 'Bot'
+            );
+            const allPRs = openPRs.data;
+            console.log(`Open PRs: ${allPRs.length} total, ${copilotPRs.length} Copilot`);
             let prHandled = false;
 
-            for (const pr of copilotPRs) {
-              prHandled = true;
+            for (const pr of allPRs) {
+              const isCopilotPR = pr.user.login === 'Copilot' || pr.user.type === 'Bot';
               const sha = pr.head.sha;
 
               // Check CI status
@@ -91,39 +95,41 @@ jobs:
               const hasApproval = reviews.data.some(r => r.state === 'APPROVED');
               const reviewComplete = copilotReview || hasApproval;
 
-              // ── Path A: CI green + review done → apply suggestions → merge ──
+              // ── Path A: CI green + review done → merge ──
               if (allGreen && reviewComplete) {
-                // Apply pending Copilot review suggestions (C-COP-002)
-                const applied = await applySuggestions(github, owner, repo, pr);
-                if (applied) {
-                  console.log(`📝 Applied suggestions on PR #${pr.number} — waiting for CI re-run`);
-                  return; // CI will re-run, next tick will merge
+                // For Copilot PRs: apply pending suggestions first
+                if (isCopilotPR) {
+                  const applied = await applySuggestions(github, owner, repo, pr);
+                  if (applied) {
+                    console.log(`📝 Applied suggestions on PR #${pr.number} — waiting for CI re-run`);
+                    prHandled = true;
+                    continue;
+                  }
                 }
 
-                // Approve if needed, then merge
+                // Auto-approve if no human approval exists
                 if (!hasApproval) {
                   await github.rest.pulls.createReview({
                     owner, repo, pull_number: pr.number,
                     event: 'APPROVE',
-                    body: 'Auto-approved: CI green + Copilot code review complete + suggestions applied.'
+                    body: 'Auto-approved: CI green + code review complete.'
                   });
                 }
                 try {
                   await github.rest.pulls.merge({
                     owner, repo, pull_number: pr.number, merge_method: 'squash'
                   });
-                  console.log(`✅ Merged PR #${pr.number}`);
-                  // Fall through to Phase 2 to assign next issue
-                  prHandled = false;
+                  console.log(`✅ Merged PR #${pr.number} (author: ${pr.user.login})`);
                 } catch (e) {
                   console.log(`⚠️ Merge failed for #${pr.number}: ${e.message}`);
-                  return;
+                  prHandled = true;
+                  continue;
                 }
                 continue;
               }
 
-              // ── Path B: CI green, no review yet → request review ──
-              if (allGreen && !copilotReview) {
+              // ── Path B: CI green, no review yet → request Copilot review ──
+              if (allGreen && !copilotReview && !hasApproval) {
                 const reviewers = await github.rest.pulls.listRequestedReviewers({
                   owner, repo, pull_number: pr.number
                 });
@@ -131,19 +137,22 @@ jobs:
                   u.login === 'copilot-pull-request-reviewer[bot]' || u.login === 'Copilot'
                 );
                 if (!alreadyRequested) {
-                  await github.rest.pulls.requestReviewers({
-                    owner, repo, pull_number: pr.number,
-                    reviewers: ['copilot-pull-request-reviewer[bot]']
-                  });
-                  console.log(`🔍 Requested Copilot review on PR #${pr.number}`);
-                } else {
-                  console.log(`⏳ Review already requested on PR #${pr.number}`);
+                  try {
+                    await github.rest.pulls.requestReviewers({
+                      owner, repo, pull_number: pr.number,
+                      reviewers: ['copilot-pull-request-reviewer[bot]']
+                    });
+                    console.log(`🔍 Requested Copilot review on PR #${pr.number}`);
+                  } catch (e) {
+                    console.log(`⚠️ Could not request review on #${pr.number}: ${e.message}`);
+                  }
                 }
-                return;
+                prHandled = true;
+                continue;
               }
 
-              // ── Path C: CI failing → create fix issue for Copilot ──
-              if (failing.length > 0) {
+              // ── Path C: CI failing on Copilot PR → create fix issue ──
+              if (isCopilotPR && failing.length > 0) {
                 const failNames = failing.map(f => f.name).join(', ');
                 const existing = await github.rest.issues.listForRepo({
                   owner, repo, state: 'open', labels: 'ci-failure', per_page: 20
@@ -152,7 +161,20 @@ jobs:
                   const issue = await github.rest.issues.create({
                     owner, repo,
                     title: `[ci-feedback] Fix CI failures on PR #${pr.number}`,
-                    body: `PR #${pr.number} has failing CI checks: ${failNames}\n\nPlease fix the failures and push to the PR branch.\n\n@copilot`,
+                    body: [
+                      `## CI Failures on PR #${pr.number}`,
+                      '',
+                      `**PR:** #${pr.number} — ${pr.title}`,
+                      `**Branch:** \`${pr.head.ref}\``,
+                      `**Failing checks:** ${failNames}`,
+                      '',
+                      `### What to do`,
+                      `Fix the failing CI checks and push to branch \`${pr.head.ref}\`.`,
+                      '',
+                      `### Links`,
+                      `- [PR #${pr.number}](${pr.html_url})`,
+                      `- [CI Run](${checks.data.check_runs[0]?.html_url || pr.html_url})`,
+                    ].join('\n'),
                     labels: ['ci-failure', 'bug']
                   });
                   try {
@@ -162,25 +184,67 @@ jobs:
                   } catch (e) {}
                   console.log(`🐛 Created CI fix issue #${issue.data.number} for PR #${pr.number}`);
                 }
-                return;
+                prHandled = true;
+                continue;
               }
 
               // ── Path D: CI still running — wait ──
-              console.log(`⏳ PR #${pr.number} waiting (CI done: ${allDone}, green: ${allGreen}, reviewed: ${!!copilotReview})`);
-              return;
+              if (!allDone) {
+                console.log(`⏳ PR #${pr.number} waiting (CI running)`);
+                prHandled = true;
+                continue;
+              }
+
+              // ── Path E: Non-Copilot PR with CI failures — skip (human handles) ──
+              if (!isCopilotPR && failing.length > 0) {
+                console.log(`⏭️ PR #${pr.number} (${pr.user.login}) has CI failures — skipping (human-owned)`);
+                continue;
+              }
             }
 
-            // ── Phase 2: No open PRs (or just merged) → assign next issue ──
-            if (prHandled) return; // PR exists but not ready — don't assign new work
+            // ── Phase 2: No blocking PRs → assign next issue to Copilot ──
+            if (prHandled) return;
 
+            // Check if Copilot already has work
             const allIssues = await github.rest.issues.listForRepo({
               owner, repo, state: 'open', per_page: 100
             });
-            const copilotBusy = allIssues.data.some(i =>
+            const copilotAssigned = allIssues.data.find(i =>
               !i.pull_request && i.assignees.some(a => a.login === 'Copilot')
             );
-            if (copilotBusy) {
-              console.log('⏸️ Copilot already has an assigned issue');
+
+            // Stall detection: if assigned >5min ago with no PR, unassign and reassign
+            if (copilotAssigned) {
+              const assignedAt = new Date(copilotAssigned.updated_at).getTime();
+              const now = Date.now();
+              const minutesElapsed = (now - assignedAt) / 60000;
+
+              // Check if a PR exists for this issue
+              const hasPR = openPRs.data.some(p =>
+                p.body && p.body.includes(`#${copilotAssigned.number}`)
+              );
+
+              if (!hasPR && minutesElapsed > 5) {
+                console.log(`⚠️ Issue #${copilotAssigned.number} stalled (${Math.round(minutesElapsed)}min, no PR)`);
+                // Unassign Copilot
+                await github.graphql(`
+                  mutation($id: ID!, $assignees: [ID!]!) {
+                    removeAssigneesFromAssignable(input: { assignableId: $id, assigneeIds: $assignees }) {
+                      clientMutationId
+                    }
+                  }
+                `, { id: copilotAssigned.node_id, assignees: [botId] });
+                // Don't comment — just unassign and let it get re-picked below
+                console.log(`🔄 Unassigned Copilot from stalled issue #${copilotAssigned.number}`);
+              } else {
+                console.log(`⏸️ Copilot working on #${copilotAssigned.number} (${Math.round(minutesElapsed)}min)`);
+                return;
+              }
+            }
+
+            // One-PR-per-repo guard
+            if (copilotPRs.length > 0) {
+              console.log(`⏸️ ${copilotPRs.length} Copilot PR(s) still open — not assigning new work`);
               return;
             }
 
@@ -188,11 +252,11 @@ jobs:
 
             // Priority queue: doc debt → bugs → critical → improvement → strategic → milestoned
             const priorities = [
-              { label: '📝 Doc debt', filter: i => i.labels.some(l => l.name === 'documentation'), type: 'Task', msg: '@copilot Update docs per the diff in this issue. Verify against source code.' },
-              { label: '🐛 Bug fix', filter: i => i.labels.some(l => l.name === 'bug' || l.name === 'ci-failure'), type: 'Bug', msg: '@copilot Please fix this issue.' },
-              { label: '🔴 Level-critical', filter: i => i.labels.some(l => l.name === 'critical') && i.labels.some(l => l.name === 'continuous-improvement'), type: 'Bug', msg: '@copilot This is a level-critical issue. The repo health dimension is below its minimum acceptable threshold. Please fix it.' },
-              { label: '📈 Improvement', filter: i => i.labels.some(l => l.name === 'continuous-improvement') && !i.labels.some(l => l.name === 'critical') && !skipPrefixes.some(p => i.title.includes(p)), type: 'Task', msg: '@copilot This is a continuous improvement issue. Please implement the improvement described.' },
-              { label: '🎯 Strategic', filter: i => i.labels.some(l => l.name === 'strategic-gate') && !skipPrefixes.some(p => i.title.includes(p)), type: 'Task', msg: '@copilot This is a strategic gate issue blocking downstream repos. Please implement the fix.' },
+              { label: '📝 Doc debt', filter: i => i.labels.some(l => l.name === 'documentation'), type: 'Task' },
+              { label: '🐛 Bug fix', filter: i => i.labels.some(l => l.name === 'bug' || l.name === 'ci-failure'), type: 'Bug' },
+              { label: '🔴 Level-critical', filter: i => i.labels.some(l => l.name === 'critical') && i.labels.some(l => l.name === 'continuous-improvement'), type: 'Bug' },
+              { label: '📈 Improvement', filter: i => i.labels.some(l => l.name === 'continuous-improvement') && !i.labels.some(l => l.name === 'critical') && !skipPrefixes.some(p => i.title.includes(p)), type: 'Task' },
+              { label: '🎯 Strategic', filter: i => i.labels.some(l => l.name === 'strategic-gate') && !skipPrefixes.some(p => i.title.includes(p)), type: 'Task' },
             ];
 
             const candidates = allIssues.data.filter(i =>
@@ -202,8 +266,8 @@ jobs:
             for (const p of priorities) {
               const match = candidates.find(i => p.filter(i));
               if (match) {
-                await ensureLabelsAndType(github, owner, repo, match, p.type);
-                await assignCopilot(github, owner, repo, match, botId, p.msg);
+                await ensureIssueReady(github, owner, repo, match, p.type);
+                await assignCopilot(github, owner, repo, match, botId);
                 console.log(`${p.label}: assigned #${match.number}: ${match.title}`);
                 return;
               }
@@ -224,8 +288,8 @@ jobs:
                 !skipPrefixes.some(p => i.title.includes(p))
               );
               if (next) {
-                await ensureLabelsAndType(github, owner, repo, next, 'Feature');
-                await assignCopilot(github, owner, repo, next, botId, '@copilot Please implement this issue.');
+                await ensureIssueReady(github, owner, repo, next, 'Feature');
+                await assignCopilot(github, owner, repo, next, botId);
                 console.log(`✅ Feature: assigned #${next.number}: ${next.title}`);
                 return;
               }
@@ -246,7 +310,6 @@ jobs:
               );
               if (suggestionComments.length === 0) return false;
 
-              // Group suggestions by file path
               const fileChanges = new Map();
               for (const comment of suggestionComments) {
                 const match = comment.body.match(/```suggestion\n([\s\S]*?)```/);
@@ -254,7 +317,6 @@ jobs:
 
                 const replacement = match[1];
                 const path = comment.path;
-                // Use original_line (position in the base file), not line (diff position)
                 const line = comment.original_line || comment.line;
                 const startLine = comment.original_start_line || comment.start_line || line;
 
@@ -264,7 +326,6 @@ jobs:
 
               if (fileChanges.size === 0) return false;
 
-              // Build commit with applied suggestions
               const branch = pr.head.ref;
               const ref = await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
               const baseSha = ref.data.object.sha;
@@ -277,10 +338,9 @@ jobs:
                   const content = Buffer.from(fileContent.data.content, 'base64').toString('utf8');
                   const lines = content.split('\n');
 
-                  // Apply in reverse order to preserve line numbers
                   changes.sort((a, b) => b.endLine - a.endLine);
                   for (const change of changes) {
-                    const start = change.startLine - 1; // 0-indexed
+                    const start = change.startLine - 1;
                     const count = change.endLine - change.startLine + 1;
                     const replacementLines = change.replacement.replace(/\n$/, '').split('\n');
                     lines.splice(start, count, ...replacementLines);
@@ -314,23 +374,46 @@ jobs:
               return true;
             }
 
-            // ── Helper: Ensure issue has labels and type (ADR-0004) ──
-            async function ensureLabelsAndType(github, owner, repo, issue, type) {
+            // ── Helper: Ensure issue has body, labels, and type (ADR-0004 v2) ──
+            async function ensureIssueReady(github, owner, repo, issue, type) {
+              // Ensure label exists
               if (issue.labels.length === 0) {
+                const defaultLabel = type === 'Bug' ? 'bug' : 'enhancement';
                 await github.rest.issues.addLabels({
                   owner, repo, issue_number: issue.number,
-                  labels: [type === 'Bug' ? 'bug' : 'enhancement']
+                  labels: [defaultLabel]
                 }).catch(() => {});
               }
+              // Ensure type is set
               try {
                 await github.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
                   owner, repo, issue_number: issue.number, type
                 });
               } catch (e) {}
+              // Ensure body is not empty
+              if (!issue.body || issue.body.trim().length < 20) {
+                const body = [
+                  `## ${issue.title}`,
+                  '',
+                  `**Type:** ${type}`,
+                  `**Labels:** ${issue.labels.map(l => l.name).join(', ') || 'none'}`,
+                  '',
+                  `### Description`,
+                  `Implement the changes described in the title.`,
+                  '',
+                  `### Acceptance Criteria`,
+                  `- [ ] Implementation matches the title description`,
+                  `- [ ] All existing tests pass`,
+                  `- [ ] New tests added where appropriate`,
+                ].join('\n');
+                await github.rest.issues.update({
+                  owner, repo, issue_number: issue.number, body
+                });
+              }
             }
 
-            // ── Helper: Assign Copilot via GraphQL + comment ──
-            async function assignCopilot(github, owner, repo, issue, botId, comment) {
+            // ── Helper: Assign Copilot via GraphQL (no comments, no nudges) ──
+            async function assignCopilot(github, owner, repo, issue, botId) {
               await github.graphql(`
                 mutation($id: ID!, $assignees: [ID!]!) {
                   addAssigneesToAssignable(input: { assignableId: $id, assigneeIds: $assignees }) {
@@ -338,7 +421,4 @@ jobs:
                   }
                 }
               `, { id: issue.node_id, assignees: [botId] });
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: issue.number, body: comment
-              });
             }
