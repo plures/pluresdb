@@ -1,3 +1,11 @@
+## [2.17.2] - 2026-04-01
+
+### Fixed
+
+- prevent "tag already exists" failure in version-bump-and-tag job (#283)
+- lifecycle v4.2 — filter out release/publish checks from CI evaluation
+
+
 ## [2.17.1] — 2026-04-01
 
 - fix: lifecycle v4.1 — process all PRs independently, add Path F debug logging (4bfc41d)
