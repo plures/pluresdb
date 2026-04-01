@@ -252,6 +252,7 @@ jobs:
               # whatever is now on origin/main instead of rebasing.
               git tag -d "v$new_version" 2>/dev/null || true
               git fetch origin main || { echo "ERROR: Failed to fetch from origin"; exit 1; }
+              git fetch origin --tags --force || { echo "ERROR: Failed to fetch tags from origin"; exit 1; }
               git reset --hard origin/main
 
               # If a concurrent job already released this exact version (the one
@@ -260,8 +261,23 @@ jobs:
               # the pre-reset $new_version here — after recalculation below the
               # version may be different (e.g. 2.17.2 vs 2.17.1).
               if git log --format=%s origin/main | grep -qF "chore(release): $new_version"; then
-                echo "✅ Version $new_version was already released by a concurrent job, skipping"
-                exit 0
+                echo "ℹ️ Version $new_version release commit already exists on origin/main"
+                echo "Checking if tag v$new_version exists on remote..."
+                if git ls-remote --tags origin | grep -q "refs/tags/v$new_version"; then
+                  echo "✅ Tag v$new_version already exists on remote (released by concurrent job), skipping"
+                  exit 0
+                fi
+
+                echo "⚠️ Release commit for $new_version exists but tag v$new_version is missing on remote."
+                echo "Recreating tag v$new_version at current HEAD and pushing to remote..."
+                git tag -f "v$new_version"
+                if git push origin "v$new_version"; then
+                  echo "✅ Successfully pushed missing tag v$new_version to remote"
+                  exit 0
+                else
+                  echo "❌ ERROR: Failed to push recreated tag v$new_version to remote"
+                  exit 1
+                fi
               fi
 
               # Re-sync to the globally highest tag (may have advanced due to a
@@ -269,7 +285,10 @@ jobs:
               new_global_tag=$(git tag --list 'v[0-9]*' --sort=-v:refname 2>/dev/null | head -1)
               if [ -n "$new_global_tag" ]; then
                 new_global_base="${new_global_tag#v}"
-                npm version "$new_global_base" --no-git-tag-version --allow-same-version >/dev/null 2>&1
+                if ! npm version "$new_global_base" --no-git-tag-version --allow-same-version >/dev/null 2>&1; then
+                  echo "❌ ERROR: Failed to sync package.json to global base version $new_global_base"
+                  exit 1
+                fi
               fi
               npm version "$bump" --no-git-tag-version
               new_version=$(node -p "require('./package.json').version")
