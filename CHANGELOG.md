@@ -1,3 +1,7 @@
+## [2.17.0] — 2026-04-01
+
+- feat: lifecycle v4 — merge all PRs, Copilot default reviewer, no nudges (ac36328)
+
 ## [2.16.11] - 2026-04-01
 
 ### Developer Experience
