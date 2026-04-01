@@ -1,3 +1,10 @@
+## [2.16.11] - 2026-04-01
+
+### Developer Experience
+
+- skip PR title lint for bot-authored PRs to prevent feedback loop (#278)
+
+
 ## [2.16.10] — 2026-04-01
 
 - fix(ci): skip PR title lint for draft PRs to prevent spurious failures (#276) (9aa58f5)
