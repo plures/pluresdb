@@ -3100,6 +3100,8 @@ version = "3.0.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
+ "pluresdb-core",
+ "pluresdb-storage",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",

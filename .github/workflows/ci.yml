@@ -1,253 +1,63 @@
 name: CI
 
-permissions:
-  contents: write
-  issues: write
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 on:
   push:
-    branches: [main]
+    branches: [main, 'unify/**']
   pull_request:
     branches: [main]
-  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
 
 jobs:
-  security-audit:
+  check:
+    name: Cargo check
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --workspace
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: npm audit
-        run: npm audit --audit-level=high
-
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-
-      - name: cargo audit
-        run: cargo audit
-
-  build-and-test:
+  test:
+    name: Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Setup Deno
-        uses: denoland/setup-deno@v1
-        with:
-          deno-version: v2.x
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check format
-        run: npm run fmt:check
-        continue-on-error: true
-      - name: Lint
-        run: npm run lint
-
-      - name: Type check
-        run: npm run build:lib
-        continue-on-error: true
-
-      - name: Build
-        run: npm run build:lib
-
-      - name: Check example type safety
-        run: deno check examples/sync-configuration.ts examples/storage-encryption.ts
-        continue-on-error: true
-
-      - name: Run tests
-        run: npm test
-        continue-on-error: true
-
-  release-check:
+  clippy:
+    name: Clippy
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          fetch-depth: 0
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace -- -D warnings
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run release-check
-        run: npm run release-check
-
-  version-bump-and-tag:
-    name: Bump version and tag (main)
+  fmt:
+    name: Format
     runs-on: ubuntu-latest
-    needs: build-and-test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          components: rustfmt
+      - run: cargo fmt --all -- --check
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+  wasm:
+    name: WASM build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: '22'
-
-      - name: Configure git user
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Fetch tags
-        run: git fetch --tags --force
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Determine bump type and update changelog
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Skip if this is already a release commit
-          if git log -1 --pretty=%s | grep -qE '^chore\(release\):'; then
-            echo "Release commit detected, skipping bump."
-            exit 0
-          fi
-
-          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          range=""
-          if [ -n "$last_tag" ]; then
-            range="$last_tag..HEAD"
-            echo "📋 Analyzing commits since $last_tag"
-          else
-            echo "📋 No previous tags found, will create initial tag"
-            range="--all"
-          fi
-
-          subjects=$(git log --format=%s $range)
-          bodies=$(git log --format=%B $range)
-          
-          # Log the commits being analyzed
-          echo "Commits to analyze:"
-          git log --oneline $range | head -10
-
-          # Default to patch bump
-          bump="patch"
-          
-          # Check for feature commits (minor bump)
-          if echo "$subjects" | grep -Ei '^feat(\(.+\))?: ' >/dev/null; then
-            bump="minor"
-            echo "📦 Feature commits detected - will bump minor version"
-          fi
-          
-          # Check for BREAKING CHANGE (major bump)
-          if echo "$bodies" | grep -E '^BREAKING CHANGE:' >/dev/null || echo "$subjects" | grep -E '^[a-z]+(\(.+\))?!:' >/dev/null; then
-            current_major=$(node -p "require('./package.json').version.split('.')[0]")
-            if [ "$current_major" -ge 1 ]; then
-              bump="major"
-              echo "⚠️  BREAKING CHANGE detected - will bump major version"
-            else
-              bump="minor"
-              echo "⚠️  BREAKING CHANGE detected but version < 1.0.0 - will bump minor version instead"
-            fi
-          fi
-          
-          echo "✅ Determined bump type: $bump"
-
-          # Bump version in package.json
-          npm version "$bump" --no-git-tag-version
-          new_version=$(node -p "require('./package.json').version")
-          
-          # Update version in Cargo.toml workspace
-          sed -i "s/^version = \".*\"/version = \"$new_version\"/" Cargo.toml
-          
-          # Update version in deno.json
-          sed -i "s/\"version\": \".*\"/\"version\": \"$new_version\"/" deno.json
-          
-          # Update changelog with new version
-          npm run update-changelog "$new_version"
-
-          # Add files to git
-          git add CHANGELOG.md package.json package-lock.json Cargo.toml deno.json
-
-          # Create commit and tag
-          git commit --no-verify -m "chore(release): $new_version"
-          git tag "v$new_version"
-
-          # Push commit and tags with retry logic
-          for i in {1..3}; do
-            echo "Attempt $i: Pushing commit and tags..."
-            if git push origin main && git push origin --tags; then
-              echo "✅ Push successful on attempt $i"
-              break
-            else
-              echo "❌ Push failed on attempt $i"
-              if [ $i -eq 3 ]; then
-                echo "ERROR: Failed to push after 3 attempts"
-                exit 1
-              fi
-              echo "Pulling remote changes before retrying in 5 seconds..."
-              sleep 5
-              # Remove local tag, rebase release commit on top of latest remote
-              # changes, then re-tag the rebased HEAD before retrying the push
-              git tag -d "v$new_version"
-              git pull --rebase origin main || { echo "ERROR: Rebase failed — manual intervention required"; exit 1; }
-              git tag "v$new_version"
-            fi
-          done
-
-          # Verify tag was pushed successfully
-          echo "Verifying tag was pushed to remote..."
-          sleep 10
-          if git ls-remote --tags origin | grep -q "refs/tags/v$new_version"; then
-            echo "✅ Tag v$new_version verified on remote"
-          else
-            echo "❌ ERROR: Tag v$new_version not found on remote after push"
-            exit 1
-          fi
-
-      - name: Notify on tag failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: 'Release tag creation failed',
-              body: `The automated release process failed to create/push a tag. Manual intervention required.
-              
-              **Failed workflow:** ${context.workflow}
-              **Run ID:** ${context.runId}
-              **Commit:** ${context.sha}
-              
-              Please check the workflow logs and manually create the missing tag if needed.
-              
-              See: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              labels: ['bug', 'release', 'automation']
-            })
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check -p pluresdb-core --target wasm32-unknown-unknown --no-default-features
+      - run: cargo check -p pluresdb-wasm --target wasm32-unknown-unknown
