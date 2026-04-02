@@ -1,3 +1,8 @@
+## [3.1.2] — 2026-04-02
+
+- fix(ci): serialize releases and restore failure notifications (#288) (aba9d6a)
+- ci: centralize lifecycle — event-driven with schedule guard (e087c20)
+
 ## [3.1.1] — 2026-04-01
 
 - refactor: centralize lifecycle — call reusable from plures/repo-template (8802bbe)
