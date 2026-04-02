@@ -13,6 +13,11 @@ on:
     - cron: '*/30 * * * *'
   workflow_dispatch:
 
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lifecycle:
     uses: plures/repo-template/.github/workflows/copilot-pr-lifecycle-reusable.yml@main
