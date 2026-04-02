@@ -24,3 +24,4 @@ uuid.workspace = true
 [dev-dependencies]
 hex = "0.4"
 pluresdb-core = { path = "../pluresdb-core" }
+tokio-tungstenite = "0.28"
