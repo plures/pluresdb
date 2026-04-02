@@ -5,8 +5,7 @@ concurrency:
   # Serialize release runs so that only one release can push to main at a
   # time.  This prevents the race condition where two concurrent jobs both
   # attempt to push a version-bump commit and the second fails with a
-  # non-fast-forward error (which previously caused a confusing rebase-
-  # conflict failure in the old inline version-bump-and-tag job).
+  # non-fast-forward error.
   cancel-in-progress: false
 
 on:
@@ -21,16 +20,283 @@ on:
 
 permissions:
   contents: write
-  packages: write
-  id-token: write
+  issues: write
 
 jobs:
   release:
-    # Use org reusable release workflow.
-    uses: plures/.github/.github/workflows/release-reusable.yml@main
-    with:
-      bump: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump || '' }}
-    secrets: inherit
+    name: Bump version and tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch tags and reset to latest main
+        run: |
+          git fetch --tags origin
+          # Always work from the current tip of main, not the triggering SHA.
+          # Jobs can be queued (concurrency: cancel-in-progress: false) and the
+          # triggering commit may be behind origin/main by the time a queued job
+          # actually starts.  Resetting here ensures the push is a fast-forward
+          # on the first attempt and avoids stale-state conflicts.
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Determine bump type and new version
+        id: version
+        run: |
+          FORCED_BUMP="${{ github.event.inputs.bump }}"
+          CURRENT=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+
+          if [ -n "$FORCED_BUMP" ] && [ "$FORCED_BUMP" != "none" ]; then
+            BUMP="$FORCED_BUMP"
+          else
+            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            if [ -z "$LAST_TAG" ]; then
+              COMMITS=$(git log --format="%s")
+            else
+              COMMITS=$(git log "${LAST_TAG}..HEAD" --format="%s")
+            fi
+
+            if [ -z "$COMMITS" ]; then
+              echo "No commits since last tag — skipping release"
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            # Skip if only non-releaseable commits (chore/ci/docs/style/test/build)
+            if ! echo "$COMMITS" | grep -qE "^(feat|fix|perf|refactor)(\([^)]*\))?(!)?: "; then
+              echo "Only non-release commits since ${LAST_TAG:-beginning} — skipping release"
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            BUMP="patch"
+            if echo "$COMMITS" | grep -qE "^feat(\([^)]*\))?: "; then
+              BUMP="minor"
+            fi
+            if echo "$COMMITS" | grep -qE "^[^:]+!: " || echo "$COMMITS" | grep -qiE "BREAKING[ -]CHANGE"; then
+              BUMP="major"
+            fi
+          fi
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          case "$BUMP" in
+            major) NEW_VERSION="$((MAJOR + 1)).0.0" ;;
+            minor) NEW_VERSION="${MAJOR}.$((MINOR + 1)).0" ;;
+            patch) NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+          esac
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "bump_type=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "📦 Bump: $BUMP ($CURRENT → $NEW_VERSION)"
+
+      - name: Check if tag already exists
+        id: check_tag
+        if: steps.version.outputs.should_release == 'true'
+        run: |
+          TAG="v${{ steps.version.outputs.new_version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "⚠️  Tag ${TAG} already exists on remote — skipping release"
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump version files
+        if: steps.version.outputs.should_release == 'true' && steps.check_tag.outputs.tag_exists != 'true'
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: |
+          # Update Cargo.toml workspace version (first occurrence only)
+          sed -i "0,/^version = /s/^version = .*/version = \"$NEW_VERSION\"/" Cargo.toml
+
+          # Update package.json
+          node -e "
+            const pkg = require('./package.json');
+            pkg.version = process.env.NEW_VERSION;
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          # Update deno.json if present
+          if [ -f deno.json ]; then
+            node -e "
+              const fs = require('fs');
+              const cfg = JSON.parse(fs.readFileSync('deno.json', 'utf8'));
+              cfg.version = process.env.NEW_VERSION;
+              fs.writeFileSync('deno.json', JSON.stringify(cfg, null, 2) + '\n');
+            "
+          fi
+
+          echo "✅ Version bumped to $NEW_VERSION"
+
+      - name: Update CHANGELOG.md
+        if: steps.version.outputs.should_release == 'true' && steps.check_tag.outputs.tag_exists != 'true'
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --oneline --format="- %s (%h)")
+          else
+            COMMITS=$(git log "${LAST_TAG}..HEAD" --oneline --format="- %s (%h)")
+          fi
+
+          ENTRY="## [${NEW_VERSION}] - ${DATE}\n\n${COMMITS}\n"
+
+          if [ -f CHANGELOG.md ]; then
+            printf '%b\n' "$ENTRY" | cat - CHANGELOG.md > _cl_tmp && mv _cl_tmp CHANGELOG.md
+          else
+            printf '# Changelog\n\n%b\n' "$ENTRY" > CHANGELOG.md
+          fi
+
+          echo "✅ Updated CHANGELOG.md"
+
+      - name: Commit and push with retry, then tag
+        if: steps.version.outputs.should_release == 'true' && steps.check_tag.outputs.tag_exists != 'true'
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: |
+          TAG="v${NEW_VERSION}"
+          DATE=$(date +%Y-%m-%d)
+
+          # Save the commit list BEFORE we create the release commit so it can
+          # be used to reconstruct the CHANGELOG entry if a rebase is needed.
+          LAST_TAG_PRE=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG_PRE" ]; then
+            RELEASE_COMMITS=$(git log --oneline --format="- %s (%h)")
+          else
+            RELEASE_COMMITS=$(git log "${LAST_TAG_PRE}..HEAD" --oneline --format="- %s (%h)")
+          fi
+
+          git add Cargo.toml package.json CHANGELOG.md
+          [ -f deno.json ] && git add deno.json || true
+          git commit -m "chore(release): ${TAG}"
+
+          # ── Push the version-bump commit to main with retry ────────────────
+          # The commit is pushed BEFORE the tag.  This way a push failure leaves
+          # no orphan tag on the remote: if the commit never lands in main the
+          # tag is also never created.
+          MAX_RETRIES=3
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt ${i}: pushing commit to main…"
+            if git push origin HEAD:main; then
+              echo "✅ Pushed on attempt ${i}"
+              break
+            fi
+
+            if [ "$i" -eq "$MAX_RETRIES" ]; then
+              echo "❌ Failed to push after ${MAX_RETRIES} attempts"
+              exit 1
+            fi
+
+            echo "⚠️  Push rejected (non-fast-forward) — rebasing onto origin/main…"
+            sleep 5
+            git fetch origin main
+
+            # Rebase the release commit onto the latest remote main.
+            # Auto-resolve conflicts in the files we own:
+            #   CHANGELOG.md  — take remote's version then re-prepend our entry
+            #   Cargo.toml / package.json / deno.json — keep ours (version bump)
+            if ! git rebase origin/main; then
+              CONFLICTED=$(git status --porcelain | awk '/^UU /{print $2}')
+              RESOLVED=true
+              for f in $CONFLICTED; do
+                case "$f" in
+                  CHANGELOG.md)
+                    # Take their copy and re-apply our entry on top.
+                    # Use the commit list captured before the release commit was
+                    # made so that we reference the correct set of changes.
+                    git checkout --theirs "$f"
+                    {
+                      printf '## [%s] — %s\n\n' "${NEW_VERSION}" "${DATE}"
+                      printf '%s\n\n' "${RELEASE_COMMITS}"
+                    } | cat - "$f" > _cl_tmp && mv _cl_tmp "$f"
+                    git add "$f"
+                    ;;
+                  Cargo.toml|package.json|deno.json)
+                    git checkout --theirs "$f"
+                    git add "$f"
+                    ;;
+                  *)
+                    echo "Unexpected conflict in $f — aborting rebase"
+                    git rebase --abort
+                    RESOLVED=false
+                    break
+                    ;;
+                esac
+              done
+
+              if [ "$RESOLVED" = "false" ]; then
+                exit 1
+              fi
+
+              GIT_EDITOR=true git rebase --continue
+            fi
+          done
+
+          # ── Tag the commit now safely in main ──────────────────────────────
+          # Push the tag only after the commit is confirmed in origin/main.
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "⚠️  Tag ${TAG} already exists on remote (from a previous attempt)"
+          else
+            git tag "${TAG}"
+            git push origin "refs/tags/${TAG}"
+            echo "✅ Tag ${TAG} pushed"
+          fi
+
+          echo "✅ Release ${TAG} complete"
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.should_release == 'true' && steps.check_tag.outputs.tag_exists != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.new_version }}
+          name: v${{ steps.version.outputs.new_version }}
+          generate_release_notes: true
+
+      - name: Close any open release-failure issue
+        if: steps.version.outputs.should_release == 'true' && steps.check_tag.outputs.tag_exists != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = "Release tag creation failed";
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 100,
+            });
+            const open = issues.filter((i) => i.title === title);
+            for (const issue of open) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `✅ Release \`v${{ steps.version.outputs.new_version }}\` was created successfully by run [#${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}). Closing this issue.`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: "closed",
+              });
+              core.info(`Closed issue #${issue.number}`);
+            }
 
   notify-on-failure:
     name: Notify on release failure
