@@ -156,15 +156,12 @@ jobs:
             COMMITS=$(git log "${LAST_TAG}..HEAD" --oneline --format="- %s (%h)")
           fi
 
-          ENTRY="## [${NEW_VERSION}] — ${DATE}
-
-          ${COMMITS}
-          "
+          ENTRY="## [${NEW_VERSION}] - ${DATE}\n\n${COMMITS}\n"
 
           if [ -f CHANGELOG.md ]; then
-            printf '%s\n' "$ENTRY" | cat - CHANGELOG.md > _cl_tmp && mv _cl_tmp CHANGELOG.md
+            printf '%b\n' "$ENTRY" | cat - CHANGELOG.md > _cl_tmp && mv _cl_tmp CHANGELOG.md
           else
-            printf '# Changelog\n\n%s\n' "$ENTRY" > CHANGELOG.md
+            printf '# Changelog\n\n%b\n' "$ENTRY" > CHANGELOG.md
           fi
 
           echo "✅ Updated CHANGELOG.md"
@@ -232,7 +229,7 @@ jobs:
                     git add "$f"
                     ;;
                   Cargo.toml|package.json|deno.json)
-                    git checkout --ours "$f"
+                    git checkout --theirs "$f"
                     git add "$f"
                     ;;
                   *)
