@@ -218,12 +218,16 @@ jobs:
               for f in $CONFLICTED; do
                 case "$f" in
                   CHANGELOG.md)
-                    # Take their copy and re-apply our entry on top.
+                    # Take the remote (origin/main) copy and re-apply our entry
+                    # on top.  In git-rebase context --ours refers to the branch
+                    # being rebased onto (origin/main), so we take the remote
+                    # version without our entry and then prepend it afresh to
+                    # avoid duplicating the entry.
                     # Use the commit list captured before the release commit was
                     # made so that we reference the correct set of changes.
-                    git checkout --theirs "$f"
+                    git checkout --ours "$f"
                     {
-                      printf '## [%s] — %s\n\n' "${NEW_VERSION}" "${DATE}"
+                      printf '## [%s] - %s\n\n' "${NEW_VERSION}" "${DATE}"
                       printf '%s\n\n' "${RELEASE_COMMITS}"
                     } | cat - "$f" > _cl_tmp && mv _cl_tmp "$f"
                     git add "$f"
@@ -254,6 +258,12 @@ jobs:
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
             echo "⚠️  Tag ${TAG} already exists on remote (from a previous attempt)"
           else
+            # Remove any local copy of the tag that may have been fetched during
+            # checkout (--fetch-depth=0 pulls all remote refs including tags).
+            # Without this, git tag fails with "fatal: tag already exists" when
+            # the remote tag was briefly present and then deleted, or when the
+            # runner's local refs are stale.
+            git tag -d "${TAG}" 2>/dev/null || true
             git tag "${TAG}"
             git push origin "refs/tags/${TAG}"
             echo "✅ Tag ${TAG} pushed"
