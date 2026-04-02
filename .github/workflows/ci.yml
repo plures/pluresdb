@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel any in-progress CI run for the same ref when a newer push arrives.
+# This avoids wasting runner minutes on stale checks without affecting the
+# separate release workflow (which uses cancel-in-progress: false).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
