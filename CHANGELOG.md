@@ -1,3 +1,7 @@
+## [3.1.3] — 2026-04-02
+
+- fix(ci): repair broken notify-on-failure script in release.yml (#291) (5bef719)
+
 ## [3.1.2] — 2026-04-02
 
 - fix(ci): serialize releases and restore failure notifications (#288) (aba9d6a)
