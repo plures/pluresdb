@@ -93,16 +93,22 @@ jobs:
 
             // Filter by label to keep the result set small and avoid accidentally
             // closing unrelated issues that happen to share the same title.
-            const { data: issues } = await github.rest.issues.listForRepo({
-              owner,
-              repo,
-              state: "open",
-              labels: "release",
-              per_page: 100,
-            });
+            // Use pagination to ensure we don't miss issues beyond the first page.
+            const issues = await github.paginate(
+              github.rest.issues.listForRepo,
+              {
+                owner,
+                repo,
+                state: "open",
+                // Require both "release" and "automation" labels.
+                labels: "release,automation",
+                per_page: 100,
+              },
+            );
 
             const stale = issues.filter(
               (issue) =>
+                !issue.pull_request &&
                 issue.title === title &&
                 issue.labels.some((l) => l.name === "automation"),
             );
