@@ -1425,8 +1425,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "335ff9f135e4384c8150d6f27c6daed433577f86b4750418338c01a1a2528592"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi 0.11.1+wasi-snapshot-preview1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -2941,7 +2943,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb"
-version = "3.0.0"
+version = "3.1.1"
 dependencies = [
  "anyhow",
  "pluresdb-core",
@@ -2952,7 +2954,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-cli"
-version = "3.0.0"
+version = "3.1.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -2972,7 +2974,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-core"
-version = "3.0.0"
+version = "3.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2994,7 +2996,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-node"
-version = "3.0.0"
+version = "3.1.1"
 dependencies = [
  "napi",
  "napi-build",
@@ -3010,7 +3012,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures"
-version = "3.0.0"
+version = "3.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3028,7 +3030,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures-macros"
-version = "3.0.0"
+version = "3.1.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3037,7 +3039,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sea"
-version = "3.0.0"
+version = "3.1.1"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3053,7 +3055,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-storage"
-version = "3.0.0"
+version = "3.1.1"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3077,7 +3079,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sync"
-version = "3.0.0"
+version = "3.1.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3096,11 +3098,14 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-wasm"
-version = "3.0.0"
+version = "3.1.1"
 dependencies = [
+ "chrono",
  "console_error_panic_hook",
+ "getrandom 0.2.16",
  "js-sys",
  "pluresdb-core",
+ "pluresdb-procedures",
  "pluresdb-storage",
  "serde",
  "serde-wasm-bindgen",

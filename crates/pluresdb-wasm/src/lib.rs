@@ -4,9 +4,16 @@
 //! `pluresdb_storage::MemoryStorage`. IndexedDB persistence is planned
 //! for v3.1; the module is kept on disk but not wired in yet.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use chrono::{DateTime, TimeZone, Utc};
+use js_sys::Function;
 use pluresdb_core::CrdtStore;
+use pluresdb_procedures::agens::{AgensEvent, AgensRuntime, StateTable, TimerTable};
+use pluresdb_procedures::engine::ProcedureEngine;
+use pluresdb_procedures::ir::Step;
 use pluresdb_storage::MemoryStorage;
 use serde_wasm_bindgen::{from_value, to_value};
 use wasm_bindgen::prelude::*;
@@ -120,4 +127,242 @@ impl PluresDBBrowser {
     pub fn node_count(&self) -> usize {
         self.store.list().len()
     }
+}
+
+/// Shared CRDT store for wasm runtimes.
+#[wasm_bindgen]
+pub struct WasmCrdtStore {
+    store: Arc<CrdtStore>,
+}
+
+#[wasm_bindgen]
+impl WasmCrdtStore {
+    /// Create a new in-memory CRDT store.
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        console_error_panic_hook::set_once();
+        let storage = Arc::new(MemoryStorage::default());
+        let store = CrdtStore::default().with_persistence(storage);
+        Self {
+            store: Arc::new(store),
+        }
+    }
+}
+
+/// wasm-bindgen wrapper around the Agens runtime.
+#[wasm_bindgen]
+pub struct WasmAgensRuntime {
+    store: Arc<CrdtStore>,
+    actor: String,
+    handlers: RefCell<HashMap<String, Function>>,
+    state_watchers: RefCell<HashMap<String, Vec<Function>>>,
+}
+
+#[wasm_bindgen]
+impl WasmAgensRuntime {
+    /// Create a new Agens runtime bound to a shared CRDT store.
+    #[wasm_bindgen(constructor)]
+    pub fn new(store: &WasmCrdtStore, actor: String) -> Self {
+        console_error_panic_hook::set_once();
+        Self {
+            store: store.store.clone(),
+            actor,
+            handlers: RefCell::new(HashMap::new()),
+            state_watchers: RefCell::new(HashMap::new()),
+        }
+    }
+
+    /// Emit an Agens event into the command log.
+    pub fn emit_event(&self, event: JsValue) -> Result<String, JsValue> {
+        let event: AgensEvent =
+            from_value(event).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let runtime = AgensRuntime::new(self.store.as_ref(), self.actor.as_str());
+        Ok(runtime.emit_event(&event))
+    }
+
+    /// Emit a Praxis lifecycle event using idempotent storage.
+    pub fn emit_praxis_event(&self, event: JsValue) -> Result<String, JsValue> {
+        let event: AgensEvent =
+            from_value(event).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let runtime = AgensRuntime::new(self.store.as_ref(), self.actor.as_str());
+        Ok(runtime.emit_praxis_event(&event))
+    }
+
+    /// Register a JS handler for the given event type.
+    pub fn register_procedure(&self, event_type: &str, callback: Function) {
+        self.handlers
+            .borrow_mut()
+            .insert(event_type.to_string(), callback);
+    }
+
+    /// Execute the registered procedure handler for the given event.
+    pub fn execute_procedure(&self, event: JsValue) -> Result<(), JsValue> {
+        let parsed: AgensEvent =
+            from_value(event.clone()).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let event_type = parsed.event_type();
+        let handler = { self.handlers.borrow().get(event_type).cloned() };
+        match handler {
+            Some(cb) => {
+                cb.call1(&JsValue::NULL, &event)?;
+                Ok(())
+            }
+            None => Err(JsValue::from_str(&format!(
+                "no handler registered for event type '{}'",
+                event_type
+            ))),
+        }
+    }
+
+    /// Poll events that arrived after the given UTC timestamp (ms since epoch).
+    pub fn poll_events(&self, since_ms: f64) -> Result<JsValue, JsValue> {
+        let since = datetime_from_millis(since_ms)?;
+        let runtime = AgensRuntime::new(self.store.as_ref(), self.actor.as_str());
+        let events = runtime.poll_events(since);
+        to_value(&events).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get a state value by key.
+    pub fn state_get(&self, key: &str) -> Result<JsValue, JsValue> {
+        let table = StateTable::new(self.store.as_ref(), self.actor.as_str());
+        match table.get(key) {
+            Some(val) => to_value(&val).map_err(|e| JsValue::from_str(&e.to_string())),
+            None => Ok(JsValue::NULL),
+        }
+    }
+
+    /// Set a state value and notify JS watchers.
+    pub fn state_set(&self, key: &str, value: JsValue) -> Result<(), JsValue> {
+        let json: serde_json::Value =
+            from_value(value.clone()).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let table = StateTable::new(self.store.as_ref(), self.actor.as_str());
+        let old_value = table.get(key);
+        table.set(key, json);
+
+        if let Some(callbacks) = self.state_watchers.borrow().get(key).cloned() {
+            let new_js = value;
+            let old_js = match old_value {
+                Some(val) => to_value(&val).map_err(|e| JsValue::from_str(&e.to_string()))?,
+                None => JsValue::NULL,
+            };
+            for cb in callbacks {
+                let _ = cb.call2(&JsValue::NULL, &new_js, &old_js);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Register a JS callback for state changes on `key`.
+    pub fn state_watch(&self, key: &str, callback: Function) {
+        self.state_watchers
+            .borrow_mut()
+            .entry(key.to_string())
+            .or_default()
+            .push(callback);
+    }
+
+    /// Schedule a recurring timer.
+    pub fn timer_schedule(
+        &self,
+        name: &str,
+        interval_secs: u64,
+        payload: JsValue,
+    ) -> Result<String, JsValue> {
+        let payload: serde_json::Value =
+            from_value(payload).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let timers = TimerTable::new(self.store.as_ref(), self.actor.as_str());
+        Ok(timers.schedule(name, interval_secs, payload))
+    }
+
+    /// Cancel a timer by id.
+    pub fn timer_cancel(&self, timer_id: &str) -> bool {
+        let timers = TimerTable::new(self.store.as_ref(), self.actor.as_str());
+        timers.cancel(timer_id)
+    }
+
+    /// List all scheduled timers.
+    pub fn timer_list(&self) -> Result<JsValue, JsValue> {
+        let timers = TimerTable::new(self.store.as_ref(), self.actor.as_str());
+        to_value(&timers.list()).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Return timers due at or before `now_ms` (UTC ms since epoch).
+    pub fn timer_due_timers(&self, now_ms: f64) -> Result<JsValue, JsValue> {
+        let now = datetime_from_millis(now_ms)?;
+        let timers = TimerTable::new(self.store.as_ref(), self.actor.as_str());
+        to_value(&timers.due_timers(now)).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Reschedule a timer by advancing its next fire time.
+    pub fn timer_reschedule(&self, timer_id: &str) -> bool {
+        let timers = TimerTable::new(self.store.as_ref(), self.actor.as_str());
+        timers.reschedule(timer_id)
+    }
+
+    /// Execute a DSL query string.
+    pub fn exec_dsl(&self, query: &str) -> Result<JsValue, JsValue> {
+        let engine = ProcedureEngine::new(self.store.as_ref(), self.actor.as_str());
+        let result = engine
+            .exec_dsl(query)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Execute a pipeline of steps provided as JSON.
+    pub fn exec(&self, steps: JsValue) -> Result<JsValue, JsValue> {
+        let steps: Vec<Step> =
+            from_value(steps).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let engine = ProcedureEngine::new(self.store.as_ref(), self.actor.as_str());
+        let result = engine
+            .exec(&steps)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+}
+
+/// wasm-bindgen wrapper around the ProcedureEngine.
+#[wasm_bindgen]
+pub struct WasmProcedureEngine {
+    store: Arc<CrdtStore>,
+    actor: String,
+}
+
+#[wasm_bindgen]
+impl WasmProcedureEngine {
+    #[wasm_bindgen(constructor)]
+    pub fn new(store: &WasmCrdtStore, actor: String) -> Self {
+        console_error_panic_hook::set_once();
+        Self {
+            store: store.store.clone(),
+            actor,
+        }
+    }
+
+    pub fn exec_dsl(&self, query: &str) -> Result<JsValue, JsValue> {
+        let engine = ProcedureEngine::new(self.store.as_ref(), self.actor.as_str());
+        let result = engine
+            .exec_dsl(query)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    pub fn exec(&self, steps: JsValue) -> Result<JsValue, JsValue> {
+        let steps: Vec<Step> =
+            from_value(steps).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let engine = ProcedureEngine::new(self.store.as_ref(), self.actor.as_str());
+        let result = engine
+            .exec(&steps)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+}
+
+fn datetime_from_millis(ms: f64) -> Result<DateTime<Utc>, JsValue> {
+    if !ms.is_finite() {
+        return Err(JsValue::from_str("timestamp must be finite"));
+    }
+    let ms_i64 = ms as i64;
+    Utc.timestamp_millis_opt(ms_i64)
+        .single()
+        .ok_or_else(|| JsValue::from_str("invalid timestamp"))
 }
