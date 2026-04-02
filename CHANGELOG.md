@@ -1,3 +1,15 @@
+## [3.2.0] - 2026-04-02
+
+- feat: P2P sync integration test harness (Hyperswarm mesh + Relay transport) (#299) (22f16a1)
+- fix(release): prevent stale local tags and duplicate CHANGELOG entries on rebase (#297) (2dd87cd)
+- ci: improve bot-authored PR skip message in pr-lint.yml (#295) (e043ffb)
+- ci: trigger pr-lint on ready_for_review to surface bot-PR rename reminder at merge time (#296) (22ca372)
+- Initial plan (#294) (45d06b7)
+- fix(ci): replace fragile reusable workflow with robust self-contained release job (#293) (26b2044)
+- fix(ci): auto-close stale release failure issues on successful release (#292) (ff45a73)
+- fix(ci): repair broken notify-on-failure script in release.yml (#290) (eb49621)
+- fix(ci): repair broken notify-on-failure script in release.yml (#291) (5bef719)
+
 ## [3.1.2] — 2026-04-02
 
 - fix(ci): serialize releases and restore failure notifications (#288) (aba9d6a)
