@@ -33,7 +33,9 @@ jobs:
           # enforcing the rule on them recreates the same feedback loop as
           # draft PRs above.  Human reviewers should rename before merging.
           if [ "$AUTHOR_TYPE" = "Bot" ]; then
-            echo "⏭️  Bot-authored PR — skipping title check (rename title before merging)."
+            echo "⏭️  Bot-authored PR — skipping title check."
+            echo "    Current title : '$PR_TITLE'"
+            echo "    Action needed : Rename to a Conventional Commits title before merging."
             exit 0
           fi
 
