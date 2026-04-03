@@ -244,8 +244,16 @@ impl WasmAgensRuntime {
                 Some(val) => to_value(&val).map_err(|e| JsValue::from_str(&e.to_string()))?,
                 None => JsValue::NULL,
             };
+            let mut first_err: Option<JsValue> = None;
             for cb in callbacks {
-                let _ = cb.call2(&JsValue::NULL, &new_js, &old_js);
+                if let Err(err) = cb.call2(&JsValue::NULL, &new_js, &old_js) {
+                    if first_err.is_none() {
+                        first_err = Some(err);
+                    }
+                }
+            }
+            if let Some(err) = first_err {
+                return Err(err);
             }
         }
 
