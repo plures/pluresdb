@@ -174,16 +174,14 @@ impl WasmAgensRuntime {
 
     /// Emit an Agens event into the command log.
     pub fn emit_event(&self, event: JsValue) -> Result<String, JsValue> {
-        let event: AgensEvent =
-            from_value(event).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let event: AgensEvent = from_value(event).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let runtime = AgensRuntime::new(self.store.as_ref(), self.actor.as_str());
         Ok(runtime.emit_event(&event))
     }
 
     /// Emit a Praxis lifecycle event using idempotent storage.
     pub fn emit_praxis_event(&self, event: JsValue) -> Result<String, JsValue> {
-        let event: AgensEvent =
-            from_value(event).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let event: AgensEvent = from_value(event).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let runtime = AgensRuntime::new(self.store.as_ref(), self.actor.as_str());
         Ok(runtime.emit_praxis_event(&event))
     }
@@ -315,7 +313,9 @@ impl WasmAgensRuntime {
             return Err(JsValue::from_str("interval_secs must be greater than 0"));
         }
         if interval_secs > i64::MAX as u64 {
-            return Err(JsValue::from_str("interval_secs exceeds maximum allowed value"));
+            return Err(JsValue::from_str(
+                "interval_secs exceeds maximum allowed value",
+            ));
         }
         let payload: serde_json::Value =
             from_value(payload).map_err(|e| JsValue::from_str(&e.to_string()))?;
@@ -359,8 +359,7 @@ impl WasmAgensRuntime {
 
     /// Execute a pipeline of steps provided as JSON.
     pub fn exec(&self, steps: JsValue) -> Result<JsValue, JsValue> {
-        let steps: Vec<Step> =
-            from_value(steps).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let steps: Vec<Step> = from_value(steps).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let engine = ProcedureEngine::new(self.store.as_ref(), self.actor.as_str());
         let result = engine
             .exec(&steps)
@@ -396,8 +395,7 @@ impl WasmProcedureEngine {
     }
 
     pub fn exec(&self, steps: JsValue) -> Result<JsValue, JsValue> {
-        let steps: Vec<Step> =
-            from_value(steps).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let steps: Vec<Step> = from_value(steps).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let engine = ProcedureEngine::new(self.store.as_ref(), self.actor.as_str());
         let result = engine
             .exec(&steps)
