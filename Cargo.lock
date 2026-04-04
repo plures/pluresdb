@@ -534,9 +534,9 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "chrono"
-version = "0.4.42"
+version = "0.4.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "145052bdd345b87320e369255277e3fb5152762ad123a901ef5c262dd38fe8d2"
+checksum = "c673075a2e0e5f4a1dde27ce9dee1ea4558c7ffe648f576438a20ca1d2acc4b0"
 dependencies = [
  "iana-time-zone",
  "js-sys",
@@ -2941,7 +2941,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "pluresdb-core",
@@ -2952,7 +2952,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-cli"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2972,7 +2972,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-core"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2994,7 +2994,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-node"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "napi",
  "napi-build",
@@ -3010,7 +3010,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3028,7 +3028,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures-macros"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3037,7 +3037,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sea"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3053,7 +3053,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-storage"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3077,7 +3077,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sync"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3097,7 +3097,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-wasm"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -4043,7 +4043,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.3",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix",
  "windows-sys 0.61.1",
