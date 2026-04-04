@@ -262,11 +262,46 @@ impl WasmAgensRuntime {
 
     /// Register a JS callback for state changes on `key`.
     pub fn state_watch(&self, key: &str, callback: Function) {
+        let mut watchers = self.state_watchers.borrow_mut();
+        let callbacks = watchers.entry(key.to_string()).or_default();
+
+        if callbacks
+            .iter()
+            .any(|existing| existing.as_ref().strict_eq(callback.as_ref()))
+        {
+            return;
+        }
+
+        callbacks.push(callback);
+    }
+
+    /// Unregister a JS callback for state changes on `key`.
+    pub fn state_unwatch(&self, key: &str, callback: Function) -> bool {
+        let mut watchers = self.state_watchers.borrow_mut();
+        let mut should_remove_key = false;
+        let mut removed = false;
+
+        if let Some(callbacks) = watchers.get_mut(key) {
+            let original_len = callbacks.len();
+            callbacks.retain(|existing| !existing.as_ref().strict_eq(callback.as_ref()));
+            removed = callbacks.len() != original_len;
+            should_remove_key = callbacks.is_empty();
+        }
+
+        if should_remove_key {
+            watchers.remove(key);
+        }
+
+        removed
+    }
+
+    /// Clear all JS callbacks registered for state changes on `key`.
+    pub fn state_clear_watchers(&self, key: &str) -> usize {
         self.state_watchers
             .borrow_mut()
-            .entry(key.to_string())
-            .or_default()
-            .push(callback);
+            .remove(key)
+            .map(|callbacks| callbacks.len())
+            .unwrap_or(0)
     }
 
     /// Schedule a recurring timer.
