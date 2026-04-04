@@ -3,15 +3,6 @@
 version = 4
 
 [[package]]
-name = "addr2line"
-version = "0.25.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b5d307320b3181d6d7954e663bd7c774a838b8220fe0593c86d9fb09f498b4b"
-dependencies = [
- "gimli",
-]
-
-[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -362,21 +353,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "backtrace"
-version = "0.3.76"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb531853791a215d7c62a30daf0dde835f381ab5de4589cfe7c649d2cbe92bd6"
-dependencies = [
- "addr2line",
- "cfg-if",
- "libc",
- "miniz_oxide",
- "object",
- "rustc-demangle",
- "windows-link 0.2.0",
 ]
 
 [[package]]
@@ -1475,12 +1451,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gimli"
-version = "0.32.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
-
-[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2008,17 +1978,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "io-uring"
-version = "0.7.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "046fa2d4d00aea763528b4950358d0ead425372445dc8ff86312b3c69ff7727b"
-dependencies = [
- "bitflags 2.11.0",
- "cfg-if",
- "libc",
-]
-
-[[package]]
 name = "ipnet"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2327,13 +2286,13 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "1.0.4"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78bed444cc8a2160f01cbcf811ef18cac863ad68ae8ca62092e8db51d51c761c"
+checksum = "50b7e5b27aa02a74bac8c3f23f448f8d87ff11f92d3aac1a6ed369ee08cc56c1"
 dependencies = [
  "libc",
  "wasi 0.11.1+wasi-snapshot-preview1",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.1",
 ]
 
 [[package]]
@@ -2602,15 +2561,6 @@ name = "number_prefix"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
-
-[[package]]
-name = "object"
-version = "0.37.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
-dependencies = [
- "memchr",
-]
 
 [[package]]
 name = "once_cell"
@@ -2941,7 +2891,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "pluresdb-core",
@@ -2952,7 +2902,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-cli"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2972,7 +2922,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-core"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2994,7 +2944,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-node"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "napi",
  "napi-build",
@@ -3010,7 +2960,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3028,7 +2978,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures-macros"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3037,7 +2987,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sea"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3053,7 +3003,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-storage"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3077,7 +3027,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sync"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3097,7 +3047,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-wasm"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -3566,12 +3516,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustc-demangle"
-version = "0.1.26"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56f7d92ca342cea22a06f2121d944b4fd82af56988c270852495420f961d4ace"
-
-[[package]]
 name = "rustix"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3893,12 +3837,12 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "socket2"
-version = "0.6.0"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "233504af464074f9d066d7b5416c5f9b894a5862a6506e306f7b816cdd6f1807"
+checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.1",
 ]
 
 [[package]]
@@ -4043,7 +3987,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.3",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix",
  "windows-sys 0.61.1",
@@ -4167,29 +4111,26 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.47.1"
+version = "1.51.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89e49afdadebb872d3145a5638b59eb0691ea23e46ca484037cfab3b76b95038"
+checksum = "2bd1c4c0fc4a7ab90fc15ef6daaa3ec3b893f004f915f2392557ed23237820cd"
 dependencies = [
- "backtrace",
  "bytes",
- "io-uring",
  "libc",
  "mio",
  "parking_lot 0.12.4",
  "pin-project-lite",
  "signal-hook-registry",
- "slab",
  "socket2",
  "tokio-macros",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.1",
 ]
 
 [[package]]
 name = "tokio-macros"
-version = "2.5.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
+checksum = "385a6cb71ab9ab790c5fe8d67f1645e6c450a7ce006a33de03daa956cf70a496"
 dependencies = [
  "proc-macro2",
  "quote",
