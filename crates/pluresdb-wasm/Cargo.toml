@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 pluresdb-core = { path = "../pluresdb-core", default-features = false }
 pluresdb-storage = { path = "../pluresdb-storage", default-features = false }
-pluresdb-procedures = { path = "../pluresdb-procedures" }
+pluresdb-procedures = { path = "../pluresdb-procedures", default-features = false }
 chrono = { workspace = true }
 wasm-bindgen = { workspace = true }
 serde = { workspace = true }
