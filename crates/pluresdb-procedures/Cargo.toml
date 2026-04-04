@@ -8,6 +8,9 @@ repository.workspace = true
 description = "Cross-language query DSL, procedure engine, and core operations for PluresDB."
 keywords = ["database", "query", "dsl", "crdt"]
 
+[features]
+default = ["native"]
+native = ["pluresdb-core/native"]
 [dependencies]
 pluresdb-core = { path = "../pluresdb-core", default-features = false }
 pluresdb-procedures-macros = { path = "../pluresdb-procedures-macros" }
