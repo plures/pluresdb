@@ -2941,7 +2941,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "pluresdb-core",
@@ -2952,7 +2952,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-cli"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2965,14 +2965,14 @@ dependencies = [
  "serde_json",
  "tokio",
  "tower 0.4.13",
- "tower-http 0.5.2",
+ "tower-http",
  "tracing",
  "tracing-subscriber",
 ]
 
 [[package]]
 name = "pluresdb-core"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2994,7 +2994,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-node"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "napi",
  "napi-build",
@@ -3010,7 +3010,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3028,7 +3028,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures-macros"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3037,7 +3037,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sea"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3053,7 +3053,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-storage"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3077,7 +3077,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sync"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3097,7 +3097,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-wasm"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -3500,7 +3500,7 @@ dependencies = [
  "tokio-native-tls",
  "tokio-util",
  "tower 0.5.2",
- "tower-http 0.6.8",
+ "tower-http",
  "tower-service",
  "url",
  "wasm-bindgen",
@@ -4270,23 +4270,6 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
-dependencies = [
- "bitflags 2.11.0",
- "bytes",
- "http",
- "http-body",
- "http-body-util",
- "pin-project-lite",
- "tower-layer",
- "tower-service",
- "tracing",
-]
-
-[[package]]
-name = "tower-http"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8"
@@ -4301,6 +4284,7 @@ dependencies = [
  "tower 0.5.2",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
