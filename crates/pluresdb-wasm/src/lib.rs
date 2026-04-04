@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::{DateTime, TimeZone, Utc};
-use js_sys::Function;
+use js_sys::{Function, Object};
 use pluresdb_core::CrdtStore;
 use pluresdb_procedures::agens::{AgensEvent, AgensRuntime, StateTable, TimerTable};
 use pluresdb_procedures::engine::ProcedureEngine;
@@ -267,7 +267,7 @@ impl WasmAgensRuntime {
 
         if callbacks
             .iter()
-            .any(|existing| existing.as_ref().strict_eq(callback.as_ref()))
+            .any(|existing| Object::is(existing, &callback))
         {
             return;
         }
@@ -283,7 +283,7 @@ impl WasmAgensRuntime {
 
         if let Some(callbacks) = watchers.get_mut(key) {
             let original_len = callbacks.len();
-            callbacks.retain(|existing| !existing.as_ref().strict_eq(callback.as_ref()));
+            callbacks.retain(|existing| !Object::is(existing, &callback));
             removed = callbacks.len() != original_len;
             should_remove_key = callbacks.is_empty();
         }
@@ -311,6 +311,12 @@ impl WasmAgensRuntime {
         interval_secs: u64,
         payload: JsValue,
     ) -> Result<String, JsValue> {
+        if interval_secs == 0 {
+            return Err(JsValue::from_str("interval_secs must be greater than 0"));
+        }
+        if interval_secs > i64::MAX as u64 {
+            return Err(JsValue::from_str("interval_secs exceeds maximum allowed value"));
+        }
         let payload: serde_json::Value =
             from_value(payload).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let timers = TimerTable::new(self.store.as_ref(), self.actor.as_str());
@@ -330,7 +336,7 @@ impl WasmAgensRuntime {
     }
 
     /// Return timers due at or before `now_ms` (UTC ms since epoch).
-    pub fn timer_due_timers(&self, now_ms: f64) -> Result<JsValue, JsValue> {
+    pub fn timers_due(&self, now_ms: f64) -> Result<JsValue, JsValue> {
         let now = datetime_from_millis(now_ms)?;
         let timers = TimerTable::new(self.store.as_ref(), self.actor.as_str());
         to_value(&timers.due_timers(now)).map_err(|e| JsValue::from_str(&e.to_string()))
@@ -403,6 +409,9 @@ impl WasmProcedureEngine {
 fn datetime_from_millis(ms: f64) -> Result<DateTime<Utc>, JsValue> {
     if !ms.is_finite() {
         return Err(JsValue::from_str("timestamp must be finite"));
+    }
+    if ms < i64::MIN as f64 || ms > i64::MAX as f64 {
+        return Err(JsValue::from_str("timestamp out of range"));
     }
     let ms_i64 = ms as i64;
     Utc.timestamp_millis_opt(ms_i64)
