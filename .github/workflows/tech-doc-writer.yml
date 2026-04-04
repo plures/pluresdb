@@ -1,36 +1,70 @@
 name: Tech Doc Writer
 
 on:
-  pull_request:
-    types: [closed]
+  release:
+    types: [published]
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
   issues: write
 
 jobs:
   update-docs:
     runs-on: ubuntu-latest
     if: >-
-      github.event.pull_request.merged == true &&
-      !contains(github.event.pull_request.title, '[docs]') &&
-      !contains(github.event.pull_request.title, 'chore(docs)') &&
-      !startsWith(github.event.pull_request.title, 'docs:') &&
-      !startsWith(github.event.pull_request.title, 'docs(')
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.release.prerelease == true)
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.event.release.target_commitish || github.ref }}
           fetch-depth: 0
 
-      - name: Gather diff context
-        id: context
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+      - name: Check minor version bump
+        id: version-check
+        if: github.event_name != 'workflow_dispatch'
         run: |
-          CHANGED=$(git diff --name-only "$BASE_SHA" "$MERGE_SHA")
-          DIFF=$(git diff "$BASE_SHA" "$MERGE_SHA" -- ':(exclude)*.md' ':(exclude)*.yml' ':(exclude)*.json' ':(exclude).github/' ':(exclude)docs/' | head -500)
+          TAG="${{ github.event.release.tag_name }}"
+          # Extract minor version (e.g. v0.3.0-rc.1 -> 0.3)
+          CURRENT_MINOR=$(echo "$TAG" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+
+          # Find previous release tag
+          PREV_TAG=$(git tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+' | grep -v "$TAG" | head -1)
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "prev_tag=" >> "$GITHUB_OUTPUT"
+            echo "No previous tag found, proceeding"
+            exit 0
+          fi
+
+          PREV_MINOR=$(echo "$PREV_TAG" | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+
+          if [ "$CURRENT_MINOR" = "$PREV_MINOR" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Same minor version ($CURRENT_MINOR), skipping"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+            echo "Minor version bumped: $PREV_MINOR -> $CURRENT_MINOR"
+          fi
+
+      - name: Gather changes since last release
+        id: context
+        if: steps.version-check.outputs.skip != 'true'
+        run: |
+          PREV_TAG="${{ steps.version-check.outputs.prev_tag }}"
+
+          if [ -n "$PREV_TAG" ]; then
+            CHANGED=$(git diff --name-only "$PREV_TAG"..HEAD)
+            DIFF=$(git diff "$PREV_TAG"..HEAD -- ':(exclude)*.md' ':(exclude)*.yml' ':(exclude)*.json' ':(exclude).github/' ':(exclude)docs/' | head -500)
+          else
+            CHANGED=$(git ls-files)
+            DIFF=""
+          fi
+
           SRC_CHANGES=$(echo "$CHANGED" | grep -vE '^\.(github|gitignore)|^(README|CHANGELOG|docs/|\.)|\.md$|\.yml$|\.json$' | head -1)
 
           if [ -z "$SRC_CHANGES" ]; then
@@ -42,32 +76,44 @@ jobs:
           echo "$CHANGED" > /tmp/changed_files.txt
           echo "$DIFF" > /tmp/code_diff.txt
 
-      - name: Create doc update issue (unassigned)
-        if: steps.context.outputs.skip != 'true'
+          # Gather merged PRs since last tag
+          if [ -n "$PREV_TAG" ]; then
+            PREV_DATE=$(git log -1 --format=%aI "$PREV_TAG")
+            gh pr list --state merged --search "merged:>=$PREV_DATE" --json number,title --jq '.[] | "- #\(.number): \(.title)"' > /tmp/merged_prs.txt 2>/dev/null || echo "" > /tmp/merged_prs.txt
+          else
+            echo "" > /tmp/merged_prs.txt
+          fi
+
+      - name: Create doc update issue
+        if: steps.context.outputs.skip != 'true' && steps.version-check.outputs.skip != 'true'
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.COPILOT_PAT }}
           script: |
             const fs = require('fs');
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const prNum = context.payload.pull_request.number;
-            const prTitle = context.payload.pull_request.title;
+            const tag = '${{ github.event.release.tag_name }}' || 'manual';
+            const prevTag = '${{ steps.version-check.outputs.prev_tag }}' || '(initial)';
 
             const changedFiles = fs.readFileSync('/tmp/changed_files.txt', 'utf8').trim();
             const codeDiff = fs.readFileSync('/tmp/code_diff.txt', 'utf8').trim();
+            const mergedPRs = fs.readFileSync('/tmp/merged_prs.txt', 'utf8').trim();
 
             // Dedup
             const existing = await github.rest.issues.listForRepo({
               owner, repo, state: 'open', labels: 'documentation', per_page: 20
             });
-            if (existing.data.some(i => i.title.includes(`PR #${prNum}`))) return;
+            if (existing.data.some(i => i.title.includes(tag))) return;
 
-            const body = `## Documentation Update Required
+            const body = `## Documentation Update — ${tag}
 
-> ⚠️ **Do NOT assume existing docs are correct.** Verify all doc claims against the actual source code. Use the PR diff as your source of truth.
+> ⚠️ **Do NOT assume existing docs are correct.** Verify all doc claims against the actual source code.
 
-PR #${prNum} (\`${prTitle}\`) merged code changes.
+Prerelease \`${tag}\` published (previous: \`${prevTag}\`). Documentation should be updated before GA.
+
+### Merged PRs Since Last Release
+${mergedPRs || '_None found_'}
 
 ### Changed Files
 \`\`\`
@@ -80,18 +126,18 @@ ${codeDiff.substring(0, 3000)}
 \`\`\`
 
 ### Tasks
-- [ ] Review the diff and identify public API/behavior/config changes
+- [ ] Review all changes and identify public API/behavior/config changes
 - [ ] Update README.md if usage changed
 - [ ] Update or create relevant docs/ files
 - [ ] Update CHANGELOG.md
 - [ ] Verify code examples against current source
 
 ---
-_Auto-generated by Tech Doc Writer (ADR-0005)_`;
+_Auto-generated by Tech Doc Writer on minor prerelease_`;
 
             const issue = await github.rest.issues.create({
               owner, repo,
-              title: `[docs] Update documentation for PR #${prNum}: ${prTitle}`,
+              title: `[docs] Update documentation for ${tag}`,
               body,
               labels: ['documentation']
             });
@@ -102,6 +148,4 @@ _Auto-generated by Tech Doc Writer (ADR-0005)_`;
               });
             } catch (e) {}
 
-            // Do NOT assign Copilot here — queue-advance handles assignment
-            // to prevent race condition with simultaneous feature assignment
-            console.log(`📝 Created doc issue #${issue.data.number} (unassigned, queue-advance will pick up)`);
+            console.log(`📝 Created doc issue #${issue.data.number} for ${tag}`);
