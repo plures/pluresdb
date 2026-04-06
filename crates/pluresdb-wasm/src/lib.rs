@@ -326,17 +326,24 @@ impl WasmAgensRuntime {
     pub fn timer_schedule(
         &self,
         name: &str,
-        interval_secs: u64,
+        interval_secs: f64,
         payload: JsValue,
     ) -> Result<String, JsValue> {
-        if interval_secs == 0 {
+        if !interval_secs.is_finite() {
+            return Err(JsValue::from_str("interval_secs must be a finite number"));
+        }
+        if interval_secs.fract() != 0.0 {
+            return Err(JsValue::from_str("interval_secs must be an integer"));
+        }
+        if interval_secs <= 0.0 {
             return Err(JsValue::from_str("interval_secs must be greater than 0"));
         }
-        if interval_secs > i64::MAX as u64 {
+        if interval_secs > i64::MAX as f64 {
             return Err(JsValue::from_str(
                 "interval_secs exceeds maximum allowed value",
             ));
         }
+        let interval_secs = interval_secs as u64;
         let payload: serde_json::Value =
             from_value(payload).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let timers = TimerTable::new(self.store.as_ref(), self.actor.as_str());
