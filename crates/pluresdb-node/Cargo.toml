@@ -25,7 +25,7 @@ sqlite-compat = ["pluresdb-core/sqlite-compat"]
 
 [dependencies]
 napi = { version = "3.8", features = ["napi6", "serde-json"] }
-napi-derive = "2.16"
+napi-derive = "3"
 pluresdb-core = { path = "../pluresdb-core" }
 pluresdb-procedures = { path = "../pluresdb-procedures" }
 pluresdb-storage = { path = "../pluresdb-storage" }
