@@ -193,6 +193,17 @@ impl WasmAgensRuntime {
             .insert(event_type.to_string(), callback);
     }
 
+    /// Unregister the JS handler for the given event type.
+    ///
+    /// Returns `true` if a handler was removed.
+    pub fn unregister_procedure(&self, event_type: &str) -> bool {
+        self.handlers.borrow_mut().remove(event_type).is_some()
+    }
+
+    /// Clear all registered JS procedure handlers.
+    pub fn clear_procedures(&self) {
+        self.handlers.borrow_mut().clear();
+    }
     /// Execute the registered procedure handler for the given event.
     pub fn execute_procedure(&self, event: JsValue) -> Result<(), JsValue> {
         let parsed: AgensEvent =
