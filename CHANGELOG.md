@@ -1,3 +1,12 @@
+## [3.3.0] - 2026-04-06
+
+- feat(node): expose AgensRuntime via NAPI — events, state, timers (#323) (dfa2de0)
+- chore(deps-dev): bump vite from 7.2.2 to 7.3.2 in /web/svelte in the npm_and_yarn group across 1 directory (#334) (1f691cf)
+- ci: skip lifecycle workflow for Dependabot PRs (#324) (18e4a05)
+- chore(deps): bump lodash (#301) (c7d13d5)
+- ci: tech-doc-writer triggers on minor prerelease only [actions-optimization] (d8c43d2)
+- ci: add concurrency group to copilot-pr-lifecycle [actions-optimization] (fd82ba5)
+
 ## [3.2.0] - 2026-04-02
 
 - feat: P2P sync integration test harness (Hyperswarm mesh + Relay transport) (#299) (22f16a1)
