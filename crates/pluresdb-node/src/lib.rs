@@ -758,11 +758,13 @@ impl PluresDatabase {
         let since: chrono::DateTime<chrono::Utc> = since_iso
             .parse()
             .map_err(|e| Error::from_reason(format!("invalid ISO 8601 timestamp: {}", e)))?;
-        let store = self.store.lock();
-        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
-        Ok(runtime
-            .state()
-            .watch(since)
+        let watch_results = {
+            let store = self.store.lock();
+            let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+            runtime.state().watch(since)
+        };
+
+        Ok(watch_results
             .into_iter()
             .map(|(k, v)| serde_json::json!({ "key": k, "value": v }))
             .collect())
