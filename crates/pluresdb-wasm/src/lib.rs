@@ -2,7 +2,7 @@
 //!
 //! Thin wasm-bindgen wrapper around `pluresdb_core::CrdtStore` with
 //! `pluresdb_storage::MemoryStorage`. IndexedDB persistence is planned
-//! for v3.1; the module is kept on disk but not wired in yet.
+//! for a future release; the module is kept on disk but not wired in yet.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
