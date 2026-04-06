@@ -7,6 +7,7 @@ use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use parking_lot::Mutex;
 use pluresdb_core::{CrdtStore, NodeRecord};
+use pluresdb_procedures::agens::{AgensEvent, AgensRuntime};
 use pluresdb_procedures::engine::ProcedureEngine;
 use pluresdb_storage::{SledStorage, StorageEngine};
 use pluresdb_sync::{SyncBroadcaster, SyncEvent};
@@ -637,6 +638,234 @@ impl PluresDatabase {
             "totalNodes": records.len(),
             "typeCounts": type_counts,
         }))
+    }
+
+    // -----------------------------------------------------------------------
+    // Agens Runtime — reactive event system
+    // -----------------------------------------------------------------------
+
+    /// Emit an event into the Agens reactive runtime.
+    ///
+    /// The event is persisted as a CRDT node and can be polled by
+    /// [`agensListEvents`] or dispatched to handlers registered in Rust.
+    ///
+    /// `event` must be a JSON object with an `event_type` field (one of:
+    /// `message`, `timer`, `state_change`, `model_response`, `tool_result`,
+    /// `praxis_analysis_ready`, `praxis_analysis_failed`,
+    /// `praxis_guidance_updated`) and the corresponding fields for that type.
+    ///
+    /// Returns the CRDT node ID assigned to the event.
+    ///
+    /// # Example (JavaScript)
+    ///
+    /// ```js
+    /// const nodeId = db.agensEmit({
+    ///   event_type: 'message',
+    ///   id: 'msg-1',
+    ///   payload: { text: 'hello' },
+    /// });
+    /// ```
+    #[napi]
+    pub fn agens_emit(&self, event: serde_json::Value) -> Result<String> {
+        let ev: AgensEvent = serde_json::from_value(event)
+            .map_err(|e| Error::from_reason(format!("invalid AgensEvent JSON: {}", e)))?;
+        let store = self.store.lock();
+        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+        Ok(runtime.emit_event(&ev))
+    }
+
+    /// Emit a Praxis lifecycle event with **idempotent** storage.
+    ///
+    /// Unlike [`agensEmit`], re-emitting the same logical event (same `id`)
+    /// converges to a single CRDT node rather than creating duplicates.
+    ///
+    /// Use for `praxis_analysis_ready`, `praxis_analysis_failed`, and
+    /// `praxis_guidance_updated` events.
+    ///
+    /// Returns the deterministic CRDT node ID (`praxis:cmd:{event_id}`).
+    #[napi]
+    pub fn agens_emit_praxis(&self, event: serde_json::Value) -> Result<String> {
+        let ev: AgensEvent = serde_json::from_value(event)
+            .map_err(|e| Error::from_reason(format!("invalid AgensEvent JSON: {}", e)))?;
+        let store = self.store.lock();
+        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+        Ok(runtime.emit_praxis_event(&ev))
+    }
+
+    /// Poll the Agens command table for events after `sinceIso`.
+    ///
+    /// `since_iso` must be an ISO 8601 timestamp (e.g. `"2026-04-05T12:00:00Z"`).
+    /// Returns events oldest-first as a JSON array.
+    ///
+    /// # Performance
+    ///
+    /// This method delegates to [`AgensRuntime::poll_events`], which may scan all
+    /// CRDT nodes via store listing and then filter matching events in memory.
+    /// As a result, the cost is O(n) in the total store size, including persisted
+    /// storage, not just in the number of events returned.
+    ///
+    /// Avoid high-frequency polling on large stores. Prefer polling on a bounded
+    /// interval, processing results in batches, and then advancing `since_iso`
+    /// from the newest processed event timestamp to reduce repeated work.
+    ///
+    /// # Example (JavaScript)
+    ///
+    /// ```js
+    /// const events = db.agensListEvents("2026-04-05T00:00:00Z");
+    /// for (const ev of events) {
+    ///   console.log(ev.event_type, ev.id);
+    /// }
+    /// ```
+    #[napi]
+    pub fn agens_list_events(
+        &self,
+        since_iso: String,
+    ) -> Result<Vec<serde_json::Value>> {
+        let since: chrono::DateTime<chrono::Utc> = since_iso
+            .parse()
+            .map_err(|e| Error::from_reason(format!("invalid ISO 8601 timestamp: {}", e)))?;
+        let store = self.store.lock();
+        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+        let events = runtime.poll_events(since);
+        events
+            .into_iter()
+            .map(|ev| {
+                serde_json::to_value(&ev)
+                    .map_err(|e| Error::from_reason(format!("serialization error: {}", e)))
+            })
+            .collect()
+    }
+
+    /// Get a value from the Agens reactive state table.
+    ///
+    /// Returns `null` if the key is not set.
+    #[napi]
+    pub fn agens_state_get(&self, key: String) -> Result<serde_json::Value> {
+        let store = self.store.lock();
+        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+        Ok(runtime.state().get(&key).unwrap_or(serde_json::Value::Null))
+    }
+
+    /// Set a value in the Agens reactive state table.
+    ///
+    /// Automatically emits a `state_change` event visible to
+    /// [`agensListEvents`].
+    #[napi]
+    pub fn agens_state_set(&self, key: String, value: serde_json::Value) -> Result<()> {
+        let store = self.store.lock();
+        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+        runtime.state().set(&key, value);
+        Ok(())
+    }
+
+    /// Watch the state table for entries updated since `sinceIso`.
+    ///
+    /// Returns an array of `{ key, value }` objects.
+    #[napi]
+    pub fn agens_state_watch(
+        &self,
+        since_iso: String,
+    ) -> Result<Vec<serde_json::Value>> {
+        let since: chrono::DateTime<chrono::Utc> = since_iso
+            .parse()
+            .map_err(|e| Error::from_reason(format!("invalid ISO 8601 timestamp: {}", e)))?;
+        let watch_results = {
+            let store = self.store.lock();
+            let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+            runtime.state().watch(since)
+        };
+
+        Ok(watch_results
+            .into_iter()
+            .map(|(k, v)| serde_json::json!({ "key": k, "value": v }))
+            .collect())
+    }
+
+    /// Schedule a recurring timer in the Agens timer table.
+    ///
+    /// Returns the timer node ID (use with [`agensTimerCancel`]).
+    #[napi]
+    pub fn agens_timer_schedule(
+        &self,
+        name: String,
+        interval_secs: u32,
+        payload: serde_json::Value,
+    ) -> Result<String> {
+        if interval_secs == 0 {
+            return Err(Error::from_reason(
+                "interval_secs must be greater than 0",
+            ));
+        }
+        let store = self.store.lock();
+        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+        Ok(runtime
+            .timers()
+            .schedule(&name, interval_secs as u64, payload))
+    }
+
+    /// Cancel a timer by its ID. Returns `true` if it existed.
+    #[napi]
+    pub fn agens_timer_cancel(&self, timer_id: String) -> Result<bool> {
+        let store = self.store.lock();
+        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+        Ok(runtime.timers().cancel(&timer_id))
+    }
+
+    /// List all scheduled timers.
+    ///
+    /// Returns an array of `{ id, name, intervalSecs, nextFireAt, payload }`.
+    #[napi]
+    pub fn agens_timer_list(&self) -> Result<Vec<serde_json::Value>> {
+        let store = self.store.lock();
+        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+        Ok(runtime
+            .timers()
+            .list()
+            .into_iter()
+            .map(|t| {
+                serde_json::json!({
+                    "id": t.id,
+                    "name": t.name,
+                    "intervalSecs": t.interval_secs,
+                    "nextFireAt": t.next_fire_at.to_rfc3339(),
+                    "payload": t.payload,
+                })
+            })
+            .collect())
+    }
+
+    /// Return timers that are due (next_fire_at <= now).
+    ///
+    /// Call this in a tick loop to process due timers.
+    #[napi]
+    pub fn agens_timer_due(&self) -> Result<Vec<serde_json::Value>> {
+        let store = self.store.lock();
+        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+        let now = chrono::Utc::now();
+        Ok(runtime
+            .timers()
+            .due_timers(now)
+            .into_iter()
+            .map(|t| {
+                serde_json::json!({
+                    "id": t.id,
+                    "name": t.name,
+                    "intervalSecs": t.interval_secs,
+                    "nextFireAt": t.next_fire_at.to_rfc3339(),
+                    "payload": t.payload,
+                })
+            })
+            .collect())
+    }
+
+    /// Reschedule a timer by advancing its next_fire_at by one interval.
+    ///
+    /// Returns `true` if the timer existed and was rescheduled.
+    #[napi]
+    pub fn agens_timer_reschedule(&self, timer_id: String) -> Result<bool> {
+        let store = self.store.lock();
+        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+        Ok(runtime.timers().reschedule(&timer_id))
     }
 }
 

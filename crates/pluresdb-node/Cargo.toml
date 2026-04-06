@@ -33,6 +33,7 @@ pluresdb-sync = { path = "../pluresdb-sync" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 parking_lot = { workspace = true }
+chrono = { workspace = true }
 
 [build-dependencies]
 napi-build = "2.3"
