@@ -159,6 +159,11 @@ impl WasmCrdtStore {
 
 impl WasmCrdtStore {
     /// Return a cloned shared store for internal Rust-side delegation.
+    ///
+    /// This helper is intentionally kept for upcoming Rust-side integrations
+    /// that need access to the underlying shared store without exposing it to
+    /// the wasm-bindgen public API.
+    #[allow(dead_code)]
     pub(crate) fn shared(&self) -> Arc<CrdtStore> {
         Arc::clone(&self.store)
     }
