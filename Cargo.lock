@@ -2898,7 +2898,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "anyhow",
  "pluresdb-core",
@@ -2909,7 +2909,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-cli"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2929,7 +2929,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-core"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2951,7 +2951,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-node"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "chrono",
  "napi",
@@ -2968,7 +2968,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2986,7 +2986,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures-macros"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2995,7 +2995,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sea"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3011,7 +3011,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-storage"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3035,7 +3035,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sync"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3055,7 +3055,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-wasm"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -3924,9 +3924,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"
-version = "2.0.106"
+version = "2.0.117"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ede7c438028d4436d71104916910f5bb611972c5cfd7f89b8300a8186e6fada6"
+checksum = "e665b8803e7b1d2a727f4023456bbbbe74da67099c585258af0ad9c5013b9b99"
 dependencies = [
  "proc-macro2",
  "quote",
