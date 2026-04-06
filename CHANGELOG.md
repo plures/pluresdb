@@ -1,3 +1,16 @@
+## [3.4.0] - 2026-04-06
+
+- fix(napi): bump napi-derive to 3.x to match napi 3.8.4 (#338) (b7e0b91)
+- feat(wasm): expose Agens runtime bindings (#289) (e53cfa5)
+- ci: standardize Node version to lts/* — remove hardcoded versions (9a37010)
+- chore(deps): bump napi from 2.16.17 to 3.8.4 (#303) (eec14de)
+- chore(deps): bump clap from 4.5.60 to 4.6.0 (#307) (59119e5)
+- chore(deps): bump tokio-tungstenite from 0.28.0 to 0.29.0 (#308) (1f552ed)
+- chore(deps): bump chrono from 0.4.42 to 0.4.44 (#309) (8e1460a)
+- chore(deps): bump tower-http from 0.5.2 to 0.6.8 (#310) (ea4d21a)
+- chore(deps): bump tokio from 1.47.1 to 1.50.0 (#311) (9acd05c)
+- chore(deps): bump criterion from 0.5.1 to 0.8.2 (#312) (2de9ee5)
+
 ## [3.3.0] - 2026-04-06
 
 - feat(node): expose AgensRuntime via NAPI — events, state, timers (#323) (dfa2de0)
