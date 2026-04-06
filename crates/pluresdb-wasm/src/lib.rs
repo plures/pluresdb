@@ -31,7 +31,7 @@ pub fn init() {
 /// Browser-side PluresDB backed by an in-memory CRDT store.
 #[wasm_bindgen]
 pub struct PluresDBBrowser {
-    store: CrdtStore,
+    store: Arc<CrdtStore>,
     actor_id: String,
 }
 
@@ -46,7 +46,7 @@ impl PluresDBBrowser {
         console_error_panic_hook::set_once();
         let actor = actor_id.unwrap_or_else(|| "browser".to_string());
         let storage = Arc::new(MemoryStorage::default());
-        let store = CrdtStore::default().with_persistence(storage);
+        let store = Arc::new(CrdtStore::default().with_persistence(storage));
         Self {
             store,
             actor_id: actor,
@@ -160,6 +160,7 @@ pub struct WasmAgensRuntime {
 
 #[wasm_bindgen]
 impl WasmAgensRuntime {
+    /// Internal constructor: wraps an existing shared store reference.
     fn from_shared_store(store: Arc<CrdtStore>, actor: String) -> Self {
         console_error_panic_hook::set_once();
         Self {
@@ -332,7 +333,7 @@ impl WasmAgensRuntime {
         if !interval_secs.is_finite() {
             return Err(JsValue::from_str("interval_secs must be a finite number"));
         }
-        if interval_secs.fract() != 0.0 {
+        if interval_secs.trunc() != interval_secs {
             return Err(JsValue::from_str("interval_secs must be an integer"));
         }
         if interval_secs <= 0.0 {
@@ -434,6 +435,9 @@ impl WasmProcedureEngine {
 fn datetime_from_millis(ms: f64) -> Result<DateTime<Utc>, JsValue> {
     if !ms.is_finite() {
         return Err(JsValue::from_str("timestamp must be finite"));
+    }
+    if ms.trunc() != ms {
+        return Err(JsValue::from_str("timestamp must be an integer number of milliseconds"));
     }
     if ms < i64::MIN as f64 || ms > i64::MAX as f64 {
         return Err(JsValue::from_str("timestamp out of range"));
