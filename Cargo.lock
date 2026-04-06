@@ -1454,8 +1454,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "335ff9f135e4384c8150d6f27c6daed433577f86b4750418338c01a1a2528592"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi 0.11.1+wasi-snapshot-preview1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -3110,9 +3112,12 @@ dependencies = [
 name = "pluresdb-wasm"
 version = "3.3.0"
 dependencies = [
+ "chrono",
  "console_error_panic_hook",
+ "getrandom 0.2.16",
  "js-sys",
  "pluresdb-core",
+ "pluresdb-procedures",
  "pluresdb-storage",
  "serde",
  "serde-wasm-bindgen",
