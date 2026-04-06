@@ -697,10 +697,21 @@ impl PluresDatabase {
     /// `since_iso` must be an ISO 8601 timestamp (e.g. `"2026-04-05T12:00:00Z"`).
     /// Returns events oldest-first as a JSON array.
     ///
+    /// # Performance
+    ///
+    /// This method delegates to [`AgensRuntime::poll_events`], which may scan all
+    /// CRDT nodes via store listing and then filter matching events in memory.
+    /// As a result, the cost is O(n) in the total store size, including persisted
+    /// storage, not just in the number of events returned.
+    ///
+    /// Avoid high-frequency polling on large stores. Prefer polling on a bounded
+    /// interval, processing results in batches, and then advancing `since_iso`
+    /// from the newest processed event timestamp to reduce repeated work.
+    ///
     /// # Example (JavaScript)
     ///
     /// ```js
-    /// const events = db.agensListEvents('2026-04-05T00:00:00Z');
+    /// const events = db.agensListEvents("2026-04-05T00:00:00Z");
     /// for (const ev of events) {
     ///   console.log(ev.event_type, ev.id);
     /// }
