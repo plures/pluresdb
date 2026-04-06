@@ -147,8 +147,22 @@ impl WasmCrdtStore {
             store: Arc::new(store),
         }
     }
+
+    /// Create another wasm handle to the same underlying CRDT store.
+    #[wasm_bindgen(js_name = cloneStore)]
+    pub fn clone_store(&self) -> Self {
+        Self {
+            store: Arc::clone(&self.store),
+        }
+    }
 }
 
+impl WasmCrdtStore {
+    /// Return a cloned shared store for internal Rust-side delegation.
+    pub(crate) fn shared(&self) -> Arc<CrdtStore> {
+        Arc::clone(&self.store)
+    }
+}
 /// wasm-bindgen wrapper around the Agens runtime.
 #[wasm_bindgen]
 pub struct WasmAgensRuntime {
