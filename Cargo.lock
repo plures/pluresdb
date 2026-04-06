@@ -2898,7 +2898,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "anyhow",
  "pluresdb-core",
@@ -2909,7 +2909,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-cli"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2929,7 +2929,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-core"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2951,7 +2951,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-node"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "chrono",
  "napi",
@@ -2968,7 +2968,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2986,7 +2986,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures-macros"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2995,7 +2995,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sea"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3011,7 +3011,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-storage"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3035,7 +3035,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sync"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3055,7 +3055,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-wasm"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -3201,9 +3201,9 @@ checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
 
 [[package]]
 name = "quote"
-version = "1.0.41"
+version = "1.0.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce25767e7b499d1b604768e7cde645d14cc8584231ea6b295e9c9eb22c02e1d1"
+checksum = "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
 dependencies = [
  "proc-macro2",
 ]
