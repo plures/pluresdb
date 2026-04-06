@@ -160,18 +160,27 @@ pub struct WasmAgensRuntime {
 
 #[wasm_bindgen]
 impl WasmAgensRuntime {
-    /// Create a new Agens runtime bound to a shared CRDT store.
-    #[wasm_bindgen(constructor)]
-    pub fn new(store: &WasmCrdtStore, actor: String) -> Self {
+    fn from_shared_store(store: Arc<CrdtStore>, actor: String) -> Self {
         console_error_panic_hook::set_once();
         Self {
-            store: store.store.clone(),
+            store,
             actor,
             handlers: RefCell::new(HashMap::new()),
             state_watchers: RefCell::new(HashMap::new()),
         }
     }
 
+    /// Create a new Agens runtime bound to a shared CRDT store.
+    #[wasm_bindgen(constructor)]
+    pub fn new(store: &WasmCrdtStore, actor: String) -> Self {
+        Self::from_shared_store(store.store.clone(), actor)
+    }
+
+    /// Create a new Agens runtime bound to the same CRDT store used by a browser wrapper.
+    #[wasm_bindgen(js_name = fromBrowser)]
+    pub fn from_browser(browser: &PluresDBBrowser, actor: String) -> Self {
+        Self::from_shared_store(browser.store.clone(), actor)
+    }
     /// Emit an Agens event into the command log.
     pub fn emit_event(&self, event: JsValue) -> Result<String, JsValue> {
         let event: AgensEvent = from_value(event).map_err(|e| JsValue::from_str(&e.to_string()))?;
