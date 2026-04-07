@@ -456,7 +456,9 @@ fn datetime_from_millis(ms: f64) -> Result<DateTime<Utc>, JsValue> {
         return Err(JsValue::from_str("timestamp must be finite"));
     }
     if ms.trunc() != ms {
-        return Err(JsValue::from_str("timestamp must be an integer number of milliseconds"));
+        return Err(JsValue::from_str(
+            "timestamp must be an integer number of milliseconds",
+        ));
     }
     if ms < i64::MIN as f64 || ms > i64::MAX as f64 {
         return Err(JsValue::from_str("timestamp out of range"));

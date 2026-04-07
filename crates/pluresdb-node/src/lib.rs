@@ -717,10 +717,7 @@ impl PluresDatabase {
     /// }
     /// ```
     #[napi]
-    pub fn agens_list_events(
-        &self,
-        since_iso: String,
-    ) -> Result<Vec<serde_json::Value>> {
+    pub fn agens_list_events(&self, since_iso: String) -> Result<Vec<serde_json::Value>> {
         let since: chrono::DateTime<chrono::Utc> = since_iso
             .parse()
             .map_err(|e| Error::from_reason(format!("invalid ISO 8601 timestamp: {}", e)))?;
@@ -762,10 +759,7 @@ impl PluresDatabase {
     ///
     /// Returns an array of `{ key, value }` objects.
     #[napi]
-    pub fn agens_state_watch(
-        &self,
-        since_iso: String,
-    ) -> Result<Vec<serde_json::Value>> {
+    pub fn agens_state_watch(&self, since_iso: String) -> Result<Vec<serde_json::Value>> {
         let since: chrono::DateTime<chrono::Utc> = since_iso
             .parse()
             .map_err(|e| Error::from_reason(format!("invalid ISO 8601 timestamp: {}", e)))?;
@@ -792,9 +786,7 @@ impl PluresDatabase {
         payload: serde_json::Value,
     ) -> Result<String> {
         if interval_secs == 0 {
-            return Err(Error::from_reason(
-                "interval_secs must be greater than 0",
-            ));
+            return Err(Error::from_reason("interval_secs must be greater than 0"));
         }
         let store = self.store.lock();
         let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
