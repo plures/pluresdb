@@ -3090,6 +3090,7 @@ dependencies = [
 name = "pluresdb-sync"
 version = "3.4.0"
 dependencies = [
+ "aes-gcm",
  "anyhow",
  "async-trait",
  "axum",
@@ -3098,6 +3099,7 @@ dependencies = [
  "futures",
  "hex",
  "pluresdb-core",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "tokio",

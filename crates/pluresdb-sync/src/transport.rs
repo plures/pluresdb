@@ -110,6 +110,54 @@ impl Default for TransportConfig {
     }
 }
 
+impl TransportConfig {
+    /// Validate the transport configuration.
+    ///
+    /// Returns an actionable [`anyhow::Error`] if any invariant is violated.
+    ///
+    /// # Errors
+    ///
+    /// - `timeout_ms` must be greater than zero.
+    /// - Relay mode requires a relay URL starting with `ws://` or `wss://`.
+    /// - Encryption disabled emits a warning (not an error).
+    pub fn validate(&self) -> anyhow::Result<()> {
+        if self.timeout_ms == 0 {
+            return Err(anyhow::anyhow!(
+                "Invalid TransportConfig: timeout_ms must be > 0. \
+                 Recommended value: 30000 (30 seconds)."
+            ));
+        }
+        if self.mode == TransportMode::Relay {
+            match &self.relay_url {
+                None => {
+                    return Err(anyhow::anyhow!(
+                        "Invalid TransportConfig: relay mode requires a relay_url. \
+                         Example: wss://relay.example.com/gun"
+                    ));
+                }
+                Some(url)
+                    if !url.starts_with("ws://") && !url.starts_with("wss://") =>
+                {
+                    return Err(anyhow::anyhow!(
+                        "Invalid TransportConfig: relay_url '{}' must start with \
+                         ws:// or wss://. Use wss:// for encrypted connections.",
+                        url
+                    ));
+                }
+                _ => {}
+            }
+        }
+        if !self.encryption {
+            tracing::warn!(
+                "TransportConfig: encryption is disabled — \
+                 messages will be sent in plaintext. \
+                 Set encryption = true for production use."
+            );
+        }
+        Ok(())
+    }
+}
+
 /// Derive a topic hash from a database ID using BLAKE2b-256
 pub fn derive_topic(database_id: &str) -> TopicHash {
     use blake2::digest::consts::U32;
@@ -220,5 +268,64 @@ mod tests {
         };
         let transport = create_transport(config);
         assert_eq!(transport.name(), "disabled");
+    }
+
+    // ── TransportConfig::validate() ──────────────────────────────────────────
+
+    #[test]
+    fn test_validate_default_config_is_valid() {
+        assert!(TransportConfig::default().validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_zero_timeout_returns_error() {
+        let cfg = TransportConfig {
+            timeout_ms: 0,
+            ..Default::default()
+        };
+        let err = cfg.validate().unwrap_err();
+        assert!(
+            err.to_string().contains("timeout_ms"),
+            "error should mention timeout_ms"
+        );
+    }
+
+    #[test]
+    fn test_validate_relay_without_url_returns_error() {
+        let cfg = TransportConfig {
+            mode: TransportMode::Relay,
+            relay_url: None,
+            ..Default::default()
+        };
+        let err = cfg.validate().unwrap_err();
+        assert!(
+            err.to_string().contains("relay_url"),
+            "error should mention relay_url"
+        );
+    }
+
+    #[test]
+    fn test_validate_relay_with_invalid_url_returns_error() {
+        let cfg = TransportConfig {
+            mode: TransportMode::Relay,
+            relay_url: Some("http://invalid.example.com".to_string()),
+            ..Default::default()
+        };
+        let err = cfg.validate().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("ws://") || msg.contains("wss://"),
+            "error should mention ws:// or wss://"
+        );
+    }
+
+    #[test]
+    fn test_validate_relay_with_valid_url_is_ok() {
+        let cfg = TransportConfig {
+            mode: TransportMode::Relay,
+            relay_url: Some("wss://relay.example.com/gun".to_string()),
+            ..Default::default()
+        };
+        assert!(cfg.validate().is_ok());
     }
 }
