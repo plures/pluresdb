@@ -416,7 +416,12 @@ async fn test_relay_transport_integration() {
     // ── Clean up ──────────────────────────────────────────────────────────
     conn1.close().await.expect("conn1 close");
     conn2.close().await.expect("conn2 close");
-    transport1.disconnect().await.expect("transport1 disconnect");
-    transport2.disconnect().await.expect("transport2 disconnect");
+    transport1
+        .disconnect()
+        .await
+        .expect("transport1 disconnect");
+    transport2
+        .disconnect()
+        .await
+        .expect("transport2 disconnect");
 }
-
