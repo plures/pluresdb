@@ -1,3 +1,10 @@
+## [3.5.1] — 2026-04-07
+
+- fix: inline reusable workflow to fix schedule trigger failures (ab83499)
+- docs: add structured ROADMAP.md for automated issue generation (3e024de)
+- chore: remove redundant workflow — handled by centralized ci-reusable.yml or obsolete (9a7957c)
+- chore: remove redundant workflow — handled by centralized ci-reusable.yml or obsolete (16ace11)
+
 ## [3.5.0] — 2026-04-07
 
 - feat: split-brain detection tests and conflict resolution policy docs (#343) (b1aec5e)
