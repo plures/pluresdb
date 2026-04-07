@@ -1595,7 +1595,7 @@ mod tests {
 
     #[test]
     fn extract_text_skips_numeric_only_object() {
-        let data = serde_json::json!({"count": 42, "value": 3.14});
+        let data = serde_json::json!({"count": 42, "value": 3.15});
         assert!(extract_text_from_data(&data).is_none());
     }
 
