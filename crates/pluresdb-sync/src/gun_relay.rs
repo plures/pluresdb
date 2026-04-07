@@ -2,9 +2,12 @@
 //!
 //! This module implements a minimal relay server that:
 //! - Accepts WebSocket connections at `/gun` (the standard GUN.js endpoint).
+//! - Accepts topic-scoped connections at `/gun/:topic_hex` for isolated
+//!   per-database broadcast channels (used by [`crate::RelayTransport`]).
 //! - Parses incoming GUN wire-protocol messages (PUT / GET / ACK).
-//! - Fans-out PUT messages to all other connected peers, enabling live
-//!   graph-delta replication between Rust peers and GUN.js browser clients.
+//! - Fans-out PUT messages to all other connected peers in the same channel,
+//!   enabling live graph-delta replication between Rust peers and GUN.js
+//!   browser clients.
 //! - Responds to GET messages with an ACK (future: with the stored node).
 //!
 //! ## Quick start
@@ -26,6 +29,13 @@
 //! const gun = Gun({ peers: ['ws://localhost:4444/gun'] });
 //! ```
 //!
+//! ## Topic routing
+//!
+//! [`crate::RelayTransport`] connects to `/gun/<topic_hex>` so that each
+//! PluresDB database gets its own isolated broadcast channel.  Peers on
+//! different databases sharing the same relay server will **not** see each
+//! other's messages.
+//!
 //! The relay speaks the Phase 1 GUN wire protocol (PUT / GET / ACK) described
 //! in `docs/GUN_WIRE_PROTOCOL.md`.
 
@@ -33,7 +43,7 @@ use crate::gun_protocol::GunMessage;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        Path, State,
     },
     response::IntoResponse,
     routing::get,
@@ -62,8 +72,12 @@ struct RelayEnvelope {
 
 /// Shared state accessible from every WebSocket handler task.
 pub(crate) struct RelayState {
-    /// Broadcast channel used to fan-out messages to all connected peers.
+    /// Default broadcast channel for the `/gun` path (GUN.js compatibility).
     tx: broadcast::Sender<RelayEnvelope>,
+    /// Per-topic broadcast channels for `/gun/:topic_hex` (PluresDB transport).
+    topic_channels: DashMap<String, broadcast::Sender<RelayEnvelope>>,
+    /// Capacity used when creating new per-topic channels.
+    broadcast_capacity: usize,
     /// Track the number of currently connected peers (for observability).
     peer_count: Arc<std::sync::atomic::AtomicUsize>,
     /// Set of active peer IDs (peer_id → placeholder).
@@ -75,9 +89,19 @@ impl RelayState {
         let (tx, _) = broadcast::channel(capacity);
         Self {
             tx,
+            topic_channels: DashMap::new(),
+            broadcast_capacity: capacity,
             peer_count: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             peers: DashMap::new(),
         }
+    }
+
+    /// Get or create a broadcast sender for a specific topic.
+    fn topic_sender(&self, topic: &str) -> broadcast::Sender<RelayEnvelope> {
+        self.topic_channels
+            .entry(topic.to_owned())
+            .or_insert_with(|| broadcast::channel(self.broadcast_capacity).0)
+            .clone()
     }
 }
 
@@ -166,9 +190,13 @@ impl GunRelayServer {
 
     /// Build the Axum router (exposed for testing and embedding in larger apps).
     ///
-    /// The returned `Router` handles `/gun` WebSocket upgrades with its own
-    /// internal broadcast state.  To embed in a larger Axum application, nest
-    /// it with a prefix:
+    /// The returned `Router` handles:
+    /// - `/gun` WebSocket upgrades using the default shared broadcast channel
+    ///   (for GUN.js browser clients).
+    /// - `/gun/:topic_hex` WebSocket upgrades using per-topic broadcast
+    ///   channels (for [`crate::RelayTransport`]).
+    ///
+    /// To embed in a larger Axum application, nest it with a prefix:
     ///
     /// ```rust,no_run
     /// use axum::Router;
@@ -181,6 +209,7 @@ impl GunRelayServer {
         let state = Arc::new(RelayState::new(self.broadcast_capacity));
         Router::new()
             .route("/gun", get(ws_handler))
+            .route("/gun/{topic}", get(ws_handler_topic))
             .with_state(state)
     }
 
@@ -192,6 +221,7 @@ impl GunRelayServer {
         let state = Arc::new(RelayState::new(capacity));
         let router = Router::new()
             .route("/gun", get(ws_handler))
+            .route("/gun/{topic}", get(ws_handler_topic))
             .with_state(Arc::clone(&state));
         (router, state)
     }
@@ -201,16 +231,31 @@ impl GunRelayServer {
 // WebSocket handler
 // ---------------------------------------------------------------------------
 
-/// Axum handler for the `/gun` WebSocket endpoint.
+/// Axum handler for the `/gun` WebSocket endpoint (default channel).
 async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<RelayState>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, state))
+    let channel_tx = state.tx.clone();
+    ws.on_upgrade(move |socket| handle_socket(socket, state, channel_tx))
 }
 
-/// Drive a single peer connection.
-async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
+/// Axum handler for the `/gun/:topic` WebSocket endpoint (per-topic channel).
+async fn ws_handler_topic(
+    ws: WebSocketUpgrade,
+    Path(topic): Path<String>,
+    State(state): State<Arc<RelayState>>,
+) -> impl IntoResponse {
+    let channel_tx = state.topic_sender(&topic);
+    ws.on_upgrade(move |socket| handle_socket(socket, state, channel_tx))
+}
+
+/// Drive a single peer connection using the provided broadcast channel.
+async fn handle_socket(
+    socket: WebSocket,
+    state: Arc<RelayState>,
+    channel_tx: broadcast::Sender<RelayEnvelope>,
+) {
     let peer_id = Uuid::new_v4().to_string();
     state
         .peer_count
@@ -218,7 +263,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
     state.peers.insert(peer_id.clone(), ());
     info!("[GunRelay] peer connected: {}", peer_id);
 
-    let mut rx = state.tx.subscribe();
+    let mut rx = channel_tx.subscribe();
     let (mut ws_tx, mut ws_rx) = socket.split();
 
     // Task: forward broadcast messages from other peers to this peer's socket.
@@ -259,7 +304,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {
 
     // Task: receive messages from this peer's socket and broadcast.
     let peer_id_recv = peer_id.clone();
-    let tx = state.tx.clone();
+    let tx = channel_tx;
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_rx.next().await {
             let raw = match msg {

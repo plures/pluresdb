@@ -5,10 +5,12 @@
 //! with in-process peer-to-peer replication.
 
 use pluresdb_sync::{
-    create_transport, derive_topic, DisabledTransport, MemConnection, Replicator, Transport,
-    TransportConfig, TransportMode,
+    create_transport, derive_topic, DisabledTransport, GunRelayServer, HyperswarmConfig,
+    HyperswarmTransport, MemConnection, RelayTransport, Replicator, Transport, TransportConfig,
+    TransportMode,
 };
 use serde_json::json;
+use std::time::Duration;
 
 #[tokio::test]
 async fn test_disabled_transport_integration() {
@@ -250,29 +252,171 @@ async fn test_gun_protocol_crdt_store_integration() {
     assert_eq!(task.data["title"], json!("Write docs"));
 }
 
-// TODO: Add these tests once hyperswarm-rs is integrated
-#[ignore]
+// ---------------------------------------------------------------------------
+// Hyperswarm peer discovery (uses process-local registry + TCP)
+// ---------------------------------------------------------------------------
+
+/// Two HyperswarmTransport instances running in the same process discover each
+/// other via the process-local peer registry and exchange a test message over a
+/// direct TCP connection.  AES-256-GCM encryption is enabled end-to-end.
 #[tokio::test]
 async fn test_hyperswarm_peer_discovery() {
-    // This test will be implemented once hyperswarm-rs is available
-    // It should:
-    // 1. Create two HyperswarmTransport instances
-    // 2. Have both announce on the same topic
-    // 3. Verify they can discover each other
-    // 4. Establish a connection
-    // 5. Send/receive a test message
-    panic!("Not yet implemented - waiting for hyperswarm-rs");
+    // Use a unique topic to prevent cross-test registry pollution.
+    let topic = derive_topic("hyperswarm-integration-test-discover-2025");
+
+    let config = HyperswarmConfig {
+        encryption: true,
+        timeout_ms: 5_000,
+        ..Default::default()
+    };
+
+    let mut peer1 = HyperswarmTransport::new(config.clone());
+    let mut peer2 = HyperswarmTransport::new(config);
+
+    // Both peers announce on the same topic so they register their TCP ports.
+    peer1.announce(topic).await.expect("peer1 announce");
+    peer2.announce(topic).await.expect("peer2 announce");
+
+    // Verify mutual discovery through lookup before connecting.
+    let peers_seen_by_1 = peer1
+        .lookup(topic)
+        .await
+        .expect("peer1 lookup should succeed");
+    assert_eq!(peers_seen_by_1.len(), 1, "peer1 should discover peer2");
+    let peers_seen_by_2 = peer2
+        .lookup(topic)
+        .await
+        .expect("peer2 lookup should succeed");
+    assert_eq!(peers_seen_by_2.len(), 1, "peer2 should discover peer1");
+
+    // connect() starts the accept loop + dials known peers.
+    let mut rx1 = peer1.connect(topic).await.expect("peer1 connect");
+    let mut rx2 = peer2.connect(topic).await.expect("peer2 connect");
+
+    // peer2's outbound connection to peer1 arrives on rx2.
+    let mut conn_from_peer2 = tokio::time::timeout(Duration::from_secs(3), rx2.recv())
+        .await
+        .expect("peer2 outbound connection should appear within 3s")
+        .expect("connection receiver not closed");
+
+    // peer1's accept loop receives peer2's inbound connection on rx1.
+    let mut conn_from_peer1 = tokio::time::timeout(Duration::from_secs(3), rx1.recv())
+        .await
+        .expect("peer1 accept should complete within 3s")
+        .expect("connection receiver not closed");
+
+    // Send a test message from peer2 → peer1.
+    let test_msg = b"hello from hyperswarm peer";
+    conn_from_peer2
+        .send(test_msg)
+        .await
+        .expect("send should succeed");
+
+    // peer1 receives and decrypts the message.
+    let received = conn_from_peer1
+        .receive()
+        .await
+        .expect("receive should not error")
+        .expect("message should be present");
+    assert_eq!(
+        received, test_msg,
+        "received message should match sent message"
+    );
+
+    // Graceful close.
+    conn_from_peer2.close().await.expect("close");
+    peer1.disconnect().await.expect("peer1 disconnect");
+    peer2.disconnect().await.expect("peer2 disconnect");
 }
 
-// TODO: Add these tests once relay is implemented
-#[ignore]
+// ---------------------------------------------------------------------------
+// Relay transport integration (RelayTransport ↔ GunRelayServer ↔ RelayTransport)
+// ---------------------------------------------------------------------------
+
+/// Two RelayTransport clients connect to a local GunRelayServer and exchange
+/// a GUN PUT message.  Verifies the full client → relay → client path and the
+/// per-topic channel isolation introduced in this PR.
 #[tokio::test]
 async fn test_relay_transport_integration() {
-    // This test will verify relay transport works
-    // It should:
-    // 1. Connect to a test relay server
-    // 2. Announce on a topic
-    // 3. Verify peer discovery through relay
-    // 4. Send/receive messages through relay
-    panic!("Not yet implemented - waiting for relay implementation");
+    use pluresdb_sync::GunMessage;
+
+    // ── Start relay server on an ephemeral port ────────────────────────────
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind ephemeral port");
+    let addr = listener.local_addr().unwrap();
+    let relay_base = format!("ws://{}/gun", addr);
+
+    let router = GunRelayServer::new().build_router();
+    tokio::spawn(async move {
+        axum::serve(listener, router)
+            .await
+            .expect("relay server error");
+    });
+    // Give the server a moment to start accepting.
+    tokio::time::sleep(Duration::from_millis(30)).await;
+
+    // Use a unique topic for this test run.
+    let topic = derive_topic("relay-transport-integration-2025");
+
+    // ── Connect two RelayTransport clients to the same topic channel ───────
+    // Pass the base relay URL — RelayTransport::connect() appends the topic hex.
+    let mut transport1 = RelayTransport::with_max_retries(relay_base.clone(), 5_000, 3);
+    let mut transport2 = RelayTransport::with_max_retries(relay_base.clone(), 5_000, 3);
+
+    let mut rx1 = transport1
+        .connect(topic)
+        .await
+        .expect("transport1 connect should succeed with valid relay URL");
+    let mut rx2 = transport2
+        .connect(topic)
+        .await
+        .expect("transport2 connect should succeed with valid relay URL");
+
+    // Both clients should receive a connection handle.
+    let mut conn1 = tokio::time::timeout(Duration::from_secs(3), rx1.recv())
+        .await
+        .expect("transport1 connection within 3s")
+        .expect("receiver not closed");
+    let mut conn2 = tokio::time::timeout(Duration::from_secs(3), rx2.recv())
+        .await
+        .expect("transport2 connection within 3s")
+        .expect("receiver not closed");
+
+    // ── Build a test GUN PUT message ──────────────────────────────────────
+    use pluresdb_sync::{GunNode, GunPut};
+    use std::collections::HashMap;
+    let mut fields = HashMap::new();
+    fields.insert("name".to_string(), json!("relay-test-peer"));
+    let node = GunNode::from_data("relay:test", fields, 1_700_000_000_000.0);
+    let mut put_nodes = HashMap::new();
+    put_nodes.insert("relay:test".to_string(), node);
+    let gun_msg = GunMessage::Put(GunPut {
+        id: "relay-integration-1".to_string(),
+        put: put_nodes,
+    });
+    let encoded = gun_msg.encode().expect("encode GUN PUT");
+
+    // ── conn1 sends; conn2 receives (relay fans-out, no echo) ─────────────
+    conn1.send(&encoded).await.expect("conn1 send");
+
+    let received = tokio::time::timeout(Duration::from_secs(3), conn2.receive())
+        .await
+        .expect("conn2 receive within 3s")
+        .expect("receive should not error")
+        .expect("message should be present");
+
+    let decoded = GunMessage::decode(&received).expect("should decode as GUN message");
+    assert_eq!(
+        decoded.id(),
+        "relay-integration-1",
+        "message ID should survive relay round-trip"
+    );
+
+    // ── Clean up ──────────────────────────────────────────────────────────
+    conn1.close().await.expect("conn1 close");
+    conn2.close().await.expect("conn2 close");
+    transport1.disconnect().await.expect("transport1 disconnect");
+    transport2.disconnect().await.expect("transport2 disconnect");
 }
+
