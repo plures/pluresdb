@@ -1,3 +1,8 @@
+## [3.5.0] — 2026-04-07
+
+- feat: split-brain detection tests and conflict resolution policy docs (#343) (b1aec5e)
+- [WIP] Implement Hyperswarm and Relay transports in pluresdb-sync (#342) (d8ff55a)
+
 ## [3.4.1] — 2026-04-07
 
 - fix(fmt): apply cargo fmt to pluresdb-node and pluresdb-wasm (#341) (eb17228)
