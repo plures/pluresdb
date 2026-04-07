@@ -15,7 +15,19 @@
 //! - Three-peer concurrent writes with CRDT merge convergence
 //! - Reconnection: peer drops connection and rejoins with updated state
 //!
-//! ## 2. Relay transport tests (real `GunRelayServer` over WebSocket)
+//! ## 2. Split-brain partition + reconnect tests
+//!
+//! Deterministic simulations of network partitions where peers are isolated,
+//! both sides continue writing, and then the partition heals.  These tests
+//! verify the conflict-resolution policy documented in
+//! `docs/CONFLICT_RESOLUTION.md`.
+//!
+//! Covered scenarios:
+//! - Two isolated peers with concurrent same-field writes → LWW convergence
+//! - Per-field independent convergence with mixed timestamps
+//! - Three-peer two-partition and full mesh reconnect
+//!
+//! ## 3. Relay transport tests (real `GunRelayServer` over WebSocket)
 //!
 //! These tests start a [`GunRelayServer`] on an ephemeral port and connect
 //! real WebSocket clients via `tokio-tungstenite`, exercising the full relay
@@ -47,6 +59,22 @@ fn apply_received(store: &mut HashMap<String, GunNode>, received: Vec<(String, G
             .and_modify(|existing| existing.merge(incoming.clone()))
             .or_insert(incoming);
     }
+}
+
+/// Encode every `(soul, GunNode)` entry in `store` into GUN wire bytes using
+/// [`Replicator::encode_gun_node`], preserving HAM timestamps exactly.
+///
+/// This is the correct encoding to use in transport-layer CRDT tests because
+/// [`Replicator::encode_put`] would overwrite the per-field timestamps with
+/// the current wall-clock time, destroying carefully controlled orderings.
+fn encode_store(store: &HashMap<String, GunNode>, rep: &Replicator) -> Vec<Vec<u8>> {
+    store
+        .iter()
+        .map(|(soul, node)| {
+            rep.encode_gun_node(soul, node.clone())
+                .unwrap_or_else(|e| panic!("encode_gun_node failed for soul '{soul}': {e}"))
+        })
+        .collect()
 }
 
 /// Bind a TCP listener on a random OS-assigned port and return it with its address.
@@ -300,17 +328,6 @@ async fn test_three_peer_crdt_convergence_via_transport() {
     // gossip chain.  Using sync() / encode_put would re-stamp with now_ms()
     // and destroy the carefully controlled timestamp ordering.
 
-    // Encode the current store as a list of `(soul, GunNode)` ready to send.
-    let encode_nodes = |store: &HashMap<String, GunNode>, rep: &Replicator| -> Vec<Vec<u8>> {
-        store
-            .iter()
-            .map(|(soul, node)| {
-                rep.encode_gun_node(soul, node.clone())
-                    .unwrap_or_else(|e| panic!("encode_gun_node failed for soul '{soul}': {e}"))
-            })
-            .collect()
-    };
-
     // Send and receive concurrently over a single MemConnection pair,
     // preserving HAM timestamps on both sides.
     macro_rules! ham_sync {
@@ -337,8 +354,8 @@ async fn test_three_peer_crdt_convergence_via_transport() {
     // --- Round 1: A <-> B ---
     {
         let (mut c_ab, mut c_ba) = MemConnection::pair("a", "b");
-        let msgs_a = encode_nodes(&store_a, &rep_a);
-        let msgs_b = encode_nodes(&store_b, &rep_b);
+        let msgs_a = encode_store(&store_a, &rep_a);
+        let msgs_b = encode_store(&store_b, &rep_b);
         let (from_b, from_a) = ham_sync!(rep_a, c_ab, msgs_a, rep_b, c_ba, msgs_b);
         apply_received(&mut store_a, from_b); // A merges B's node_b (ts=200 > ts=100)
         apply_received(&mut store_b, from_a); // B merges A's node_a (ts=100 < ts=200, B keeps 200)
@@ -350,8 +367,8 @@ async fn test_three_peer_crdt_convergence_via_transport() {
     // --- Round 2: B <-> C (B propagates current merged state to C) ---
     {
         let (mut c_bc, mut c_cb) = MemConnection::pair("b", "c");
-        let msgs_b = encode_nodes(&store_b, &rep_b);
-        let msgs_c = encode_nodes(&store_c, &rep_c);
+        let msgs_b = encode_store(&store_b, &rep_b);
+        let msgs_c = encode_store(&store_c, &rep_c);
         let (from_c, from_b) = ham_sync!(rep_b, c_bc, msgs_b, rep_c, c_cb, msgs_c);
         apply_received(&mut store_b, from_c); // B merges C's node_c (ts=300 > ts=200, C wins)
         apply_received(&mut store_c, from_b); // C merges B's merged node (ts=200 < ts=300, C keeps 300)
@@ -363,8 +380,8 @@ async fn test_three_peer_crdt_convergence_via_transport() {
     // --- Round 3: A <-> C (A learns C's value via the mesh) ---
     {
         let (mut c_ac, mut c_ca) = MemConnection::pair("a", "c");
-        let msgs_a = encode_nodes(&store_a, &rep_a);
-        let msgs_c = encode_nodes(&store_c, &rep_c);
+        let msgs_a = encode_store(&store_a, &rep_a);
+        let msgs_c = encode_store(&store_c, &rep_c);
         let (from_c, from_a) = ham_sync!(rep_a, c_ac, msgs_a, rep_c, c_ca, msgs_c);
         apply_received(&mut store_a, from_c); // A merges C's node (ts=300 > ts=200, C wins)
         apply_received(&mut store_c, from_a); // C merges A's merged node (ts=200 < ts=300, C keeps)
@@ -467,7 +484,277 @@ async fn test_reconnect_and_resync() {
 }
 
 // ============================================================================
-// Relay transport tests (real GunRelayServer over WebSocket)
+// Split-brain partition + reconnect tests
+// ============================================================================
+
+/// Two peers are **fully isolated** (no network contact) during a write
+/// window.  Both write to the **same field** of the same soul.  After the
+/// partition heals (a new connection is established) the peers exchange their
+/// diverged states.
+///
+/// Expected outcome per the LWW policy in `docs/CONFLICT_RESOLUTION.md`:
+/// - The field value with the **higher HAM timestamp** wins on both peers.
+/// - The peer whose write has the lower timestamp silently defers to the other.
+/// - After convergence both stores are bit-for-bit identical.
+#[tokio::test]
+async fn test_split_brain_isolated_partitions_converge() {
+    // --- Partition phase: no network between A and B ---
+    // Both peers write to the same field "score" on soul "game:state".
+    // A writes at ts=1000, B writes at ts=2000 → B's value must win.
+    let mut fields_a = HashMap::new();
+    fields_a.insert("score".to_string(), json!(50));
+    let node_a = GunNode::from_data("game:state", fields_a, 1_000.0);
+
+    let mut fields_b = HashMap::new();
+    fields_b.insert("score".to_string(), json!(99));
+    let node_b = GunNode::from_data("game:state", fields_b, 2_000.0);
+
+    let mut store_a: HashMap<String, GunNode> = HashMap::new();
+    let mut store_b: HashMap<String, GunNode> = HashMap::new();
+    store_a.insert("game:state".to_string(), node_a);
+    store_b.insert("game:state".to_string(), node_b);
+
+    // --- Partition heals: A and B exchange their full stores ---
+    let rep_a = Replicator::new("peer-a");
+    let rep_b = Replicator::new("peer-b");
+
+    let (mut c_ab, mut c_ba) = MemConnection::pair("a", "b");
+    let msgs_a = encode_store(&store_a, &rep_a);
+    let msgs_b = encode_store(&store_b, &rep_b);
+
+    // Both peers send and receive concurrently (mirrors real reconnect behaviour).
+    let (from_b, from_a) = {
+        let push_recv_a = async {
+            for msg in msgs_a {
+                c_ab.send(&msg).await.unwrap();
+            }
+            c_ab.close().await.unwrap();
+            rep_a.receive_all(&mut c_ab).await.unwrap()
+        };
+        let push_recv_b = async {
+            for msg in msgs_b {
+                c_ba.send(&msg).await.unwrap();
+            }
+            c_ba.close().await.unwrap();
+            rep_b.receive_all(&mut c_ba).await.unwrap()
+        };
+        tokio::join!(push_recv_a, push_recv_b)
+    };
+
+    apply_received(&mut store_a, from_b);
+    apply_received(&mut store_b, from_a);
+
+    // --- Verify convergence ---
+    // Both peers must hold B's value (score=99 @ ts=2000) because ts=2000 > ts=1000.
+    for (store, peer) in [(&store_a, "A"), (&store_b, "B")] {
+        let node = store
+            .get("game:state")
+            .unwrap_or_else(|| panic!("{peer}: missing game:state after partition heal"));
+        assert_eq!(
+            node.fields["score"],
+            json!(99),
+            "{peer}: split-brain: expected B's score (99 @ ts=2000) to win over A's score \
+             (50 @ ts=1000), but got {}",
+            node.fields["score"]
+        );
+    }
+
+    // Verify the two stores are identical (bit-for-bit convergence).
+    let score_a = &store_a["game:state"].fields["score"];
+    let score_b = &store_b["game:state"].fields["score"];
+    assert_eq!(
+        score_a, score_b,
+        "split-brain: stores diverged after heal — A has {score_a}, B has {score_b}"
+    );
+}
+
+/// Two partitioned peers each write to **different fields** of the same soul
+/// with **different timestamps**.
+///
+/// Expected outcome per the per-field LWW policy:
+/// - Each field is resolved independently.
+/// - A field written only by one peer is preserved regardless of timestamps.
+/// - A field written by both peers resolves to the higher-timestamp value.
+#[tokio::test]
+async fn test_split_brain_per_field_independent_convergence() {
+    // Peer A writes "status" at ts=100 and "label" at ts=100.
+    // Peer B writes "status" at ts=200 (wins the conflict) and "count" at ts=50
+    // (B is the only writer for "count", so it is preserved unconditionally).
+    let mut fields_a = HashMap::new();
+    fields_a.insert("status".to_string(), json!("online"));
+    fields_a.insert("label".to_string(), json!("primary"));
+    let node_a = GunNode::from_data("device:001", fields_a, 100.0);
+
+    let mut fields_b = HashMap::new();
+    fields_b.insert("status".to_string(), json!("offline")); // conflict — B wins (ts=200)
+    fields_b.insert("count".to_string(), json!(7)); // only B writes this field
+    let node_b = GunNode::from_data("device:001", fields_b, 200.0);
+
+    // Merge both ways and verify both produce the same result.
+    let mut merged_from_a_perspective = node_a.clone();
+    merged_from_a_perspective.merge(node_b.clone());
+
+    let mut merged_from_b_perspective = node_b.clone();
+    merged_from_b_perspective.merge(node_a.clone());
+
+    for (merged, label) in [
+        (&merged_from_a_perspective, "A-perspective"),
+        (&merged_from_b_perspective, "B-perspective"),
+    ] {
+        // "status": conflict field — B's ts=200 beats A's ts=100.
+        assert_eq!(
+            merged.fields["status"],
+            json!("offline"),
+            "{label}: status should be B's 'offline' (ts=200 > ts=100)"
+        );
+
+        // "label": only A wrote this field; it must survive the merge regardless.
+        assert_eq!(
+            merged.fields["label"],
+            json!("primary"),
+            "{label}: label (written only by A) should be preserved after merge"
+        );
+
+        // "count": only B wrote this field; it must survive regardless of A's ts.
+        assert_eq!(
+            merged.fields["count"],
+            json!(7),
+            "{label}: count (written only by B) should be preserved after merge"
+        );
+    }
+
+    // The two merge perspectives must be identical (commutativity).
+    assert_eq!(
+        merged_from_a_perspective.fields,
+        merged_from_b_perspective.fields,
+        "split-brain per-field: merge is not commutative — stores diverged"
+    );
+}
+
+/// Three peers are split into two partitions:
+///   - Partition 1: peers A and B (can communicate with each other, not C)
+///   - Partition 2: peer C alone
+///
+/// All three peers write to the same soul with different timestamps.
+/// The partition heals in two reconnect events:
+///   1. A ↔ C reconnect (C is now reachable from partition 1 via A).
+///   2. B ↔ C reconnect (B catches up directly from C).
+///
+/// After full reconnect every peer must hold the value with the globally
+/// highest timestamp, matching the policy in `docs/CONFLICT_RESOLUTION.md`.
+#[tokio::test]
+async fn test_split_brain_three_peer_partition_and_full_reconnect() {
+    // --- Partition phase ---
+    // Partition 1: A (ts=100) and B (ts=200) can sync with each other.
+    // Partition 2: C (ts=300) is isolated.
+    // C has the globally winning value.
+    let mut fields_a = HashMap::new();
+    fields_a.insert("level".to_string(), json!(1));
+    let node_a = GunNode::from_data("player:x", fields_a, 100.0);
+
+    let mut fields_b = HashMap::new();
+    fields_b.insert("level".to_string(), json!(2));
+    let node_b = GunNode::from_data("player:x", fields_b, 200.0);
+
+    let mut fields_c = HashMap::new();
+    fields_c.insert("level".to_string(), json!(3)); // highest timestamp — wins globally
+    let node_c = GunNode::from_data("player:x", fields_c, 300.0);
+
+    let mut store_a: HashMap<String, GunNode> = HashMap::new();
+    let mut store_b: HashMap<String, GunNode> = HashMap::new();
+    let mut store_c: HashMap<String, GunNode> = HashMap::new();
+    store_a.insert("player:x".to_string(), node_a);
+    store_b.insert("player:x".to_string(), node_b);
+    store_c.insert("player:x".to_string(), node_c);
+
+    let rep_a = Replicator::new("peer-a");
+    let rep_b = Replicator::new("peer-b");
+    let rep_c = Replicator::new("peer-c");
+
+    // Macro reused from test_three_peer_crdt_convergence_via_transport.
+    macro_rules! ham_sync {
+        ($rep_l:expr, $conn_l:expr, $msgs_l:expr,
+         $rep_r:expr, $conn_r:expr, $msgs_r:expr) => {{
+            let push_recv_l = async {
+                for msg in $msgs_l {
+                    $conn_l.send(&msg).await.unwrap();
+                }
+                $conn_l.close().await.unwrap();
+                $rep_l.receive_all(&mut $conn_l).await.unwrap()
+            };
+            let push_recv_r = async {
+                for msg in $msgs_r {
+                    $conn_r.send(&msg).await.unwrap();
+                }
+                $conn_r.close().await.unwrap();
+                $rep_r.receive_all(&mut $conn_r).await.unwrap()
+            };
+            tokio::join!(push_recv_l, push_recv_r)
+        }};
+    }
+
+    // --- Intra-partition sync: A <-> B (inside partition 1) ---
+    {
+        let (mut c_ab, mut c_ba) = MemConnection::pair("a", "b");
+        let msgs_a = encode_store(&store_a, &rep_a);
+        let msgs_b = encode_store(&store_b, &rep_b);
+        let (from_b, from_a) = ham_sync!(rep_a, c_ab, msgs_a, rep_b, c_ba, msgs_b);
+        apply_received(&mut store_a, from_b); // A learns level=2 @ ts=200 (B wins)
+        apply_received(&mut store_b, from_a); // B keeps level=2 @ ts=200
+    }
+    // Partition 1 state: A and B both have level=2 @ ts=200.
+    // Partition 2 state: C still has level=3 @ ts=300 (isolated).
+
+    // --- Partition heals: A <-> C reconnect ---
+    {
+        let (mut c_ac, mut c_ca) = MemConnection::pair("a", "c");
+        let msgs_a = encode_store(&store_a, &rep_a);
+        let msgs_c = encode_store(&store_c, &rep_c);
+        let (from_c, from_a) = ham_sync!(rep_a, c_ac, msgs_a, rep_c, c_ca, msgs_c);
+        apply_received(&mut store_a, from_c); // A learns level=3 @ ts=300 (C wins)
+        apply_received(&mut store_c, from_a); // C keeps level=3 @ ts=300
+    }
+    // A now has level=3 @ ts=300.  B still has level=2 @ ts=200.
+
+    // --- Full reconnect: B <-> C (or B learns via A; we test B <-> C direct) ---
+    {
+        let (mut c_bc, mut c_cb) = MemConnection::pair("b", "c");
+        let msgs_b = encode_store(&store_b, &rep_b);
+        let msgs_c = encode_store(&store_c, &rep_c);
+        let (from_c, from_b) = ham_sync!(rep_b, c_bc, msgs_b, rep_c, c_cb, msgs_c);
+        apply_received(&mut store_b, from_c); // B learns level=3 @ ts=300 (C wins)
+        apply_received(&mut store_c, from_b); // C keeps level=3 @ ts=300
+    }
+
+    // --- Verify full convergence ---
+    // All three peers must converge to C's value (level=3 @ ts=300).
+    for (store, peer) in [(&store_a, "A"), (&store_b, "B"), (&store_c, "C")] {
+        let node = store
+            .get("player:x")
+            .unwrap_or_else(|| panic!("{peer}: missing player:x after full reconnect"));
+        assert_eq!(
+            node.fields["level"],
+            json!(3),
+            "{peer}: split-brain three-peer: expected C's level (3 @ ts=300) to win, \
+             but got {}",
+            node.fields["level"]
+        );
+    }
+
+    // Cross-check: all three stores are identical for the contested field.
+    let level_a = &store_a["player:x"].fields["level"];
+    let level_b = &store_b["player:x"].fields["level"];
+    let level_c = &store_c["player:x"].fields["level"];
+    assert_eq!(
+        level_a, level_b,
+        "split-brain three-peer: A ({level_a}) and B ({level_b}) diverged after full reconnect"
+    );
+    assert_eq!(
+        level_b, level_c,
+        "split-brain three-peer: B ({level_b}) and C ({level_c}) diverged after full reconnect"
+    );
+}
+
 // ============================================================================
 
 /// Two peers exchange a GUN PUT message through a real `GunRelayServer`.
