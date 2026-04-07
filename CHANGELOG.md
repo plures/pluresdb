@@ -1,3 +1,9 @@
+## [3.4.1] — 2026-04-07
+
+- fix(fmt): apply cargo fmt to pluresdb-node and pluresdb-wasm (#341) (eb17228)
+- chore: centralize release to org-wide reusable workflow (7bff4d0)
+- chore: centralize CI to org-wide reusable workflow (4337da1)
+
 ## [3.4.0] - 2026-04-06
 
 - fix(napi): bump napi-derive to 3.x to match napi 3.8.4 (#338) (b7e0b91)
