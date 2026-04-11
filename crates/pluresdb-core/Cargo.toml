@@ -24,7 +24,7 @@ sqlite-compat = ["dep:rusqlite", "native"]
 anyhow.workspace = true
 chrono.workspace = true
 dashmap.workspace = true
-fastembed = { version = "5.13.0", optional = true }
+fastembed = { version = "5.13.2", optional = true }
 futures = { workspace = true, optional = true }
 hnsw_rs = { workspace = true, optional = true }
 parking_lot.workspace = true
