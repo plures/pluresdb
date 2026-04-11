@@ -407,6 +407,12 @@ impl WalValidation {
         if self.is_healthy() {
             return None;
         }
+
+        /// Returns `singular` when `n == 1`, otherwise `plural`.
+        fn pl(n: u64, singular: &'static str, plural: &'static str) -> &'static str {
+            if n == 1 { singular } else { plural }
+        }
+
         Some(format!(
             "WAL integrity check failed: {} corrupted entr{}, {} corrupted segment{} \
              out of {} total entr{} across {} segment{}.\n\
@@ -418,13 +424,13 @@ impl WalValidation {
              3. Delete only the corrupted segment files identified in the log output \
                 above and restart (advanced).",
             self.corrupted_entries,
-            if self.corrupted_entries == 1 { "y" } else { "ies" },
+            pl(self.corrupted_entries, "y", "ies"),
             self.corrupted_segments,
-            if self.corrupted_segments == 1 { "" } else { "s" },
+            pl(self.corrupted_segments, "", "s"),
             self.total_entries,
-            if self.total_entries == 1 { "y" } else { "ies" },
+            pl(self.total_entries, "y", "ies"),
             self.total_segments,
-            if self.total_segments == 1 { "" } else { "s" },
+            pl(self.total_segments, "", "s"),
         ))
     }
 }
