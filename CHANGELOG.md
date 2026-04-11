@@ -1,3 +1,7 @@
+## [3.5.2] — 2026-04-11
+
+- fix: resolve CI failures (node napi + rust fmt) (#345) (bbd27bf)
+
 ## [3.5.1] — 2026-04-07
 
 - fix: inline reusable workflow to fix schedule trigger failures (ab83499)
