@@ -437,8 +437,16 @@ pub fn decrypt(&self, ciphertext_with_nonce: &[u8]) -> Result<Vec<u8>>
 /// Returns whether encryption is enabled.
 pub fn is_enabled(&self) -> bool
 
-/// Rotate to a new password (generates a new salt).
+/// Rotate to a new password (updates in-memory key only).
 pub fn rotate_key(&mut self, new_password: &str) -> Result<()>
+
+/// Rotate key and atomically re-encrypt existing blocks.
+/// Returns re-encrypted counterparts in the same order as `blocks`.
+pub fn rotate_key_and_reencrypt_blocks(
+    &mut self,
+    new_password: &str,
+    blocks: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>>
 
 /// Returns the 16-byte Argon2id salt.
 pub fn salt(&self) -> &[u8; 16]
@@ -516,32 +524,43 @@ pub fn is_device_revoked(&self, device_id: &str) -> bool
 pub fn salt_bytes(&self) -> Result<Vec<u8>>
 ```
 
-#### Key rotation example
+#### Key rotation
+
+`EncryptionConfig` provides two rotation methods:
+
+| Method | Description |
+|---|---|
+| `rotate_key(new_password)` | Updates the in-memory key only.  Use when no existing blobs need re-encryption. |
+| `rotate_key_and_reencrypt_blocks(new_password, blocks)` | Decrypts each block with the old key, derives a new key, re-encrypts every block, and commits the new key only if all blocks succeed. |
 
 ```rust
 use pluresdb_storage::{EncryptionConfig, EncryptionMetadata};
 use std::path::Path;
 
 fn rotate_database_key(
-    db_path: &Path,
+    db_path:      &Path,
     old_password: &str,
     new_password: &str,
-) -> anyhow::Result<()> {
-    // Load existing salt
+    blocks:       Vec<Vec<u8>>,   // existing ciphertexts to re-encrypt
+) -> anyhow::Result<Vec<Vec<u8>>> {
+    // Load existing salt and re-derive old key
     let meta = EncryptionMetadata::load(&db_path.join("encryption.json"))?;
     let salt = meta.salt_bytes()?;
-
-    // Re-derive with old password, then rotate
     let mut enc = EncryptionConfig::from_password_with_salt(old_password, &salt)?;
-    enc.rotate_key(new_password)?;
 
-    // Persist updated metadata (new salt)
+    // Atomically rotate and re-encrypt all blocks
+    let new_blocks = enc.rotate_key_and_reencrypt_blocks(new_password, &blocks)?;
+
+    // Persist new metadata (new salt) only after re-encryption succeeds
     let new_meta = EncryptionMetadata::from_config(&enc);
     new_meta.save(&db_path.join("encryption.json"))?;
 
-    Ok(())
+    Ok(new_blocks)
 }
 ```
+
+See [`docs/KEY_MANAGEMENT.md`](KEY_MANAGEMENT.md) for full key management
+guidance, recovery steps, and security recommendations.
 
 > **Note:** Storage-level encryption integration with `SledStorage` via a
 > dedicated `StorageEngine::with_encryption` API is on the roadmap.  See

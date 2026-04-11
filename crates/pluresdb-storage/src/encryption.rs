@@ -96,6 +96,11 @@ impl EncryptionConfig {
     }
 
     /// Rotates the master key to a new password.
+    ///
+    /// This updates the in-memory key and salt only.  Any previously encrypted
+    /// blobs **cannot** be decrypted with the new key; use
+    /// [`rotate_key_and_reencrypt_blocks`] to atomically rotate and re-encrypt
+    /// existing data.
     pub fn rotate_key(&mut self, new_password: &str) -> Result<()> {
         // Generate new salt for the new password
         let mut new_salt = [0u8; SALT_SIZE];
@@ -109,6 +114,57 @@ impl EncryptionConfig {
         self.salt = new_config.salt;
 
         Ok(())
+    }
+
+    /// Rotates the master key and re-encrypts a set of existing ciphertext blobs.
+    ///
+    /// Each blob in `blocks` must have been produced by [`encrypt`] with the
+    /// **current** key.  The method:
+    ///
+    /// 1. Decrypts every block with the current (old) key.
+    /// 2. Derives a fresh key from `new_password` (new random salt).
+    /// 3. Re-encrypts every block with the new key.
+    /// 4. Updates `self` to hold the new key and salt.
+    ///
+    /// On success the returned `Vec` has the same length as `blocks` and each
+    /// element is the re-encrypted counterpart of the corresponding input blob.
+    /// The operation is all-or-nothing: if any block fails to decrypt or
+    /// re-encrypt, `self` is left unchanged and an error is returned.
+    ///
+    /// # Errors
+    /// Returns an error if encryption is disabled, any block cannot be
+    /// decrypted with the current key, or key derivation fails.
+    pub fn rotate_key_and_reencrypt_blocks(
+        &mut self,
+        new_password: &str,
+        blocks: &[Vec<u8>],
+    ) -> Result<Vec<Vec<u8>>> {
+        if !self.enabled {
+            anyhow::bail!("cannot rotate key: encryption is disabled");
+        }
+
+        // --- Phase 1: decrypt all blocks with the current (old) key ----------
+        let plaintexts: Result<Vec<Vec<u8>>> = blocks.iter().map(|b| self.decrypt(b)).collect();
+        let plaintexts =
+            plaintexts.context("failed to decrypt one or more blocks with the current key")?;
+
+        // --- Phase 2: derive the new key (do NOT update self yet) ------------
+        let mut new_salt = [0u8; SALT_SIZE];
+        OsRng.fill_bytes(&mut new_salt);
+        let new_config = Self::from_password_with_salt(new_password, &new_salt)
+            .context("failed to derive new key from password")?;
+
+        // --- Phase 3: re-encrypt all plaintexts with the new key -------------
+        let new_ciphertexts: Result<Vec<Vec<u8>>> =
+            plaintexts.iter().map(|p| new_config.encrypt(p)).collect();
+        let new_ciphertexts =
+            new_ciphertexts.context("failed to re-encrypt one or more blocks with the new key")?;
+
+        // --- Phase 4: commit the new key only after all blocks succeeded -----
+        self.master_key = new_config.master_key;
+        self.salt = new_config.salt;
+
+        Ok(new_ciphertexts)
     }
 
     /// Encrypts data using AES-256-GCM.
@@ -346,6 +402,84 @@ mod tests {
         let ciphertext = config.encrypt(plaintext).unwrap();
         let decrypted = config.decrypt(&ciphertext).unwrap();
         assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_rotate_key_and_reencrypt_blocks_round_trip() {
+        let mut config = EncryptionConfig::from_password("old-password").unwrap();
+
+        let plaintexts: Vec<&[u8]> = vec![
+            b"block one payload",
+            b"block two payload",
+            b"block three payload",
+        ];
+
+        // Encrypt each block with the old key
+        let old_ciphertexts: Vec<Vec<u8>> = plaintexts
+            .iter()
+            .map(|p| config.encrypt(p).unwrap())
+            .collect();
+
+        // Rotate and re-encrypt
+        let new_ciphertexts = config
+            .rotate_key_and_reencrypt_blocks("new-password", &old_ciphertexts)
+            .unwrap();
+
+        assert_eq!(new_ciphertexts.len(), plaintexts.len());
+
+        // New ciphertexts must decrypt correctly with the new key
+        for (i, ct) in new_ciphertexts.iter().enumerate() {
+            let decrypted = config.decrypt(ct).unwrap();
+            assert_eq!(decrypted, plaintexts[i]);
+        }
+    }
+
+    #[test]
+    fn test_rotate_key_and_reencrypt_old_ciphertexts_invalid_with_new_key() {
+        let mut config = EncryptionConfig::from_password("old-password").unwrap();
+
+        let plaintext = b"sensitive payload";
+        let old_ciphertext = config.encrypt(plaintext).unwrap();
+
+        // Rotate — old_ciphertext is now stale
+        config
+            .rotate_key_and_reencrypt_blocks("new-password", &[old_ciphertext.clone()])
+            .unwrap();
+
+        // Attempting to decrypt the old (pre-rotation) ciphertext with the
+        // rotated key must fail
+        let result = config.decrypt(&old_ciphertext);
+        assert!(
+            result.is_err(),
+            "old ciphertext must not be decryptable with the rotated key"
+        );
+    }
+
+    #[test]
+    fn test_rotate_key_and_reencrypt_blocks_disabled_returns_error() {
+        let mut config = EncryptionConfig::default(); // disabled
+        let result = config.rotate_key_and_reencrypt_blocks("new-password", &[]);
+        assert!(
+            result.is_err(),
+            "rotation on a disabled config must return an error"
+        );
+    }
+
+    #[test]
+    fn test_rotate_key_and_reencrypt_blocks_wrong_key_returns_error() {
+        let mut config1 = EncryptionConfig::from_password("password-a").unwrap();
+        let config2 = EncryptionConfig::from_password("password-b").unwrap();
+
+        // Encrypt with config2 (different key)
+        let foreign_ciphertext = config2.encrypt(b"foreign data").unwrap();
+
+        // Attempt to rotate config1 using a block encrypted with config2
+        let result =
+            config1.rotate_key_and_reencrypt_blocks("new-password", &[foreign_ciphertext]);
+        assert!(
+            result.is_err(),
+            "rotation must fail when a block was encrypted with a different key"
+        );
     }
 
     #[test]
