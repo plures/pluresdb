@@ -135,9 +135,7 @@ impl TransportConfig {
                          Example: wss://relay.example.com/gun"
                     ));
                 }
-                Some(url)
-                    if !url.starts_with("ws://") && !url.starts_with("wss://") =>
-                {
+                Some(url) if !url.starts_with("ws://") && !url.starts_with("wss://") => {
                     return Err(anyhow::anyhow!(
                         "Invalid TransportConfig: relay_url '{}' must start with \
                          ws:// or wss://. Use wss:// for encrypted connections.",

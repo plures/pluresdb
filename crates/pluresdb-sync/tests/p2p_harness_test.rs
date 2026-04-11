@@ -625,8 +625,7 @@ async fn test_split_brain_per_field_independent_convergence() {
 
     // The two merge perspectives must be identical (commutativity).
     assert_eq!(
-        merged_from_a_perspective.fields,
-        merged_from_b_perspective.fields,
+        merged_from_a_perspective.fields, merged_from_b_perspective.fields,
         "split-brain per-field: merge is not commutative — stores diverged"
     );
 }

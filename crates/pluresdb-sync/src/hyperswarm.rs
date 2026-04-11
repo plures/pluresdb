@@ -47,8 +47,7 @@ use aes_gcm::Aes256Gcm;
 // aes-gcm 0.10 still relies on the 0.14 API.  Allow the deprecation here so
 // that `-D warnings` in CI does not fail this otherwise-sound code.
 #[allow(deprecated)]
-type AesNonce =
-    aes_gcm::aead::generic_array::GenericArray<u8, <Aes256Gcm as AeadCore>::NonceSize>;
+type AesNonce = aes_gcm::aead::generic_array::GenericArray<u8, <Aes256Gcm as AeadCore>::NonceSize>;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -328,11 +327,8 @@ impl Transport for HyperswarmTransport {
                             peer_addr,
                             &my_peer_id_accept[..8]
                         );
-                        let conn = HyperswarmConnection::new(
-                            peer_id,
-                            stream,
-                            cipher_accept.clone(),
-                        );
+                        let conn =
+                            HyperswarmConnection::new(peer_id, stream, cipher_accept.clone());
                         if conn_tx_accept
                             .send(Box::new(conn) as Box<dyn Connection>)
                             .await
@@ -377,8 +373,7 @@ impl Transport for HyperswarmTransport {
                             &peer_id[..8.min(peer_id.len())],
                             addr
                         );
-                        let conn =
-                            HyperswarmConnection::new(peer_id, stream, cipher_out.clone());
+                        let conn = HyperswarmConnection::new(peer_id, stream, cipher_out.clone());
                         if conn_tx_out
                             .send(Box::new(conn) as Box<dyn Connection>)
                             .await

@@ -222,11 +222,7 @@ impl Transport for RelayTransport {
                         // Write task: drain send_rx → WebSocket.
                         let write_task = tokio::spawn(async move {
                             while let Some(data) = send_rx.recv().await {
-                                if ws_tx
-                                    .send(Message::Binary(data.into()))
-                                    .await
-                                    .is_err()
-                                {
+                                if ws_tx.send(Message::Binary(data.into())).await.is_err() {
                                     break;
                                 }
                             }
@@ -277,10 +273,7 @@ impl Transport for RelayTransport {
                         );
                     }
                     Ok(Err(e)) => {
-                        warn!(
-                            "[RelayTransport] connect attempt {} failed: {}",
-                            attempt, e
-                        );
+                        warn!("[RelayTransport] connect attempt {} failed: {}", attempt, e);
                     }
                     Err(_) => {
                         warn!(
@@ -293,10 +286,7 @@ impl Transport for RelayTransport {
                 if stopped.load(Ordering::Relaxed) {
                     break;
                 }
-                debug!(
-                    "[RelayTransport] backing off {:?} before retry",
-                    backoff
-                );
+                debug!("[RelayTransport] backing off {:?} before retry", backoff);
                 tokio::time::sleep(backoff).await;
                 backoff = (backoff * 2).min(max_backoff);
             }

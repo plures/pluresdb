@@ -126,7 +126,7 @@ mod tests {
             if data
                 .get("_type")
                 .and_then(|t| t.as_str())
-                .map_or(false, |t| t.starts_with("pluresLM:"))
+                .is_some_and(|t| t.starts_with("pluresLM:"))
             {
                 Some("pluresLM/v1")
             } else {
