@@ -12,8 +12,60 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use tokio::sync::Mutex;
 use tracing::{debug, info, instrument, warn};
+
+/// Maximum size of a single WAL entry payload in bytes (16 MiB).
+///
+/// Entries whose length prefix exceeds this threshold are rejected immediately
+/// as the prefix is almost certainly the result of a corrupt or partial write.
+const MAX_ENTRY_SIZE: usize = 16 * 1024 * 1024;
+
+/// Errors specific to WAL corruption and recovery.
+///
+/// These errors carry actionable guidance so operators can quickly recover from
+/// corruption without manual investigation.
+#[derive(Debug, Error)]
+pub enum WalError {
+    /// A WAL entry length prefix claims an implausibly large payload size.
+    #[error(
+        "WAL segment '{segment}' contains an entry claiming {claimed_size} bytes \
+         at byte offset {offset} (maximum allowed: {max_size} bytes). The length \
+         prefix is likely corrupt.\n\
+         Recovery options:\n  \
+         1. Delete segment '{segment}' and restart — earlier segments remain intact.\n  \
+         2. Run `pluresdb-cli wal recover --path <wal-dir>` to salvage all valid entries."
+    )]
+    ImplausibleEntrySize {
+        /// Path of the corrupted segment file.
+        segment: String,
+        /// Byte offset within the segment where the bad length prefix starts.
+        offset: u64,
+        /// The size claimed by the corrupt length prefix.
+        claimed_size: usize,
+        /// The configured upper bound for valid entry sizes.
+        max_size: usize,
+    },
+
+    /// A WAL segment file ended before a complete entry could be read.
+    #[error(
+        "WAL segment '{segment}' is truncated at byte offset {offset}: expected \
+         {expected_bytes} bytes but the file ended prematurely. A partial write was \
+         likely caused by a process crash mid-write.\n\
+         Recovery options:\n  \
+         1. Delete segment '{segment}' and restart — fully-written earlier segments are intact.\n  \
+         2. Run `pluresdb-cli wal recover --path <wal-dir>` to replay only intact entries."
+    )]
+    TruncatedEntry {
+        /// Path of the truncated segment file.
+        segment: String,
+        /// Byte offset at which truncation was detected.
+        offset: u64,
+        /// Number of bytes that were expected but could not be read.
+        expected_bytes: usize,
+    },
+}
 
 /// Durability level for write operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -345,6 +397,36 @@ impl WalValidation {
             (self.corrupted_entries as f64) / (self.total_entries as f64)
         }
     }
+
+    /// Returns actionable recovery guidance when corruption is detected.
+    ///
+    /// Returns `None` when the WAL is healthy. When corruption is present the
+    /// returned string describes the problem and lists concrete recovery steps
+    /// the operator can take.
+    pub fn recovery_guidance(&self) -> Option<String> {
+        if self.is_healthy() {
+            return None;
+        }
+        Some(format!(
+            "WAL integrity check failed: {} corrupted entr{}, {} corrupted segment{} \
+             out of {} total entr{} across {} segment{}.\n\
+             Recovery options:\n  \
+             1. Run `pluresdb-cli wal recover --path <wal-dir>` to replay only valid \
+                entries (recommended — minimises data loss).\n  \
+             2. Delete all .wal files in the WAL directory and restart from your last \
+                snapshot (safe, but may lose recent writes not yet in a snapshot).\n  \
+             3. Delete only the corrupted segment files identified in the log output \
+                above and restart (advanced).",
+            self.corrupted_entries,
+            if self.corrupted_entries == 1 { "y" } else { "ies" },
+            self.corrupted_segments,
+            if self.corrupted_segments == 1 { "" } else { "s" },
+            self.total_entries,
+            if self.total_entries == 1 { "y" } else { "ies" },
+            self.total_segments,
+            if self.total_segments == 1 { "" } else { "s" },
+        ))
+    }
 }
 
 /// A single WAL segment file.
@@ -406,6 +488,11 @@ impl WalSegment {
     }
 
     /// Reads all entries from this segment.
+    ///
+    /// Returns `Err` if a partial write is detected (truncated length prefix,
+    /// implausible entry size, or truncated payload). This allows callers such as
+    /// [`WriteAheadLog::validate`] to count the segment as corrupted rather than
+    /// silently dropping its tail.
     fn read_all(&self) -> Result<Vec<WalEntry>> {
         // Open a new file handle for reading (the self.file is in append mode)
         let read_file = File::open(&self.path).with_context(|| {
@@ -417,21 +504,75 @@ impl WalSegment {
 
         let mut reader = BufReader::new(read_file);
         let mut entries = Vec::new();
+        let mut offset: u64 = 0;
+        let segment_name = self.path.display().to_string();
 
         loop {
-            // Read length prefix
+            // Read the first byte of the 4-byte length prefix via `read` (not
+            // `read_exact`) so we can distinguish a clean end-of-file (0 bytes
+            // returned at a record boundary) from a partial write that left fewer
+            // than 4 bytes in the file.
             let mut len_buf = [0u8; 4];
-            match reader.read_exact(&mut len_buf) {
-                Ok(_) => {}
-                Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
-                Err(e) => return Err(e.into()),
+            match reader.read(&mut len_buf[..1])? {
+                0 => break, // clean EOF at a record boundary — normal end of segment
+                _ => {
+                    // We have the first byte; read the remaining 3.
+                    reader
+                        .read_exact(&mut len_buf[1..])
+                        .map_err(|e| {
+                            if e.kind() == io::ErrorKind::UnexpectedEof {
+                                anyhow::Error::from(WalError::TruncatedEntry {
+                                    segment: segment_name.clone(),
+                                    offset,
+                                    expected_bytes: 4,
+                                })
+                            } else {
+                                anyhow::Error::from(e)
+                                    .context(WalError::TruncatedEntry {
+                                        segment: segment_name.clone(),
+                                        offset,
+                                        expected_bytes: 4,
+                                    })
+                            }
+                        })?;
+                }
             }
 
             let len = u32::from_le_bytes(len_buf) as usize;
+            let entry_offset = offset + 4;
 
-            // Read entry bytes
+            // Reject implausibly large entries — the length prefix is likely corrupt.
+            if len > MAX_ENTRY_SIZE {
+                return Err(WalError::ImplausibleEntrySize {
+                    segment: segment_name,
+                    offset,
+                    claimed_size: len,
+                    max_size: MAX_ENTRY_SIZE,
+                }
+                .into());
+            }
+
+            // Read the entry payload.
             let mut entry_buf = vec![0u8; len];
-            reader.read_exact(&mut entry_buf)?;
+            reader
+                .read_exact(&mut entry_buf)
+                .map_err(|e| {
+                    if e.kind() == io::ErrorKind::UnexpectedEof {
+                        anyhow::Error::from(WalError::TruncatedEntry {
+                            segment: segment_name.clone(),
+                            offset: entry_offset,
+                            expected_bytes: len,
+                        })
+                    } else {
+                        anyhow::Error::from(e).context(WalError::TruncatedEntry {
+                            segment: segment_name.clone(),
+                            offset: entry_offset,
+                            expected_bytes: len,
+                        })
+                    }
+                })?;
+
+            offset += 4 + len as u64;
 
             // Deserialize entry
             match serde_json::from_slice::<WalEntry>(&entry_buf) {

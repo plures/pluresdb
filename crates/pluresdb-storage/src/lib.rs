@@ -47,7 +47,7 @@ pub use rad::{RadAdapter, SledRadAdapter};
 #[cfg(feature = "native")]
 pub use replay::{metadata_pruning, rebuild_from_wal, replay_wal, ReplayStats};
 #[cfg(feature = "native")]
-pub use wal::{DurabilityLevel, WalEntry, WalOperation, WalValidation, WriteAheadLog};
+pub use wal::{DurabilityLevel, WalEntry, WalError, WalOperation, WalValidation, WriteAheadLog};
 
 /// A node persisted by a storage engine.
 ///
