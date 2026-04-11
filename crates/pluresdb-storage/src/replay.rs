@@ -121,10 +121,16 @@ pub async fn rebuild_from_wal(
     if validate_checksums {
         let validation = wal.validate().await?;
         if !validation.is_healthy() {
+            let guidance = validation
+                .recovery_guidance()
+                .unwrap_or_default();
             anyhow::bail!(
-                "WAL validation failed: {} corrupted entries, {} corrupted segments",
+                "WAL validation failed: {} corrupted entr{}, {} corrupted segment{}.\n{}",
                 validation.corrupted_entries,
-                validation.corrupted_segments
+                if validation.corrupted_entries == 1 { "y" } else { "ies" },
+                validation.corrupted_segments,
+                if validation.corrupted_segments == 1 { "" } else { "s" },
+                guidance,
             );
         }
     }

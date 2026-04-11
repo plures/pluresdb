@@ -455,3 +455,298 @@ async fn test_rapid_checkpoint_compaction() {
         "WAL should remain healthy after rapid cycles"
     );
 }
+
+// ── Corruption and partial-write tests ────────────────────────────────────────
+
+/// Helper: find the single `.wal` segment file in a directory.
+fn find_segment(dir: &std::path::Path) -> std::path::PathBuf {
+    std::fs::read_dir(dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .find(|p| p.extension().and_then(|s| s.to_str()) == Some("wal"))
+        .expect("expected at least one .wal segment file")
+}
+
+/// Test: a partial length-prefix write (< 4 bytes) at the tail of a segment is
+/// detected as corruption rather than silently treated as a clean end-of-file.
+#[tokio::test]
+async fn test_partial_length_prefix_detected() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Write two complete entries and flush.
+    {
+        let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+        for i in 0..2u32 {
+            wal.append(
+                "actor-1".to_string(),
+                WalOperation::Put {
+                    id: format!("node-{}", i),
+                    data: serde_json::json!({"index": i}),
+                },
+            )
+            .await
+            .unwrap();
+        }
+    }
+
+    // Append only 2 bytes of a 4-byte length prefix to simulate a torn write.
+    let segment = find_segment(temp_dir.path());
+    {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&segment)
+            .unwrap();
+        f.write_all(&[0xAB, 0xCD]).unwrap(); // partial 2-byte length prefix
+    }
+
+    // Re-open and validate: the segment should be flagged as corrupted.
+    let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+    let validation = wal.validate().await.unwrap();
+
+    assert!(
+        !validation.is_healthy(),
+        "partial length prefix should be detected as corruption"
+    );
+    assert!(
+        validation.corrupted_segments > 0,
+        "corrupted_segments should be > 0"
+    );
+}
+
+/// Test: an implausibly large length prefix (> MAX_ENTRY_SIZE) is rejected
+/// immediately rather than attempting to allocate a multi-GiB buffer.
+#[tokio::test]
+async fn test_implausible_length_prefix_detected() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Write one valid entry and flush.
+    {
+        let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+        wal.append(
+            "actor-1".to_string(),
+            WalOperation::Put {
+                id: "node-0".to_string(),
+                data: serde_json::json!({"ok": true}),
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    // Append a 4-byte length prefix claiming 0xFFFF_FFFF bytes (~4 GiB).
+    let segment = find_segment(temp_dir.path());
+    {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&segment)
+            .unwrap();
+        f.write_all(&u32::MAX.to_le_bytes()).unwrap();
+    }
+
+    let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+    let validation = wal.validate().await.unwrap();
+
+    assert!(
+        !validation.is_healthy(),
+        "implausible length prefix should be detected"
+    );
+    assert!(validation.corrupted_segments > 0);
+}
+
+/// Test: a truncated entry payload (length prefix written but data truncated)
+/// is detected as corruption.
+#[tokio::test]
+async fn test_truncated_entry_payload_detected() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Write one valid entry.
+    {
+        let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+        wal.append(
+            "actor-1".to_string(),
+            WalOperation::Put {
+                id: "node-0".to_string(),
+                data: serde_json::json!({"complete": true}),
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    // Append a length prefix claiming 64 bytes but provide only 8 bytes of data.
+    let segment = find_segment(temp_dir.path());
+    {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&segment)
+            .unwrap();
+        let claimed_len: u32 = 64;
+        f.write_all(&claimed_len.to_le_bytes()).unwrap();
+        f.write_all(&[0u8; 8]).unwrap(); // only 8 bytes instead of 64
+    }
+
+    let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+    let validation = wal.validate().await.unwrap();
+
+    assert!(
+        !validation.is_healthy(),
+        "truncated entry payload should be detected"
+    );
+    assert!(validation.corrupted_segments > 0);
+}
+
+/// Test: `rebuild_from_wal` with `validate_checksums = true` fails fast when a
+/// segment contains a corrupt entry (bad checksum), and the error message
+/// includes actionable recovery guidance.
+#[tokio::test]
+async fn test_rebuild_fails_fast_on_corrupt_checksum() {
+    use pluresdb_storage::rebuild_from_wal;
+
+    let temp_dir = TempDir::new().unwrap();
+
+    // Write a few valid entries.
+    {
+        let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+        for i in 0..4u32 {
+            wal.append(
+                "actor-1".to_string(),
+                WalOperation::Put {
+                    id: format!("node-{}", i),
+                    data: serde_json::json!({"index": i}),
+                },
+            )
+            .await
+            .unwrap();
+        }
+    }
+
+    // Flip some bytes in the middle of the segment to corrupt an entry's checksum.
+    let segment = find_segment(temp_dir.path());
+    let mut bytes = std::fs::read(&segment).unwrap();
+    let mid = bytes.len() / 2;
+    bytes[mid] ^= 0xFF;
+    bytes[mid + 1] ^= 0xFF;
+    std::fs::write(&segment, &bytes).unwrap();
+
+    // rebuild_from_wal must fail with an error containing recovery guidance.
+    let err = rebuild_from_wal(temp_dir.path(), true)
+        .await
+        .unwrap_err();
+    let msg = err.to_string();
+
+    assert!(
+        msg.contains("Recovery"),
+        "error message should contain recovery guidance, got: {}",
+        msg
+    );
+    assert!(
+        msg.contains("pluresdb-cli wal recover") || msg.contains("wal recover"),
+        "error should mention the recovery CLI command, got: {}",
+        msg
+    );
+}
+
+/// Test: `rebuild_from_wal` fails fast when a segment has a partial length-prefix
+/// tail (simulates process crash mid-write).
+#[tokio::test]
+async fn test_rebuild_fails_fast_on_truncated_segment() {
+    use pluresdb_storage::rebuild_from_wal;
+
+    let temp_dir = TempDir::new().unwrap();
+
+    {
+        let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+        for i in 0..3u32 {
+            wal.append(
+                "actor-1".to_string(),
+                WalOperation::Put {
+                    id: format!("node-{}", i),
+                    data: serde_json::json!({"index": i}),
+                },
+            )
+            .await
+            .unwrap();
+        }
+    }
+
+    // Append partial length prefix (3 bytes) — simulates crash mid-header.
+    let segment = find_segment(temp_dir.path());
+    {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&segment)
+            .unwrap();
+        f.write_all(&[0x01, 0x02, 0x03]).unwrap();
+    }
+
+    let err = rebuild_from_wal(temp_dir.path(), true)
+        .await
+        .unwrap_err();
+    let msg = err.to_string();
+
+    assert!(
+        msg.contains("Recovery") || msg.contains("corrupted"),
+        "error message should mention corruption/recovery, got: {}",
+        msg
+    );
+}
+
+/// Test: `WalValidation::recovery_guidance` returns `None` for a healthy WAL
+/// and a non-empty guidance string when corruption is present.
+#[tokio::test]
+async fn test_validation_recovery_guidance_content() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Healthy WAL — guidance should be None.
+    {
+        let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+        wal.append(
+            "actor-1".to_string(),
+            WalOperation::Put {
+                id: "n0".to_string(),
+                data: serde_json::json!({}),
+            },
+        )
+        .await
+        .unwrap();
+
+        let v = wal.validate().await.unwrap();
+        assert!(v.is_healthy());
+        assert!(
+            v.recovery_guidance().is_none(),
+            "healthy WAL should have no recovery guidance"
+        );
+    }
+
+    // Corrupt the segment by appending an implausible length prefix.
+    // This deterministically triggers WalError::ImplausibleEntrySize which
+    // propagates from read_all() as Err, so corrupted_segments is incremented.
+    let segment = find_segment(temp_dir.path());
+    {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&segment)
+            .unwrap();
+        f.write_all(&u32::MAX.to_le_bytes()).unwrap();
+    }
+
+    let wal2 = WriteAheadLog::open(temp_dir.path()).unwrap();
+    let v = wal2.validate().await.unwrap();
+    assert!(!v.is_healthy(), "WAL with implausible length prefix should be unhealthy");
+
+    let guidance = v.recovery_guidance().expect("should have recovery guidance");
+    assert!(
+        guidance.contains("pluresdb-cli wal recover"),
+        "guidance should reference the recovery CLI command"
+    );
+    assert!(
+        guidance.contains("Recovery options"),
+        "guidance should contain 'Recovery options'"
+    );
+}
