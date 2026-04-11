@@ -377,6 +377,20 @@ jobs:
               }
             }
 
+            console.log('🔍 No milestoned issues — checking unmilestoned enhancements');
+            // Fallback: unmilestoned issues by creation date (oldest first)
+            const unmilestoned = candidates.filter(i =>
+              !i.milestone && !skipPrefixes.some(p => i.title.includes(p))
+            ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            if (unmilestoned.length > 0) {
+              const next = unmilestoned[0];
+              const type = next.labels.some(l => l.name === 'bug') ? 'Bug' : 'Feature';
+              await ensureIssueReady(github, owner, repo, next, type);
+              await assignCopilot(github, owner, repo, next, botId);
+              console.log(`📋 Unmilestoned: assigned #${next.number}: ${next.title}`);
+              return;
+            }
+
             console.log('🎉 No eligible issues remaining');
 
             // ── Helper: Apply Copilot review suggestions as a commit ──
