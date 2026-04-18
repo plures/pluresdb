@@ -11,7 +11,10 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         workspaceCargo = builtins.fromTOML (builtins.readFile ./Cargo.toml);
-        pluresVersion = workspaceCargo.workspace.package.version;
+        pluresVersion =
+          if workspaceCargo ? workspace && workspaceCargo.workspace ? package && workspaceCargo.workspace.package ? version
+          then workspaceCargo.workspace.package.version
+          else throw "flake.nix: expected workspace.package.version in Cargo.toml";
 
         ortDist = {
           x86_64-linux = {
@@ -64,11 +67,11 @@
                     None,
                 )
                 if member is None:
-                    raise RuntimeError("libonnxruntime.a not found in ONNX Runtime archive")
+                    raise RuntimeError(f"libonnxruntime.a not found in ONNX Runtime archive: {src}")
 
                 extracted = tf.extractfile(member)
                 if extracted is None:
-                    raise RuntimeError("failed to extract libonnxruntime.a")
+                    raise RuntimeError(f"failed to extract {member.name} from ONNX Runtime archive: {src}")
 
                 out.write_bytes(extracted.read())
             PY
