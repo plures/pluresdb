@@ -1,3 +1,12 @@
+## [3.8.0] — 2026-04-18
+
+- feat(procedures): add cron/interval/once TimerTable triggers with persisted run state and 10s runtime scheduler (#365) (30c32fa)
+- Add root flake.nix with fixed-output ONNX Runtime prefetch for sandboxed Nix builds (#363) (efda652)
+- Add `pluresdb doctor` health diagnostics command with stable JSON output and failure exit semantics (#362) (9cad284)
+- Introduce canonical error codes and unified diagnostics across Rust core, Node/Deno bindings, and CLI (#361) (8d8aa1a)
+- Blend memory quality into HNSW ranking with lazy quality backfill (#360) (e870768)
+- Fix CI regressions in rust/wasm/node lanes for PR #348 follow-up (#359) (906bb60)
+
 ## [3.7.0] — 2026-04-18
 
 - feat(storage): encryption-at-rest key rotation + on-disk verification tests (#348) (1feb9e0)
