@@ -55,6 +55,33 @@ jobs:
             const repo = context.repo.repo;
             const botId = 'BOT_kgDOC9w8XQ';
 
+            // ── Auto-close infra ci-feedback issues if main CI is green ──
+            if (context.eventName === 'schedule' || context.eventName === 'check_suite') {
+              const infraIssues = await github.rest.issues.listForRepo({
+                owner, repo, state: 'open', labels: 'ci-failure', per_page: 5
+              });
+              const infraOnly = infraIssues.data.filter(i => i.title.includes('(infra)'));
+              if (infraOnly.length > 0) {
+                // Check if main CI is green
+                const mainRef = await github.rest.checks.listForRef({ owner, repo, ref: 'main' });
+                const ciChecks = mainRef.data.check_runs.filter(c => c.name.startsWith('ci'));
+                const mainGreen = ciChecks.length > 0 && ciChecks.every(c => c.conclusion === 'success' || c.conclusion === 'skipped');
+                if (mainGreen) {
+                  for (const issue of infraOnly) {
+                    await github.rest.issues.update({
+                      owner, repo, issue_number: issue.number, state: 'closed',
+                      state_reason: 'completed'
+                    });
+                    await github.rest.issues.createComment({
+                      owner, repo, issue_number: issue.number,
+                      body: '✅ Auto-closed: CI passes on main — the failure was infrastructure (transient), not code.'
+                    });
+                    console.log(`✅ Auto-closed infra ci-feedback #${issue.number} (main CI green)`);
+                  }
+                }
+              }
+            }
+
             // ── Schedule guard: exit fast if no active Copilot work ──
             if (context.eventName === 'schedule') {
               const prs = await github.rest.pulls.list({ owner, repo, state: 'open', per_page: 5 });
@@ -250,39 +277,83 @@ jobs:
                   continue;
                 }
 
-                // Exhausted retries — force merge
+                // Exhausted retries — force merge with smart ci-feedback
                 const failedAttempts = retryCount;
-                console.log(`❌ PR #${pr.number}: CI failed ${failedAttempts}x (${failNames}) — creating feedback issue + force merging`);
+
+                // Collect actual error output for the ci-feedback issue
+                let errorDetails = '';
+                try {
+                  const runs = await github.rest.actions.listWorkflowRunsForRepo({
+                    owner, repo, event: 'pull_request', per_page: 3,
+                    head_sha: pr.head.sha
+                  });
+                  const ciRuns = runs.data.workflow_runs.filter(r => r.name === 'CI' && r.conclusion === 'failure');
+                  for (const run of ciRuns.slice(0, 1)) {
+                    const jobs = await github.rest.actions.listJobsForWorkflowRun({ owner, repo, run_id: run.id });
+                    for (const job of jobs.data.jobs.filter(j => j.conclusion === 'failure')) {
+                      const failedSteps = job.steps?.filter(s => s.conclusion === 'failure').map(s => s.name) || [];
+                      errorDetails += `\n### ${job.name}\nFailed steps: ${failedSteps.join(', ')}\nJob URL: ${job.html_url}\n`;
+                    }
+                  }
+                } catch (e) {
+                  errorDetails = `\n(Could not fetch error details: ${e.message})`;
+                }
+
+                // Classify: known infra patterns vs real code failures
+                const infraPatterns = ['sccache', 'cache storage failed', 'services aren\'t available', 'network', 'timeout', 'runner', 'SIGTERM'];
+                const isLikelyInfra = infraPatterns.some(p => failNames.toLowerCase().includes(p) || errorDetails.toLowerCase().includes(p));
+
+                console.log(`❌ PR #${pr.number}: CI failed ${failedAttempts}x (${failNames}) — ${isLikelyInfra ? 'likely INFRA' : 'likely CODE'} failure`);
+
+                // Create ci-feedback issue with actual error output
                 const existing = await github.rest.issues.listForRepo({
                   owner, repo, state: 'open', labels: 'ci-failure', per_page: 1
                 });
+                let feedbackIssue = null;
                 if (existing.data.length === 0) {
+                  const issueBody = isLikelyInfra
+                    ? `CI failed on PR #${pr.number} (${failedAttempts} retries). **Likely infrastructure failure** (${failNames}). Will auto-close if main CI passes after merge.${errorDetails}`
+                    : `CI failed on PR #${pr.number} (${failedAttempts} retries). **Code failure** — needs fix.\n\nFailing checks: ${failNames}\n${errorDetails}\n\nLogs: ${failLogs}`;
                   const issue = await github.rest.issues.create({
                     owner, repo,
-                    title: `[ci-feedback] Fix CI failures on PR #${pr.number}`,
-                    body: `CI is failing on PR #${pr.number} after ${failedAttempts} attempts.\n\nFailing checks: ${failNames}\n\nThis is NOT a transient failure — auto-rerun was already attempted.\n\nCheck logs: ${failLogs}`,
-                    labels: ['ci-failure', 'bug']
+                    title: `[ci-feedback] ${isLikelyInfra ? '(infra) ' : ''}Fix CI failures on PR #${pr.number}`,
+                    body: issueBody,
+                    labels: isLikelyInfra ? ['ci-failure'] : ['ci-failure', 'bug']
                   });
-                  try {
-                    await github.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
-                      owner, repo, issue_number: issue.data.number, type: 'Bug'
-                    });
-                  } catch (e) {}
-                  console.log(`🐛 Created ci-feedback issue #${issue.data.number}`);
+                  if (!isLikelyInfra) {
+                    try {
+                      await github.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
+                        owner, repo, issue_number: issue.data.number, type: 'Bug'
+                      });
+                    } catch (e) {}
+                  }
+                  feedbackIssue = issue.data;
+                  console.log(`🐛 Created ci-feedback issue #${issue.data.number} (${isLikelyInfra ? 'infra' : 'code'})`);
                 }
 
-                // MERGE ANYWAY — CI failure is infrastructure, not code.
-                // The code was written by Copilot and compiled. Merge it,
-                // fix CI separately. Development doesn't halt for infra.
-                console.log(`🔀 Merging PR #${pr.number} despite CI failures (${failedAttempts} attempts exhausted)`);
+                // Force merge
+                console.log(`🔀 Merging PR #${pr.number} despite CI failures`);
                 try {
                   await github.rest.pulls.merge({
                     owner, repo, pull_number: pr.number,
                     merge_method: 'squash',
                     commit_title: `${pr.title} (#${pr.number})`,
-                    commit_message: `Auto-merged despite CI failure (${failNames}).\nCI failed ${failedAttempts}x — likely infrastructure issue, not code.\nCI fix tracked separately.`
+                    commit_message: `Auto-merged despite CI failure (${failNames}).\nCI failed ${failedAttempts}x.\nCI fix tracked in #${feedbackIssue?.number || '?'}.`
                   });
                   console.log(`✅ Force-merged PR #${pr.number}`);
+
+                  // Post-merge: trigger CI on main to verify
+                  // If main CI passes, the failure was infra — auto-close the issue
+                  if (feedbackIssue && isLikelyInfra) {
+                    try {
+                      await github.rest.actions.createWorkflowDispatch({
+                        owner, repo, workflow_id: 'ci.yml', ref: 'main'
+                      });
+                      console.log(`🔍 Triggered CI on main to verify (will auto-close #${feedbackIssue.number} if green)`);
+                    } catch (e) {
+                      console.log(`⚠️ Could not trigger main CI: ${e.message}`);
+                    }
+                  }
                 } catch (mergeErr) {
                   console.log(`⚠️ Force-merge failed: ${mergeErr.message}`);
                 }
