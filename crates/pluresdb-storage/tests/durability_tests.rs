@@ -633,9 +633,7 @@ async fn test_rebuild_fails_fast_on_corrupt_checksum() {
     std::fs::write(&segment, &bytes).unwrap();
 
     // rebuild_from_wal must fail with an error containing recovery guidance.
-    let err = rebuild_from_wal(temp_dir.path(), true)
-        .await
-        .unwrap_err();
+    let err = rebuild_from_wal(temp_dir.path(), true).await.unwrap_err();
     let msg = err.to_string();
 
     assert!(
@@ -684,9 +682,7 @@ async fn test_rebuild_fails_fast_on_truncated_segment() {
         f.write_all(&[0x01, 0x02, 0x03]).unwrap();
     }
 
-    let err = rebuild_from_wal(temp_dir.path(), true)
-        .await
-        .unwrap_err();
+    let err = rebuild_from_wal(temp_dir.path(), true).await.unwrap_err();
     let msg = err.to_string();
 
     assert!(
@@ -738,9 +734,14 @@ async fn test_validation_recovery_guidance_content() {
 
     let wal2 = WriteAheadLog::open(temp_dir.path()).unwrap();
     let v = wal2.validate().await.unwrap();
-    assert!(!v.is_healthy(), "WAL with implausible length prefix should be unhealthy");
+    assert!(
+        !v.is_healthy(),
+        "WAL with implausible length prefix should be unhealthy"
+    );
 
-    let guidance = v.recovery_guidance().expect("should have recovery guidance");
+    let guidance = v
+        .recovery_guidance()
+        .expect("should have recovery guidance");
     assert!(
         guidance.contains("pluresdb-cli wal recover"),
         "guidance should reference the recovery CLI command"

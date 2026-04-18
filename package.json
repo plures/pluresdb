@@ -28,7 +28,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build:node": "cd crates/pluresdb-node && npm install && napi build --release",
+    "build:node": "cd crates/pluresdb-node && npm install && npm run build",
     "build:wasm": "cd crates/pluresdb-wasm && wasm-pack build --target web --out-dir ../../dist/wasm",
     "build": "npm run build:node && npm run build:wasm",
     "test": "cargo test --workspace",
