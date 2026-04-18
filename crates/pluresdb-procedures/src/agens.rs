@@ -509,7 +509,6 @@ impl<'a> TimerTable<'a> {
                 "cron_expr": entry.cron_expr,
                 "last_run": entry.last_run.map(|ts| ts.to_rfc3339()),
                 "next_run": entry.next_fire_at.to_rfc3339(),
-                "next_fire_at": entry.next_fire_at.to_rfc3339(),
                 "active": entry.active,
                 "payload": entry.payload,
             }),
@@ -680,12 +679,17 @@ impl<'a> TimerTable<'a> {
         })
     }
 
+    /// Compute the next UTC firing time for `cron_expr` strictly after `now`.
     fn next_cron_fire(&self, cron_expr: &str, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
         let normalized = Self::normalize_cron_expr(cron_expr);
         let schedule = cron::Schedule::from_str(&normalized).ok()?;
         schedule.after(&now).next()
     }
 
+    /// Normalize a cron expression for the parser.
+    ///
+    /// Accepts 5-field expressions (`min hour dom mon dow`) and prepends a
+    /// seconds field (`0`) so they can be parsed by the underlying crate.
     fn normalize_cron_expr(cron_expr: &str) -> String {
         let fields = cron_expr.split_whitespace().count();
         if fields == 5 {
