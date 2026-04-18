@@ -30,7 +30,8 @@
   "scripts": {
     "build:node": "cd crates/pluresdb-node && npm install && npm run build",
     "build:wasm": "cd crates/pluresdb-wasm && wasm-pack build --target web --out-dir ../../dist/wasm",
-    "build": "npm run build:node && npm run build:wasm",
+    "build:all": "npm run build:node && npm run build:wasm",
+    "build": "npm run build:node",
     "test": "cargo test --workspace",
     "test:wasm": "wasm-pack test --headless --chrome crates/pluresdb-wasm"
   },
