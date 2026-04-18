@@ -1274,6 +1274,15 @@ pluresdb status
 pluresdb status --detailed
 ```
 
+### `pluresdb doctor`
+
+Run non-destructive health checks for storage, WAL replay readiness, and sync transport.
+
+```bash
+pluresdb --data-dir ./my-db doctor
+pluresdb --data-dir ./my-db doctor --json | jq '.ok'
+```
+
 ### `pluresdb migrate-from-sqlite <sqlite-path>`
 
 Migrate an existing SQLite database file into PluresDB.  Each SQLite row is
