@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use std::hint::black_box;
 use pluresdb_core::{Database, DatabaseOptions, SqlValue};
+use std::hint::black_box;
 
 fn benchmark_sql_insert(c: &mut Criterion) {
     let mut group = c.benchmark_group("sql_insert");

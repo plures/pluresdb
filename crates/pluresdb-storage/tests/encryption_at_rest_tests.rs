@@ -241,7 +241,11 @@ fn test_key_rotation_with_no_blocks_is_valid() {
     assert!(result.unwrap().is_empty());
 
     // Salt must have changed even with zero blocks
-    assert_ne!(config.salt(), &old_salt, "salt must be refreshed on rotation");
+    assert_ne!(
+        config.salt(),
+        &old_salt,
+        "salt must be refreshed on rotation"
+    );
 }
 
 // ---------------------------------------------------------------------------

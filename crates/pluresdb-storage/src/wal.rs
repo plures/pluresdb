@@ -410,7 +410,11 @@ impl WalValidation {
 
         /// Returns `singular` when `n == 1`, otherwise `plural`.
         fn pl(n: u64, singular: &'static str, plural: &'static str) -> &'static str {
-            if n == 1 { singular } else { plural }
+            if n == 1 {
+                singular
+            } else {
+                plural
+            }
         }
 
         Some(format!(
@@ -523,24 +527,21 @@ impl WalSegment {
                 0 => break, // clean EOF at a record boundary — normal end of segment
                 _ => {
                     // We have the first byte; read the remaining 3.
-                    reader
-                        .read_exact(&mut len_buf[1..])
-                        .map_err(|e| {
-                            if e.kind() == io::ErrorKind::UnexpectedEof {
-                                anyhow::Error::from(WalError::TruncatedEntry {
-                                    segment: segment_name.clone(),
-                                    offset,
-                                    expected_bytes: 4,
-                                })
-                            } else {
-                                anyhow::Error::from(e)
-                                    .context(WalError::TruncatedEntry {
-                                        segment: segment_name.clone(),
-                                        offset,
-                                        expected_bytes: 4,
-                                    })
-                            }
-                        })?;
+                    reader.read_exact(&mut len_buf[1..]).map_err(|e| {
+                        if e.kind() == io::ErrorKind::UnexpectedEof {
+                            anyhow::Error::from(WalError::TruncatedEntry {
+                                segment: segment_name.clone(),
+                                offset,
+                                expected_bytes: 4,
+                            })
+                        } else {
+                            anyhow::Error::from(e).context(WalError::TruncatedEntry {
+                                segment: segment_name.clone(),
+                                offset,
+                                expected_bytes: 4,
+                            })
+                        }
+                    })?;
                 }
             }
 
@@ -560,23 +561,21 @@ impl WalSegment {
 
             // Read the entry payload.
             let mut entry_buf = vec![0u8; len];
-            reader
-                .read_exact(&mut entry_buf)
-                .map_err(|e| {
-                    if e.kind() == io::ErrorKind::UnexpectedEof {
-                        anyhow::Error::from(WalError::TruncatedEntry {
-                            segment: segment_name.clone(),
-                            offset: entry_offset,
-                            expected_bytes: len,
-                        })
-                    } else {
-                        anyhow::Error::from(e).context(WalError::TruncatedEntry {
-                            segment: segment_name.clone(),
-                            offset: entry_offset,
-                            expected_bytes: len,
-                        })
-                    }
-                })?;
+            reader.read_exact(&mut entry_buf).map_err(|e| {
+                if e.kind() == io::ErrorKind::UnexpectedEof {
+                    anyhow::Error::from(WalError::TruncatedEntry {
+                        segment: segment_name.clone(),
+                        offset: entry_offset,
+                        expected_bytes: len,
+                    })
+                } else {
+                    anyhow::Error::from(e).context(WalError::TruncatedEntry {
+                        segment: segment_name.clone(),
+                        offset: entry_offset,
+                        expected_bytes: len,
+                    })
+                }
+            })?;
 
             offset += 4 + len as u64;
 

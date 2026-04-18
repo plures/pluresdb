@@ -4,14 +4,13 @@
 //! with support for key rotation and device revocation.
 
 use aes_gcm::{
-    aead::{generic_array::typenum, Aead, KeyInit, OsRng},
+    aead::{generic_array::typenum, rand_core::RngCore, Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
 };
 use anyhow::{Context, Result};
 use argon2::password_hash::SaltString;
 use argon2::{Argon2, PasswordHasher};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -474,8 +473,7 @@ mod tests {
         let foreign_ciphertext = config2.encrypt(b"foreign data").unwrap();
 
         // Attempt to rotate config1 using a block encrypted with config2
-        let result =
-            config1.rotate_key_and_reencrypt_blocks("new-password", &[foreign_ciphertext]);
+        let result = config1.rotate_key_and_reencrypt_blocks("new-password", &[foreign_ciphertext]);
         assert!(
             result.is_err(),
             "rotation must fail when a block was encrypted with a different key"

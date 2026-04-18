@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use std::hint::black_box;
 use pluresdb_core::CrdtStore;
 use serde_json::json;
+use std::hint::black_box;
 
 fn benchmark_put_operations(c: &mut Criterion) {
     let mut group = c.benchmark_group("crdt_put");
