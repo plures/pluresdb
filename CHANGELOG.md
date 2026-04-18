@@ -1,3 +1,18 @@
+## [3.6.0] — 2026-04-18
+
+- feat(lifecycle v11): smart CI failure handling — infra vs code (eec7545)
+- fix(lifecycle): label-based retry counter + CI fix priority (17d0e69)
+- chore(deps): bump rand from 0.8.5 to 0.9.2 (#354) (69ef072)
+- chore(deps): bump dashmap from 5.5.3 to 6.1.0 (#350) (0b882f0)
+- chore(deps): bump thiserror from 2.0.17 to 2.0.18 (#351) (8046c94)
+- chore(deps): bump tower from 0.4.13 to 0.5.2 (#352) (e62518e)
+- chore(deps): bump anyhow from 1.0.100 to 1.0.102 (#353) (a2dcd85)
+- chore(deps): bump fastembed from 5.13.0 to 5.13.2 (#356) (f70c3ee)
+- ci: lifecycle — add unmilestoned issue fallback + force-merge on CI exhaustion (b09deab)
+- Harden WAL replay and corruption handling (#347) (df5d446)
+- ci: lifecycle v10 — auto-retry transient failures, force-merge on exhaustion (1daa1e4)
+- fix: resolve CI failures (node napi + rust fmt) (#345) (bbd27bf)
+
 ## [3.5.1] — 2026-04-07
 
 - fix: inline reusable workflow to fix schedule trigger failures (ab83499)
