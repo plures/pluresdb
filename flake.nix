@@ -10,6 +10,8 @@
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        workspaceCargo = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        pluresVersion = workspaceCargo.workspace.package.version;
 
         ortDist = {
           x86_64-linux = {
@@ -78,7 +80,7 @@
       {
         packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = "pluresdb-cli";
-          version = "3.7.0";
+          version = pluresVersion;
 
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
