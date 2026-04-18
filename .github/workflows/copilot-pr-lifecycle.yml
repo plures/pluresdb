@@ -54,33 +54,7 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const botId = 'BOT_kgDOC9w8XQ';
-
-            // ── Auto-close infra ci-feedback issues if main CI is green ──
-            if (context.eventName === 'schedule' || context.eventName === 'check_suite') {
-              const infraIssues = await github.rest.issues.listForRepo({
-                owner, repo, state: 'open', labels: 'ci-failure', per_page: 5
-              });
-              const infraOnly = infraIssues.data.filter(i => i.title.includes('(infra)'));
-              if (infraOnly.length > 0) {
-                // Check if main CI is green
-                const mainRef = await github.rest.checks.listForRef({ owner, repo, ref: 'main' });
-                const ciChecks = mainRef.data.check_runs.filter(c => c.name.startsWith('ci'));
-                const mainGreen = ciChecks.length > 0 && ciChecks.every(c => c.conclusion === 'success' || c.conclusion === 'skipped');
-                if (mainGreen) {
-                  for (const issue of infraOnly) {
-                    await github.rest.issues.update({
-                      owner, repo, issue_number: issue.number, state: 'closed',
-                      state_reason: 'completed'
-                    });
-                    await github.rest.issues.createComment({
-                      owner, repo, issue_number: issue.number,
-                      body: '✅ Auto-closed: CI passes on main — the failure was infrastructure (transient), not code.'
-                    });
-                    console.log(`✅ Auto-closed infra ci-feedback #${issue.number} (main CI green)`);
-                  }
-                }
-              }
-            }
+            const directFixLabelColor = 'B60205';
 
             // ── Schedule guard: exit fast if no active Copilot work ──
             if (context.eventName === 'schedule') {
@@ -224,8 +198,8 @@ jobs:
 
               // ── Path C: CI failing on Copilot PR ──
               // Step 1: Check if failure is transient (sccache, cache, network)
-              // Step 2: If transient, auto-rerun failed jobs (one retry)
-              // Step 3: Only create feedback issue for real code failures
+              // Step 2: Auto-rerun failed jobs (up to 2 retries)
+              // Step 3: If still failing, keep PR open for direct in-branch fixes
               if (isCopilotPR && failing.length > 0) {
                 const failNames = failing.map(f => f.name).join(', ');
                 const failLogs = failing.map(f => f.detailsUrl || '').join(' ');
@@ -277,10 +251,10 @@ jobs:
                   continue;
                 }
 
-                // Exhausted retries — force merge with smart ci-feedback
+                // Exhausted retries — request direct fix on the same PR branch
                 const failedAttempts = retryCount;
 
-                // Collect actual error output for the ci-feedback issue
+                // Collect actual error output for direct-fix context
                 let errorDetails = '';
                 try {
                   const runs = await github.rest.actions.listWorkflowRunsForRepo({
@@ -299,64 +273,36 @@ jobs:
                   errorDetails = `\n(Could not fetch error details: ${e.message})`;
                 }
 
-                // Classify: known infra patterns vs real code failures
-                const infraPatterns = ['sccache', 'cache storage failed', 'services aren\'t available', 'network', 'timeout', 'runner', 'SIGTERM'];
-                const isLikelyInfra = infraPatterns.some(p => failNames.toLowerCase().includes(p) || errorDetails.toLowerCase().includes(p));
+                console.log(`❌ PR #${pr.number}: CI failed ${failedAttempts}x (${failNames}) — requesting direct fix on branch`);
+                console.log(`🛠️ Direct-fix context for PR #${pr.number}: checks=${failNames}; logs=${failLogs}; details=${errorDetails.trim() || 'n/a'}`);
 
-                console.log(`❌ PR #${pr.number}: CI failed ${failedAttempts}x (${failNames}) — ${isLikelyInfra ? 'likely INFRA' : 'likely CODE'} failure`);
-
-                // Create ci-feedback issue with actual error output
-                const existing = await github.rest.issues.listForRepo({
-                  owner, repo, state: 'open', labels: 'ci-failure', per_page: 1
-                });
-                let feedbackIssue = null;
-                if (existing.data.length === 0) {
-                  const issueBody = isLikelyInfra
-                    ? `CI failed on PR #${pr.number} (${failedAttempts} retries). **Likely infrastructure failure** (${failNames}). Will auto-close if main CI passes after merge.${errorDetails}`
-                    : `CI failed on PR #${pr.number} (${failedAttempts} retries). **Code failure** — needs fix.\n\nFailing checks: ${failNames}\n${errorDetails}\n\nLogs: ${failLogs}`;
-                  const issue = await github.rest.issues.create({
-                    owner, repo,
-                    title: `[ci-feedback] ${isLikelyInfra ? '(infra) ' : ''}Fix CI failures on PR #${pr.number}`,
-                    body: issueBody,
-                    labels: isLikelyInfra ? ['ci-failure'] : ['ci-failure', 'bug']
-                  });
-                  if (!isLikelyInfra) {
-                    try {
-                      await github.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
-                        owner, repo, issue_number: issue.data.number, type: 'Bug'
-                      });
-                    } catch (e) {}
-                  }
-                  feedbackIssue = issue.data;
-                  console.log(`🐛 Created ci-feedback issue #${issue.data.number} (${isLikelyInfra ? 'infra' : 'code'})`);
-                }
-
-                // Force merge
-                console.log(`🔀 Merging PR #${pr.number} despite CI failures`);
+                // Add labels so direct-fix automation can pick this up without creating a separate issue
                 try {
-                  await github.rest.pulls.merge({
-                    owner, repo, pull_number: pr.number,
-                    merge_method: 'squash',
-                    commit_title: `${pr.title} (#${pr.number})`,
-                    commit_message: `Auto-merged despite CI failure (${failNames}).\nCI failed ${failedAttempts}x.\nCI fix tracked in #${feedbackIssue?.number || '?'}.`
+                  await github.rest.issues.addLabels({
+                    owner, repo, issue_number: pr.number, labels: ['ci-failure', 'direct-fix-needed']
                   });
-                  console.log(`✅ Force-merged PR #${pr.number}`);
-
-                  // Post-merge: trigger CI on main to verify
-                  // If main CI passes, the failure was infra — auto-close the issue
-                  if (feedbackIssue && isLikelyInfra) {
-                    try {
-                      await github.rest.actions.createWorkflowDispatch({
-                        owner, repo, workflow_id: 'ci.yml', ref: 'main'
-                      });
-                      console.log(`🔍 Triggered CI on main to verify (will auto-close #${feedbackIssue.number} if green)`);
-                    } catch (e) {
-                      console.log(`⚠️ Could not trigger main CI: ${e.message}`);
-                    }
+                } catch (e) {
+                  console.log(`⚠️ Could not add direct-fix labels to PR #${pr.number}: ${e.message}`);
+                  try {
+                    await github.rest.issues.createLabel({
+                      owner, repo, name: 'ci-failure', color: 'D93F0B'
+                    }).catch((labelErr) => {
+                      console.log(`ℹ️ ci-failure label create skipped: ${labelErr.message}`);
+                    });
+                    await github.rest.issues.createLabel({
+                      owner, repo, name: 'direct-fix-needed', color: directFixLabelColor,
+                      description: 'PR requires direct code fixes after CI retry exhaustion'
+                    }).catch((labelErr) => {
+                      console.log(`ℹ️ direct-fix-needed label create skipped: ${labelErr.message}`);
+                    });
+                    await github.rest.issues.addLabels({
+                      owner, repo, issue_number: pr.number, labels: ['ci-failure', 'direct-fix-needed']
+                    });
+                  } catch (retryLabelErr) {
+                    console.log(`⚠️ Failed to create/apply direct-fix-needed label on PR #${pr.number}: ${retryLabelErr.message}`);
                   }
-                } catch (mergeErr) {
-                  console.log(`⚠️ Force-merge failed: ${mergeErr.message}`);
                 }
+
                 copilotPRBusy = true;
                 continue;
               }
@@ -484,6 +430,60 @@ jobs:
             }
 
             console.log('🎉 No eligible issues remaining');
+
+            // ── Phase 3: Auto-release when milestone completes ──
+            // Check all open milestones: if one has 0 open issues, bump version + release + close
+            if (context.eventName === 'pull_request' && context.payload?.pull_request?.merged) {
+              const openMilestones = await github.rest.issues.listMilestones({
+                owner, repo, state: 'open', sort: 'title', direction: 'asc'
+              });
+              for (const ms of openMilestones.data) {
+                if (ms.open_issues === 0 && ms.closed_issues > 0) {
+                  // Milestone complete! Extract version from title (e.g. "v0.9.0 — Desktop Experience" → "0.9.0")
+                  const versionMatch = ms.title.match(/v?(\d+\.\d+\.\d+)/);
+                  if (!versionMatch) continue;
+                  const version = versionMatch[1];
+                  const tag = `v${version}`;
+
+                  // Check if release already exists
+                  try {
+                    await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+                    console.log(`📦 Milestone '${ms.title}' complete but ${tag} already released`);
+                  } catch (e) {
+                    if (e.status === 404) {
+                      // Bump version in Cargo.toml
+                      try {
+                        const cargoFile = await github.rest.repos.getContent({ owner, repo, path: 'Cargo.toml' });
+                        let content = Buffer.from(cargoFile.data.content, 'base64').toString();
+                        content = content.replace(/^version = "[^"]+"/m, `version = "${version}"`);
+                        await github.rest.repos.createOrUpdateFileContents({
+                          owner, repo, path: 'Cargo.toml',
+                          message: `release: bump version to ${version}`,
+                          content: Buffer.from(content).toString('base64'),
+                          sha: cargoFile.data.sha
+                        });
+
+                        // Create release
+                        await github.rest.repos.createRelease({
+                          owner, repo, tag_name: tag, name: `${tag} — ${ms.title.replace(/v?\d+\.\d+\.\d+\s*[—\-]?\s*/, '')}`,
+                          body: `Milestone **${ms.title}** complete.\n\n${ms.closed_issues} issues closed.`,
+                          generate_release_notes: true
+                        });
+
+                        // Close the milestone
+                        await github.rest.issues.updateMilestone({
+                          owner, repo, milestone_number: ms.number, state: 'closed'
+                        });
+
+                        console.log(`🚀 Released ${tag} for milestone '${ms.title}' (${ms.closed_issues} issues)`);
+                      } catch (releaseErr) {
+                        console.log(`⚠️ Auto-release failed for ${tag}: ${releaseErr.message}`);
+                      }
+                    }
+                  }
+                }
+              }
+            }
 
             // ── Helper: Apply Copilot review suggestions as a commit ──
             async function applySuggestions(github, owner, repo, pr) {
