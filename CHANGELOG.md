@@ -1,3 +1,7 @@
+## [3.7.0] — 2026-04-18
+
+- feat(storage): encryption-at-rest key rotation + on-disk verification tests (#348) (1feb9e0)
+
 ## [3.6.0] — 2026-04-18
 
 - feat(lifecycle v11): smart CI failure handling — infra vs code (eec7545)
