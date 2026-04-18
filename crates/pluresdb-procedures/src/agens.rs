@@ -942,6 +942,7 @@ impl<'a> AgensRuntime<'a> {
     /// Spawn a background Tokio task that processes due timers every 10 seconds.
     ///
     /// Requires that this runtime's store reference is `'static`.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn spawn_timer_task(self: Arc<Self>) -> tokio::task::JoinHandle<()>
     where
         'a: 'static,
