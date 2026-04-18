@@ -1,3 +1,8 @@
+## [3.9.0] — 2026-04-18
+
+- feat(lifecycle v12): auto-release when milestone completes (4197fa6)
+- Fix CI regressions in wasm and node lanes after timer scheduler changes (#367) (4f26d54)
+
 ## [3.8.0] — 2026-04-18
 
 - feat(procedures): add cron/interval/once TimerTable triggers with persisted run state and 10s runtime scheduler (#365) (30c32fa)
