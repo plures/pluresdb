@@ -5,13 +5,17 @@
 
 use deno_bindgen::deno_bindgen;
 use pluresdb_core::{
-    CrdtOperation, CrdtStore, Database, DatabaseOptions, NodeRecord, SqlValue,
+    CoreErrorCode, CrdtOperation, CrdtStore, Database, DatabaseOptions, NodeRecord, SqlValue,
 };
-use pluresdb_sync::{SyncBroadcaster, SyncEvent};
+use pluresdb_sync::{SyncBroadcaster, SyncErrorCode, SyncEvent};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use parking_lot::Mutex;
+
+fn deno_error(code: &str, message: impl Into<String>) -> String {
+    format!("[{}] {}", code, message.into())
+}
 
 /// Result returned by [`PluresDatabase::query`].
 ///
@@ -100,7 +104,7 @@ impl PluresDatabase {
             let options = DatabaseOptions::with_file(path).create_if_missing(true);
             Some(Arc::new(
                 Database::open(options)
-                    .map_err(|e| format!("Failed to open database: {}", e))?,
+                    .map_err(|e| deno_error(CoreErrorCode::SqliteError.as_str(), e.to_string()))?,
             ))
         } else {
             None
@@ -127,7 +131,9 @@ impl PluresDatabase {
         };
         
         // Publish sync event
-        let _ = broadcaster.publish(SyncEvent::NodeUpsert { id: node_id.clone() });
+        broadcaster
+            .publish(SyncEvent::NodeUpsert { id: node_id.clone() })
+            .map_err(|e| deno_error(SyncErrorCode::BroadcastPublishFailed.as_str(), e.to_string()))?;
         
         Ok(node_id)
     }
@@ -180,11 +186,13 @@ impl PluresDatabase {
         {
             let store = store.lock();
             store.delete(&id)
-                .map_err(|e| format!("Delete error: {}", e))?;
+                .map_err(|e| deno_error(e.code().as_str(), e.to_string()))?;
         }
         
         // Publish sync event
-        let _ = broadcaster.publish(SyncEvent::NodeDelete { id: id.clone() });
+        broadcaster
+            .publish(SyncEvent::NodeDelete { id: id.clone() })
+            .map_err(|e| deno_error(SyncErrorCode::BroadcastPublishFailed.as_str(), e.to_string()))?;
         
         Ok(())
     }
@@ -252,7 +260,7 @@ impl PluresDatabase {
         params: Option<Vec<serde_json::Value>>,
     ) -> Result<QueryResult, String> {
         let db = self.db.as_ref()
-            .ok_or_else(|| "SQL queries require a database (provide db_path in constructor)".to_string())?;
+            .ok_or_else(|| deno_error(CoreErrorCode::InvalidInput.as_str(), "SQL queries require a database (provide db_path in constructor)"))?;
         
         let sql_params: Vec<SqlValue> = if let Some(p) = params {
             p.into_iter()
@@ -269,8 +277,8 @@ impl PluresDatabase {
                         serde_json::Value::String(s) => SqlValue::Text(s),
                         serde_json::Value::Bool(b) => SqlValue::Integer(if b { 1 } else { 0 }),
                         serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
-                            SqlValue::Text(serde_json::to_string(&v)
-                                .map_err(|e| format!("Failed to serialize param: {}", e))?)
+                                SqlValue::Text(serde_json::to_string(&v)
+                                .map_err(|e| deno_error(CoreErrorCode::SerializationError.as_str(), e.to_string()))?)
                         }
                     })
                 })
@@ -280,7 +288,7 @@ impl PluresDatabase {
         };
         
         let result = db.query(&sql, &sql_params)
-            .map_err(|e| format!("Query error: {}", e))?;
+            .map_err(|e| deno_error(CoreErrorCode::SqliteError.as_str(), e.to_string()))?;
         
         Ok(QueryResult {
             columns: result.columns,
@@ -294,10 +302,10 @@ impl PluresDatabase {
     #[deno_bindgen]
     pub fn exec(&self, sql: String) -> Result<ExecutionResult, String> {
         let db = self.db.as_ref()
-            .ok_or_else(|| "SQL execution requires a database (provide db_path in constructor)".to_string())?;
+            .ok_or_else(|| deno_error(CoreErrorCode::InvalidInput.as_str(), "SQL execution requires a database (provide db_path in constructor)"))?;
         
         let result = db.exec(&sql)
-            .map_err(|e| format!("Execution error: {}", e))?;
+            .map_err(|e| deno_error(CoreErrorCode::SqliteError.as_str(), e.to_string()))?;
         
         Ok(ExecutionResult {
             changes: result.changes,

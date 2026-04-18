@@ -49,6 +49,34 @@ pub use replay::{metadata_pruning, rebuild_from_wal, replay_wal, ReplayStats};
 #[cfg(feature = "native")]
 pub use wal::{DurabilityLevel, WalEntry, WalError, WalOperation, WalValidation, WriteAheadLog};
 
+/// Stable, documented error codes emitted by `pluresdb-storage`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StorageErrorCode {
+    OpenFailed,
+    OperationFailed,
+    SerializationError,
+    WalImplausibleEntrySize,
+    WalTruncatedEntry,
+}
+
+impl StorageErrorCode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::OpenFailed => "STORAGE_OPEN_FAILED",
+            Self::OperationFailed => "STORAGE_OPERATION_FAILED",
+            Self::SerializationError => "STORAGE_SERIALIZATION_ERROR",
+            Self::WalImplausibleEntrySize => "STORAGE_WAL_IMPLAUSIBLE_ENTRY_SIZE",
+            Self::WalTruncatedEntry => "STORAGE_WAL_TRUNCATED_ENTRY",
+        }
+    }
+}
+
+impl std::fmt::Display for StorageErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// A node persisted by a storage engine.
 ///
 /// Wraps an arbitrary JSON `payload` under a stable string `id`.

@@ -34,6 +34,26 @@ pub use replication::{MemConnection, Replicator};
 
 pub mod git_replication;
 
+/// Stable, documented error codes emitted by `pluresdb-sync`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SyncErrorCode {
+    BroadcastPublishFailed,
+}
+
+impl SyncErrorCode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::BroadcastPublishFailed => "SYNC_BROADCAST_PUBLISH_FAILED",
+        }
+    }
+}
+
+impl std::fmt::Display for SyncErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Events broadcast by [`SyncBroadcaster`] when the local store changes or
 /// when P2P peer connections are established / torn down.
 ///
@@ -149,6 +169,14 @@ mod tests {
             SyncEvent::NodeUpsert {
                 id: "node-1".to_string()
             }
+        );
+    }
+
+    #[test]
+    fn sync_error_code_is_stable() {
+        assert_eq!(
+            SyncErrorCode::BroadcastPublishFailed.as_str(),
+            "SYNC_BROADCAST_PUBLISH_FAILED"
         );
     }
 }
