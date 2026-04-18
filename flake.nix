@@ -77,8 +77,8 @@
       in
       {
         packages.default = pkgs.rustPlatform.buildRustPackage {
-          pname = "pluresdb";
-          version = "${self.shortRev or self.dirtyShortRev or "dev"}";
+          pname = "pluresdb-cli";
+          version = "3.7.0";
 
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
