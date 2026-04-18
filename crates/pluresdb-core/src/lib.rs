@@ -114,6 +114,8 @@ pub struct NodeRecord {
     pub timestamp: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding: Option<Vec<f32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quality_score: Option<f32>,
 }
 
 impl NodeRecord {
@@ -127,6 +129,7 @@ impl NodeRecord {
             clock,
             timestamp: Utc::now(),
             embedding: None,
+            quality_score: None,
         }
     }
 
@@ -390,6 +393,99 @@ impl Default for CrdtStore {
 }
 
 impl CrdtStore {
+    fn is_recent(timestamp: DateTime<Utc>, now: DateTime<Utc>) -> bool {
+        timestamp >= now - chrono::Duration::days(7)
+    }
+
+    fn compute_quality_score(record: &NodeRecord, now: DateTime<Utc>) -> f32 {
+        let mut score = 0.0_f32;
+        let content_len = Self::memory_content_text(record.data.as_object())
+            .map(|text| text.chars().count())
+            .unwrap_or(0);
+        if content_len >= 50 {
+            score += 0.2;
+        }
+
+        let has_category = record
+            .data
+            .as_object()
+            .and_then(|obj| obj.get("category"))
+            .and_then(JsonValue::as_str)
+            .map(|category| !category.eq_ignore_ascii_case("conversation"))
+            .unwrap_or(false);
+        if has_category {
+            score += 0.2;
+        }
+
+        let has_tags = record
+            .data
+            .as_object()
+            .and_then(|obj| obj.get("tags"))
+            .and_then(JsonValue::as_array)
+            .map(|tags| !tags.is_empty())
+            .unwrap_or(false);
+        if has_tags {
+            score += 0.2;
+        }
+
+        let has_explicit_source = record
+            .data
+            .as_object()
+            .and_then(|obj| obj.get("source"))
+            .map(|source| match source {
+                JsonValue::Null => false,
+                JsonValue::String(text) => !text.trim().is_empty(),
+                JsonValue::Array(values) => !values.is_empty(),
+                JsonValue::Object(map) => !map.is_empty(),
+                _ => true,
+            })
+            .unwrap_or(false);
+        if has_explicit_source {
+            score += 0.2;
+        }
+
+        if Self::is_recent(record.timestamp, now) {
+            score += 0.2;
+        }
+
+        score.clamp(0.0, 1.0)
+    }
+
+    fn memory_content_text(data: Option<&serde_json::Map<String, JsonValue>>) -> Option<&str> {
+        data.and_then(|obj| {
+            obj.get("content")
+                .and_then(JsonValue::as_str)
+                .or_else(|| obj.get("text").and_then(JsonValue::as_str))
+        })
+    }
+
+    fn ensure_quality_score(&self, mut record: NodeRecord) -> NodeRecord {
+        let now = Utc::now();
+        let quality = record
+            .quality_score
+            .filter(|score| score.is_finite())
+            .map(|score| score.clamp(0.0, 1.0))
+            .unwrap_or_else(|| Self::compute_quality_score(&record, now));
+        let needs_update = match record.quality_score {
+            Some(existing) if existing.is_finite() => (existing - quality).abs() > f32::EPSILON,
+            _ => true,
+        };
+        if needs_update {
+            record.quality_score = Some(quality);
+            self.nodes.entry(record.id.clone()).and_modify(|stored| {
+                stored.quality_score = Some(quality);
+            });
+            self.persist_node(&record);
+        }
+        record
+    }
+
+    fn blended_search_score(vector_similarity: f32, quality: f32, is_recent: bool) -> f32 {
+        let recency = if is_recent { 1.0 } else { 0.0 };
+        (0.7 * vector_similarity.clamp(0.0, 1.0) + 0.2 * quality.clamp(0.0, 1.0) + 0.1 * recency)
+            .clamp(0.0, 1.0)
+    }
+
     /// Attach a text-embedding backend to this store.
     #[cfg(feature = "native")]
     pub fn with_embedder(self, embedder: Arc<dyn EmbedText>) -> Self {
@@ -719,9 +815,12 @@ impl CrdtStore {
     pub fn get(&self, id: impl AsRef<str>) -> Option<NodeRecord> {
         let id = id.as_ref();
         if let Some(entry) = self.nodes.get(id) {
-            return Some(entry.value().clone());
+            let record = entry.value().clone();
+            drop(entry);
+            return Some(self.ensure_quality_score(record));
         }
         self.get_from_persistence(id)
+            .map(|record| self.ensure_quality_score(record))
     }
 
     pub fn list(&self) -> Vec<NodeRecord> {
@@ -837,18 +936,31 @@ impl CrdtStore {
         }
 
         let candidates = self.vector_index.search(query_embedding, limit);
+        let now = Utc::now();
         let mut results: Vec<VectorSearchResult> = candidates
             .into_iter()
-            .filter_map(|(id, score)| {
-                if score < min_score {
-                    return None;
-                }
+            .filter_map(|(id, vector_similarity)| {
                 let record = if let Some(entry) = self.nodes.get(&id) {
-                    entry.value().clone()
+                    let record = entry.value().clone();
+                    drop(entry);
+                    record
                 } else {
                     self.get_from_persistence(&id)?
                 };
-                Some(VectorSearchResult { record, score })
+                let record = self.ensure_quality_score(record);
+                let quality = record.quality_score.unwrap_or(0.0);
+                let blended_score = Self::blended_search_score(
+                    vector_similarity,
+                    quality,
+                    Self::is_recent(record.timestamp, now),
+                );
+                if blended_score < min_score {
+                    return None;
+                }
+                Some(VectorSearchResult {
+                    record,
+                    score: blended_score,
+                })
             })
             .collect();
         results.sort_by(|a, b| {
@@ -1522,8 +1634,8 @@ mod tests {
         assert!(!results.is_empty(), "should find at least one result");
         assert_eq!(results[0].record.id, "a");
         assert!(
-            results[0].score > 0.99,
-            "identical vector should have score near 1.0, got {}",
+            results[0].score > 0.83,
+            "identical vector with blend should have score above 0.83, got {}",
             results[0].score
         );
         for w in results.windows(2) {
@@ -1546,9 +1658,73 @@ mod tests {
         store.put_with_embedding("a", "actor-v", serde_json::json!({}), emb_a.clone());
         store.put_with_embedding("b", "actor-v", serde_json::json!({}), emb_b);
 
-        let results = store.vector_search(&emb_a, 10, 0.99);
-        assert_eq!(results.len(), 1, "only 'a' should pass the 0.99 threshold");
+        let results = store.vector_search(&emb_a, 10, 0.8);
+        assert_eq!(results.len(), 1, "only 'a' should pass the 0.8 threshold");
         assert_eq!(results[0].record.id, "a");
+    }
+
+    #[test]
+    fn vector_search_blends_quality_into_ranking() {
+        let store = CrdtStore::default();
+        let query: Vec<f32> = vec![1.0, 0.0, 0.0];
+
+        store.put_with_embedding(
+            "low-quality-high-sim",
+            "actor-v",
+            serde_json::json!({
+                "content": "short",
+                "category": "conversation",
+                "tags": [],
+            }),
+            query.clone(),
+        );
+        store.put_with_embedding(
+            "high-quality-lower-sim",
+            "actor-v",
+            serde_json::json!({
+                "content": "This memory captures a specific architecture decision, rationale, and implementation notes for a production migration.",
+                "category": "decision",
+                "tags": ["architecture", "migration"],
+                "source": "design-doc-42"
+            }),
+            vec![0.8, 0.6, 0.0],
+        );
+
+        let results = store.vector_search(&query, 2, 0.0);
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].record.id, "high-quality-lower-sim");
+        assert!(results[0].score > results[1].score);
+    }
+
+    #[test]
+    fn get_computes_quality_score_for_existing_persisted_node_on_first_access() {
+        let (store, storage) = make_storage_store();
+        store.put_with_embedding(
+            "quality-backfill",
+            "actor",
+            serde_json::json!({
+                "content": "This memory contains enough detail and metadata to receive a quality score.",
+                "category": "decision",
+                "tags": ["test"],
+                "source": "manual"
+            }),
+            vec![1.0, 0.0, 0.0],
+        );
+
+        let store2 = CrdtStore::default().with_persistence(wrap_mem_storage(storage.clone()));
+        let record = store2
+            .get("quality-backfill")
+            .expect("persisted node should be accessible");
+        assert!(
+            record.quality_score.is_some(),
+            "first access should backfill quality_score"
+        );
+
+        let store3 = CrdtStore::default().with_persistence(wrap_mem_storage(storage));
+        let persisted_again = store3
+            .get("quality-backfill")
+            .expect("backfilled node should still be accessible");
+        assert!(persisted_again.quality_score.is_some());
     }
 
     #[test]
@@ -1847,7 +2023,7 @@ mod tests {
         let results = store2.vector_search(&emb_a, 3, 0.0);
         assert!(!results.is_empty());
         assert_eq!(results[0].record.id, "vs-a");
-        assert!(results[0].score > 0.99);
+        assert!(results[0].score > 0.83);
     }
 
     #[cfg(feature = "sqlite-compat")]

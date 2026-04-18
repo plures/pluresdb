@@ -24,6 +24,8 @@ export interface NodeRecord {
   timestamp: string;
   /** Optional embedding vector for vector similarity search. */
   embedding?: number[];
+  /** Optional memory quality score in [0, 1]. */
+  quality_score?: number;
 }
 
 /** A search result from vector similarity search. */
