@@ -1528,8 +1528,7 @@ fn classify_error_diagnostic(err: &anyhow::Error) -> (&str, &[&str]) {
     }
 
     #[cfg(feature = "sqlite-compat")]
-    if let Some(sqlite_err) = err.downcast_ref::<rusqlite::Error>() {
-        let _ = sqlite_err;
+    if err.downcast_ref::<rusqlite::Error>().is_some() {
         return (
             CoreErrorCode::SqliteError.as_str(),
             &[
@@ -1540,8 +1539,7 @@ fn classify_error_diagnostic(err: &anyhow::Error) -> (&str, &[&str]) {
     }
 
     #[cfg(feature = "sqlite-compat")]
-    if let Some(db_err) = err.downcast_ref::<DatabaseError>() {
-        let _ = db_err;
+    if err.downcast_ref::<DatabaseError>().is_some() {
         return (
             CoreErrorCode::SqliteError.as_str(),
             &[

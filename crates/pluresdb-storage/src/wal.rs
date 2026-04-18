@@ -70,6 +70,9 @@ pub enum WalError {
 }
 
 impl WalError {
+    /// Returns the stable storage error code for this WAL error variant.
+    ///
+    /// Keep this mapping in lockstep with `WalError` whenever variants are added.
     pub const fn code(&self) -> StorageErrorCode {
         match self {
             Self::ImplausibleEntrySize { .. } => StorageErrorCode::WalImplausibleEntrySize,
