@@ -33,6 +33,10 @@ use tracing_subscriber::{fmt, EnvFilter};
 use pluresdb_core::{Database, DatabaseError, DatabaseOptions, SqlValue};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+const STATUS_OK: &str = "ok";
+const STATUS_WARNING: &str = "warning";
+const STATUS_ERROR: &str = "error";
+const STATUS_NOT_APPLICABLE: &str = "not_applicable";
 
 #[derive(Parser, Debug)]
 #[command(
@@ -400,6 +404,10 @@ struct AppState {
 }
 
 #[derive(Debug, Serialize)]
+/// Top-level machine-readable result for `pluresdb doctor`.
+///
+/// `ok` is `false` when one or more hard-failure checks are detected and the
+/// command exits with non-zero status.
 struct DoctorReport {
     ok: bool,
     storage: StorageDoctorStatus,
@@ -409,6 +417,9 @@ struct DoctorReport {
 }
 
 #[derive(Debug, Serialize)]
+/// Storage health snapshot for `pluresdb doctor`.
+///
+/// `status` uses one of: `ok`, `warning`, `error`, `not_applicable`.
 struct StorageDoctorStatus {
     status: String,
     engine: String,
@@ -420,6 +431,10 @@ struct StorageDoctorStatus {
 }
 
 #[derive(Debug, Serialize)]
+/// WAL replay integrity snapshot for `pluresdb doctor`.
+///
+/// `replay_healthy` is `true` when validation found no corrupted entries or
+/// segments. `status` uses one of: `ok`, `warning`, `error`, `not_applicable`.
 struct WalDoctorStatus {
     status: String,
     wal_dir: Option<String>,
@@ -433,6 +448,9 @@ struct WalDoctorStatus {
 }
 
 #[derive(Debug, Serialize)]
+/// Sync transport snapshot for `pluresdb doctor`.
+///
+/// `status` uses one of: `ok`, `warning`, `error`, `not_applicable`.
 struct SyncDoctorStatus {
     status: String,
     mode: String,
@@ -449,6 +467,8 @@ fn init_runtime() -> Runtime {
 fn init_logging(cli: &Cli) {
     let log_level = if cli.verbose { "debug" } else { &cli.log_level };
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(log_level));
+    // Keep structured/user output on stdout (for commands like `doctor --json`)
+    // and emit logs to stderr.
     fmt()
         .with_env_filter(filter)
         .with_writer(std::io::stderr)
@@ -1028,7 +1048,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
     };
 
     let mut storage_status = StorageDoctorStatus {
-        status: "ok".to_string(),
+        status: STATUS_OK.to_string(),
         engine,
         data_dir: data_dir.map(|d| d.display().to_string()),
         disk_usage_bytes: 0,
@@ -1040,7 +1060,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
     if let Some(dir) = data_dir {
         if !dir.exists() {
             ok = false;
-            storage_status.status = "error".to_string();
+            storage_status.status = STATUS_ERROR.to_string();
             storage_status.detail = "configured data directory does not exist".to_string();
             storage_status.remediation_hints = vec![
                 format!("Create the data directory: {}", dir.display()),
@@ -1048,7 +1068,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
             ];
         } else if !dir.is_dir() {
             ok = false;
-            storage_status.status = "error".to_string();
+            storage_status.status = STATUS_ERROR.to_string();
             storage_status.detail = "configured data directory is not a directory".to_string();
             storage_status.remediation_hints = vec![
                 format!(
@@ -1062,7 +1082,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
                 Ok(bytes) => storage_status.disk_usage_bytes = bytes,
                 Err(err) => {
                     ok = false;
-                    storage_status.status = "error".to_string();
+                    storage_status.status = STATUS_ERROR.to_string();
                     storage_status.detail = format!("failed to read disk usage: {}", err);
                     storage_status.remediation_hints = vec![
                         "Check filesystem permissions for the data directory".to_string(),
@@ -1078,7 +1098,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
         let db_path = dir.join("db");
         if !db_path.exists() {
             ok = false;
-            storage_status.status = "error".to_string();
+            storage_status.status = STATUS_ERROR.to_string();
             storage_status.detail = "storage database directory not found".to_string();
             storage_status.remediation_hints = vec![
                 format!("Expected database directory at: {}", db_path.display()),
@@ -1087,7 +1107,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
             ];
         } else if !db_path.is_dir() {
             ok = false;
-            storage_status.status = "error".to_string();
+            storage_status.status = STATUS_ERROR.to_string();
             storage_status.detail = "storage database path is not a directory".to_string();
             storage_status.remediation_hints = vec![
                 format!("Fix storage path: {}", db_path.display()),
@@ -1101,7 +1121,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
     }
 
     let mut wal_status = WalDoctorStatus {
-        status: "not_applicable".to_string(),
+        status: STATUS_NOT_APPLICABLE.to_string(),
         wal_dir: None,
         replay_healthy: true,
         total_segments: 0,
@@ -1113,7 +1133,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
     };
 
     if let Some(dir) = data_dir {
-        wal_status.status = "warning".to_string();
+        wal_status.status = STATUS_WARNING.to_string();
         wal_status.detail = "WAL directory not detected".to_string();
         wal_status.remediation_hints = vec![
             "If this is production data, ensure WAL durability is enabled".to_string(),
@@ -1133,14 +1153,14 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
                             wal_status.corrupted_segments = validation.corrupted_segments;
                             wal_status.replay_healthy = validation.is_healthy();
                             if validation.is_healthy() {
-                                wal_status.status = "ok".to_string();
+                                wal_status.status = STATUS_OK.to_string();
                                 wal_status.detail =
                                     "WAL replay validation completed without corruption"
                                         .to_string();
                                 wal_status.remediation_hints.clear();
                             } else {
                                 ok = false;
-                                wal_status.status = "error".to_string();
+                                wal_status.status = STATUS_ERROR.to_string();
                                 wal_status.detail = "WAL corruption detected".to_string();
                                 if let Some(guidance) = validation.recovery_guidance() {
                                     wal_status.remediation_hints = vec![guidance];
@@ -1154,7 +1174,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
                         }
                         Err(err) => {
                             ok = false;
-                            wal_status.status = "error".to_string();
+                            wal_status.status = STATUS_ERROR.to_string();
                             wal_status.replay_healthy = false;
                             wal_status.detail = format!("WAL validation failed: {}", err);
                             wal_status.remediation_hints = vec![
@@ -1165,7 +1185,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
                     },
                     Err(err) => {
                         ok = false;
-                        wal_status.status = "error".to_string();
+                        wal_status.status = STATUS_ERROR.to_string();
                         wal_status.replay_healthy = false;
                         wal_status.detail = format!("failed to open WAL directory: {}", err);
                         wal_status.remediation_hints = vec![
@@ -1189,7 +1209,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
         .unwrap_or(0);
 
     let mut sync_status = SyncDoctorStatus {
-        status: "ok".to_string(),
+        status: STATUS_OK.to_string(),
         mode: mode.clone(),
         peers,
         last_activity,
@@ -1198,7 +1218,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
     };
 
     if mode != "disabled" && peers == 0 {
-        sync_status.status = "warning".to_string();
+        sync_status.status = STATUS_WARNING.to_string();
         sync_status.detail = "sync transport enabled but no peers currently recorded".to_string();
         sync_status.remediation_hints = vec![
             "Verify network reachability and relay/hyperswarm settings".to_string(),
@@ -2022,19 +2042,7 @@ fn run() -> Result<()> {
                 Ok(())
             }
 
-            Commands::Doctor { json } => {
-                let report = collect_doctor_report(cli.data_dir.as_ref()).await;
-                if json {
-                    println!("{}", serde_json::to_string_pretty(&report)?);
-                } else {
-                    print_doctor_report(&report);
-                }
-
-                if !report.ok {
-                    std::process::exit(2);
-                }
-                Ok(())
-            }
+            Commands::Doctor { .. } => unreachable!("doctor is handled before storage initialization"),
 
             Commands::Put {
                 id,
