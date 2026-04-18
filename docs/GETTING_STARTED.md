@@ -304,6 +304,10 @@ pluresdb --data-dir ./my-db query "SELECT name FROM users"
 
 # Status
 pluresdb --data-dir ./my-db status --detailed
+
+# Health diagnostics (storage + WAL + sync)
+pluresdb --data-dir ./my-db doctor
+pluresdb --data-dir ./my-db doctor --json
 ```
 
 ### Help

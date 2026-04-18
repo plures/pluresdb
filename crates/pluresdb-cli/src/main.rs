@@ -16,9 +16,10 @@ use clap::{Parser, Subcommand};
 use pluresdb_core::{CoreErrorCode, CrdtStore, StoreError};
 use pluresdb_storage::{
     MemoryStorage, SledStorage, StorageEngine, StorageErrorCode, StoredNode, WalError,
+    WriteAheadLog,
 };
 use pluresdb_sync::{GunRelayServer, SyncBroadcaster};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::runtime::Runtime;
 use tokio::signal;
@@ -92,6 +93,13 @@ enum Commands {
         /// Show detailed statistics
         #[arg(long)]
         detailed: bool,
+    },
+
+    /// Run health diagnostics for storage, WAL, and sync transport
+    Doctor {
+        /// Emit machine-readable JSON output
+        #[arg(long)]
+        json: bool,
     },
 
     /// Insert or update a node
@@ -391,6 +399,49 @@ struct AppState {
     broadcaster: Arc<SyncBroadcaster>,
 }
 
+#[derive(Debug, Serialize)]
+struct DoctorReport {
+    ok: bool,
+    storage: StorageDoctorStatus,
+    wal: WalDoctorStatus,
+    sync: SyncDoctorStatus,
+    remediation_hints: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct StorageDoctorStatus {
+    status: String,
+    engine: String,
+    data_dir: Option<String>,
+    disk_usage_bytes: u64,
+    node_count: usize,
+    detail: String,
+    remediation_hints: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct WalDoctorStatus {
+    status: String,
+    wal_dir: Option<String>,
+    replay_healthy: bool,
+    total_segments: u64,
+    total_entries: u64,
+    corrupted_entries: u64,
+    corrupted_segments: u64,
+    detail: String,
+    remediation_hints: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct SyncDoctorStatus {
+    status: String,
+    mode: String,
+    peers: usize,
+    last_activity: Option<String>,
+    detail: String,
+    remediation_hints: Vec<String>,
+}
+
 fn init_runtime() -> Runtime {
     Runtime::new().expect("failed to initialise Tokio runtime")
 }
@@ -398,7 +449,10 @@ fn init_runtime() -> Runtime {
 fn init_logging(cli: &Cli) {
     let log_level = if cli.verbose { "debug" } else { &cli.log_level };
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(log_level));
-    fmt().with_env_filter(filter).init();
+    fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
+        .init();
 }
 
 fn load_payload(data: &str) -> Result<serde_json::Value> {
@@ -897,6 +951,321 @@ async fn handle_network_sync(peer_id: Option<String>) -> Result<()> {
         println!("Would sync with all peers");
     }
     Ok(())
+}
+
+fn directory_size_bytes(path: &std::path::Path) -> Result<u64> {
+    let mut total = 0u64;
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let meta = entry.metadata()?;
+        if meta.is_file() {
+            total += meta.len();
+        } else if meta.is_dir() {
+            total += directory_size_bytes(&entry.path())?;
+        }
+    }
+    Ok(total)
+}
+
+fn detect_wal_directory(data_dir: &std::path::Path) -> Option<PathBuf> {
+    let wal_subdir = data_dir.join("wal");
+    if wal_subdir.exists() && wal_subdir.is_dir() {
+        return Some(wal_subdir);
+    }
+
+    let has_wal_segments = fs::read_dir(data_dir)
+        .ok()
+        .map(|entries| {
+            entries.flatten().any(|entry| {
+                entry
+                    .path()
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .map(|ext| ext.eq_ignore_ascii_case("wal"))
+                    .unwrap_or(false)
+            })
+        })
+        .unwrap_or(false);
+    if has_wal_segments {
+        Some(data_dir.to_path_buf())
+    } else {
+        None
+    }
+}
+
+fn parse_sync_mode(config: &HashMap<String, String>) -> String {
+    const MODE_KEYS: [&str; 3] = ["sync_mode", "transport_mode", "sync_transport_mode"];
+    for key in MODE_KEYS {
+        if let Some(value) = config.get(key) {
+            let trimmed = value.trim().trim_matches('"');
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+    }
+    "disabled".to_string()
+}
+
+fn parse_optional_config_value(config: &HashMap<String, String>, keys: &[&str]) -> Option<String> {
+    for key in keys {
+        if let Some(value) = config.get(*key) {
+            let trimmed = value.trim().trim_matches('"');
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
+async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
+    let mut ok = true;
+
+    let engine = if data_dir.is_some() {
+        "sled".to_string()
+    } else {
+        "memory".to_string()
+    };
+
+    let mut storage_status = StorageDoctorStatus {
+        status: "ok".to_string(),
+        engine,
+        data_dir: data_dir.map(|d| d.display().to_string()),
+        disk_usage_bytes: 0,
+        node_count: 0,
+        detail: "storage engine reachable".to_string(),
+        remediation_hints: Vec::new(),
+    };
+
+    if let Some(dir) = data_dir {
+        if !dir.exists() {
+            ok = false;
+            storage_status.status = "error".to_string();
+            storage_status.detail = "configured data directory does not exist".to_string();
+            storage_status.remediation_hints = vec![
+                format!("Create the data directory: {}", dir.display()),
+                "Run `pluresdb init <path>` before using doctor on a new location".to_string(),
+            ];
+        } else if !dir.is_dir() {
+            ok = false;
+            storage_status.status = "error".to_string();
+            storage_status.detail = "configured data directory is not a directory".to_string();
+            storage_status.remediation_hints = vec![
+                format!(
+                    "Update --data-dir to a directory path (current: {})",
+                    dir.display()
+                ),
+                "Ensure the path is writable by the current user".to_string(),
+            ];
+        } else {
+            match directory_size_bytes(dir) {
+                Ok(bytes) => storage_status.disk_usage_bytes = bytes,
+                Err(err) => {
+                    ok = false;
+                    storage_status.status = "error".to_string();
+                    storage_status.detail = format!("failed to read disk usage: {}", err);
+                    storage_status.remediation_hints = vec![
+                        "Check filesystem permissions for the data directory".to_string(),
+                        "Verify the data directory is accessible and not locked by another process"
+                            .to_string(),
+                    ];
+                }
+            }
+        }
+    }
+
+    if let Some(dir) = data_dir {
+        let db_path = dir.join("db");
+        if !db_path.exists() {
+            ok = false;
+            storage_status.status = "error".to_string();
+            storage_status.detail = "storage database directory not found".to_string();
+            storage_status.remediation_hints = vec![
+                format!("Expected database directory at: {}", db_path.display()),
+                "Initialize the database with `pluresdb init <path>` or verify --data-dir"
+                    .to_string(),
+            ];
+        } else if !db_path.is_dir() {
+            ok = false;
+            storage_status.status = "error".to_string();
+            storage_status.detail = "storage database path is not a directory".to_string();
+            storage_status.remediation_hints = vec![
+                format!("Fix storage path: {}", db_path.display()),
+                "Ensure the database path points to a valid directory".to_string(),
+            ];
+        } else {
+            storage_status.detail = "storage directory detected".to_string();
+        }
+    } else {
+        storage_status.detail = "in-memory storage mode (no persistent files)".to_string();
+    }
+
+    let mut wal_status = WalDoctorStatus {
+        status: "not_applicable".to_string(),
+        wal_dir: None,
+        replay_healthy: true,
+        total_segments: 0,
+        total_entries: 0,
+        corrupted_entries: 0,
+        corrupted_segments: 0,
+        detail: "WAL check skipped for in-memory mode".to_string(),
+        remediation_hints: Vec::new(),
+    };
+
+    if let Some(dir) = data_dir {
+        wal_status.status = "warning".to_string();
+        wal_status.detail = "WAL directory not detected".to_string();
+        wal_status.remediation_hints = vec![
+            "If this is production data, ensure WAL durability is enabled".to_string(),
+            "Check whether WAL segments are stored in a custom location".to_string(),
+        ];
+        wal_status.replay_healthy = false;
+
+        if dir.exists() && dir.is_dir() {
+            if let Some(wal_dir) = detect_wal_directory(dir) {
+                wal_status.wal_dir = Some(wal_dir.display().to_string());
+                match WriteAheadLog::open(&wal_dir) {
+                    Ok(wal) => match wal.validate().await {
+                        Ok(validation) => {
+                            wal_status.total_segments = validation.total_segments;
+                            wal_status.total_entries = validation.total_entries;
+                            wal_status.corrupted_entries = validation.corrupted_entries;
+                            wal_status.corrupted_segments = validation.corrupted_segments;
+                            wal_status.replay_healthy = validation.is_healthy();
+                            if validation.is_healthy() {
+                                wal_status.status = "ok".to_string();
+                                wal_status.detail =
+                                    "WAL replay validation completed without corruption"
+                                        .to_string();
+                                wal_status.remediation_hints.clear();
+                            } else {
+                                ok = false;
+                                wal_status.status = "error".to_string();
+                                wal_status.detail = "WAL corruption detected".to_string();
+                                if let Some(guidance) = validation.recovery_guidance() {
+                                    wal_status.remediation_hints = vec![guidance];
+                                } else {
+                                    wal_status.remediation_hints = vec![
+                                        "Run WAL recovery and restore from backup if recovery fails"
+                                            .to_string(),
+                                    ];
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            ok = false;
+                            wal_status.status = "error".to_string();
+                            wal_status.replay_healthy = false;
+                            wal_status.detail = format!("WAL validation failed: {}", err);
+                            wal_status.remediation_hints = vec![
+                                "Run WAL recovery for the affected directory".to_string(),
+                                "Restore from backup if WAL recovery cannot complete".to_string(),
+                            ];
+                        }
+                    },
+                    Err(err) => {
+                        ok = false;
+                        wal_status.status = "error".to_string();
+                        wal_status.replay_healthy = false;
+                        wal_status.detail = format!("failed to open WAL directory: {}", err);
+                        wal_status.remediation_hints = vec![
+                            "Check WAL directory permissions and path validity".to_string(),
+                            "Ensure WAL files are readable by the current user".to_string(),
+                        ];
+                    }
+                }
+            }
+        }
+    }
+
+    let config = load_config(data_dir).unwrap_or_default();
+    let mode = parse_sync_mode(&config);
+    let last_activity = parse_optional_config_value(
+        &config,
+        &["sync_last_activity", "last_sync_activity", "last_activity"],
+    );
+    let peers = parse_optional_config_value(&config, &["sync_peers", "peers"])
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(0);
+
+    let mut sync_status = SyncDoctorStatus {
+        status: "ok".to_string(),
+        mode: mode.clone(),
+        peers,
+        last_activity,
+        detail: "sync transport status loaded from local configuration".to_string(),
+        remediation_hints: Vec::new(),
+    };
+
+    if mode != "disabled" && peers == 0 {
+        sync_status.status = "warning".to_string();
+        sync_status.detail = "sync transport enabled but no peers currently recorded".to_string();
+        sync_status.remediation_hints = vec![
+            "Verify network reachability and relay/hyperswarm settings".to_string(),
+            "Run `pluresdb network peers --detailed` during active sync sessions".to_string(),
+        ];
+    }
+
+    let mut remediation_hints = Vec::new();
+    remediation_hints.extend(storage_status.remediation_hints.clone());
+    remediation_hints.extend(wal_status.remediation_hints.clone());
+    remediation_hints.extend(sync_status.remediation_hints.clone());
+
+    DoctorReport {
+        ok,
+        storage: storage_status,
+        wal: wal_status,
+        sync: sync_status,
+        remediation_hints,
+    }
+}
+
+fn print_doctor_report(report: &DoctorReport) {
+    println!("PluresDB Doctor");
+    println!("Overall: {}", if report.ok { "OK" } else { "FAILED" });
+    println!();
+    println!("Storage");
+    println!("  Status: {}", report.storage.status);
+    println!("  Engine: {}", report.storage.engine);
+    if let Some(dir) = &report.storage.data_dir {
+        println!("  Data directory: {}", dir);
+    }
+    println!("  Disk usage: {} bytes", report.storage.disk_usage_bytes);
+    println!("  Nodes: {}", report.storage.node_count);
+    println!("  Detail: {}", report.storage.detail);
+    for hint in &report.storage.remediation_hints {
+        println!("  Hint: {}", hint);
+    }
+
+    println!();
+    println!("WAL");
+    println!("  Status: {}", report.wal.status);
+    if let Some(wal_dir) = &report.wal.wal_dir {
+        println!("  Directory: {}", wal_dir);
+    }
+    println!("  Replay healthy: {}", report.wal.replay_healthy);
+    println!("  Segments: {}", report.wal.total_segments);
+    println!("  Entries: {}", report.wal.total_entries);
+    println!("  Corrupted entries: {}", report.wal.corrupted_entries);
+    println!("  Corrupted segments: {}", report.wal.corrupted_segments);
+    println!("  Detail: {}", report.wal.detail);
+    for hint in &report.wal.remediation_hints {
+        println!("  Hint: {}", hint);
+    }
+
+    println!();
+    println!("Sync transport");
+    println!("  Status: {}", report.sync.status);
+    println!("  Mode: {}", report.sync.mode);
+    println!("  Peers: {}", report.sync.peers);
+    println!(
+        "  Last activity: {}",
+        report.sync.last_activity.as_deref().unwrap_or("unknown")
+    );
+    println!("  Detail: {}", report.sync.detail);
+    for hint in &report.sync.remediation_hints {
+        println!("  Hint: {}", hint);
+    }
 }
 
 fn load_config(data_dir: Option<&PathBuf>) -> Result<HashMap<String, String>> {
@@ -1584,6 +1953,23 @@ fn run() -> Result<()> {
 
     info!("PluresDB CLI v{}", VERSION);
 
+    if let Commands::Doctor { json } = &cli.command {
+        let json_output = *json;
+        let rt = init_runtime();
+        return rt.block_on(async move {
+            let report = collect_doctor_report(cli.data_dir.as_ref()).await;
+            if json_output {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                print_doctor_report(&report);
+            }
+            if !report.ok {
+                std::process::exit(2);
+            }
+            Ok(())
+        });
+    }
+
     let rt = init_runtime();
     rt.block_on(async move {
         let storage = create_storage(cli.data_dir.as_ref())?;
@@ -1632,6 +2018,20 @@ fn run() -> Result<()> {
                     println!("Storage: {}", storage_type);
                     let nodes = storage.list().await?;
                     println!("Nodes: {}", nodes.len());
+                }
+                Ok(())
+            }
+
+            Commands::Doctor { json } => {
+                let report = collect_doctor_report(cli.data_dir.as_ref()).await;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                } else {
+                    print_doctor_report(&report);
+                }
+
+                if !report.ok {
+                    std::process::exit(2);
                 }
                 Ok(())
             }
@@ -1829,5 +2229,25 @@ mod tests {
         });
         let (code, _) = classify_error_diagnostic(&err);
         assert_eq!(code, StorageErrorCode::WalTruncatedEntry.as_str());
+    }
+
+    #[test]
+    fn parses_sync_mode_from_config() {
+        let mut config = HashMap::new();
+        config.insert("transport_mode".to_string(), "\"relay\"".to_string());
+        assert_eq!(parse_sync_mode(&config), "relay");
+    }
+
+    #[tokio::test]
+    async fn doctor_report_fails_for_missing_data_dir() {
+        let missing_dir =
+            std::env::temp_dir().join(format!("pluresdb-doctor-missing-{}", std::process::id()));
+        if missing_dir.exists() {
+            fs::remove_dir_all(&missing_dir).unwrap();
+        }
+
+        let report = collect_doctor_report(Some(&missing_dir)).await;
+        assert!(!report.ok);
+        assert_eq!(report.storage.status, "error");
     }
 }
