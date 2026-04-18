@@ -27,6 +27,36 @@ Complete reference for all public APIs across Rust, Node.js, Deno, CLI, and REST
    - [better-sqlite3 compat](#better-sqlite3-compat)
 8. [REST API](#rest-api)
 9. [CLI Commands](#cli-commands)
+10. [Error Codes](#error-codes)
+
+---
+
+## Error Codes
+
+PluresDB exposes stable error-code enums in Rust and prefixes binding errors with
+`[CODE] message` in Node.js and Deno.
+
+### Core (`pluresdb-core::CoreErrorCode`)
+
+- `CORE_NODE_NOT_FOUND`
+- `CORE_SQLITE_ERROR`
+- `CORE_INVALID_INPUT`
+- `CORE_SERIALIZATION_ERROR`
+- `CORE_FEATURE_DISABLED`
+
+### Storage (`pluresdb-storage::StorageErrorCode`)
+
+- `STORAGE_OPEN_FAILED`
+- `STORAGE_OPERATION_FAILED`
+- `STORAGE_SERIALIZATION_ERROR`
+- `STORAGE_WAL_IMPLAUSIBLE_ENTRY_SIZE`
+- `STORAGE_WAL_TRUNCATED_ENTRY`
+
+### Sync (`pluresdb-sync::SyncErrorCode`)
+
+- `SYNC_BROADCAST_PUBLISH_FAILED`
+
+CLI diagnostics print these codes together with suggested next steps.
 
 ---
 

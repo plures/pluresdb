@@ -13,8 +13,10 @@ use axum::{
     Router,
 };
 use clap::{Parser, Subcommand};
-use pluresdb_core::CrdtStore;
-use pluresdb_storage::{MemoryStorage, SledStorage, StorageEngine, StoredNode};
+use pluresdb_core::{CoreErrorCode, CrdtStore, StoreError};
+use pluresdb_storage::{
+    MemoryStorage, SledStorage, StorageEngine, StorageErrorCode, StoredNode, WalError,
+};
 use pluresdb_sync::{GunRelayServer, SyncBroadcaster};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -27,7 +29,7 @@ use tracing::{error, info, warn};
 use tracing_subscriber::{fmt, EnvFilter};
 
 #[cfg(feature = "sqlite-compat")]
-use pluresdb_core::{Database, DatabaseOptions, SqlValue};
+use pluresdb_core::{Database, DatabaseError, DatabaseOptions, SqlValue};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -1488,7 +1490,97 @@ async fn vector_search_handler(
     })))
 }
 
-fn main() -> Result<()> {
+fn classify_error_diagnostic(err: &anyhow::Error) -> (&str, &[&str]) {
+    if let Some(store_err) = err.downcast_ref::<StoreError>() {
+        return (
+            store_err.code().as_str(),
+            &[
+                "Verify the node ID exists with: pluresdb list",
+                "Insert the node first with: pluresdb put <id> '{\"key\":\"value\"}'",
+            ],
+        );
+    }
+
+    if let Some(wal_err) = err.downcast_ref::<WalError>() {
+        let code = wal_err.code().as_str();
+        return (
+            code,
+            &[
+                "Run WAL recovery for the affected directory",
+                "Restore from backup if WAL recovery cannot recover required entries",
+            ],
+        );
+    }
+
+    if let Some(io_err) = err.downcast_ref::<std::io::Error>() {
+        let code = if io_err.kind() == std::io::ErrorKind::NotFound {
+            StorageErrorCode::OpenFailed.as_str()
+        } else {
+            StorageErrorCode::OperationFailed.as_str()
+        };
+        return (
+            code,
+            &[
+                "Check file and directory permissions",
+                "Ensure the configured --data-dir path exists and is writable",
+            ],
+        );
+    }
+
+    #[cfg(feature = "sqlite-compat")]
+    if let Some(sqlite_err) = err.downcast_ref::<rusqlite::Error>() {
+        let _ = sqlite_err;
+        return (
+            CoreErrorCode::SqliteError.as_str(),
+            &[
+                "Validate SQL syntax and parameters",
+                "Run the same command with --log-level debug for more context",
+            ],
+        );
+    }
+
+    #[cfg(feature = "sqlite-compat")]
+    if let Some(db_err) = err.downcast_ref::<DatabaseError>() {
+        let _ = db_err;
+        return (
+            CoreErrorCode::SqliteError.as_str(),
+            &[
+                "Verify the database path and permissions",
+                "Run the command again with --log-level debug for additional context",
+            ],
+        );
+    }
+
+    if err.downcast_ref::<serde_json::Error>().is_some() {
+        return (
+            CoreErrorCode::InvalidInput.as_str(),
+            &[
+                "Validate JSON input and argument formatting",
+                "For vectors/params, pass valid JSON arrays (e.g. '[0.1,0.2]')",
+            ],
+        );
+    }
+
+    #[cfg(feature = "sqlite-compat")]
+    let _ = err;
+    (
+        CoreErrorCode::InvalidInput.as_str(),
+        &[
+            "Retry the command",
+            "If this persists, run with --log-level debug and inspect logs",
+        ],
+    )
+}
+
+fn render_error_diagnostic(err: &anyhow::Error) {
+    let (code, next_steps) = classify_error_diagnostic(err);
+    eprintln!("✗ Error [{}]: {}", code, err);
+    for step in next_steps {
+        eprintln!("  → {}", step);
+    }
+}
+
+fn run() -> Result<()> {
     let cli = Cli::parse();
     init_logging(&cli);
 
@@ -1710,4 +1802,34 @@ fn main() -> Result<()> {
             }
         }
     })
+}
+
+fn main() {
+    if let Err(err) = run() {
+        render_error_diagnostic(&err);
+        std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classifies_store_not_found_error_code() {
+        let err = anyhow::Error::from(StoreError::NotFound("missing-node".to_string()));
+        let (code, _) = classify_error_diagnostic(&err);
+        assert_eq!(code, CoreErrorCode::NodeNotFound.as_str());
+    }
+
+    #[test]
+    fn classifies_wal_corruption_error_code() {
+        let err = anyhow::Error::from(WalError::TruncatedEntry {
+            segment: "seg-1.wal".to_string(),
+            offset: 10,
+            expected_bytes: 20,
+        });
+        let (code, _) = classify_error_diagnostic(&err);
+        assert_eq!(code, StorageErrorCode::WalTruncatedEntry.as_str());
+    }
 }

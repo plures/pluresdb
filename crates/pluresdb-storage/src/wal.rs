@@ -16,6 +16,8 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 use tracing::{debug, info, instrument, warn};
 
+use crate::StorageErrorCode;
+
 /// Maximum size of a single WAL entry payload in bytes (16 MiB).
 ///
 /// Entries whose length prefix exceeds this threshold are rejected immediately
@@ -65,6 +67,15 @@ pub enum WalError {
         /// Number of bytes that were expected but could not be read.
         expected_bytes: usize,
     },
+}
+
+impl WalError {
+    pub const fn code(&self) -> StorageErrorCode {
+        match self {
+            Self::ImplausibleEntrySize { .. } => StorageErrorCode::WalImplausibleEntrySize,
+            Self::TruncatedEntry { .. } => StorageErrorCode::WalTruncatedEntry,
+        }
+    }
 }
 
 /// Durability level for write operations.
@@ -722,6 +733,27 @@ mod tests {
         let mut corrupted = entry.clone();
         corrupted.checksum = 0;
         assert!(!corrupted.validate_checksum());
+    }
+
+    #[test]
+    fn wal_errors_expose_stable_codes() {
+        let implausible = WalError::ImplausibleEntrySize {
+            segment: "segment-1.wal".to_string(),
+            offset: 42,
+            claimed_size: 999_999,
+            max_size: 1024,
+        };
+        assert_eq!(
+            implausible.code(),
+            StorageErrorCode::WalImplausibleEntrySize
+        );
+
+        let truncated = WalError::TruncatedEntry {
+            segment: "segment-2.wal".to_string(),
+            offset: 11,
+            expected_bytes: 12,
+        };
+        assert_eq!(truncated.code(), StorageErrorCode::WalTruncatedEntry);
     }
 
     #[tokio::test]

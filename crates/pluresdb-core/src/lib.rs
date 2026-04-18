@@ -328,6 +328,42 @@ pub enum StoreError {
     NotFound(NodeId),
 }
 
+/// Stable, documented error codes emitted by `pluresdb-core`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CoreErrorCode {
+    NodeNotFound,
+    SqliteError,
+    InvalidInput,
+    SerializationError,
+    FeatureDisabled,
+}
+
+impl CoreErrorCode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NodeNotFound => "CORE_NODE_NOT_FOUND",
+            Self::SqliteError => "CORE_SQLITE_ERROR",
+            Self::InvalidInput => "CORE_INVALID_INPUT",
+            Self::SerializationError => "CORE_SERIALIZATION_ERROR",
+            Self::FeatureDisabled => "CORE_FEATURE_DISABLED",
+        }
+    }
+}
+
+impl std::fmt::Display for CoreErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl StoreError {
+    pub const fn code(&self) -> CoreErrorCode {
+        match self {
+            Self::NotFound(_) => CoreErrorCode::NodeNotFound,
+        }
+    }
+}
+
 /// CRDT operations that clients may apply to the store.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum CrdtOperation {
@@ -1171,6 +1207,15 @@ pub enum DatabaseError {
 }
 
 #[cfg(feature = "sqlite-compat")]
+impl DatabaseError {
+    pub const fn code(&self) -> CoreErrorCode {
+        match self {
+            Self::Sqlite(_) => CoreErrorCode::SqliteError,
+        }
+    }
+}
+
+#[cfg(feature = "sqlite-compat")]
 pub type DbResult<T> = Result<T, DatabaseError>;
 
 #[cfg(feature = "sqlite-compat")]
@@ -2000,6 +2045,7 @@ mod tests {
             .delete("ghost-node")
             .expect_err("should error for missing node");
         assert!(matches!(err, StoreError::NotFound(_)));
+        assert_eq!(err.code(), CoreErrorCode::NodeNotFound);
     }
 
     #[test]
@@ -2155,6 +2201,15 @@ mod tests {
         fn database_options_embedding_model_none_by_default() {
             let opts = DatabaseOptions::default();
             assert!(opts.embedding_model.is_none());
+        }
+
+        #[test]
+        fn database_error_exposes_stable_code() {
+            let err = Database::open(DatabaseOptions::with_file(
+                "/definitely/missing/dir/db.sqlite",
+            ))
+            .expect_err("opening file in missing parent directory should fail");
+            assert_eq!(err.code(), CoreErrorCode::SqliteError);
         }
     }
 }
