@@ -22,6 +22,8 @@ serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+tokio.workspace = true
+cron = "0.12"
 pest = "2.8"
 pest_derive = "2.8"
 

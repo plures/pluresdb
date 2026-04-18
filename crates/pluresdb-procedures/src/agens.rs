@@ -40,6 +40,7 @@
 //! ```
 
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -350,12 +351,32 @@ pub struct TimerEntry {
     pub id: String,
     /// Human-readable name forwarded to [`AgensEvent::Timer`].
     pub name: String,
-    /// Firing interval in seconds.
+    /// Timer trigger mode.
+    pub trigger: TimerTrigger,
+    /// Firing interval in seconds (used when `trigger == interval`).
     pub interval_secs: u64,
+    /// Cron expression (used when `trigger == cron`).
+    pub cron_expr: Option<String>,
+    /// UTC timestamp when this timer most recently ran.
+    pub last_run: Option<DateTime<Utc>>,
     /// UTC timestamp of the next scheduled firing.
     pub next_fire_at: DateTime<Utc>,
     /// Arbitrary payload forwarded to the handler when the timer fires.
     pub payload: JsonValue,
+    /// Whether this timer is still active.
+    pub active: bool,
+}
+
+/// Timer trigger type.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TimerTrigger {
+    /// Fire every `interval_secs`.
+    Interval,
+    /// Fire according to `cron_expr`.
+    Cron,
+    /// Fire exactly once at `next_fire_at`.
+    Once,
 }
 
 /// Timer table backed by the CRDT store.
@@ -380,8 +401,10 @@ impl<'a> TimerTable<'a> {
         }
     }
 
-    /// Schedule a recurring timer named `name` to fire every `interval_secs`
-    /// seconds.  Returns the timer node ID (use it with [`cancel`][Self::cancel]
+    /// Schedule a recurring **interval** timer named `name` to fire every
+    /// `interval_secs` seconds.
+    ///
+    /// Returns the timer node ID (use it with [`cancel`][Self::cancel]
     /// or [`reschedule`][Self::reschedule]).
     ///
     /// The first firing is scheduled `interval_secs` from now.
@@ -392,6 +415,12 @@ impl<'a> TimerTable<'a> {
     /// continuously without advancing) or if it exceeds [`i64::MAX`] (which
     /// would overflow the chrono duration).
     pub fn schedule(&self, name: &str, interval_secs: u64, payload: JsonValue) -> String {
+        self.schedule_interval(name, interval_secs, payload)
+    }
+
+    /// Schedule a recurring **interval** timer named `name` to fire every
+    /// `interval_secs` seconds.
+    pub fn schedule_interval(&self, name: &str, interval_secs: u64, payload: JsonValue) -> String {
         // Validate interval to avoid zero-duration loops and integer wrap-around.
         if interval_secs == 0 {
             panic!("TimerTable::schedule: interval_secs must be greater than 0");
@@ -402,18 +431,88 @@ impl<'a> TimerTable<'a> {
 
         let id = format!("timer:{}", Uuid::new_v4());
         let next_fire_at = Utc::now() + chrono::Duration::seconds(interval_secs_i64);
+        let entry = TimerEntry {
+            id: id.clone(),
+            name: name.to_string(),
+            trigger: TimerTrigger::Interval,
+            interval_secs,
+            cron_expr: None,
+            last_run: None,
+            next_fire_at,
+            payload,
+            active: true,
+        };
+        self.persist_entry(&entry);
+        id
+    }
+
+    /// Schedule a recurring **cron** timer named `name`.
+    ///
+    /// Supports standard 5-field expressions (`min hour dom mon dow`) and
+    /// 6/7-field expressions accepted by the `cron` crate.
+    pub fn schedule_cron(
+        &self,
+        name: &str,
+        cron_expr: &str,
+        payload: JsonValue,
+    ) -> anyhow::Result<String> {
+        let now = Utc::now();
+        let next_fire_at = self.next_cron_fire(cron_expr, now).ok_or_else(|| {
+            anyhow::anyhow!(
+                "TimerTable::schedule_cron: cron expression '{}' has no next run",
+                cron_expr
+            )
+        })?;
+        let id = format!("timer:{}", Uuid::new_v4());
+        let entry = TimerEntry {
+            id: id.clone(),
+            name: name.to_string(),
+            trigger: TimerTrigger::Cron,
+            interval_secs: 0,
+            cron_expr: Some(cron_expr.to_string()),
+            last_run: None,
+            next_fire_at,
+            payload,
+            active: true,
+        };
+        self.persist_entry(&entry);
+        Ok(id)
+    }
+
+    /// Schedule a **one-shot** timer named `name` for `run_at`.
+    pub fn schedule_once(&self, name: &str, run_at: DateTime<Utc>, payload: JsonValue) -> String {
+        let id = format!("timer:{}", Uuid::new_v4());
+        let entry = TimerEntry {
+            id: id.clone(),
+            name: name.to_string(),
+            trigger: TimerTrigger::Once,
+            interval_secs: 0,
+            cron_expr: None,
+            last_run: None,
+            next_fire_at: run_at,
+            payload,
+            active: true,
+        };
+        self.persist_entry(&entry);
+        id
+    }
+
+    fn persist_entry(&self, entry: &TimerEntry) {
         self.store.put(
-            id.clone(),
+            entry.id.as_str(),
             self.actor.as_str(),
             json!({
                 "_type": TYPE_TIMER,
-                "name": name,
-                "interval_secs": interval_secs,
-                "next_fire_at": next_fire_at.to_rfc3339(),
-                "payload": payload,
+                "name": entry.name,
+                "trigger": entry.trigger,
+                "interval_secs": entry.interval_secs,
+                "cron_expr": entry.cron_expr,
+                "last_run": entry.last_run.map(|ts| ts.to_rfc3339()),
+                "next_run": entry.next_fire_at.to_rfc3339(),
+                "active": entry.active,
+                "payload": entry.payload,
             }),
         );
-        id
     }
 
     /// Cancel a timer by its ID.  Returns `true` if the timer existed.
@@ -443,7 +542,7 @@ impl<'a> TimerTable<'a> {
     pub fn due_timers(&self, now: DateTime<Utc>) -> Vec<TimerEntry> {
         self.list()
             .into_iter()
-            .filter(|t| t.next_fire_at <= now)
+            .filter(|t| t.active && t.next_fire_at <= now)
             .collect()
     }
 
@@ -452,6 +551,12 @@ impl<'a> TimerTable<'a> {
     /// Call this after the timer has been processed to re-arm it for the next
     /// cycle.  Returns `false` if `timer_id` does not exist.
     pub fn reschedule(&self, timer_id: &str) -> bool {
+        self.mark_ran(timer_id, Utc::now())
+    }
+
+    /// Mark a timer as executed at `ran_at`, persisting `last_run` and
+    /// advancing `next_run`.
+    pub fn mark_ran(&self, timer_id: &str, ran_at: DateTime<Utc>) -> bool {
         let Some(node) = self.store.get(timer_id) else {
             return false;
         };
@@ -467,37 +572,63 @@ impl<'a> TimerTable<'a> {
         let Some(entry) = self.entry_from_data(&node.id, &node.data) else {
             return false;
         };
-        // Convert the stored interval to i64 in a checked way to avoid overflow.
-        let Ok(interval_i64) = i64::try_from(entry.interval_secs) else {
-            eprintln!(
-                "Agens timer reschedule failed: interval_secs '{}' for timer '{}' \
-                 exceeds i64::MAX",
-                entry.interval_secs, entry.name
-            );
-            return false;
+        let (next_fire_at, active) = match entry.trigger {
+            TimerTrigger::Interval => {
+                // Convert the stored interval to i64 in a checked way to avoid overflow.
+                let Ok(interval_i64) = i64::try_from(entry.interval_secs) else {
+                    warn!(
+                        timer_id,
+                        interval_secs = entry.interval_secs,
+                        "TimerTable::mark_ran: interval_secs exceeds i64::MAX, skipping reschedule"
+                    );
+                    return false;
+                };
+                let duration = chrono::Duration::seconds(interval_i64);
+                // Use checked_add_signed to avoid overflowing the DateTime.
+                let Some(next) = ran_at.checked_add_signed(duration) else {
+                    warn!(
+                        timer_id,
+                        ?duration,
+                        "TimerTable::mark_ran: next_fire_at would overflow DateTime bounds, \
+                         skipping reschedule"
+                    );
+                    return false;
+                };
+                (next, true)
+            }
+            TimerTrigger::Cron => {
+                let Some(expr) = entry.cron_expr.as_deref() else {
+                    warn!(
+                        timer_id,
+                        "TimerTable::mark_ran: cron timer missing cron_expr, skipping reschedule"
+                    );
+                    return false;
+                };
+                match self.next_cron_fire(expr, ran_at) {
+                    Some(next) => (next, true),
+                    None => {
+                        warn!(
+                            timer_id,
+                            cron_expr = expr,
+                            "TimerTable::mark_ran: cron has no next run, disabling timer"
+                        );
+                        (ran_at, false)
+                    }
+                }
+            }
+            TimerTrigger::Once => (ran_at, false),
         };
-        let duration = chrono::Duration::seconds(interval_i64);
-        // Use checked_add_signed to avoid overflowing the DateTime.
-        let Some(next) = entry.next_fire_at.checked_add_signed(duration) else {
-            warn!(
-                timer_id,
-                ?duration,
-                "TimerTable::reschedule: next_fire_at would overflow DateTime bounds, \
-                 skipping reschedule"
-            );
-            return false;
-        };
-        self.store.put(
-            timer_id,
-            self.actor.as_str(),
-            json!({
-                "_type": TYPE_TIMER,
-                "name": entry.name,
-                "interval_secs": entry.interval_secs,
-                "next_fire_at": next.to_rfc3339(),
-                "payload": entry.payload,
-            }),
-        );
+        self.persist_entry(&TimerEntry {
+            id: timer_id.to_string(),
+            name: entry.name,
+            trigger: entry.trigger,
+            interval_secs: entry.interval_secs,
+            cron_expr: entry.cron_expr,
+            last_run: Some(ran_at),
+            next_fire_at,
+            payload: entry.payload,
+            active,
+        });
         true
     }
 
@@ -511,19 +642,61 @@ impl<'a> TimerTable<'a> {
             return None;
         }
         let name = data.get("name")?.as_str()?.to_string();
-        let interval_secs = data.get("interval_secs")?.as_u64()?;
+        let trigger = match data.get("trigger").and_then(|v| v.as_str()) {
+            Some("cron") => TimerTrigger::Cron,
+            Some("once") => TimerTrigger::Once,
+            _ => TimerTrigger::Interval,
+        };
+        let interval_secs = data
+            .get("interval_secs")
+            .and_then(|v| v.as_u64())
+            .unwrap_or_default();
+        let cron_expr = data
+            .get("cron_expr")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let last_run: Option<DateTime<Utc>> = data
+            .get("last_run")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse().ok());
         let next_fire_at: DateTime<Utc> = data
-            .get("next_fire_at")?
+            .get("next_run")
+            .or_else(|| data.get("next_fire_at"))?
             .as_str()
             .and_then(|s| s.parse().ok())?;
+        let active = data.get("active").and_then(|v| v.as_bool()).unwrap_or(true);
         let payload = data.get("payload").cloned().unwrap_or(JsonValue::Null);
         Some(TimerEntry {
             id: id.to_string(),
             name,
+            trigger,
             interval_secs,
+            cron_expr,
+            last_run,
             next_fire_at,
             payload,
+            active,
         })
+    }
+
+    /// Compute the next UTC firing time for `cron_expr` strictly after `now`.
+    fn next_cron_fire(&self, cron_expr: &str, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+        let normalized = Self::normalize_cron_expr(cron_expr);
+        let schedule = cron::Schedule::from_str(&normalized).ok()?;
+        schedule.after(&now).next()
+    }
+
+    /// Normalize a cron expression for the parser.
+    ///
+    /// Accepts 5-field expressions (`min hour dom mon dow`) and prepends a
+    /// seconds field (`0`) so they can be parsed by the underlying crate.
+    fn normalize_cron_expr(cron_expr: &str) -> String {
+        let fields = cron_expr.split_whitespace().count();
+        if fields == 5 {
+            format!("0 {}", cron_expr)
+        } else {
+            cron_expr.to_string()
+        }
     }
 }
 
@@ -734,6 +907,55 @@ impl<'a> AgensRuntime<'a> {
         }
     }
 
+    /// Process all due timers at `now`.
+    ///
+    /// For each due timer, executes the registered `"timer"` handler with a
+    /// [`AgensEvent::Timer`] event and then persists `last_run`/`next_run`.
+    /// Returns the number of timers that were processed.
+    pub fn process_due_timers(&self, now: DateTime<Utc>) -> usize {
+        let timers = self.timers();
+        let due = timers.due_timers(now);
+        for timer in &due {
+            let event = AgensEvent::Timer {
+                id: timer.id.clone(),
+                name: timer.name.clone(),
+                payload: timer.payload.clone(),
+            };
+            if let Err(err) = self.execute_procedure(&event) {
+                warn!(
+                    timer_id = timer.id,
+                    timer_name = timer.name,
+                    error = %err,
+                    "AgensRuntime::process_due_timers: timer handler failed"
+                );
+            }
+            if !timers.mark_ran(&timer.id, now) {
+                warn!(
+                    timer_id = timer.id,
+                    "AgensRuntime::process_due_timers: failed to persist timer run state"
+                );
+            }
+        }
+        due.len()
+    }
+
+    /// Spawn a background Tokio task that processes due timers every 10 seconds.
+    ///
+    /// Requires that this runtime's store reference is `'static`.
+    pub fn spawn_timer_task(self: Arc<Self>) -> tokio::task::JoinHandle<()>
+    where
+        'a: 'static,
+    {
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(tokio::time::Duration::from_secs(10));
+            loop {
+                ticker.tick().await;
+                let now = Utc::now();
+                let _ = self.process_due_timers(now);
+            }
+        })
+    }
+
     /// Return a view of the reactive state table.
     pub fn state(&self) -> StateTable<'_> {
         StateTable::new(self.store, self.actor.as_str())
@@ -863,6 +1085,9 @@ mod tests {
         assert_eq!(list[0].id, id);
         assert_eq!(list[0].name, "heartbeat");
         assert_eq!(list[0].interval_secs, 60);
+        assert_eq!(list[0].trigger, TimerTrigger::Interval);
+        assert!(list[0].last_run.is_none());
+        assert!(list[0].active);
     }
 
     #[test]
@@ -897,6 +1122,45 @@ mod tests {
         assert!(timers.reschedule(&id));
         let rescheduled = timers.list()[0].next_fire_at;
         assert!(rescheduled > original_fire);
+        assert!(timers.list()[0].last_run.is_some());
+    }
+
+    #[test]
+    fn timer_schedule_cron() {
+        let store = make_store();
+        let timers = TimerTable::new(&store, "actor");
+        let id = timers
+            .schedule_cron("quarter-hour", "*/15 * * * *", json!({}))
+            .unwrap();
+        let entry = timers
+            .list()
+            .into_iter()
+            .find(|t| t.id == id)
+            .expect("scheduled cron timer should be listed");
+        assert_eq!(entry.trigger, TimerTrigger::Cron);
+        assert_eq!(entry.cron_expr.as_deref(), Some("*/15 * * * *"));
+        assert!(entry.next_fire_at > Utc::now());
+    }
+
+    #[test]
+    fn timer_once_disables_after_run() {
+        let store = make_store();
+        let timers = TimerTable::new(&store, "actor");
+        let now = Utc::now();
+        let id = timers.schedule_once("one-shot", now - chrono::Duration::seconds(1), json!({}));
+        let due = timers.due_timers(now);
+        assert!(due.iter().any(|t| t.id == id));
+        assert!(timers.mark_ran(&id, now));
+        let entry = timers
+            .list()
+            .into_iter()
+            .find(|t| t.id == id)
+            .expect("one-shot timer should still exist");
+        assert!(!entry.active);
+        assert_eq!(entry.last_run, Some(now));
+        assert!(timers
+            .due_timers(now + chrono::Duration::seconds(5))
+            .is_empty());
     }
 
     // -----------------------------------------------------------------------
@@ -975,6 +1239,46 @@ mod tests {
         assert_eq!(runtime.state().get("key"), Some(json!(42)));
         let _timer_id = runtime.timers().schedule("ping", 30, json!({}));
         assert_eq!(runtime.timers().list().len(), 1);
+    }
+
+    #[test]
+    fn process_due_timers_executes_timer_handler_and_persists_runs() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let store = CrdtStore::default();
+        let runtime = AgensRuntime::new(&store, "actor");
+        let hit_count = Arc::new(AtomicUsize::new(0));
+        let hit_count_clone = hit_count.clone();
+        runtime.register_procedure(
+            "timer",
+            Arc::new(move |event: &AgensEvent| {
+                match event {
+                    AgensEvent::Timer { name, .. } => assert_eq!(name, "one-shot"),
+                    _ => panic!("expected timer event"),
+                }
+                hit_count_clone.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }),
+        );
+
+        let now = Utc::now();
+        let timer_id = runtime.timers().schedule_once(
+            "one-shot",
+            now - chrono::Duration::seconds(1),
+            json!({"job": "run"}),
+        );
+        let processed = runtime.process_due_timers(now);
+        assert_eq!(processed, 1);
+        assert_eq!(hit_count.load(Ordering::SeqCst), 1);
+
+        let timer = runtime
+            .timers()
+            .list()
+            .into_iter()
+            .find(|t| t.id == timer_id)
+            .expect("timer should exist");
+        assert_eq!(timer.last_run, Some(now));
+        assert!(!timer.active);
     }
 
     #[test]
