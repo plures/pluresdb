@@ -650,25 +650,25 @@ impl PluresDatabase {
         store.build_vector_index() as u32
     }
 
-    /// Get database statistics
+    /// Get database statistics without loading all nodes into memory.
     #[napi]
     pub fn stats(&self) -> Result<serde_json::Value> {
         let store = self.store.clone();
+        let store = store.lock();
 
-        let records = {
-            let store = store.lock();
-            store.list()
-        };
-
+        let mut total_nodes = 0u64;
         let mut type_counts: HashMap<String, u32> = HashMap::new();
-        for record in &records {
+
+        store.for_each_sync(&mut |record| {
+            total_nodes += 1;
             if let Some(t) = record.data.get("type").and_then(|v| v.as_str()) {
                 *type_counts.entry(t.to_string()).or_insert(0) += 1;
             }
-        }
+            true
+        });
 
         Ok(serde_json::json!({
-            "totalNodes": records.len(),
+            "totalNodes": total_nodes,
             "typeCounts": type_counts,
         }))
     }
