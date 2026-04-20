@@ -105,6 +105,28 @@ pub trait SyncStorageEngine: Send + Sync {
     fn delete(&self, id: &str) -> Result<()>;
     /// Return all nodes currently held by this storage engine.
     fn list(&self) -> Result<Vec<StoredNode>>;
+
+    /// Return the total number of stored nodes without loading them into memory.
+    fn count(&self) -> Result<usize> {
+        Ok(self.list()?.len())
+    }
+
+    /// Iterate over nodes one at a time via callback, avoiding full
+    /// materialization.  Return `false` from `f` to stop early.
+    fn for_each(&self, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> Result<()> {
+        for node in self.list()? {
+            if !f(node) { break; }
+        }
+        Ok(())
+    }
+
+    /// Iterate over nodes whose ID starts with `prefix`.
+    fn for_each_by_prefix(&self, prefix: &str, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> Result<()> {
+        let prefix = prefix.to_string();
+        self.for_each(&mut |node: StoredNode| {
+            if node.id.starts_with(&prefix) { f(node) } else { true }
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +152,28 @@ pub trait StorageEngine: Send + Sync {
     async fn delete(&self, id: &str) -> Result<()>;
     /// Return all nodes currently held by this storage engine.
     async fn list(&self) -> Result<Vec<StoredNode>>;
+
+    /// Return the total number of stored nodes without loading them into memory.
+    async fn count(&self) -> Result<usize> {
+        Ok(self.list().await?.len())
+    }
+
+    /// Iterate over nodes one at a time via callback, avoiding full
+    /// materialization.  Return `false` from `f` to stop early.
+    async fn for_each(&self, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> Result<()> {
+        for node in self.list().await? {
+            if !f(node) { break; }
+        }
+        Ok(())
+    }
+
+    /// Iterate over nodes whose ID starts with `prefix`.
+    async fn for_each_by_prefix(&self, prefix: &str, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> Result<()> {
+        let prefix = prefix.to_string();
+        self.for_each(&mut |node: StoredNode| {
+            if node.id.starts_with(&prefix) { f(node) } else { true }
+        }).await
+    }
 }
 
 /// A non-persistent storage backend useful for tests and in-memory deployments.
@@ -272,6 +316,28 @@ impl SyncStorageEngine for SledStorage {
             out.push(Self::deserialize(value)?);
         }
         Ok(out)
+    }
+
+    fn count(&self) -> Result<usize> {
+        Ok(self.db.len())
+    }
+
+    fn for_each(&self, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> Result<()> {
+        for entry in self.db.iter() {
+            let (_, value) = entry?;
+            let node = Self::deserialize(value)?;
+            if !f(node) { break; }
+        }
+        Ok(())
+    }
+
+    fn for_each_by_prefix(&self, prefix: &str, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> Result<()> {
+        for entry in self.db.scan_prefix(prefix.as_bytes()) {
+            let (_, value) = entry?;
+            let node = Self::deserialize(value)?;
+            if !f(node) { break; }
+        }
+        Ok(())
     }
 }
 

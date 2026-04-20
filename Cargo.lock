@@ -2963,7 +2963,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb"
-version = "3.7.0"
+version = "3.9.0"
 dependencies = [
  "anyhow",
  "pluresdb-core",
@@ -2974,7 +2974,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-cli"
-version = "3.7.0"
+version = "3.9.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2994,7 +2994,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-core"
-version = "3.7.0"
+version = "3.9.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3016,7 +3016,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-node"
-version = "3.7.0"
+version = "3.9.0"
 dependencies = [
  "chrono",
  "napi",
@@ -3033,7 +3033,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures"
-version = "3.7.0"
+version = "3.9.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3053,7 +3053,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-procedures-macros"
-version = "3.7.0"
+version = "3.9.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3062,7 +3062,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sea"
-version = "3.7.0"
+version = "3.9.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3078,7 +3078,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-storage"
-version = "3.7.0"
+version = "3.9.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3102,7 +3102,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-sync"
-version = "3.7.0"
+version = "3.9.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3124,7 +3124,7 @@ dependencies = [
 
 [[package]]
 name = "pluresdb-wasm"
-version = "3.7.0"
+version = "3.9.0"
 dependencies = [
  "chrono",
  "console_error_panic_hook",

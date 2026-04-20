@@ -244,7 +244,7 @@ impl VectorIndex {
 #[cfg(feature = "native")]
 impl Default for VectorIndex {
     fn default() -> Self {
-        Self::new(1_000_000)
+        Self::new(1_024)
     }
 }
 
@@ -302,7 +302,7 @@ impl BruteForceVectorIndex {
 #[cfg(not(feature = "native"))]
 impl Default for BruteForceVectorIndex {
     fn default() -> Self {
-        Self::new(1_000_000)
+        Self::new(1_024)
     }
 }
 
@@ -380,7 +380,7 @@ pub enum CrdtOperation {
 /// A simple conflict-free replicated data store backed by a concurrent map.
 pub struct CrdtStore {
     nodes: DashMap<NodeId, NodeRecord>,
-    vector_index: Arc<ActiveVectorIndex>,
+    vector_index: parking_lot::RwLock<Arc<ActiveVectorIndex>>,
     embedder: Option<Arc<dyn EmbedText>>,
     lm_plugin: Option<Arc<dyn PluresLmPlugin>>,
     #[cfg(feature = "native")]
@@ -401,7 +401,7 @@ impl std::fmt::Debug for CrdtStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CrdtStore")
             .field("nodes", &self.nodes.len())
-            .field("vector_index", &self.vector_index)
+            .field("vector_index", &*self.vector_index.read())
             .field("embedder", &self.embedder.is_some())
             .field("lm_plugin", &self.lm_plugin.as_ref().map(|p| p.plugin_id()))
             .finish()
@@ -412,7 +412,7 @@ impl Default for CrdtStore {
     fn default() -> Self {
         Self {
             nodes: DashMap::new(),
-            vector_index: Arc::new(ActiveVectorIndex::default()),
+            vector_index: parking_lot::RwLock::new(Arc::new(ActiveVectorIndex::default())),
             embedder: None,
             lm_plugin: None,
             persistence: None,
@@ -566,7 +566,7 @@ impl CrdtStore {
                 {
                     continue;
                 }
-                self.vector_index.insert(entry.key(), emb);
+                self.vector_index.read().insert(entry.key(), emb);
                 indexed += 1;
             }
         }
@@ -584,42 +584,64 @@ impl CrdtStore {
             None => return,
         };
         let expected_dim = self.embedder.as_ref().map(|e| e.dimension());
-        let nodes = match Self::storage_list(storage.as_ref()) {
-            Ok(nodes) => nodes,
-            Err(e) => {
-                tracing::error!(
-                    "[CrdtStore] build_vector_index_from_persistence failed: {}",
-                    e
-                );
-                return;
-            }
-        };
-        let mut indexed = 0usize;
-        for stored in nodes {
+
+        // First pass: count valid embeddings to right-size the HNSW index.
+        let mut embedding_count = 0usize;
+        let count_result = Self::storage_for_each(storage.as_ref(), &mut |stored: StoredNode| {
             let record = match serde_json::from_value::<NodeRecord>(stored.payload) {
                 Ok(r) => r,
-                Err(_) => continue,
+                Err(_) => return true,
             };
             if let Some(emb) = &record.embedding {
                 if let Some(dim) = expected_dim {
-                    if emb.len() != dim {
-                        continue;
-                    }
+                    if emb.len() != dim { return true; }
                 }
-                if emb.is_empty()
-                    || !emb.iter().all(|v| v.is_finite())
-                    || !emb.iter().any(|v| *v != 0.0)
-                {
-                    continue;
+                if !emb.is_empty() && emb.iter().all(|v| v.is_finite()) && emb.iter().any(|v| *v != 0.0) {
+                    embedding_count += 1;
                 }
-                self.vector_index.insert(&record.id, emb);
-                indexed += 1;
             }
+            true
+        });
+        if let Err(e) = count_result {
+            tracing::error!("[CrdtStore] counting embeddings from persistence failed: {}", e);
+            return;
         }
-        tracing::debug!(
-            "[CrdtStore] Loaded {} embeddings from storage into vector index",
-            indexed
-        );
+        if embedding_count == 0 {
+            tracing::debug!("[CrdtStore] No embeddings found in persistence; skipping index build");
+            return;
+        }
+
+        // Right-size: 2x actual count, minimum 1024.
+        let capacity = (embedding_count * 2).max(1024);
+        let new_index = Arc::new(ActiveVectorIndex::new(capacity));
+        tracing::info!("[CrdtStore] Building vector index: {} embeddings, capacity {}", embedding_count, capacity);
+
+        // Second pass: stream and insert embeddings.
+        let idx = new_index.clone();
+        let dim = expected_dim;
+        let insert_result = Self::storage_for_each(storage.as_ref(), &mut |stored: StoredNode| {
+            let record = match serde_json::from_value::<NodeRecord>(stored.payload) {
+                Ok(r) => r,
+                Err(_) => return true,
+            };
+            if let Some(emb) = &record.embedding {
+                if let Some(d) = dim {
+                    if emb.len() != d { return true; }
+                }
+                if !emb.is_empty() && emb.iter().all(|v| v.is_finite()) && emb.iter().any(|v| *v != 0.0) {
+                    idx.insert(&record.id, emb);
+                }
+            }
+            true
+        });
+        if let Err(e) = insert_result {
+            tracing::error!("[CrdtStore] build_vector_index_from_persistence failed: {}", e);
+            return;
+        }
+
+        // Swap in the right-sized index.
+        *self.vector_index.write() = new_index;
+        tracing::info!("[CrdtStore] Loaded {} embeddings into right-sized vector index (capacity {})", embedding_count, capacity);
     }
 
     #[cfg(feature = "native")]
@@ -681,6 +703,16 @@ impl CrdtStore {
     #[cfg(not(feature = "native"))]
     fn storage_list(storage: &dyn SyncStorageEngine) -> anyhow::Result<Vec<StoredNode>> {
         storage.list()
+    }
+
+    #[cfg(feature = "native")]
+    fn storage_for_each(storage: &dyn StorageEngine, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> anyhow::Result<()> {
+        block_on(storage.for_each(f))
+    }
+
+    #[cfg(not(feature = "native"))]
+    fn storage_for_each(storage: &dyn SyncStorageEngine, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> anyhow::Result<()> {
+        storage.for_each(f)
     }
 
     fn persist_node(&self, record: &NodeRecord) {
@@ -807,7 +839,7 @@ impl CrdtStore {
                 r
             });
         if emb_valid {
-            self.vector_index.insert(&id, &emb_clone);
+            self.vector_index.read().insert(&id, &emb_clone);
         }
         if let Some(entry) = self.nodes.get(&id) {
             self.persist_node(entry.value());
@@ -827,7 +859,7 @@ impl CrdtStore {
             .entry(node_id.to_string())
             .and_modify(|record| record.embedding = Some(embedding.clone()));
         if emb_valid {
-            self.vector_index.insert(node_id, &embedding);
+            self.vector_index.read().insert(node_id, &embedding);
         }
         if let Some(entry) = self.nodes.get(node_id) {
             self.persist_node(entry.value());
@@ -885,6 +917,31 @@ impl CrdtStore {
             .iter()
             .map(|entry| entry.value().clone())
             .collect()
+    }
+
+    /// Iterate over all nodes via a callback without collecting into a Vec.
+    ///
+    /// In-memory entries shadow stored counterparts.  Return `false` to stop.
+    pub fn for_each_sync(&self, f: &mut (dyn FnMut(&NodeRecord) -> bool + Send)) {
+        if let Some(storage) = &self.persistence {
+            let mut seen = std::collections::HashSet::new();
+            for entry in self.nodes.iter() {
+                seen.insert(entry.key().clone());
+                if !f(entry.value()) { return; }
+            }
+            let _ = Self::storage_for_each(storage.as_ref(), &mut |stored: StoredNode| {
+                let record = match serde_json::from_value::<NodeRecord>(stored.payload) {
+                    Ok(r) => r,
+                    Err(_) => return true,
+                };
+                if seen.contains(&record.id) { return true; }
+                f(&record)
+            });
+            return;
+        }
+        for entry in self.nodes.iter() {
+            if !f(entry.value()) { break; }
+        }
     }
 
     pub fn apply(&self, op: CrdtOperation) -> Result<Option<NodeId>, StoreError> {
@@ -971,7 +1028,7 @@ impl CrdtStore {
             self.vector_index_ready.store(true, Ordering::Release);
         }
 
-        let candidates = self.vector_index.search(query_embedding, limit);
+        let candidates = self.vector_index.read().search(query_embedding, limit);
         let now = Utc::now();
         let mut results: Vec<VectorSearchResult> = candidates
             .into_iter()
