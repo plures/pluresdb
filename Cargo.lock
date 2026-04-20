@@ -3070,6 +3070,7 @@ dependencies = [
  "p256",
  "pbkdf2",
  "rand",
+ "rand_core 0.6.4",
  "serde",
  "serde_json",
  "sha2",
