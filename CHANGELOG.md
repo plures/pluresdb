@@ -1,3 +1,7 @@
+## [3.9.1] — 2026-04-20
+
+- fix: memory-efficient storage — streaming iteration, right-sized HNSW index (3fac58a)
+
 ## [3.9.0] — 2026-04-18
 
 - feat(lifecycle v12): auto-release when milestone completes (4197fa6)
