@@ -1,74 +1,115 @@
-# Copilot Instructions — Plures Organization
+# Copilot Instructions
 
-## Source of Truth
+## Organization Standards
 
-You are working in the **plures** organization. Before making changes, understand our standards.
+You are working in the **plures** organization. Before making changes, understand our standards and architecture.
 
-- **Development guide**: https://github.com/plures/development-guide
+### Source of Truth
+- **Development guide:** https://github.com/plures/development-guide
   - `standards/` — commit conventions, CI/CD, PR workflow, repo setup, code style
-  - `practices/` — copilot delegation, reactive architecture, automation-first, local-first
-  - `design/` — PARES-AGENS.md, THREE-AGENT-COGNITIVE-ARCHITECTURE.md, DEVELOPMENT-COORDINATOR.md
-  - `lessons-learned/` — past mistakes to avoid (READ THESE)
-  - `best-practices/praxis-adoption.md` — how to integrate Praxis
+  - `practices/` — copilot delegation, merge sweeps, local-first development
+  - `design/` — architecture decisions, design patterns
+  - `lessons-learned/` — past mistakes to avoid
 
-## Architecture Rules (NON-NEGOTIABLE)
+### Architecture Principles
 
-### 1. Reactive Over Polling
-Every state transition is event-driven. No cron for core lifecycle logic. Procedures over imperative code.
-See: https://github.com/plures/development-guide/blob/main/practices/reactive-architecture.md
+**Praxis-First Development** — decisions go through Praxis rules, not bare if/else:
+- Decision ledger (ADRs) with evidence tables — tested facts, unknowns marked
+- Expectations as constraints — severity = error, check functions enforce correctness
+- Model before code — expand types, wire fetcher, then write expectations
+- Never ship warnings — if it's wrong, it's an error
 
-### 2. Praxis Gates on Decisions
-No bare `if/else` for business logic. Decisions go through Praxis rules with typed facts, events, and derivations. Every decision becomes auditable.
-See: https://github.com/plures/development-guide/blob/main/best-practices/praxis-adoption.md
+**Structured Observability** — tracing macros, not println/dbg:
+- Every I/O boundary logged with structured spans
+- Use `tracing::instrument` (Rust) or OpenTelemetry (TypeScript)
+- NO bare `println!`, `dbg!`, or `console.log` in production code
 
-### 3. Structured Observability Is Mandatory
-Every module MUST have structured logging:
-- **Rust**: Use `tracing` macros (`tracing::info!`, `tracing::error!`) — never `println!` or `dbg!`
-- **TypeScript/Node**: Use structured logger — never bare `console.log` in production code
-- **Every I/O boundary**: HTTP calls, DB queries, file ops must log URL/path, status, and response summary
-- One debug line is NOT observability. Log operational events at `info` level.
+**Reactive Architecture** — procedures over code, events over polling:
+- PluresDB procedures for orchestration
+- Event-driven workflows, not cron jobs
+- Scheduled tasks are a reliability anti-pattern
 
-### 4. Automation First
-Write code so the user doesn't have to do anything. No manual steps, no "now open this file and change line 42." Fresh environment → one command → success.
-See: https://github.com/plures/development-guide/blob/main/practices/automation-first.md
+### Plures Stack Reference
 
-## Plures Stack Reference
+| Component | Purpose | Language | Key Features |
+|-----------|---------|----------|--------------|
+| **pluresdb** | Distributed database | Rust | Memory, procedures, sync, constraints |
+| **praxis** | Business logic engine | Rust/TypeScript | Expectations, ADRs, models, event lifecycle |
+| **plureslm** | Long-term memory | TypeScript | Native embeddings, MCP server, graph traversal |
+| **chronos** | Time-series engine | Rust | Event streams, temporal queries |
+| **unum** | Numerical computing | Rust | High-perf math, vectorization |
+| **design-dojo** | Design exploration | TypeScript | Prototyping, UI experiments |
 
-| Package/Crate | Purpose | Repo |
-|---|---|---|
-| `pluresdb` | Graph DB + vector search + reactive procedures | https://github.com/plures/pluresdb |
-| `@plures/praxis` | Typed logic engine (facts → rules → events → state) | https://github.com/plures/development-guide/blob/main/tools/praxis.md |
-| `plureslm` | Memory recall/capture with native embeddings | Used across repos |
-| `chronos` | Graph-native state chronicle (causal diffs) | https://github.com/plures/chronos |
-| `design-dojo` | UI component library (Svelte 5) | https://github.com/plures/design-dojo |
-| `unum` | Svelte 5 reactive bindings for PluresDB | https://github.com/plures/unum |
+### Commit Standards (MANDATORY)
 
-## Conventional Commits (REQUIRED)
-
+**Conventional Commits** — all commit messages MUST follow:
 ```
 <type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
 ```
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`
-Breaking changes: add `!` after type or `BREAKING CHANGE:` in footer.
 
-**PR Titles** — use conventional commit format (they become the squash commit message).
+**Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`
 
-**Squash merge** — always. Clean single commit on `main`.
+**Breaking changes:** add `!` after type or `BREAKING CHANGE:` in footer
 
-**Tests required** — all new features need tests. Bug fixes need a failing test first.
+**PR Titles** — use conventional commit format (they become the squash commit message)
 
-## Release Pipeline
+**Squash merge** — always. Clean single commit on `main`
 
-Reusable release workflow from `plures/.github`. Do NOT manually bump versions.
+**Tests required** — all new features need tests. All bug fixes need a failing test first.
+
+### Release Pipeline
+
+We use a **reusable release workflow** from `plures/.github`:
+
+```yaml
+# .github/workflows/release.yml — should exist in this repo
+name: Release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        type: choice
+        options: [patch, minor, major]
+jobs:
+  release:
+    uses: plures/.github/.github/workflows/release-reusable.yml@main
+    with:
+      bump: ${{ inputs.bump || '' }}
+    secrets: inherit
+```
+
+The pipeline auto-detects project type and publishes to:
+- **GitHub Packages** (`@plures/*`) — always (uses `GITHUB_TOKEN`)
+- **npm** (npmjs.com) — if `NPM_TOKEN` secret exists
+- **Cargo** (crates.io) — if `Cargo.toml` and `CARGO_REGISTRY_TOKEN`
+
 Version bumps are automatic from conventional commits.
 
-## What NOT To Do
+### What NOT to Do
 
-- Do NOT add `#[allow(...)]` or `eslint-disable` to suppress warnings — fix the underlying issue
-- Do NOT create sub-PRs that depend on other PRs
-- Do NOT touch files outside the requested scope
-- Do NOT manually bump version numbers
-- Do NOT add bare `println!`, `dbg!`, or `console.log` — use structured logging
-- Do NOT write imperative business logic — use Praxis rules where applicable
-- Do NOT skip structured logging on any I/O boundary
-- Do NOT add `skip` annotations to make CI pass
+**Code Quality:**
+- ❌ NO `#[allow(...)]` or `#![allow(...)]` suppressions — fix the underlying issue
+- ❌ NO `// eslint-disable` — fix the lint violation
+- ❌ NO bare `println!`, `dbg!`, or `console.log` in production code — use structured tracing
+- ❌ NO manual version bumps — release workflow handles this
+
+**Process:**
+- ❌ NO sub-PRs that depend on other PRs — merge parent first
+- ❌ NO touching files outside the requested scope
+- ❌ NO skipping tests or adding `#[ignore]`/`skip` to make CI pass
+
+**Architecture:**
+- ❌ NO cron jobs for orchestration — use reactive procedures
+- ❌ NO polling loops — subscribe to events
+- ❌ NO bare if/else business logic — use Praxis expectations
+
+### When in Doubt
+1. Check the development guide
+2. Look for existing ADRs in `.praxis/decisions/`
+3. Ask before breaking established patterns
