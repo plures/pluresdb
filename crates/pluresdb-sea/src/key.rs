@@ -8,7 +8,7 @@ use p256::{
     elliptic_curve::sec1::ToEncodedPoint,
     EncodedPoint, PublicKey, SecretKey,
 };
-use rand::rngs::OsRng;
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 
 /// GUN SEA key pair.

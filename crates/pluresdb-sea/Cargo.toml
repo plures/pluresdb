@@ -19,6 +19,8 @@ pbkdf2 = { version = "0.12", features = ["hmac"] }
 aes-gcm.workspace = true
 # Random number generation
 rand.workspace = true
+# rand_core 0.6 for OsRng compatible with p256/elliptic-curve
+rand_core = { version = "0.6", features = ["getrandom"] }
 # Base64 URL-safe encoding for wire format
 base64.workspace = true
 # Serialisation
