@@ -511,7 +511,7 @@ impl CrdtStore {
             self.nodes.entry(record.id.clone()).and_modify(|stored| {
                 stored.quality_score = Some(quality);
             });
-            self.persist_node(&record);
+            self.persist_node(&record, None);
         }
         record
     }
@@ -745,10 +745,12 @@ impl CrdtStore {
         storage.for_each(f)
     }
 
-    fn persist_node(&self, record: &NodeRecord) {
+    fn persist_node(&self, record: &NodeRecord, embedding_override: Option<Vec<f32>>) {
         if let Some(storage) = &self.persistence {
             let mut record_for_persistence = record.clone();
-            if record_for_persistence.embedding.is_none() {
+            if let Some(embedding) = embedding_override {
+                record_for_persistence.embedding = Some(embedding);
+            } else if record_for_persistence.embedding.is_none() {
                 if let Some(stored) = self.get_from_persistence(&record_for_persistence.id) {
                     record_for_persistence.embedding = stored.embedding;
                 }
@@ -807,7 +809,7 @@ impl CrdtStore {
             .and_modify(|record| record.merge_update(actor.clone(), data.clone()))
             .or_insert_with(|| NodeRecord::new(id.clone(), actor, data.clone()));
         if let Some(entry) = self.nodes.get(&id) {
-            self.persist_node(entry.value());
+            self.persist_node(entry.value(), None);
         }
         // Enqueue embedding task (native only).
         #[cfg(feature = "native")]
@@ -885,9 +887,7 @@ impl CrdtStore {
             self.vector_index.read().insert(&id, &emb_clone);
         }
         if let Some(entry) = self.nodes.get(&id) {
-            let mut record = entry.value().clone();
-            record.embedding = Some(embedding);
-            self.persist_node(&record);
+            self.persist_node(entry.value(), Some(embedding));
         }
         if let Some(plugin) = &self.lm_plugin {
             plugin.on_node_written(&id, &data);
@@ -912,9 +912,7 @@ impl CrdtStore {
             self.vector_index.read().insert(node_id, &embedding);
         }
         if let Some(entry) = self.nodes.get(node_id) {
-            let mut record = entry.value().clone();
-            record.embedding = Some(embedding);
-            self.persist_node(&record);
+            self.persist_node(entry.value(), Some(embedding));
         }
     }
 
