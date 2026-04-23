@@ -1,3 +1,9 @@
+## [3.0.1] — 2026-04-23
+
+- fix(sync): make broadcast publish best-effort when no subscribers exist (68436c5)
+- docs: update copilot-instructions with Plures stack architecture (3928802)
+- docs: update copilot-instructions with Plures stack architecture (385c359)
+
 ## [3.9.1] — 2026-04-20
 
 - fix: memory-efficient storage — streaming iteration, right-sized HNSW index (3fac58a)

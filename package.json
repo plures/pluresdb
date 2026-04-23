@@ -1,6 +1,6 @@
 {
   "name": "@plures/pluresdb",
-  "version": "3.9.1",
+  "version": "3.0.1",
   "description": "P2P Graph Database — Local-first, offline-first. One codebase: native Rust, Node.js (N-API), browser (WASM), Deno (WASM).",
   "type": "module",
   "main": "dist/node/index.js",
