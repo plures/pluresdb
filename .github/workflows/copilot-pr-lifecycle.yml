@@ -9,6 +9,8 @@ on:
     types: [completed]
   issues:
     types: [opened, labeled]
+  milestone:
+    types: [closed]
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
@@ -33,6 +35,7 @@ jobs:
       github.event_name == 'pull_request_review' ||
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'schedule' ||
+      github.event_name == 'milestone' ||
       github.event_name == 'issues')
     steps:
       - name: Notify QA repo
@@ -54,7 +57,34 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const botId = 'BOT_kgDOC9w8XQ';
-            const directFixLabelColor = 'B60205';
+
+            // ── Milestone close: trigger roadmap-aware release ──
+            if (context.eventName === 'milestone' && context.payload.action === 'closed') {
+              const ms = context.payload.milestone;
+              // Extract semver from milestone title (e.g. "v1.0.0 — The Replacement" → "1.0.0")
+              const semverMatch = ms.title.match(/(\d+\.\d+\.\d+)/);
+              if (!semverMatch) {
+                console.log(`⚠️ Milestone "${ms.title}" has no semver in title — skipping release`);
+                return;
+              }
+              const targetVersion = semverMatch[1];
+              console.log(`🎯 Milestone "${ms.title}" closed — triggering release v${targetVersion}`);
+
+              // Trigger the release workflow with target_version
+              try {
+                await github.rest.actions.createWorkflowDispatch({
+                  owner, repo,
+                  workflow_id: 'release.yml',
+                  ref: 'main',
+                  inputs: { target_version: targetVersion }
+                });
+                console.log(`✅ Release workflow dispatched for v${targetVersion}`);
+              } catch (e) {
+                console.log(`⚠️ Could not dispatch release workflow: ${e.message}`);
+                console.log('  Ensure release.yml accepts target_version input');
+              }
+              return;
+            }
 
             // ── Schedule guard: exit fast if no active Copilot work ──
             if (context.eventName === 'schedule') {
@@ -196,113 +226,26 @@ jobs:
                 continue;
               }
 
-              // ── Path C: CI failing on Copilot PR ──
-              // Step 1: Check if failure is transient (sccache, cache, network)
-              // Step 2: Auto-rerun failed jobs (up to 2 retries)
-              // Step 3: If still failing, keep PR open for direct in-branch fixes
+              // ── Path C: CI failing on Copilot PR → one fix issue per repo, suppress duplicates ──
               if (isCopilotPR && failing.length > 0) {
-                const failNames = failing.map(f => f.name).join(', ');
-                const failLogs = failing.map(f => f.detailsUrl || '').join(' ');
-                const isTransient = failing.some(f => {
-                  const n = (f.name || '').toLowerCase();
-                  return n.includes('cache') || n.includes('sccache') || 
-                         (f.conclusion === 'failure' && f.output?.summary?.includes?.('service'));
+                const existing = await github.rest.issues.listForRepo({
+                  owner, repo, state: 'open', labels: 'ci-failure', per_page: 1
                 });
-
-                // Track retry attempts via PR labels (survives across cron runs)
-                const retryLabels = (pr.labels || []).filter(l => l.name.startsWith('ci-retry-'));
-                const retryCount = retryLabels.length > 0 
-                  ? parseInt(retryLabels[0].name.split('-')[2]) || 0 
-                  : 0;
-
-                if (retryCount < 2) {
-                  // Auto-rerun and increment counter
-                  const nextRetry = retryCount + 1;
-                  console.log(`🔄 PR #${pr.number}: CI failed (${failNames}) — auto-rerunning (retry ${nextRetry}/2)`);
-                  
-                  // Remove old retry label, add new one
-                  for (const label of retryLabels) {
-                    try { await github.rest.issues.removeLabel({ owner, repo, issue_number: pr.number, name: label.name }); } catch (e) {}
-                  }
+                if (existing.data.length === 0) {
+                  const failNames = failing.map(f => f.name).join(', ');
+                  const issue = await github.rest.issues.create({
+                    owner, repo,
+                    title: `[ci-feedback] Fix CI failures`,
+                    body: `CI is failing on main. Failing checks: ${failNames}`,
+                    labels: ['ci-failure', 'bug']
+                  });
                   try {
-                    await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: [`ci-retry-${nextRetry}`] });
-                  } catch (e) {
-                    // Label might not exist yet — create it
-                    try {
-                      await github.rest.issues.createLabel({ owner, repo, name: `ci-retry-${nextRetry}`, color: 'FBCA04' });
-                      await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: [`ci-retry-${nextRetry}`] });
-                    } catch (e2) {}
-                  }
-
-                  const runs = await github.rest.actions.listWorkflowRunsForRepo({
-                    owner, repo, event: 'pull_request', per_page: 5,
-                    head_sha: pr.head.sha
-                  });
-                  const ciRuns = runs.data.workflow_runs.filter(r => r.name === 'CI');
-                  for (const run of ciRuns.filter(r => r.conclusion === 'failure')) {
-                    try {
-                      await github.rest.actions.reRunWorkflowFailedJobs({ owner, repo, run_id: run.id });
-                      console.log(`  ↻ Reran failed jobs for run ${run.id}`);
-                    } catch (e) {
-                      console.log(`  ⚠️ Rerun failed: ${e.message}`);
-                    }
-                  }
-                  copilotPRBusy = true;
-                  continue;
-                }
-
-                // Exhausted retries — request direct fix on the same PR branch
-                const failedAttempts = retryCount;
-
-                // Collect actual error output for direct-fix context
-                let errorDetails = '';
-                try {
-                  const runs = await github.rest.actions.listWorkflowRunsForRepo({
-                    owner, repo, event: 'pull_request', per_page: 3,
-                    head_sha: pr.head.sha
-                  });
-                  const ciRuns = runs.data.workflow_runs.filter(r => r.name === 'CI' && r.conclusion === 'failure');
-                  for (const run of ciRuns.slice(0, 1)) {
-                    const jobs = await github.rest.actions.listJobsForWorkflowRun({ owner, repo, run_id: run.id });
-                    for (const job of jobs.data.jobs.filter(j => j.conclusion === 'failure')) {
-                      const failedSteps = job.steps?.filter(s => s.conclusion === 'failure').map(s => s.name) || [];
-                      errorDetails += `\n### ${job.name}\nFailed steps: ${failedSteps.join(', ')}\nJob URL: ${job.html_url}\n`;
-                    }
-                  }
-                } catch (e) {
-                  errorDetails = `\n(Could not fetch error details: ${e.message})`;
-                }
-
-                console.log(`❌ PR #${pr.number}: CI failed ${failedAttempts}x (${failNames}) — requesting direct fix on branch`);
-                console.log(`🛠️ Direct-fix context for PR #${pr.number}: checks=${failNames}; logs=${failLogs}; details=${errorDetails.trim() || 'n/a'}`);
-
-                // Add labels so direct-fix automation can pick this up without creating a separate issue
-                try {
-                  await github.rest.issues.addLabels({
-                    owner, repo, issue_number: pr.number, labels: ['ci-failure', 'direct-fix-needed']
-                  });
-                } catch (e) {
-                  console.log(`⚠️ Could not add direct-fix labels to PR #${pr.number}: ${e.message}`);
-                  try {
-                    await github.rest.issues.createLabel({
-                      owner, repo, name: 'ci-failure', color: 'D93F0B'
-                    }).catch((labelErr) => {
-                      console.log(`ℹ️ ci-failure label create skipped: ${labelErr.message}`);
+                    await github.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
+                      owner, repo, issue_number: issue.data.number, type: 'Bug'
                     });
-                    await github.rest.issues.createLabel({
-                      owner, repo, name: 'direct-fix-needed', color: directFixLabelColor,
-                      description: 'PR requires direct code fixes after CI retry exhaustion'
-                    }).catch((labelErr) => {
-                      console.log(`ℹ️ direct-fix-needed label create skipped: ${labelErr.message}`);
-                    });
-                    await github.rest.issues.addLabels({
-                      owner, repo, issue_number: pr.number, labels: ['ci-failure', 'direct-fix-needed']
-                    });
-                  } catch (retryLabelErr) {
-                    console.log(`⚠️ Failed to create/apply direct-fix-needed label on PR #${pr.number}: ${retryLabelErr.message}`);
-                  }
+                  } catch (e) {}
+                  console.log(`🐛 Created ci-feedback issue #${issue.data.number}`);
                 }
-
                 copilotPRBusy = true;
                 continue;
               }
@@ -369,12 +312,11 @@ jobs:
 
             const skipPrefixes = ['[cross-repo]', '[praxis-health]'];
 
-            // Priority queue: CI fixes FIRST → bugs → critical → doc debt → improvement → strategic → milestoned
+            // Priority queue: doc debt → bugs → critical → improvement → strategic → milestoned
             const priorities = [
-              { label: '🔧 CI fix', filter: i => i.labels.some(l => l.name === 'ci-failure'), type: 'Bug' },
-              { label: '🐛 Bug fix', filter: i => i.labels.some(l => l.name === 'bug') && !i.labels.some(l => l.name === 'ci-failure'), type: 'Bug' },
-              { label: '🔴 Level-critical', filter: i => i.labels.some(l => l.name === 'critical') && i.labels.some(l => l.name === 'continuous-improvement'), type: 'Bug' },
               { label: '📝 Doc debt', filter: i => i.labels.some(l => l.name === 'documentation'), type: 'Task' },
+              { label: '🐛 Bug fix', filter: i => i.labels.some(l => l.name === 'bug' || l.name === 'ci-failure'), type: 'Bug' },
+              { label: '🔴 Level-critical', filter: i => i.labels.some(l => l.name === 'critical') && i.labels.some(l => l.name === 'continuous-improvement'), type: 'Bug' },
               { label: '📈 Improvement', filter: i => i.labels.some(l => l.name === 'continuous-improvement') && !i.labels.some(l => l.name === 'critical') && !skipPrefixes.some(p => i.title.includes(p)), type: 'Task' },
               { label: '🎯 Strategic', filter: i => i.labels.some(l => l.name === 'strategic-gate') && !skipPrefixes.some(p => i.title.includes(p)), type: 'Task' },
             ];
@@ -415,75 +357,7 @@ jobs:
               }
             }
 
-            console.log('🔍 No milestoned issues — checking unmilestoned enhancements');
-            // Fallback: unmilestoned issues by creation date (oldest first)
-            const unmilestoned = candidates.filter(i =>
-              !i.milestone && !skipPrefixes.some(p => i.title.includes(p))
-            ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-            if (unmilestoned.length > 0) {
-              const next = unmilestoned[0];
-              const type = next.labels.some(l => l.name === 'bug') ? 'Bug' : 'Feature';
-              await ensureIssueReady(github, owner, repo, next, type);
-              await assignCopilot(github, owner, repo, next, botId);
-              console.log(`📋 Unmilestoned: assigned #${next.number}: ${next.title}`);
-              return;
-            }
-
             console.log('🎉 No eligible issues remaining');
-
-            // ── Phase 3: Auto-release when milestone completes ──
-            // Check all open milestones: if one has 0 open issues, bump version + release + close
-            if (context.eventName === 'pull_request' && context.payload?.pull_request?.merged) {
-              const openMilestones = await github.rest.issues.listMilestones({
-                owner, repo, state: 'open', sort: 'title', direction: 'asc'
-              });
-              for (const ms of openMilestones.data) {
-                if (ms.open_issues === 0 && ms.closed_issues > 0) {
-                  // Milestone complete! Extract version from title (e.g. "v0.9.0 — Desktop Experience" → "0.9.0")
-                  const versionMatch = ms.title.match(/v?(\d+\.\d+\.\d+)/);
-                  if (!versionMatch) continue;
-                  const version = versionMatch[1];
-                  const tag = `v${version}`;
-
-                  // Check if release already exists
-                  try {
-                    await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-                    console.log(`📦 Milestone '${ms.title}' complete but ${tag} already released`);
-                  } catch (e) {
-                    if (e.status === 404) {
-                      // Bump version in Cargo.toml
-                      try {
-                        const cargoFile = await github.rest.repos.getContent({ owner, repo, path: 'Cargo.toml' });
-                        let content = Buffer.from(cargoFile.data.content, 'base64').toString();
-                        content = content.replace(/^version = "[^"]+"/m, `version = "${version}"`);
-                        await github.rest.repos.createOrUpdateFileContents({
-                          owner, repo, path: 'Cargo.toml',
-                          message: `release: bump version to ${version}`,
-                          content: Buffer.from(content).toString('base64'),
-                          sha: cargoFile.data.sha
-                        });
-
-                        // Create release
-                        await github.rest.repos.createRelease({
-                          owner, repo, tag_name: tag, name: `${tag} — ${ms.title.replace(/v?\d+\.\d+\.\d+\s*[—\-]?\s*/, '')}`,
-                          body: `Milestone **${ms.title}** complete.\n\n${ms.closed_issues} issues closed.`,
-                          generate_release_notes: true
-                        });
-
-                        // Close the milestone
-                        await github.rest.issues.updateMilestone({
-                          owner, repo, milestone_number: ms.number, state: 'closed'
-                        });
-
-                        console.log(`🚀 Released ${tag} for milestone '${ms.title}' (${ms.closed_issues} issues)`);
-                      } catch (releaseErr) {
-                        console.log(`⚠️ Auto-release failed for ${tag}: ${releaseErr.message}`);
-                      }
-                    }
-                  }
-                }
-              }
-            }
 
             // ── Helper: Apply Copilot review suggestions as a commit ──
             async function applySuggestions(github, owner, repo, pr) {
