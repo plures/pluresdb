@@ -5,17 +5,22 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "Force version bump (patch/minor/major)"
+        description: 'Force version bump (patch/minor/major)'
         type: choice
         options: [patch, minor, major]
+      target_version:
+        description: 'Exact version to release (e.g. 1.0.0). Overrides bump logic.'
+        type: string
+        required: false
 permissions:
   contents: write
   packages: write
   id-token: write
+
 jobs:
   release:
     uses: plures/.github/.github/workflows/release-reusable.yml@main
     with:
       bump: ${{ inputs.bump || '' }}
+      target_version: ${{ inputs.target_version || '' }}
     secrets: inherit
-
