@@ -115,16 +115,26 @@ pub trait SyncStorageEngine: Send + Sync {
     /// materialization.  Return `false` from `f` to stop early.
     fn for_each(&self, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> Result<()> {
         for node in self.list()? {
-            if !f(node) { break; }
+            if !f(node) {
+                break;
+            }
         }
         Ok(())
     }
 
     /// Iterate over nodes whose ID starts with `prefix`.
-    fn for_each_by_prefix(&self, prefix: &str, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> Result<()> {
+    fn for_each_by_prefix(
+        &self,
+        prefix: &str,
+        f: &mut (dyn FnMut(StoredNode) -> bool + Send),
+    ) -> Result<()> {
         let prefix = prefix.to_string();
         self.for_each(&mut |node: StoredNode| {
-            if node.id.starts_with(&prefix) { f(node) } else { true }
+            if node.id.starts_with(&prefix) {
+                f(node)
+            } else {
+                true
+            }
         })
     }
 }
@@ -162,17 +172,28 @@ pub trait StorageEngine: Send + Sync {
     /// materialization.  Return `false` from `f` to stop early.
     async fn for_each(&self, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> Result<()> {
         for node in self.list().await? {
-            if !f(node) { break; }
+            if !f(node) {
+                break;
+            }
         }
         Ok(())
     }
 
     /// Iterate over nodes whose ID starts with `prefix`.
-    async fn for_each_by_prefix(&self, prefix: &str, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> Result<()> {
+    async fn for_each_by_prefix(
+        &self,
+        prefix: &str,
+        f: &mut (dyn FnMut(StoredNode) -> bool + Send),
+    ) -> Result<()> {
         let prefix = prefix.to_string();
         self.for_each(&mut |node: StoredNode| {
-            if node.id.starts_with(&prefix) { f(node) } else { true }
-        }).await
+            if node.id.starts_with(&prefix) {
+                f(node)
+            } else {
+                true
+            }
+        })
+        .await
     }
 }
 
@@ -233,10 +254,15 @@ pub struct SledStorage {
 
 #[cfg(feature = "native")]
 impl SledStorage {
+    const DEFAULT_CACHE_CAPACITY_BYTES: u64 = 256 * 1024 * 1024;
+
     /// Open (or create) a sled database at `path`.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         info!(path = %path.as_ref().display(), "opening sled storage");
-        let db = sled::open(path)?;
+        let db = sled::Config::default()
+            .path(path)
+            .cache_capacity(Self::DEFAULT_CACHE_CAPACITY_BYTES)
+            .open()?;
         Ok(Self { db })
     }
 
@@ -326,16 +352,24 @@ impl SyncStorageEngine for SledStorage {
         for entry in self.db.iter() {
             let (_, value) = entry?;
             let node = Self::deserialize(value)?;
-            if !f(node) { break; }
+            if !f(node) {
+                break;
+            }
         }
         Ok(())
     }
 
-    fn for_each_by_prefix(&self, prefix: &str, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> Result<()> {
+    fn for_each_by_prefix(
+        &self,
+        prefix: &str,
+        f: &mut (dyn FnMut(StoredNode) -> bool + Send),
+    ) -> Result<()> {
         for entry in self.db.scan_prefix(prefix.as_bytes()) {
             let (_, value) = entry?;
             let node = Self::deserialize(value)?;
-            if !f(node) { break; }
+            if !f(node) {
+                break;
+            }
         }
         Ok(())
     }

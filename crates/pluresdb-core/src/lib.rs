@@ -511,7 +511,7 @@ impl CrdtStore {
             self.nodes.entry(record.id.clone()).and_modify(|stored| {
                 stored.quality_score = Some(quality);
             });
-            self.persist_node(&record);
+            self.persist_node(&record, None);
         }
         record
     }
@@ -594,16 +594,24 @@ impl CrdtStore {
             };
             if let Some(emb) = &record.embedding {
                 if let Some(dim) = expected_dim {
-                    if emb.len() != dim { return true; }
+                    if emb.len() != dim {
+                        return true;
+                    }
                 }
-                if !emb.is_empty() && emb.iter().all(|v| v.is_finite()) && emb.iter().any(|v| *v != 0.0) {
+                if !emb.is_empty()
+                    && emb.iter().all(|v| v.is_finite())
+                    && emb.iter().any(|v| *v != 0.0)
+                {
                     embedding_count += 1;
                 }
             }
             true
         });
         if let Err(e) = count_result {
-            tracing::error!("[CrdtStore] counting embeddings from persistence failed: {}", e);
+            tracing::error!(
+                "[CrdtStore] counting embeddings from persistence failed: {}",
+                e
+            );
             return;
         }
         if embedding_count == 0 {
@@ -614,7 +622,11 @@ impl CrdtStore {
         // Right-size: 2x actual count, minimum 1024.
         let capacity = (embedding_count * 2).max(1024);
         let new_index = Arc::new(ActiveVectorIndex::new(capacity));
-        tracing::info!("[CrdtStore] Building vector index: {} embeddings, capacity {}", embedding_count, capacity);
+        tracing::info!(
+            "[CrdtStore] Building vector index: {} embeddings, capacity {}",
+            embedding_count,
+            capacity
+        );
 
         // Second pass: stream and insert embeddings.
         let idx = new_index.clone();
@@ -626,22 +638,34 @@ impl CrdtStore {
             };
             if let Some(emb) = &record.embedding {
                 if let Some(d) = dim {
-                    if emb.len() != d { return true; }
+                    if emb.len() != d {
+                        return true;
+                    }
                 }
-                if !emb.is_empty() && emb.iter().all(|v| v.is_finite()) && emb.iter().any(|v| *v != 0.0) {
+                if !emb.is_empty()
+                    && emb.iter().all(|v| v.is_finite())
+                    && emb.iter().any(|v| *v != 0.0)
+                {
                     idx.insert(&record.id, emb);
                 }
             }
             true
         });
         if let Err(e) = insert_result {
-            tracing::error!("[CrdtStore] build_vector_index_from_persistence failed: {}", e);
+            tracing::error!(
+                "[CrdtStore] build_vector_index_from_persistence failed: {}",
+                e
+            );
             return;
         }
 
         // Swap in the right-sized index.
         *self.vector_index.write() = new_index;
-        tracing::info!("[CrdtStore] Loaded {} embeddings into right-sized vector index (capacity {})", embedding_count, capacity);
+        tracing::info!(
+            "[CrdtStore] Loaded {} embeddings into right-sized vector index (capacity {})",
+            embedding_count,
+            capacity
+        );
     }
 
     #[cfg(feature = "native")]
@@ -706,18 +730,32 @@ impl CrdtStore {
     }
 
     #[cfg(feature = "native")]
-    fn storage_for_each(storage: &dyn StorageEngine, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> anyhow::Result<()> {
+    fn storage_for_each(
+        storage: &dyn StorageEngine,
+        f: &mut (dyn FnMut(StoredNode) -> bool + Send),
+    ) -> anyhow::Result<()> {
         block_on(storage.for_each(f))
     }
 
     #[cfg(not(feature = "native"))]
-    fn storage_for_each(storage: &dyn SyncStorageEngine, f: &mut (dyn FnMut(StoredNode) -> bool + Send)) -> anyhow::Result<()> {
+    fn storage_for_each(
+        storage: &dyn SyncStorageEngine,
+        f: &mut (dyn FnMut(StoredNode) -> bool + Send),
+    ) -> anyhow::Result<()> {
         storage.for_each(f)
     }
 
-    fn persist_node(&self, record: &NodeRecord) {
+    fn persist_node(&self, record: &NodeRecord, embedding_override: Option<Vec<f32>>) {
         if let Some(storage) = &self.persistence {
-            let payload = match serde_json::to_value(record) {
+            let mut record_for_persistence = record.clone();
+            if let Some(embedding) = embedding_override {
+                record_for_persistence.embedding = Some(embedding);
+            } else if record_for_persistence.embedding.is_none() {
+                if let Some(stored) = self.get_from_persistence(&record_for_persistence.id) {
+                    record_for_persistence.embedding = stored.embedding;
+                }
+            }
+            let payload = match serde_json::to_value(record_for_persistence) {
                 Ok(v) => v,
                 Err(e) => {
                     tracing::error!(
@@ -771,7 +809,7 @@ impl CrdtStore {
             .and_modify(|record| record.merge_update(actor.clone(), data.clone()))
             .or_insert_with(|| NodeRecord::new(id.clone(), actor, data.clone()));
         if let Some(entry) = self.nodes.get(&id) {
-            self.persist_node(entry.value());
+            self.persist_node(entry.value(), None);
         }
         // Enqueue embedding task (native only).
         #[cfg(feature = "native")]
@@ -823,6 +861,7 @@ impl CrdtStore {
     ) -> NodeId {
         let id = id.into();
         let actor = actor.into();
+        let cache_embedding_in_memory = self.persistence.is_none();
         let emb_valid = !embedding.is_empty()
             && embedding.iter().all(|v| v.is_finite())
             && embedding.iter().any(|v| *v != 0.0);
@@ -831,18 +870,24 @@ impl CrdtStore {
             .entry(id.clone())
             .and_modify(|record| {
                 record.merge_update(actor.clone(), data.clone());
-                record.embedding = Some(embedding.clone());
+                record.embedding = if cache_embedding_in_memory {
+                    Some(embedding.clone())
+                } else {
+                    None
+                };
             })
             .or_insert_with(|| {
                 let mut r = NodeRecord::new(id.clone(), actor, data.clone());
-                r.embedding = Some(embedding);
+                if cache_embedding_in_memory {
+                    r.embedding = Some(embedding.clone());
+                }
                 r
             });
         if emb_valid {
             self.vector_index.read().insert(&id, &emb_clone);
         }
         if let Some(entry) = self.nodes.get(&id) {
-            self.persist_node(entry.value());
+            self.persist_node(entry.value(), Some(embedding));
         }
         if let Some(plugin) = &self.lm_plugin {
             plugin.on_node_written(&id, &data);
@@ -855,14 +900,19 @@ impl CrdtStore {
         let emb_valid = !embedding.is_empty()
             && embedding.iter().all(|v| v.is_finite())
             && embedding.iter().any(|v| *v != 0.0);
-        self.nodes
-            .entry(node_id.to_string())
-            .and_modify(|record| record.embedding = Some(embedding.clone()));
+        let cache_embedding_in_memory = self.persistence.is_none();
+        self.nodes.entry(node_id.to_string()).and_modify(|record| {
+            record.embedding = if cache_embedding_in_memory {
+                Some(embedding.clone())
+            } else {
+                None
+            };
+        });
         if emb_valid {
             self.vector_index.read().insert(node_id, &embedding);
         }
         if let Some(entry) = self.nodes.get(node_id) {
-            self.persist_node(entry.value());
+            self.persist_node(entry.value(), Some(embedding));
         }
     }
 
@@ -927,20 +977,26 @@ impl CrdtStore {
             let mut seen = std::collections::HashSet::new();
             for entry in self.nodes.iter() {
                 seen.insert(entry.key().clone());
-                if !f(entry.value()) { return; }
+                if !f(entry.value()) {
+                    return;
+                }
             }
             let _ = Self::storage_for_each(storage.as_ref(), &mut |stored: StoredNode| {
                 let record = match serde_json::from_value::<NodeRecord>(stored.payload) {
                     Ok(r) => r,
                     Err(_) => return true,
                 };
-                if seen.contains(&record.id) { return true; }
+                if seen.contains(&record.id) {
+                    return true;
+                }
                 f(&record)
             });
             return;
         }
         for entry in self.nodes.iter() {
-            if !f(entry.value()) { break; }
+            if !f(entry.value()) {
+                break;
+            }
         }
     }
 
@@ -2127,6 +2183,60 @@ mod tests {
         assert!(!results.is_empty());
         assert_eq!(results[0].record.id, "vs-a");
         assert!(results[0].score > 0.83);
+    }
+
+    #[test]
+    fn put_with_embedding_avoids_in_memory_embedding_when_persistent() {
+        let (store, storage) = make_storage_store();
+        let emb = vec![1.0, 0.0, 0.0];
+
+        store.put_with_embedding(
+            "persisted-emb",
+            "actor",
+            serde_json::json!({"label":"persisted"}),
+            emb.clone(),
+        );
+
+        let in_memory = store.nodes.get("persisted-emb").expect("node should exist");
+        assert!(
+            in_memory.embedding.is_none(),
+            "persistent stores should avoid retaining embedding in heap-resident node cache"
+        );
+        drop(in_memory);
+
+        let persisted = pluresdb_storage::SyncStorageEngine::get(storage.as_ref(), "persisted-emb")
+            .expect("read from storage should succeed")
+            .expect("persisted node should exist");
+        let persisted_record: NodeRecord =
+            serde_json::from_value(persisted.payload).expect("stored payload should deserialize");
+        assert_eq!(persisted_record.embedding, Some(emb));
+    }
+
+    #[test]
+    fn persist_preserves_embedding_when_plain_put_updates_existing_node() {
+        let (store, storage) = make_storage_store();
+        let emb = vec![0.0, 1.0, 0.0];
+
+        store.put_with_embedding(
+            "persisted-emb-keep",
+            "actor",
+            serde_json::json!({"version": 1}),
+            emb.clone(),
+        );
+        store.put(
+            "persisted-emb-keep",
+            "actor",
+            serde_json::json!({"version": 2}),
+        );
+
+        let persisted =
+            pluresdb_storage::SyncStorageEngine::get(storage.as_ref(), "persisted-emb-keep")
+                .expect("read from storage should succeed")
+                .expect("persisted node should exist");
+        let persisted_record: NodeRecord =
+            serde_json::from_value(persisted.payload).expect("stored payload should deserialize");
+        assert_eq!(persisted_record.embedding, Some(emb));
+        assert_eq!(persisted_record.data["version"], 2);
     }
 
     #[cfg(feature = "sqlite-compat")]
