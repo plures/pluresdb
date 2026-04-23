@@ -144,9 +144,16 @@ impl SyncBroadcaster {
     /// begin to miss events (`RecvError::Lagged`); callers should handle this
     /// in their receive loops.
     #[instrument(skip(self))]
-    pub fn publish(&self, event: SyncEvent) -> Result<()> {
-        self.sender.send(event)?;
-        Ok(())
+    pub fn publish(&self, event: SyncEvent) -> Result<usize> {
+        match self.sender.send(event) {
+            Ok(n) => Ok(n),
+            Err(_) => {
+                // No active receivers — normal for single-node deployments
+                // without P2P sync configured. Data is already persisted;
+                // sync broadcast is best-effort.
+                Ok(0)
+            }
+        }
     }
 }
 
@@ -178,5 +185,15 @@ mod tests {
             SyncErrorCode::BroadcastPublishFailed.as_str(),
             "SYNC_BROADCAST_PUBLISH_FAILED"
         );
+    }
+
+    #[test]
+    fn publish_without_subscribers_succeeds() {
+        let hub = SyncBroadcaster::default();
+        // No subscribers — should return Ok(0), not an error
+        let result = hub.publish(SyncEvent::NodeUpsert {
+            id: "orphan".to_string(),
+        });
+        assert_eq!(result.unwrap(), 0);
     }
 }
