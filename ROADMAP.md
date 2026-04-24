@@ -1,39 +1,36 @@
 # PluresDB Roadmap
 
-## Current: v3.4.0
+## Role in OASIS
+PluresDB is the data backbone for OASIS: a CRDT graph database with vector search and P2P sync that powers local‑first commerce state, agent memory, and cross‑device replication. Every OASIS subsystem depends on PluresDB for privacy‑preserving storage and synchronization.
 
-## Phase 1: Stability & Performance (v3.5)
-- [ ] Benchmark suite — automated regression benchmarks on CI (NAPI, WASM, native)
-- [ ] WASM bundle size optimization — tree-shake unused features for browser builds
-- [ ] Connection pool for multi-tenant NAPI usage
-- [ ] SQLite WAL mode tuning for concurrent read/write workloads
-- [ ] Error recovery — graceful handling of corrupted CRDT entries
+## Current State
+v3.0.1 (workspace) is a Rust‑first implementation with CRDT storage, vector search, SQLite compatibility, a procedures engine, and Hyperswarm-based P2P sync. Recent work landed timer-based procedure triggers, CLI health diagnostics, memory‑efficient vector storage, and multiple CI fixes. One open issue remains for bounded memory usage in sled cache configuration.
 
-## Phase 2: Procedures Engine v2 (v3.6)
-- [ ] Conditional step type — if/else branching in procedure pipelines
-- [ ] Parallel step type — concurrent execution of independent steps
-- [ ] Procedure versioning — migrate running procedures across schema changes
-- [ ] Procedure debugging — step-by-step execution with state inspection
-- [ ] Event-driven triggers — fire procedures on data changes (not just manual/cron)
+## Milestones
 
-## Phase 3: P2P & Sync (v3.7)
-- [ ] Hyperswarm relay transport — NAT traversal for restricted networks
-- [ ] Selective sync — sync specific graphs/collections instead of full DB
-- [ ] Sync conflict resolution UI hooks — expose merge decisions to applications
-- [ ] Bandwidth-aware sync — throttle replication on metered connections
-- [ ] Sync progress events — observable progress for large initial syncs
+### Phase 1 — Stability + Resource Control
+- Cap sled cache capacity and validate RSS limits under vector workloads (open issue #371).
+- Add benchmark suite for regression tracking across N-API/WASM/native targets.
+- Improve WAL and sync recovery paths for corrupted CRDT entries.
+- Harden `pluresdb doctor` output coverage (network, storage, vector index, procedures).
 
-## Phase 4: Query & Index (v4.0)
-- [ ] Full-text search index — inverted index alongside vector search
-- [ ] Graph path queries — shortest path, traversal with filters
-- [ ] Materialized views — pre-computed query results updated on write
-- [ ] Index advisor — suggest indexes based on query patterns
-- [ ] Query planner — cost-based optimization for complex joins
+### Phase 2 — Procedures Engine v2
+- Conditional branching and parallel execution steps.
+- Procedure versioning + migration support.
+- Debugger UI/CLI with step‑level state inspection.
+- Event‑driven triggers on data changes (not just cron/interval).
 
-## Phase 5: Ecosystem (v4.1+)
-- [ ] Deno Deploy adapter — run PluresDB on edge functions
-- [ ] React bindings — equivalent of @plures/unum for React
-- [ ] Python bindings — PyO3 bridge for data science workflows
-- [ ] REST/GraphQL gateway — HTTP API for non-JS/Rust consumers
-- [ ] Plugin system — user-defined storage engines and index types
+### Phase 3 — P2P & Selective Sync
+- Selective sync by graph/collection with bandwidth throttling.
+- Sync progress events and conflict hooks for app‑level resolution UX.
+- Relay/transport improvements for restricted networks.
 
+### Phase 4 — Query & Indexing
+- Graph path queries with filters and traversal constraints.
+- Full‑text search index alongside vector search.
+- Materialized views and cost‑based query planner.
+
+### Phase 5 — Ecosystem Expansion
+- Stable HTTP/GraphQL gateway for non‑Rust/JS clients.
+- Python bindings (PyO3) and React bindings parity.
+- Plugin system for custom storage/index engines.
