@@ -10,6 +10,6 @@ jobs:
   ci:
     uses: plures/.github/.github/workflows/ci-reusable.yml@main
     with:
-      wasm_targets: |
+      wasm_targets: |-
         cargo check -p pluresdb-core --target wasm32-unknown-unknown --no-default-features
         cargo check -p pluresdb-wasm --target wasm32-unknown-unknown
