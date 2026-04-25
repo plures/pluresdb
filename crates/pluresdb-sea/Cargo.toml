@@ -14,7 +14,7 @@ p256 = { version = "0.13", features = ["ecdh", "ecdsa"] }
 # SHA-256 hashing (used by ECDSA internally and for PBKDF2)
 sha2.workspace = true
 # PBKDF2 key derivation for SEA work/encrypt
-pbkdf2 = { version = "0.12", features = ["hmac"] }
+pbkdf2 = { version = "0.13", features = ["hmac"] }
 # AES-256-GCM symmetric encryption
 aes-gcm.workspace = true
 # Random number generation
