@@ -1634,10 +1634,10 @@ async fn create_api_server(state: AppState, bind: String, port: u16) -> Result<(
             get(list_nodes_handler).post(create_node_handler),
         )
         .route(
-            "/api/nodes/:id",
+            "/api/nodes/{id}",
             get(get_node_handler).delete(delete_node_handler),
         )
-        .route("/api/nodes/:id/embedding", post(node_embedding_handler))
+        .route("/api/nodes/{id}/embedding", post(node_embedding_handler))
         .route("/api/vector-search", post(vector_search_handler))
         .layer(
             ServiceBuilder::new()
