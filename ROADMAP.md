@@ -4,15 +4,17 @@
 PluresDB is the data backbone for OASIS: a CRDT graph database with vector search and P2P sync that powers local‑first commerce state, agent memory, and cross‑device replication. Every OASIS subsystem depends on PluresDB for privacy‑preserving storage and synchronization.
 
 ## Current State
-v3.0.1 (workspace) is a Rust‑first implementation with CRDT storage, vector search, SQLite compatibility, a procedures engine, and Hyperswarm-based P2P sync. Recent work landed timer-based procedure triggers, CLI health diagnostics, memory‑efficient vector storage, and multiple CI fixes. One open issue remains for bounded memory usage in sled cache configuration.
+- **v3.0.1** (Rust‑first workspace) with CRDT storage, vector search, SQLite compatibility, procedures engine, and Hyperswarm P2P sync.
+- CLI and HTTP layers are live; WASM + N‑API targets ship from the same Rust core.
+- Active work includes CI stabilization (multiple open ci‑feedback issues) and dependency updates.
 
 ## Milestones
 
 ### Phase 1 — Stability + Resource Control
-- Cap sled cache capacity and validate RSS limits under vector workloads (open issue #371).
-- Add benchmark suite for regression tracking across N-API/WASM/native targets.
-- Improve WAL and sync recovery paths for corrupted CRDT entries.
-- Harden `pluresdb doctor` output coverage (network, storage, vector index, procedures).
+- Resolve CI failures and reduce flake noise (current top open issues).
+- Cap sled cache capacity and validate RSS limits under vector workloads.
+- Harden WAL and sync recovery paths for corrupted CRDT entries.
+- Expand `pluresdb doctor` coverage (network, storage, vector index, procedures).
 
 ### Phase 2 — Procedures Engine v2
 - Conditional branching and parallel execution steps.
