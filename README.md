@@ -3,7 +3,7 @@
 [![npm (@plures/pluresdb)](https://img.shields.io/npm/v/@plures/pluresdb)](https://www.npmjs.com/package/@plures/pluresdb)
 [![crates.io](https://img.shields.io/crates/v/pluresdb-core.svg)](https://crates.io/crates/pluresdb-core)
 [![JSR](https://jsr.io/badges/@plures/pluresdb)](https://jsr.io/@plures/pluresdb)
-[![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-blue.svg)](LICENSE)
+[![License: BSL-1.1](https://img.shields.io/badge/License-BSL--1.1-blue.svg)](LICENSE) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE-MIT)
 
 **Local-first, offline-first. One codebase: Rust native, Node.js, browser, Deno.**
 
@@ -157,9 +157,8 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed migration instructions.
 
 ## License
 
-Business Source License 1.1 — See [LICENSE](LICENSE) for details.
+Dual-licensed under [BSL-1.1](LICENSE) and [MIT](LICENSE-MIT). You may choose either license at your option.
 
-The BSL allows free use for non-production purposes. After 4 years from release date, the code becomes Apache 2.0 licensed.
 
 ## Community
 

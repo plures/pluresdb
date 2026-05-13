@@ -21,7 +21,7 @@ edition = "2021"
 authors = ["Plures Organization"]
 description = "P2P Graph Database — Local-first, offline-first database for modern applications"
 repository = "https://github.com/plures/pluresdb"
-license = "BSL-1.1"
+license = "BSL-1.1 OR MIT"
 
 [workspace.dependencies]
 aes-gcm = "0.10"

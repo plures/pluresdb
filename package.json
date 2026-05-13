@@ -44,7 +44,7 @@
     "wasm",
     "rust"
   ],
-  "license": "BSL-1.1",
+  "license": "(BSL-1.1 OR MIT)",
   "repository": "https://github.com/plures/pluresdb",
   "engines": {
     "node": ">=24"
