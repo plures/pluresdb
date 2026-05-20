@@ -1,0 +1,37 @@
+[package]
+name = "pluresdb-px"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The .px declarative language runtime for PluresDB — parser, compiler, executor, and reactive procedure engine."
+keywords = ["database", "declarative", "dsl", "reactive", "praxis"]
+
+[features]
+default = ["watcher"]
+watcher = ["notify", "walkdir"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+async-trait = "0.1"
+tokio = { workspace = true, features = ["time", "rt"] }
+pest = "2.8"
+pest_derive = "2.8"
+tracing = "0.1"
+futures = "0.3"
+regex = "1"
+
+# Optional (watcher feature)
+notify = { version = "8", optional = true }
+walkdir = { version = "2", optional = true }
+
+[dev-dependencies]
+futures = "0.3"
+tempfile = "3"
+tokio = { workspace = true, features = ["rt", "macros", "time"] }
+serde_json.workspace = true
