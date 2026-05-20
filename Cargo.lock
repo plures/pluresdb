@@ -3148,6 +3148,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pluresdb-chronos"
+version = "3.0.1"
+dependencies = [
+ "chrono",
+ "pluresdb-core",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "pluresdb-cli"
 version = "3.0.1"
 dependencies = [

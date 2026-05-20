@@ -1,0 +1,25 @@
+[package]
+name = "pluresdb-chronos"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Graph-native application state chronicle for PluresDB — zero-effort observability through causal state diffs and version timelines."
+keywords = ["database", "observability", "timeline", "audit", "chronicle"]
+
+[features]
+default = ["jsonl"]
+jsonl = []
+
+[dependencies]
+pluresdb-core = { path = "../pluresdb-core", default-features = false, features = ["native"] }
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+sha2.workspace = true
+tracing = "0.1"
+
+[dev-dependencies]
+serde_json.workspace = true
