@@ -9,11 +9,12 @@ description = "Graph-native application state chronicle for PluresDB — zero-ef
 keywords = ["database", "observability", "timeline", "audit", "chronicle"]
 
 [features]
-default = ["jsonl"]
+default = ["jsonl", "native"]
 jsonl = []
+native = ["pluresdb-core/native"]
 
 [dependencies]
-pluresdb-core = { path = "../pluresdb-core", default-features = false, features = ["native"] }
+pluresdb-core = { path = "../pluresdb-core", default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 chrono.workspace = true

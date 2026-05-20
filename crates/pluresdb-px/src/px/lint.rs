@@ -8,14 +8,14 @@
 use super::{PxDocument, PxMatchArm, PxProcedure, PxStep};
 
 /// Severity of a lint diagnostic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum LintSeverity {
     Warning,
     Error,
 }
 
 /// A lint diagnostic produced by the lint pass.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct LintDiagnostic {
     /// Which lint rule triggered this.
     pub code: &'static str,

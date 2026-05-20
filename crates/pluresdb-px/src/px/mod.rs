@@ -2,14 +2,18 @@
 //!
 //! Parses `.px` files into typed AST nodes using the pest PEG grammar.
 
-pub mod async_executor;
 pub mod builder;
 pub mod compiler;
-pub mod compose;
 pub mod executor;
 pub mod lint;
 pub mod resolver;
 pub mod scenario_runner;
+
+#[cfg(feature = "async")]
+pub mod async_executor;
+#[cfg(feature = "async")]
+pub mod compose;
+#[cfg(feature = "watcher")]
 pub mod watcher;
 
 use pest::Parser;

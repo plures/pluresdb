@@ -9,8 +9,9 @@ description = "The .px declarative language runtime for PluresDB — parser, com
 keywords = ["database", "declarative", "dsl", "reactive", "praxis"]
 
 [features]
-default = ["watcher"]
+default = ["watcher", "async"]
 watcher = ["notify", "walkdir"]
+async = ["tokio", "futures"]
 
 [dependencies]
 serde.workspace = true
@@ -19,11 +20,11 @@ chrono.workspace = true
 uuid.workspace = true
 thiserror.workspace = true
 async-trait = "0.1"
-tokio = { workspace = true, features = ["time", "rt"] }
+tokio = { workspace = true, features = ["time", "rt"], optional = true }
 pest = "2.8"
 pest_derive = "2.8"
 tracing = "0.1"
-futures = "0.3"
+futures = { version = "0.3", optional = true }
 regex = "1"
 
 # Optional (watcher feature)

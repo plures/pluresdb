@@ -12,7 +12,7 @@ use super::{
 };
 
 /// A compiled PluresDB record ready for storage.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CompiledRecord {
     /// PluresDB key (e.g. "px:rule/auto_merge").
     pub key: String,
