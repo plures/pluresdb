@@ -797,7 +797,7 @@ async fn handle_search(storage: Arc<dyn StorageEngine>, query: String, limit: us
         })
         .collect();
 
-    matches.sort_by(|a, b| b.1.cmp(&a.1));
+    matches.sort_by_key(|b| std::cmp::Reverse(b.1));
     matches.truncate(limit);
 
     println!("Found {} matches:", matches.len());

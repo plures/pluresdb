@@ -23,13 +23,13 @@ pub fn apply_mutate(
         // Pre-flight check: ensure referenced nodes exist.
         for op in ops {
             match op {
-                MutateOp::Delete { id } | MutateOp::Merge { id, .. } => {
-                    if store.get(id).is_none() {
-                        return Err(anyhow::anyhow!(
-                            "atomic mutate aborted: node '{}' not found",
-                            id
-                        ));
-                    }
+                MutateOp::Delete { id } | MutateOp::Merge { id, .. }
+                    if store.get(id).is_none() =>
+                {
+                    return Err(anyhow::anyhow!(
+                        "atomic mutate aborted: node '{}' not found",
+                        id
+                    ));
                 }
                 _ => {}
             }
