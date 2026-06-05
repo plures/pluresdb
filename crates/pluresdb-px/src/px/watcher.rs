@@ -149,32 +149,34 @@ impl PxWatcher {
         let key_index_clone = key_index.clone();
         let debounce_ms = config.debounce_ms;
 
-        tokio::spawn(async move {
-            use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+        use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 
-            let (notify_tx, mut notify_rx) = tokio::sync::mpsc::channel::<Event>(256);
+        let (notify_tx, mut notify_rx) = tokio::sync::mpsc::channel::<Event>(256);
 
-            let mut watcher = match RecommendedWatcher::new(
-                move |res: Result<Event, notify::Error>| {
-                    if let Ok(event) = res {
-                        let _ = notify_tx.blocking_send(event);
-                    }
-                },
-                notify::Config::default(),
-            ) {
-                Ok(w) => w,
-                Err(e) => {
-                    warn!("failed to create .px watcher: {}", e);
-                    return;
+        let mut watcher = RecommendedWatcher::new(
+            move |res: Result<Event, notify::Error>| {
+                if let Ok(event) = res {
+                    let _ = notify_tx.blocking_send(event);
                 }
-            };
+            },
+            notify::Config::default(),
+        )
+        .map_err(|e| {
+            warn!("failed to create .px watcher: {}", e);
+            e
+        })?;
 
-            if let Err(e) = watcher.watch(&config.watch_path, RecursiveMode::Recursive) {
+        watcher
+            .watch(&config.watch_path, RecursiveMode::Recursive)
+            .map_err(|e| {
                 warn!(path = %config.watch_path.display(), "failed to watch for .px: {}", e);
-                return;
-            }
+                e
+            })?;
 
-            info!(path = %config.watch_path.display(), "watching for .px file changes");
+        info!(path = %config.watch_path.display(), "watching for .px file changes");
+
+        tokio::spawn(async move {
+            let _watcher = watcher;
 
             // Simple debounce: track last-seen modify times
             let mut pending: HashMap<PathBuf, tokio::time::Instant> = HashMap::new();
