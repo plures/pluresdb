@@ -386,7 +386,7 @@ impl ChronosTimeline {
 
     /// Timeline view: recent entries with optional `since` timestamp and `level` filter.
     /// Mirrors OpenClaw's `radix__chronos-timeline` behavior.
-    /// `since` is a Unix timestamp in milliseconds — only entries after this time are included.
+    /// `since` is a Unix timestamp in **seconds** — only entries after this time are included.
     /// `level` filters to entries at or above the given severity.
     pub fn timeline(
         &self,
