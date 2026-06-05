@@ -40,7 +40,7 @@
 //! // 1. Parse .px source
 //! let doc = parse(r#"
 //!   procedure greet:
-//!     trigger: message
+//!     trigger: manual
 //!     say_hello {name: $sender} -> $greeting
 //! "#).unwrap();
 //!
