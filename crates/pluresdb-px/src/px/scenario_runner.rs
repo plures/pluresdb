@@ -301,11 +301,12 @@ pub fn run_scenario(
         .map(|s| s.to_string());
 
     let handler = ScenarioActionHandler::new();
+    let mut vars = HashMap::new();
 
     // 1. Execute setup steps
     if let Some(setup_steps) = scenario_data.get("setup").and_then(|v| v.as_array()) {
         for step in setup_steps {
-            if let Err(e) = execute_step(step, &handler) {
+            if let Err(e) = execute_step(step, &handler, &mut vars) {
                 return ScenarioResult {
                     name,
                     given,
@@ -338,7 +339,7 @@ pub fn run_scenario(
         if let Some(proc_data) = procedures.get(&proc_name) {
             if let Some(steps) = proc_data.get("steps").and_then(|v| v.as_array()) {
                 for step in steps {
-                    if let Err(e) = execute_step(step, &handler) {
+                    if let Err(e) = execute_step(step, &handler, &mut vars) {
                         return ScenarioResult {
                             name,
                             given,
@@ -363,7 +364,8 @@ pub fn run_scenario(
     }
 
     // 3. Check expectations
-    let state = handler.into_state();
+    let mut state = handler.into_state();
+    state.variables = vars;
     let mut expectations = vec![];
     let mut all_passed = true;
 
@@ -453,7 +455,11 @@ pub fn run_scenarios(
 // ── Internal Helpers ──────────────────────────────────────────────────────────
 
 /// Execute a single compiled step via the handler.
-fn execute_step(step: &Value, handler: &dyn ActionHandler) -> Result<Value, ExecutionError> {
+fn execute_step(
+    step: &Value,
+    handler: &dyn ActionHandler,
+    vars: &mut HashMap<String, Value>,
+) -> Result<Value, ExecutionError> {
     let kind = step
         .get("kind")
         .and_then(|v| v.as_str())
@@ -466,7 +472,14 @@ fn execute_step(step: &Value, handler: &dyn ActionHandler) -> Result<Value, Exec
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
             let params = step.get("params").cloned().unwrap_or(Value::Null);
-            handler.call(name, &params)
+            let resolved_params = resolve_vars(&params, vars);
+            let output = handler.call(name, &resolved_params)?;
+            if let Some(output_var) = step.get("output_var").and_then(|v| v.as_str()) {
+                if !output_var.is_empty() {
+                    vars.insert(output_var.to_string(), output.clone());
+                }
+            }
+            Ok(output)
         }
         "emit" => {
             let event = step.get("event").cloned().unwrap_or(Value::Null);
@@ -477,10 +490,10 @@ fn execute_step(step: &Value, handler: &dyn ActionHandler) -> Result<Value, Exec
                 .get("condition")
                 .and_then(|v| v.as_str())
                 .unwrap_or("true");
-            if handler.evaluate_condition(condition, &HashMap::new()) {
+            if handler.evaluate_condition(condition, vars) {
                 if let Some(steps) = step.get("steps").and_then(|v| v.as_array()) {
                     for s in steps {
-                        execute_step(s, handler)?;
+                        execute_step(s, handler, vars)?;
                     }
                 }
             }
@@ -491,7 +504,7 @@ fn execute_step(step: &Value, handler: &dyn ActionHandler) -> Result<Value, Exec
                 if let Some(steps) = step.get("steps").and_then(|v| v.as_array()) {
                     for _ in 0..times.min(10_000) {
                         for s in steps {
-                            execute_step(s, handler)?;
+                            execute_step(s, handler, vars)?;
                         }
                     }
                 }
@@ -505,8 +518,33 @@ fn execute_step(step: &Value, handler: &dyn ActionHandler) -> Result<Value, Exec
                 .and_then(|v| v.as_str())
                 .unwrap_or(kind);
             let params = step.get("params").cloned().unwrap_or(Value::Null);
-            handler.call(name, &params)
+            let resolved_params = resolve_vars(&params, vars);
+            let output = handler.call(name, &resolved_params)?;
+            if let Some(output_var) = step.get("output_var").and_then(|v| v.as_str()) {
+                if !output_var.is_empty() {
+                    vars.insert(output_var.to_string(), output.clone());
+                }
+            }
+            Ok(output)
         }
+    }
+}
+
+fn resolve_vars(value: &Value, vars: &HashMap<String, Value>) -> Value {
+    match value {
+        Value::String(s) if s.starts_with('$') => {
+            let var_name = &s[1..];
+            vars.get(var_name).cloned().unwrap_or_else(|| value.clone())
+        }
+        Value::Object(map) => {
+            let resolved: serde_json::Map<String, Value> = map
+                .iter()
+                .map(|(k, v)| (k.clone(), resolve_vars(v, vars)))
+                .collect();
+            Value::Object(resolved)
+        }
+        Value::Array(arr) => Value::Array(arr.iter().map(|v| resolve_vars(v, vars)).collect()),
+        other => other.clone(),
     }
 }
 
@@ -516,6 +554,25 @@ fn execute_step(step: &Value, handler: &dyn ActionHandler) -> Result<Value, Exec
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct TestActionHandler {
+        calls: Mutex<Vec<(String, Value)>>,
+    }
+
+    impl ActionHandler for TestActionHandler {
+        fn call(&self, name: &str, params: &Value) -> Result<Value, ExecutionError> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push((name.to_string(), params.clone()));
+            match name {
+                "seed" => Ok(json!(42)),
+                _ => Ok(Value::Null),
+            }
+        }
+    }
 
     #[test]
     fn scenario_with_no_expectations_passes() {
@@ -796,5 +853,35 @@ mod tests {
 
         let result = run_scenario(&scenario, &procedures, &BuiltinChecker);
         assert!(result.passed, "expected pass, got: {:?}", result);
+    }
+
+    #[test]
+    fn execute_step_resolves_vars_binds_output_and_uses_vars_for_when() {
+        let handler = TestActionHandler::default();
+        let mut vars = HashMap::new();
+
+        let seed_step = json!({
+            "kind": "call",
+            "name": "seed",
+            "output_var": "value"
+        });
+        let when_step = json!({
+            "kind": "when",
+            "condition": "value == 42",
+            "steps": [{
+                "kind": "call",
+                "name": "consume",
+                "params": {"input": "$value"}
+            }]
+        });
+
+        execute_step(&seed_step, &handler, &mut vars).unwrap();
+        execute_step(&when_step, &handler, &mut vars).unwrap();
+
+        let calls = handler.calls.lock().unwrap();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[1].0, "consume");
+        assert_eq!(calls[1].1, json!({"input": 42}));
+        assert_eq!(vars.get("value"), Some(&json!(42)));
     }
 }
