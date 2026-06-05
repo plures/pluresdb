@@ -16,9 +16,7 @@ pub struct WasmChronosTimeline {
     timeline: ChronosTimeline,
 }
 
-// SAFETY: WASM is single-threaded.
-unsafe impl Send for WasmChronosTimeline {}
-
+// `WasmChronosTimeline` is `Send` automatically if `ChronosTimeline` is `Send`; avoid `unsafe impl Send` here.
 #[wasm_bindgen]
 impl WasmChronosTimeline {
     /// Create a new Chronos timeline bound to a shared CRDT store.
