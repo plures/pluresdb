@@ -90,10 +90,10 @@
 //! - `emit` — PluresDB event emission
 //! - `assert_eq` / `assert_contains` — test assertions
 
-#![allow(missing_docs)] // TODO: re-enable once API stabilizes
-
 /// The `.px` language runtime: parser, compiler, executors, linter, resolver.
+#[allow(missing_docs)] // TODO: remove once the module API is fully documented
 pub mod px;
 
 /// Constraint store and evaluation engine (in-memory, zero external deps).
+#[allow(missing_docs)] // TODO: remove once the module API is fully documented
 pub mod db;
