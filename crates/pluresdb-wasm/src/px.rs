@@ -7,12 +7,9 @@ use wasm_bindgen::prelude::*;
 
 use pluresdb_px::px::{
     self,
-    compiler::{compile, CompiledRecord},
-    executor::{self, ActionHandler, ExecutionError, ExecutionResult},
+    compiler::compile,
+    executor::{self, ActionHandler, ExecutionError},
 };
-
-use std::cell::RefCell;
-use std::collections::HashMap;
 
 use js_sys::Function;
 use serde_wasm_bindgen::{from_value, to_value};
