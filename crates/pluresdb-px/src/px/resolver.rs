@@ -10,7 +10,7 @@
 //! - Recursive transitive imports
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use super::{parse, PxDocument};
 
@@ -191,6 +191,24 @@ fn resolve_import_path(import_path: &str, base_path: &Path) -> Result<PathBuf, R
         });
     }
 
+    let import_as_path = Path::new(import_path);
+    if import_as_path.is_absolute() {
+        return Err(ResolveError::InvalidPath {
+            import_path: import_path.to_string(),
+            message: "absolute import paths are not allowed".to_string(),
+        });
+    }
+
+    if import_as_path
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err(ResolveError::InvalidPath {
+            import_path: import_path.to_string(),
+            message: "parent path segments are not allowed".to_string(),
+        });
+    }
+
     // Handle Rust-style paths (module::sub)
     if import_path.contains("::") {
         let parts: Vec<&str> = import_path.split("::").collect();
@@ -214,12 +232,16 @@ fn resolve_import_path(import_path: &str, base_path: &Path) -> Result<PathBuf, R
         path.set_extension("px");
     }
 
-    // Reject absolute paths that aren't under base_path
-    if import_path.starts_with('/') {
-        return Err(ResolveError::InvalidPath {
-            import_path: import_path.to_string(),
-            message: "absolute import paths are not allowed".to_string(),
-        });
+    let base_canonical = base_path
+        .canonicalize()
+        .unwrap_or_else(|_| base_path.to_path_buf());
+    if let Ok(canonical_path) = path.canonicalize() {
+        if !canonical_path.starts_with(&base_canonical) {
+            return Err(ResolveError::InvalidPath {
+                import_path: import_path.to_string(),
+                message: "import path escapes base directory".to_string(),
+            });
+        }
     }
 
     Ok(path)
@@ -311,6 +333,13 @@ mod tests {
     fn reject_absolute_path() {
         let base = Path::new("/project/praxis");
         let result = resolve_import_path("/etc/passwd", base);
+        assert!(matches!(result, Err(ResolveError::InvalidPath { .. })));
+    }
+
+    #[test]
+    fn reject_parent_components() {
+        let base = Path::new("/project/praxis");
+        let result = resolve_import_path("../shared", base);
         assert!(matches!(result, Err(ResolveError::InvalidPath { .. })));
     }
 
