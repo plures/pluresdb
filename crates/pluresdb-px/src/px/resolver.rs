@@ -198,6 +198,15 @@ fn resolve_import_path(import_path: &str, base_path: &Path) -> Result<PathBuf, R
             message: "absolute import paths are not allowed".to_string(),
         });
     }
+    if import_path.len() >= 2
+        && import_path.as_bytes()[0].is_ascii_alphabetic()
+        && import_path.as_bytes()[1] == b':'
+    {
+        return Err(ResolveError::InvalidPath {
+            import_path: import_path.to_string(),
+            message: "Windows drive-prefixed paths are not allowed".to_string(),
+        });
+    }
 
     if import_as_path
         .components()
@@ -340,6 +349,13 @@ mod tests {
     fn reject_parent_components() {
         let base = Path::new("/project/praxis");
         let result = resolve_import_path("../shared", base);
+        assert!(matches!(result, Err(ResolveError::InvalidPath { .. })));
+    }
+
+    #[test]
+    fn reject_windows_drive_path() {
+        let base = Path::new("/project/praxis");
+        let result = resolve_import_path("C:\\Windows\\System32\\drivers\\etc\\hosts", base);
         assert!(matches!(result, Err(ResolveError::InvalidPath { .. })));
     }
 
