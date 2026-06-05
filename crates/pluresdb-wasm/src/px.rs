@@ -57,13 +57,14 @@ pub fn px_execute(compiled_record: JsValue, handler: Function) -> Result<JsValue
 
 /// A JS function-backed ActionHandler for the .px executor.
 ///
-/// SAFETY: wasm32 is single-threaded, so Send+Sync is vacuously satisfied.
+/// Note: this relies on single-threaded wasm execution. If you compile with wasm
+/// threads/atomics enabled, `js_sys::Function` must NOT be shared across threads.
+#[cfg(all(target_arch = "wasm32", target_feature = "atomics"))]
+compile_error!("pluresdb-wasm px bindings assume single-threaded wasm; disable wasm threads/atomics or implement a thread-safe dispatch.");
 struct JsActionHandler {
     callback: Function,
 }
 
-// SAFETY: WASM is single-threaded; Function cannot be shared across threads
-// because there are no threads.
 unsafe impl Send for JsActionHandler {}
 unsafe impl Sync for JsActionHandler {}
 
