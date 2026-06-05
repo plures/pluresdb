@@ -81,6 +81,30 @@ impl PxWatcher {
         let config = self.config.clone();
         let key_index: KeyIndex = Arc::new(Mutex::new(HashMap::new()));
 
+        let mut startup_watcher = notify::recommended_watcher(|_| {}).map_err(|error| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("failed to create filesystem watcher: {error}"),
+            )
+        })?;
+
+        notify::Watcher::watch(
+            &mut startup_watcher,
+            &config.watch_path,
+            notify::RecursiveMode::Recursive,
+        )
+        .map_err(|error| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!(
+                    "failed to watch px path {}: {error}",
+                    config.watch_path.display()
+                ),
+            )
+        })?;
+
+        drop(startup_watcher);
+
         // Initial scan
         if config.initial_scan {
             let mut file_count = 0;
