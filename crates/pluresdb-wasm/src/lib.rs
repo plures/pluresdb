@@ -1,7 +1,7 @@
 //! WebAssembly bindings for the PluresDB Application Runtime.
 //!
 //! Provides browser-side access to the full PluresDB stack:
-//! - Core CRDT store with in-memory or IndexedDB persistence
+//! - Core CRDT store with in-memory persistence
 //! - Procedure engine (query DSL, AgensRuntime, reactive dispatch)
 //! - .px language runtime (parse, compile, execute)
 //! - Chronos state timeline (observability, causal chains)

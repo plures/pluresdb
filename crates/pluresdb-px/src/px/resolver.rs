@@ -192,7 +192,12 @@ fn resolve_import_path(import_path: &str, base_path: &Path) -> Result<PathBuf, R
     }
 
     let import_as_path = Path::new(import_path);
-    if import_as_path.is_absolute() {
+    let is_windows_drive_absolute = import_path.as_bytes().get(1) == Some(&b':')
+        && import_path
+            .as_bytes()
+            .first()
+            .is_some_and(u8::is_ascii_alphabetic);
+    if import_as_path.is_absolute() || is_windows_drive_absolute {
         return Err(ResolveError::InvalidPath {
             import_path: import_path.to_string(),
             message: "absolute import paths are not allowed".to_string(),
@@ -251,6 +256,11 @@ fn resolve_import_path(import_path: &str, base_path: &Path) -> Result<PathBuf, R
                 message: "import path escapes base directory".to_string(),
             });
         }
+    } else if !path.starts_with(&base_canonical) {
+        return Err(ResolveError::InvalidPath {
+            import_path: import_path.to_string(),
+            message: "import path escapes base directory".to_string(),
+        });
     }
 
     Ok(path)
@@ -342,6 +352,13 @@ mod tests {
     fn reject_absolute_path() {
         let base = Path::new("/project/praxis");
         let result = resolve_import_path("/etc/passwd", base);
+        assert!(matches!(result, Err(ResolveError::InvalidPath { .. })));
+    }
+
+    #[test]
+    fn reject_windows_drive_absolute_path() {
+        let base = Path::new("/project/praxis");
+        let result = resolve_import_path("C:\\\\Windows\\\\system32", base);
         assert!(matches!(result, Err(ResolveError::InvalidPath { .. })));
     }
 

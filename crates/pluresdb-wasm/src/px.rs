@@ -2,17 +2,19 @@
 //!
 //! Exposes the parser, compiler, and synchronous executor to JavaScript.
 
-use serde_json::Value;
 use wasm_bindgen::prelude::*;
 
-use pluresdb_px::px::{
-    self,
-    compiler::compile,
-    executor::{self, ActionHandler, ExecutionError},
-};
+use pluresdb_px::px::{self, compiler::compile};
 
+use serde_wasm_bindgen::to_value;
+#[cfg(target_arch = "wasm32")]
 use js_sys::Function;
-use serde_wasm_bindgen::{from_value, to_value};
+#[cfg(target_arch = "wasm32")]
+use pluresdb_px::px::executor::{self, ActionHandler, ExecutionError};
+#[cfg(target_arch = "wasm32")]
+use serde_json::Value;
+#[cfg(target_arch = "wasm32")]
+use serde_wasm_bindgen::from_value;
 
 /// Parse a .px source string and return the compiled records as JSON.
 ///
@@ -43,6 +45,7 @@ pub fn px_lint(source: &str) -> Result<JsValue, JsValue> {
 ///
 /// The `handler` function is called with `(actionName: string, params: object)`
 /// and should return the result value (or throw on error).
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(js_name = pxExecute)]
 pub fn px_execute(compiled_record: JsValue, handler: Function) -> Result<JsValue, JsValue> {
     let record: Value =
@@ -61,13 +64,19 @@ pub fn px_execute(compiled_record: JsValue, handler: Function) -> Result<JsValue
 /// threads/atomics enabled, `js_sys::Function` must NOT be shared across threads.
 #[cfg(all(target_arch = "wasm32", target_feature = "atomics"))]
 compile_error!("pluresdb-wasm px bindings assume single-threaded wasm; disable wasm threads/atomics or implement a thread-safe dispatch.");
+#[cfg(target_arch = "wasm32")]
 struct JsActionHandler {
     callback: Function,
 }
 
+// SAFETY: WASM is single-threaded; Function cannot be shared across threads
+// because there are no threads.
+#[cfg(target_arch = "wasm32")]
 unsafe impl Send for JsActionHandler {}
+#[cfg(target_arch = "wasm32")]
 unsafe impl Sync for JsActionHandler {}
 
+#[cfg(target_arch = "wasm32")]
 impl ActionHandler for JsActionHandler {
     fn call(&self, name: &str, params: &Value) -> Result<Value, ExecutionError> {
         let name_js = JsValue::from_str(name);

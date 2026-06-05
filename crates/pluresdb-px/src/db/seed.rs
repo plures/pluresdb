@@ -31,9 +31,8 @@ pub fn seed_constraints(store: &mut PraxisStore) {
         description: "Every agent action must carry a non-empty action_type.".into(),
         when: Condition::Always,
         require: Condition::Not {
-            condition: Box::new(Condition::FieldEq {
-                field: "__action_type__".into(),
-                value: json!(""),
+            condition: Box::new(Condition::ActionTypeEq {
+                value: "".into(),
             }),
         },
         fix: "Ensure the orchestration layer sets a non-empty action_type before dispatching."
@@ -75,7 +74,11 @@ pub fn seed_constraints(store: &mut PraxisStore) {
         require: Condition::Not {
             condition: Box::new(Condition::Any {
                 conditions: vec![
-                    // field absent ↔ FieldEq with null — but we rely on "not empty string"
+                    Condition::Not {
+                        condition: Box::new(Condition::FieldExists {
+                            field: "resource_owner".into(),
+                        }),
+                    },
                     Condition::FieldEq {
                         field: "resource_owner".into(),
                         value: json!(""),
@@ -530,6 +533,30 @@ mod tests {
             ids.contains(&"C-0008"),
             "C-0008 should fire for sub-agent privilege_level=4"
         );
+    }
+
+    #[test]
+    fn c0001_blocks_empty_action_type() {
+        let store = default_store();
+        let ctx = AgentContext::new("", "resource", SessionType::Main);
+        let violations = evaluate(&store, &ctx);
+        let ids: Vec<&str> = violations
+            .iter()
+            .map(|v| v.constraint.id.as_str())
+            .collect();
+        assert!(ids.contains(&"C-0001"));
+    }
+
+    #[test]
+    fn c0002_blocks_missing_resource_owner_for_mutations() {
+        let store = default_store();
+        let ctx = AgentContext::new("write_file", "resource", SessionType::Main);
+        let violations = evaluate(&store, &ctx);
+        let ids: Vec<&str> = violations
+            .iter()
+            .map(|v| v.constraint.id.as_str())
+            .collect();
+        assert!(ids.contains(&"C-0002"));
     }
 
     #[test]

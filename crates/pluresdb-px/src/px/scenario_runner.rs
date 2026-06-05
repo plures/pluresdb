@@ -270,6 +270,7 @@ impl ActionHandler for ScenarioActionHandler {
                 }
                 Ok(Value::Null)
             }
+            "echo" => Ok(params.clone()),
             // Accept any other call silently (permissive for testing)
             _ => Ok(Value::Null),
         }
@@ -321,10 +322,19 @@ pub fn run_scenario(
 
     // 2. Execute the run procedure (if specified)
     if let Some(run_info) = scenario_data.get("run").filter(|v| !v.is_null()) {
-        let proc_name = if let Some(name_str) = run_info.as_str() {
-            name_str.to_string()
+        let (proc_name, run_params) = if let Some(name_str) = run_info.as_str() {
+            (name_str.to_string(), HashMap::new())
         } else if let Some(n) = run_info.get("procedure").and_then(|v| v.as_str()) {
-            n.to_string()
+            let params = run_info
+                .get("params")
+                .and_then(|v| v.as_object())
+                .map(|obj| {
+                    obj.iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect::<HashMap<String, Value>>()
+                })
+                .unwrap_or_default();
+            (n.to_string(), params)
         } else {
             return ScenarioResult {
                 name,
@@ -335,6 +345,8 @@ pub fn run_scenario(
                 duration_ms: start.elapsed().as_millis() as u64,
             };
         };
+
+        vars.extend(run_params);
 
         if let Some(proc_data) = procedures.get(&proc_name) {
             if let Some(steps) = proc_data.get("steps").and_then(|v| v.as_array()) {
@@ -483,7 +495,8 @@ fn execute_step(
         }
         "emit" => {
             let event = step.get("event").cloned().unwrap_or(Value::Null);
-            handler.call("emit", &event)
+            let resolved_event = resolve_vars(&event, vars);
+            handler.call("emit", &resolved_event)
         }
         "when" => {
             let condition = step
@@ -883,5 +896,65 @@ mod tests {
         assert_eq!(calls[1].0, "consume");
         assert_eq!(calls[1].1, json!({"input": 42}));
         assert_eq!(vars.get("value"), Some(&json!(42)));
+    }
+
+    #[test]
+    fn scenario_run_params_and_output_vars_feed_expectations() {
+        let scenario = json!({
+            "name": "run_params_and_vars",
+            "setup": [],
+            "run": {"procedure": "my_proc", "params": {"input_key": "k1"}},
+            "expectations": [
+                {"check": "has_entry", "params": {"key": "k1"}, "negated": false},
+                {"check": "var_equals", "params": {"var": "saved_key", "value": "k1"}, "negated": false}
+            ]
+        });
+
+        let mut procedures = HashMap::new();
+        procedures.insert(
+            "my_proc".to_string(),
+            json!({
+                "name": "my_proc",
+                "steps": [
+                    {"kind": "call", "name": "put_entry", "params": {"key": "$input_key", "value": "v"}},
+                    {"kind": "call", "name": "echo", "params": "$input_key", "output_var": "saved_key"}
+                ]
+            }),
+        );
+
+        let result = run_scenario(&scenario, &procedures, &BuiltinChecker);
+        assert!(result.passed, "expected pass, got: {:?}", result);
+    }
+
+    #[test]
+    fn scenario_when_uses_live_vars() {
+        let scenario = json!({
+            "name": "when_with_vars",
+            "setup": [],
+            "run": "my_proc",
+            "expectations": [
+                {"check": "has_entry", "params": {"key": "enabled"}, "negated": false}
+            ]
+        });
+
+        let mut procedures = HashMap::new();
+        procedures.insert(
+            "my_proc".to_string(),
+            json!({
+                "name": "my_proc",
+                "steps": [
+                    {"kind": "call", "name": "echo", "params": true, "output_var": "should_write"},
+                    {
+                        "kind": "when",
+                        "condition": "should_write == true",
+                        "steps": [
+                            {"kind": "call", "name": "put_entry", "params": {"key": "enabled", "value": 1}}
+                        ]
+                    }
+                ]
+            }),
+        );
+        let result = run_scenario(&scenario, &procedures, &BuiltinChecker);
+        assert!(result.passed, "expected pass, got: {:?}", result);
     }
 }

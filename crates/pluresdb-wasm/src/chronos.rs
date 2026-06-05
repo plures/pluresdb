@@ -9,8 +9,6 @@ use serde_wasm_bindgen::{from_value, to_value};
 use crate::WasmCrdtStore;
 
 /// Browser-side Chronos timeline backed by a shared CRDT store.
-///
-/// SAFETY: wasm32 is single-threaded.
 #[wasm_bindgen]
 pub struct WasmChronosTimeline {
     timeline: ChronosTimeline,
@@ -62,6 +60,10 @@ impl WasmChronosTimeline {
     }
 
     /// Get the timeline with optional filters.
+    ///
+    /// `since_ms` is a Unix timestamp in milliseconds.
+    /// The core Rust timeline API stores timestamps in seconds, so this method
+    /// converts milliseconds to seconds before filtering.
     pub fn timeline(
         &self,
         limit: usize,

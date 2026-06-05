@@ -30,12 +30,22 @@ use serde::{Deserialize, Serialize};
 pub enum Condition {
     /// Always satisfied — used as a wildcard precondition.
     Always,
+    /// The [`AgentContext::action_type`] exactly equals the given value.
+    ActionTypeEq {
+        /// Expected action type string.
+        value: String,
+    },
     /// The named metadata field equals the given JSON value.
     FieldEq {
         /// Dot-separated path into [`AgentContext::metadata`] (e.g. `"privilege_level"`).
         field: String,
         /// Expected value.
         value: serde_json::Value,
+    },
+    /// The named metadata field is present (regardless of value).
+    FieldExists {
+        /// Field path in [`AgentContext::metadata`].
+        field: String,
     },
     /// The named metadata field (numeric) is greater than `threshold`.
     FieldGt {
@@ -84,8 +94,11 @@ impl Condition {
     pub fn evaluate(&self, ctx: &AgentContext) -> bool {
         match self {
             Self::Always => true,
+            Self::ActionTypeEq { value } => ctx.action_type == *value,
 
             Self::FieldEq { field, value } => ctx.metadata.get(field).is_some_and(|v| v == value),
+
+            Self::FieldExists { field } => ctx.metadata.contains_key(field),
 
             Self::FieldGt { field, threshold } => ctx
                 .metadata
@@ -313,6 +326,26 @@ mod tests {
         assert!(c.evaluate(&ctx("deploy", meta.clone())));
         meta.insert("env".into(), json!("staging"));
         assert!(!c.evaluate(&ctx("deploy", meta)));
+    }
+
+    #[test]
+    fn condition_action_type_eq() {
+        let c = Condition::ActionTypeEq {
+            value: "write_file".into(),
+        };
+        assert!(c.evaluate(&ctx("write_file", HashMap::new())));
+        assert!(!c.evaluate(&ctx("read_file", HashMap::new())));
+    }
+
+    #[test]
+    fn condition_field_exists() {
+        let c = Condition::FieldExists {
+            field: "resource_owner".into(),
+        };
+        let mut meta = HashMap::new();
+        meta.insert("resource_owner".into(), json!("team-1"));
+        assert!(c.evaluate(&ctx("write_file", meta)));
+        assert!(!c.evaluate(&ctx("write_file", HashMap::new())));
     }
 
     #[test]

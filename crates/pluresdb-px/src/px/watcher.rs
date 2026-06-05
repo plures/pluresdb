@@ -163,14 +163,14 @@ impl PxWatcher {
         )
         .map_err(|e| {
             warn!("failed to create .px watcher: {}", e);
-            e
+            std::io::Error::other(e.to_string())
         })?;
 
         watcher
             .watch(&config.watch_path, RecursiveMode::Recursive)
             .map_err(|e| {
                 warn!(path = %config.watch_path.display(), "failed to watch for .px: {}", e);
-                e
+                std::io::Error::other(e.to_string())
             })?;
 
         info!(path = %config.watch_path.display(), "watching for .px file changes");
