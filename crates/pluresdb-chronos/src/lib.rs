@@ -394,13 +394,14 @@ impl ChronosTimeline {
         since: Option<u64>,
         level: Option<ChronosLevel>,
     ) -> Vec<ChronosEntry> {
+        let since_seconds = since.map(|ts| ts / 1_000);
         let mut entries: Vec<ChronosEntry> = self
             .store
             .list()
             .into_iter()
             .filter_map(|r| {
                 let e: ChronosEntry = serde_json::from_value(r.data).ok()?;
-                if let Some(ts) = since {
+                if let Some(ts) = since_seconds {
                     if e.timestamp < ts {
                         return None;
                     }
