@@ -49,7 +49,7 @@
 //!
 //! // 3. Execute with your action handler
 //! let handler = MyHandler::new();
-//! for record in records.iter().filter(|r| r.record_type == "procedure") {
+//! for record in records.iter().filter(|record| record.data["type"] == "procedure") {
 //!     let result = execute(&record.data, &handler).unwrap();
 //!     println!("Result: {:?}", result);
 //! }
