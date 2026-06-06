@@ -135,6 +135,12 @@ pub struct WasmCrdtStore {
     store: Arc<CrdtStore>,
 }
 
+impl Default for WasmCrdtStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[wasm_bindgen]
 impl WasmCrdtStore {
     /// Create a new in-memory CRDT store.
