@@ -38,9 +38,9 @@ pub fn sea_work(data: &str, salt: &[u8]) -> String {
 /// Returns `(derived_key_b64, salt_b64)` so callers can store the salt
 /// alongside the derived value for later verification.
 pub fn sea_work_random(data: &str) -> Result<(String, String)> {
-    use rand::RngCore;
+    use rand::Rng;
     let mut salt = [0u8; 16];
-    rand::thread_rng().fill_bytes(&mut salt);
+    rand::rng().fill(&mut salt);
     let key = sea_work(data, &salt);
     Ok((key, URL_SAFE_NO_PAD.encode(salt)))
 }

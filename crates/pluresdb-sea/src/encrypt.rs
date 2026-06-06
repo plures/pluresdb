@@ -23,7 +23,7 @@ use anyhow::{Context, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use p256::ecdh;
 use pbkdf2::pbkdf2_hmac;
-use rand::RngCore;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
@@ -77,8 +77,8 @@ pub fn sea_encrypt(
     // Random salt and IV.
     let mut salt = [0u8; SALT_LEN];
     let mut iv = [0u8; IV_LEN];
-    rand::thread_rng().fill_bytes(&mut salt);
-    rand::thread_rng().fill_bytes(&mut iv);
+    rand::rng().fill(&mut salt);
+    rand::rng().fill(&mut iv);
 
     // PBKDF2-SHA256 key derivation.
     let mut key_bytes = [0u8; KEY_LEN];
