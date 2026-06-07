@@ -1509,8 +1509,8 @@ mod tests {
         let result = execute_async(&procedure, &handler).await.unwrap();
         assert!(result.success);
         assert_eq!(result.variables.get("result"), Some(&json!("success_on_retry")));
-        assert!(result.variables.get("retry_count").is_none());
-        assert!(result.variables.get("error").is_none());
+        assert!(!result.variables.contains_key("retry_count"));
+        assert!(!result.variables.contains_key("error"));
         assert_eq!(handler.call_count.load(Ordering::SeqCst), 2);
     }
 
@@ -1539,7 +1539,7 @@ mod tests {
         let result = execute_async(&procedure, &handler).await.unwrap();
         assert!(result.success);
         assert_eq!(result.step_results[0].output, Some(json!("caught_after_retries")));
-        assert!(result.variables.get("error").is_some());
+        assert!(result.variables.contains_key("error"));
     }
 
     #[tokio::test]

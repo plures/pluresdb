@@ -3977,7 +3977,7 @@ mod tests {
         assert!(!result.step_results[0].skipped);
         assert_eq!(result.step_results[0].output, Some(json!("recovered")));
         // Error variable should be set
-        assert!(result.variables.get("error").is_some());
+        assert!(result.variables.contains_key("error"));
     }
 
     #[test]
@@ -4002,7 +4002,7 @@ mod tests {
 
         let result = execute(&procedure, &handler).unwrap();
         assert!(result.success);
-        assert!(result.variables.get("error").is_none());
+        assert!(!result.variables.contains_key("error"));
     }
 
     #[test]
@@ -4605,9 +4605,9 @@ mod tests {
         let result = execute(&procedure, &handler).unwrap();
         assert!(result.success);
         // The "shared" var set by writer should NOT be in the parent scope
-        assert!(result.variables.get("shared").is_none());
+        assert!(!result.variables.contains_key("shared"));
         // But output_var should have the map
-        assert!(result.variables.get("par_results").is_some());
+        assert!(result.variables.contains_key("par_results"));
     }
 
     #[test]
@@ -4696,9 +4696,9 @@ mod tests {
         // Succeeded on retry — catch was not reached
         assert_eq!(result.variables.get("result"), Some(&json!("success_on_retry")));
         // retry_count cleaned up
-        assert!(result.variables.get("retry_count").is_none());
+        assert!(!result.variables.contains_key("retry_count"));
         // error cleared
-        assert!(result.variables.get("error").is_none());
+        assert!(!result.variables.contains_key("error"));
         // Was called exactly 2 times (first fail + second success)
         assert_eq!(handler.call_count.load(Ordering::SeqCst), 2);
     }
@@ -4728,7 +4728,7 @@ mod tests {
         assert!(result.success);
         assert_eq!(result.step_results[0].output, Some(json!("caught_after_retries")));
         // error variable was set before catch ran
-        assert!(result.variables.get("error").is_some());
+        assert!(result.variables.contains_key("error"));
     }
 
     #[test]

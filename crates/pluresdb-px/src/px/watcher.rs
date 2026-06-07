@@ -82,10 +82,7 @@ impl PxWatcher {
         let key_index: KeyIndex = Arc::new(Mutex::new(HashMap::new()));
 
         let mut startup_watcher = notify::recommended_watcher(|_| {}).map_err(|error| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("failed to create filesystem watcher: {error}"),
-            )
+            std::io::Error::other(format!("failed to create filesystem watcher: {error}"))
         })?;
 
         notify::Watcher::watch(
@@ -94,13 +91,10 @@ impl PxWatcher {
             notify::RecursiveMode::Recursive,
         )
         .map_err(|error| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "failed to watch px path {}: {error}",
-                    config.watch_path.display()
-                ),
-            )
+            std::io::Error::other(format!(
+                "failed to watch px path {}: {error}",
+                config.watch_path.display()
+            ))
         })?;
 
         drop(startup_watcher);
