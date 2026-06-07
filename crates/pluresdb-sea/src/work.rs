@@ -40,7 +40,7 @@ pub fn sea_work(data: &str, salt: &[u8]) -> String {
 pub fn sea_work_random(data: &str) -> Result<(String, String)> {
     use rand::Rng;
     let mut salt = [0u8; 16];
-    rand::rng().fill(&mut salt);
+    rand::rng().fill_bytes(&mut salt);
     let key = sea_work(data, &salt);
     Ok((key, URL_SAFE_NO_PAD.encode(salt)))
 }

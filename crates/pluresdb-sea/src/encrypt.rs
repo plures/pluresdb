@@ -77,8 +77,8 @@ pub fn sea_encrypt(
     // Random salt and IV.
     let mut salt = [0u8; SALT_LEN];
     let mut iv = [0u8; IV_LEN];
-    rand::rng().fill(&mut salt);
-    rand::rng().fill(&mut iv);
+    rand::rng().fill_bytes(&mut salt);
+    rand::rng().fill_bytes(&mut iv);
 
     // PBKDF2-SHA256 key derivation.
     let mut key_bytes = [0u8; KEY_LEN];
