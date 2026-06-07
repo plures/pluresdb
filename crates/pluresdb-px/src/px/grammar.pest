@@ -1,0 +1,164 @@
+// Praxis Intent Language (.px) grammar for pest
+// See docs/PX-GRAMMAR.md for the full specification
+
+WHITESPACE = _{ " " | "\t" }
+COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
+
+document = { SOI ~ NEWLINE* ~ (statement ~ NEWLINE*)* ~ EOI }
+
+statement = _{ import_decl | fact_decl | rule_decl | constraint_decl | contract_decl | function_decl | trigger_decl | procedure_decl | scenario_decl }
+
+// === Imports ===
+import_decl = { "import" ~ rust_path ~ ("as" ~ ident)? }
+rust_path = @{ ident ~ ("::" ~ ident)* }
+
+// === Facts ===
+fact_decl = { "fact" ~ ident ~ ":" ~ NEWLINE ~ field_list }
+field_list = { (field ~ NEWLINE)+ }
+field = { ident ~ ":" ~ type_expr }
+
+// === Rules ===
+rule_decl = { "rule" ~ ident ~ ":" ~ NEWLINE ~ rule_body }
+rule_body = { priority_clause? ~ when_clause ~ let_clause* ~ then_clause ~ capture_clause? }
+priority_clause = { "priority:" ~ integer ~ NEWLINE }
+when_clause = { "when:" ~ NEWLINE ~ condition_list }
+condition_list = { ("-" ~ expr ~ NEWLINE)+ }
+let_clause = { "let" ~ ident ~ "=" ~ expr ~ NEWLINE }
+then_clause = { "then:" ~ NEWLINE ~ action_list }
+action_list = { ("-" ~ action_stmt ~ NEWLINE)+ }
+action_stmt = { conditional_action | simple_action }
+simple_action = { "action:" ~ ident ~ param_pair* }
+conditional_action = { "if" ~ expr ~ ":" ~ simple_action }
+param_pair = { ident ~ ":" ~ value }
+capture_clause = { "capture:" ~ NEWLINE ~ ("-" ~ capture_entry ~ NEWLINE)+ }
+capture_entry = { "fact:" ~ string ~ ("category:" ~ ident)? ~ ("tags:" ~ list_val)? }
+
+// === Constraints ===
+constraint_decl = { "constraint" ~ ident ~ ":" ~ NEWLINE ~ constraint_body }
+constraint_body = { scope_clause? ~ phase_clause? ~ trait_clause? ~ weight_clause? ~ prompt_clause? ~ when_expr? ~ require_expr? ~ severity_clause ~ message_clause? }
+scope_clause = { "scope:" ~ ident ~ NEWLINE }
+phase_clause = { "phase:" ~ ident_csv ~ NEWLINE }
+trait_clause = { "trait:" ~ ident ~ NEWLINE }
+weight_clause = { "weight:" ~ float ~ NEWLINE }
+prompt_clause = { "prompt:" ~ string ~ NEWLINE }
+when_expr = { "when:" ~ expr ~ NEWLINE }
+require_expr = { "require:" ~ expr ~ NEWLINE }
+severity_clause = { "severity:" ~ severity_level ~ NEWLINE }
+severity_level = { "error" | "warning" | "info" }
+message_clause = { "message:" ~ string ~ NEWLINE }
+ident_csv = { ident ~ ("," ~ ident)* }
+
+// === Procedures ===
+procedure_decl = { "procedure" ~ ident ~ ":" ~ NEWLINE ~ procedure_body }
+procedure_body = { procedure_trigger_clause? ~ given_clause? ~ step_list }
+procedure_trigger_clause = { "trigger:" ~ procedure_trigger_kind ~ NEWLINE }
+procedure_trigger_kind = { "on_write" ~ map_val? | "before_response" | "after_response" | "cron" ~ map_val? | "manual" }
+step_list = { (step_decl ~ NEWLINE)+ }
+block_step_list = { (!("end" | "catch:") ~ step_decl ~ NEWLINE)+ }
+step_decl = { step_match | step_when | step_loop | step_emit | step_try | step_parallel | step_return | step_abort | step_call }
+step_return = { "return" ~ value? }
+step_abort = { "abort" ~ value? }
+step_call = { ident ~ (map_val | param_pair*) ~ ("->" ~ "$" ~ ident)? }
+step_match = { "match:" ~ NEWLINE ~ match_arm_list }
+match_arm_list = { (match_arm ~ NEWLINE)+ }
+match_arm = { expr ~ "->" ~ ident }
+step_when = { "when" ~ expr ~ ":" ~ NEWLINE ~ block_step_list ~ "end" }
+step_loop = { "loop" ~ loop_source ~ ("as" ~ ident)? ~ key_as_clause? ~ ("->" ~ "$" ~ ident)? ~ ":" ~ NEWLINE ~ block_step_list ~ "end" }
+key_as_clause = { "key_as" ~ ident }
+loop_source = { "over" ~ "$" ~ ident | "times" ~ integer }
+step_emit = { "emit" ~ (map_val | param_pair+) }
+step_try = { "try" ~ try_retry_clause? ~ ":" ~ NEWLINE ~ try_step_list ~ catch_clause? ~ "end" }
+try_retry_clause = { "retry" ~ integer ~ branch_retry_opt* }
+try_step_list = { (!("catch:" | "end") ~ step_decl ~ NEWLINE)+ }
+catch_clause = { "catch:" ~ NEWLINE ~ (!("end") ~ step_decl ~ NEWLINE)+ }
+step_parallel = { "parallel" ~ ("-" ~ ">" ~ "$" ~ ident)? ~ ":" ~ NEWLINE ~ parallel_branch_list ~ "end" }
+parallel_branch_list = { (parallel_branch ~ NEWLINE?)+ }
+parallel_branch = { "branch" ~ ident ~ branch_retry_clause? ~ ":" ~ NEWLINE ~ block_step_list ~ "end" }
+branch_retry_clause = { "retry" ~ integer ~ branch_retry_opt* }
+branch_retry_opt = { retry_delay_opt | retry_backoff_opt | retry_max_delay_opt | retry_jitter_opt }
+retry_delay_opt = { "delay" ~ integer ~ "ms" }
+retry_backoff_opt = { "backoff" ~ backoff_strategy }
+backoff_strategy = { "exponential" | "fixed" }
+retry_max_delay_opt = { "max_delay" ~ integer ~ "ms" }
+retry_jitter_opt = { "jitter" }
+
+// === Scenarios ===
+scenario_decl = { "scenario" ~ ident ~ ":" ~ NEWLINE ~ scenario_body }
+scenario_body = { given_clause ~ setup_clause? ~ scenario_run_clause? ~ expect_clause }
+setup_clause = { "setup:" ~ NEWLINE ~ step_list }
+scenario_run_clause = { "run:" ~ ident ~ map_val? ~ NEWLINE }
+expect_clause = { "expect:" ~ NEWLINE ~ expectation_list }
+expectation_list = { ("-" ~ expectation ~ NEWLINE)+ }
+expectation = { not_expectation | positive_expectation }
+not_expectation = { "NOT" ~ positive_expectation }
+positive_expectation = { ident ~ map_val? }
+
+// === Contracts ===
+contract_decl = { "contract" ~ ident ~ ":" ~ NEWLINE ~ contract_body }
+contract_body = { given_clause? ~ when_desc? ~ then_desc? ~ threshold_clause? ~ examples_clause }
+given_clause = { "given:" ~ string ~ NEWLINE }
+when_desc = { "when:" ~ string ~ NEWLINE }
+then_desc = { "then:" ~ string ~ NEWLINE }
+threshold_clause = { "threshold:" ~ float ~ NEWLINE }
+examples_clause = { "examples:" ~ NEWLINE ~ example_list }
+example_list = { ("-" ~ example ~ NEWLINE)+ }
+example = { "input:" ~ value ~ NEWLINE ~ "expect:" ~ value ~ (NEWLINE ~ "threshold:" ~ float)? }
+
+// === Functions ===
+function_decl = { "function" ~ ident ~ "(" ~ param_list? ~ ")" ~ "->" ~ type_expr ~ ":" ~ NEWLINE ~ function_body }
+function_body = { mode_clause? ~ docstring }
+mode_clause = { "mode:" ~ function_mode ~ NEWLINE }
+function_mode = { "deterministic" | "probabilistic" | "hybrid" }
+param_list = { param ~ ("," ~ param)* }
+param = { ident ~ ":" ~ type_expr }
+docstring = @{ "\"\"\"" ~ (!("\"\"\"") ~ ANY)* ~ "\"\"\"" }
+
+// === Triggers ===
+trigger_decl = { "trigger" ~ ident ~ ":" ~ NEWLINE ~ trigger_body }
+trigger_body = { on_clause ~ schedule_clause? ~ run_clause }
+on_clause = { "on:" ~ trigger_event ~ NEWLINE }
+trigger_event = { "after_store" | "before_search" | "on_event(" ~ string ~ ")" | "timer" }
+schedule_clause = { "schedule:" ~ string ~ NEWLINE }
+run_clause = { "run:" ~ ident ~ NEWLINE }
+
+// === Types ===
+type_expr = { enum_type | list_type | optional_type | base_type }
+base_type = { "bool" | "int" | "float" | "string" | "duration" }
+enum_type = { "enum(" ~ ident ~ ("," ~ ident)* ~ ")" }
+list_type = { "list[" ~ type_expr ~ "]" }
+optional_type = { "optional[" ~ type_expr ~ "]" }
+
+// === Expressions ===
+expr = { comparison ~ (logic_op ~ comparison)* }
+comparison = { term ~ (comp_op ~ term)? }
+logic_op = { "&&" | "||" | "and" | "or" }
+comp_op = { "==" | "!=" | ">=" | "<=" | ">" | "<" }
+term = { not_expr | match_expr | call_expr | dotted_ident | value | "(" ~ expr ~ ")" }
+
+// Match expression: match subject { pattern => result, _ => default }
+match_expr = { "match" ~ match_subject ~ "{" ~ NEWLINE? ~ match_expr_arm_list ~ "}" }
+match_subject = { call_expr | dotted_ident | value }
+match_expr_arm_list = { NEWLINE* ~ (match_expr_arm ~ ","? ~ NEWLINE*)+ }
+match_expr_arm = { match_pattern ~ "=>" ~ match_result }
+match_pattern = { "_" | multi_pattern }
+multi_pattern = { match_single_pattern ~ ("|" ~ match_single_pattern)* }
+match_single_pattern = { value }
+match_result = { call_expr | dotted_ident | value }
+not_expr = { "NOT" ~ term }
+call_expr = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
+dotted_ident = @{ ident ~ (("." ~ ident) | bracket_segment)* }
+bracket_segment = @{ "[" ~ (ASCII_DIGIT+ | ("\"" ~ (!"\"" ~ ANY)* ~ "\"") | ("'" ~ (!("'") ~ ANY)* ~ "'")) ~ "]" }
+
+// === Values ===
+value = { string | float | integer | boolean | list_val | map_val | var_ref | ident }
+string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
+integer = @{ ASCII_DIGIT+ }
+float = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+boolean = { "true" | "false" }
+list_val = { "[" ~ (value ~ ("," ~ value)*)? ~ "]" }
+map_val = { "{" ~ (ident ~ ":" ~ value ~ ("," ~ ident ~ ":" ~ value)*)? ~ "}" }
+
+// === Tokens ===
+ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+var_ref = @{ "$" ~ ident }
+NEWLINE = _{ "\n" | "\r\n" }

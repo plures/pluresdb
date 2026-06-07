@@ -1,8 +1,13 @@
-//! WebAssembly bindings for PluresDB.
+//! WebAssembly bindings for the PluresDB Application Runtime.
 //!
-//! Thin wasm-bindgen wrapper around `pluresdb_core::CrdtStore` with
-//! `pluresdb_storage::MemoryStorage`. IndexedDB persistence is planned
-//! for a future release; the module is kept on disk but not wired in yet.
+//! Provides browser-side access to the full PluresDB stack:
+//! - Core CRDT store with in-memory persistence
+//! - Procedure engine (query DSL, AgensRuntime, reactive dispatch)
+//! - .px language runtime (parse, compile, execute)
+//! - Chronos state timeline (observability, causal chains)
+
+pub mod px;
+pub mod chronos;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
