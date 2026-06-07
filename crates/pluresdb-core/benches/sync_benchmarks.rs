@@ -19,7 +19,7 @@ fn make_payload(i: usize) -> JsonValue {
         "metadata": {
             "role": role,
             "score": (i * 13) % 100,
-            "active": i % 4 != 0
+            "active": !i.is_multiple_of(4)
         }
     })
 }

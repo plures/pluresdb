@@ -830,7 +830,7 @@ mod tests {
         for node in &ranked {
             assert!(node.data.get("pagerank_score").is_some());
             let score = node.data["pagerank_score"].as_f64().unwrap();
-            assert!(score >= 0.0 && score <= 1.0);
+            assert!((0.0..=1.0).contains(&score));
         }
         // Scores should be ordered descending.
         let scores: Vec<f64> = ranked

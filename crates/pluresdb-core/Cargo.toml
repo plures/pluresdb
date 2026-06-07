@@ -50,3 +50,4 @@ harness = false
 [[bench]]
 name = "sql_benchmarks"
 harness = false
+required-features = ["sqlite-compat"]

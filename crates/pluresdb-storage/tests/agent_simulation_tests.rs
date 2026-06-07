@@ -83,7 +83,7 @@ async fn test_long_running_agent_simulation() {
             sleep(write_interval).await;
 
             // Periodic compaction
-            if total_operations % 100 == 0 {
+            if total_operations.is_multiple_of(100) {
                 let checkpoint_seq = total_operations.saturating_sub(50);
                 wal.append(
                     "system".to_string(),
@@ -140,7 +140,7 @@ async fn test_long_running_agent_simulation() {
         validation.is_healthy(),
         "WAL should be healthy after long-running simulation"
     );
-    assert!(final_entries.len() > 0, "Should have recovered entries");
+    assert!(!final_entries.is_empty(), "Should have recovered entries");
 
     // Check that we didn't lose too many operations due to crashes
     let loss_rate = 1.0 - (final_entries.len() as f64 / total_operations as f64);

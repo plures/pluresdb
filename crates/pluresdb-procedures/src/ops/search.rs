@@ -164,7 +164,7 @@ mod tests {
         let store = CrdtStore::default();
         for i in 0..20 {
             store.put(
-                &format!("n{}", i),
+                format!("n{}", i),
                 "a",
                 serde_json::json!({"text": format!("memory entry {}", i)}),
             );

@@ -179,7 +179,7 @@ fn test_old_ciphertexts_unreadable_after_rotation() {
     let old_ciphertext = config.encrypt(plaintext).unwrap();
 
     config
-        .rotate_key_and_reencrypt_blocks("rotated-key", &[old_ciphertext.clone()])
+        .rotate_key_and_reencrypt_blocks("rotated-key", std::slice::from_ref(&old_ciphertext))
         .unwrap();
 
     // The old ciphertext should now be undecipherable

@@ -442,7 +442,7 @@ mod tests {
 
         // Rotate — old_ciphertext is now stale
         config
-            .rotate_key_and_reencrypt_blocks("new-password", &[old_ciphertext.clone()])
+            .rotate_key_and_reencrypt_blocks("new-password", std::slice::from_ref(&old_ciphertext))
             .unwrap();
 
         // Attempting to decrypt the old (pre-rotation) ciphertext with the
