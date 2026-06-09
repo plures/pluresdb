@@ -182,7 +182,7 @@ fn execute_step(
         "try" => execute_try(step, index, vars, handler),
         "parallel" => execute_parallel(step, index, vars, handler),
         "return" => {
-            let value = step.get("value").cloned();
+            let value = step.get("value").cloned().map(|v| resolve_vars(&v, vars));
             Ok(StepResult {
                 index,
                 kind: "return".to_string(),
@@ -430,10 +430,28 @@ fn execute_when(
     let mut nested_results = Vec::new();
     for (i, nested) in nested_steps.iter().enumerate() {
         let result = execute_step(nested, i, vars, handler)?;
+        let is_return = result.kind == "return";
+        let is_abort = result.kind == "abort";
         nested_results.push(result);
+        if is_return || is_abort {
+            break;
+        }
     }
 
-    // Return the last nested result as the when step's output
+    // If a nested step was a `return` or `abort`, propagate it upward so the
+    // main execution loop sees the short-circuit signal.
+    if let Some(last) = nested_results.last() {
+        if last.kind == "return" || last.kind == "abort" {
+            return Ok(StepResult {
+                index,
+                kind: last.kind.clone(),
+                output: last.output.clone(),
+                skipped: false,
+            });
+        }
+    }
+
+    // No return/abort — yield the last nested output as the when step's output
     let last_output = nested_results.last().and_then(|r| r.output.clone());
 
     Ok(StepResult {
@@ -2418,8 +2436,15 @@ fn split_comparison<'a>(expr: &'a str, op: &str) -> Option<(&'a str, &'a str)> {
                     continue;
                 }
                 let lhs = expr[..i].trim();
-                let rhs = expr[i + op_len..].trim().trim_matches('"');
-                if !lhs.is_empty() && !rhs.is_empty() {
+                let rhs = expr[i + op_len..].trim();
+                // Strip surrounding quotes from rhs, but allow empty result
+                // (comparing against "" is valid).
+                let rhs = if rhs.starts_with('"') && rhs.ends_with('"') && rhs.len() >= 2 {
+                    &rhs[1..rhs.len()-1]
+                } else {
+                    rhs.trim_matches('"')
+                };
+                if !lhs.is_empty() {
                     return Some((lhs, rhs));
                 }
             }
@@ -3561,6 +3586,83 @@ mod tests {
         let vars = HashMap::from([("should_notify".to_string(), json!(false))]);
         let result = execute_with_vars(&procedure, &handler, vars).unwrap();
         assert!(result.step_results[0].skipped);
+    }
+
+    #[test]
+    fn execute_when_with_return_propagates_short_circuit() {
+        // A `return` inside a `when` block must propagate so the main loop
+        // breaks — this was the bug reported in plures/pluresdb#991.
+        let handler = MockHandler::new().with_result("should_not_run", json!("bad"));
+
+        let procedure = json!({
+            "type": "procedure",
+            "name": "guard_test",
+            "steps": [
+                {
+                    "kind": "when",
+                    "condition": "input == \"\"",
+                    "steps": [
+                        { "kind": "return", "value": "no_input" }
+                    ]
+                },
+                { "kind": "call", "name": "should_not_run", "params": {} }
+            ]
+        });
+
+        let vars = HashMap::from([("input".to_string(), json!(""))]);
+        let result = execute_with_vars(&procedure, &handler, vars).unwrap();
+        // The when step must propagate as kind="return", not kind="when"
+        assert_eq!(result.step_results.len(), 1, "should short-circuit after return");
+        assert_eq!(result.step_results[0].kind, "return");
+        assert_eq!(result.step_results[0].output, Some(json!("no_input")));
+    }
+
+    #[test]
+    fn execute_when_without_return_continues() {
+        let handler = MockHandler::new()
+            .with_result("first", json!("ok"))
+            .with_result("second", json!("done"));
+
+        let procedure = json!({
+            "type": "procedure",
+            "name": "no_early_return",
+            "steps": [
+                {
+                    "kind": "when",
+                    "condition": "x == \"yes\"",
+                    "steps": [
+                        { "kind": "call", "name": "first", "params": {} }
+                    ]
+                },
+                { "kind": "call", "name": "second", "params": {} }
+            ]
+        });
+
+        let vars = HashMap::from([("x".to_string(), json!("yes"))]);
+        let result = execute_with_vars(&procedure, &handler, vars).unwrap();
+        // Without a return, when should NOT short-circuit
+        assert_eq!(result.step_results.len(), 2);
+        assert_eq!(result.step_results[0].kind, "when");
+        assert_eq!(result.step_results[1].kind, "call");
+    }
+
+    #[test]
+    fn return_resolves_variable_references() {
+        // `return $input` should resolve $input from vars, not return literal "$input".
+        let handler = MockHandler::new();
+
+        let procedure = json!({
+            "type": "procedure",
+            "name": "var_return",
+            "steps": [
+                { "kind": "return", "value": "$greeting" }
+            ]
+        });
+
+        let vars = HashMap::from([("greeting".to_string(), json!("hello world"))]);
+        let result = execute_with_vars(&procedure, &handler, vars).unwrap();
+        assert_eq!(result.step_results[0].kind, "return");
+        assert_eq!(result.step_results[0].output, Some(json!("hello world")));
     }
 
     #[test]
