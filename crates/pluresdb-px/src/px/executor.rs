@@ -430,7 +430,23 @@ fn execute_when(
     let mut nested_results = Vec::new();
     for (i, nested) in nested_steps.iter().enumerate() {
         let result = execute_step(nested, i, vars, handler)?;
+        let is_return = result.kind == "return";
         nested_results.push(result);
+        if is_return {
+            break;
+        }
+    }
+
+    // Propagate a return step so the procedure executor short-circuits.
+    if let Some(last) = nested_results.last() {
+        if last.kind == "return" {
+            return Ok(StepResult {
+                index,
+                kind: "return".into(),
+                output: last.output.clone(),
+                skipped: false,
+            });
+        }
     }
 
     // Return the last nested result as the when step's output
@@ -3561,6 +3577,103 @@ mod tests {
         let vars = HashMap::from([("should_notify".to_string(), json!(false))]);
         let result = execute_with_vars(&procedure, &handler, vars).unwrap();
         assert!(result.step_results[0].skipped);
+    }
+
+    #[test]
+    fn when_return_short_circuits_procedure() {
+        // A `return` inside a `when` block must stop all subsequent steps.
+        let handler = MockHandler::new().with_result("side_effect", json!("ran"));
+
+        let procedure = json!({
+            "type": "procedure",
+            "name": "guard_test",
+            "steps": [
+                {
+                    "kind": "when",
+                    "condition": "input == empty",
+                    "steps": [
+                        { "kind": "return", "value": "no_input" }
+                    ]
+                },
+                // This step must NOT execute when the when-return fires.
+                { "kind": "call", "name": "side_effect", "params": {} }
+            ]
+        });
+
+        let vars = HashMap::from([("input".to_string(), json!("empty"))]);
+        let result = execute_with_vars(&procedure, &handler, vars).unwrap();
+
+        // Only the when step should appear; the call after must be absent.
+        assert_eq!(result.step_results.len(), 1);
+        assert_eq!(result.step_results[0].kind, "return");
+        assert_eq!(result.step_results[0].output, Some(json!("no_input")));
+    }
+
+    #[test]
+    fn when_condition_false_does_not_short_circuit() {
+        // When the when-condition is false the return is skipped and the rest continues.
+        let handler = MockHandler::new().with_result("next_step", json!("did_run"));
+
+        let procedure = json!({
+            "type": "procedure",
+            "name": "no_guard",
+            "steps": [
+                {
+                    "kind": "when",
+                    "condition": "input == empty",
+                    "steps": [
+                        { "kind": "return", "value": "no_input" }
+                    ]
+                },
+                { "kind": "call", "name": "next_step", "params": {} }
+            ]
+        });
+
+        let vars = HashMap::from([("input".to_string(), json!("hello"))]);
+        let result = execute_with_vars(&procedure, &handler, vars).unwrap();
+
+        // Both the (skipped) when and the call step should be present.
+        assert_eq!(result.step_results.len(), 2);
+        assert!(result.step_results[0].skipped); // when was skipped
+        assert_eq!(result.step_results[1].output, Some(json!("did_run")));
+    }
+
+    #[test]
+    fn when_return_nested_when_also_short_circuits() {
+        // A return inside a nested when should propagate all the way up.
+        let handler = MockHandler::new().with_result("outer_step", json!("outer_ran"));
+
+        let procedure = json!({
+            "type": "procedure",
+            "name": "nested_guard",
+            "steps": [
+                {
+                    "kind": "when",
+                    "condition": "outer == true",
+                    "steps": [
+                        {
+                            "kind": "when",
+                            "condition": "inner == true",
+                            "steps": [
+                                { "kind": "return", "value": "inner_return" }
+                            ]
+                        }
+                    ]
+                },
+                { "kind": "call", "name": "outer_step", "params": {} }
+            ]
+        });
+
+        let vars = HashMap::from([
+            ("outer".to_string(), json!(true)),
+            ("inner".to_string(), json!(true)),
+        ]);
+        let result = execute_with_vars(&procedure, &handler, vars).unwrap();
+
+        // The outer when propagates the return; outer_step never runs.
+        assert_eq!(result.step_results.len(), 1);
+        assert_eq!(result.step_results[0].kind, "return");
+        assert_eq!(result.step_results[0].output, Some(json!("inner_return")));
     }
 
     #[test]
