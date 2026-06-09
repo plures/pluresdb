@@ -23,7 +23,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::executor::{ActionHandler, ExecutionError};
+use super::executor::{ActionHandler, ExecutionError, execute_with_vars};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -349,18 +349,29 @@ pub fn run_scenario(
         vars.extend(run_params);
 
         if let Some(proc_data) = procedures.get(&proc_name) {
-            if let Some(steps) = proc_data.get("steps").and_then(|v| v.as_array()) {
-                for step in steps {
-                    if let Err(e) = execute_step(step, &handler, &mut vars) {
-                        return ScenarioResult {
-                            name,
-                            given,
-                            passed: false,
-                            expectations: vec![],
-                            error: Some(format!("procedure '{proc_name}' failed: {e}")),
-                            duration_ms: start.elapsed().as_millis() as u64,
-                        };
+            match execute_with_vars(proc_data, &handler, vars) {
+                Ok(result) => {
+                    // The executor's `emit` step stores events in `result.variables["emit"]`
+                    // rather than calling `handler.call("emit", ...)`.  Replay them through
+                    // the handler so ScenarioActionHandler captures them in emitted_events.
+                    if let Some(Value::Array(events)) =
+                        result.variables.get("emit").cloned()
+                    {
+                        for event in &events {
+                            let _ = handler.call("emit", event);
+                        }
                     }
+                    vars = result.variables;
+                }
+                Err(e) => {
+                    return ScenarioResult {
+                        name,
+                        given,
+                        passed: false,
+                        expectations: vec![],
+                        error: Some(format!("procedure '{proc_name}' failed: {e}")),
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    };
                 }
             }
         } else {
@@ -954,6 +965,85 @@ mod tests {
                 ]
             }),
         );
+        let result = run_scenario(&scenario, &procedures, &BuiltinChecker);
+        assert!(result.passed, "expected pass, got: {:?}", result);
+    }
+
+    #[test]
+    fn when_return_short_circuits_procedure_in_scenario() {
+        // A `return` inside a `when` block must stop procedure execution.
+        // The entry must NOT be stored when the guard fires.
+        let mut procedures = HashMap::new();
+        procedures.insert(
+            "guard_proc".to_string(),
+            json!({
+                "name": "guard_proc",
+                "steps": [
+                    // Bind result to the return value via echo so var_equals can check it.
+                    // The when fires (input == empty), returns "no_input".
+                    {
+                        "kind": "when",
+                        "condition": "input == empty",
+                        "steps": [
+                            {"kind": "call", "name": "echo", "params": "no_input", "output_var": "result"},
+                            {"kind": "return", "value": "no_input"}
+                        ]
+                    },
+                    // These steps must NOT run.
+                    {"kind": "call", "name": "put_entry", "params": {"key": "should_not_exist", "value": 1}},
+                    {"kind": "call", "name": "echo", "params": "input_present", "output_var": "result"}
+                ]
+            }),
+        );
+
+        let scenario = json!({
+            "name": "guard_short_circuit",
+            "setup": [
+                {"kind": "call", "name": "echo", "params": "empty", "output_var": "input"}
+            ],
+            "run": "guard_proc",
+            "expectations": [
+                {"check": "has_entry", "params": {"key": "should_not_exist"}, "negated": true},
+                {"check": "var_equals", "params": {"var": "result", "value": "no_input"}, "negated": false}
+            ]
+        });
+
+        let result = run_scenario(&scenario, &procedures, &BuiltinChecker);
+        assert!(result.passed, "expected pass, got: {:?}", result);
+    }
+
+    #[test]
+    fn when_condition_false_continues_execution() {
+        // When the when-condition is false the return is NOT triggered and execution continues.
+        let scenario = json!({
+            "name": "no_guard_trigger",
+            "setup": [
+                {"kind": "call", "name": "echo", "params": "hello", "output_var": "input"}
+            ],
+            "run": "guard_proc",
+            "expectations": [
+                {"check": "has_entry", "params": {"key": "did_run"}, "negated": false}
+            ]
+        });
+
+        let mut procedures = HashMap::new();
+        procedures.insert(
+            "guard_proc".to_string(),
+            json!({
+                "name": "guard_proc",
+                "steps": [
+                    {
+                        "kind": "when",
+                        "condition": "input == empty",
+                        "steps": [
+                            {"kind": "return", "value": "no_input"}
+                        ]
+                    },
+                    {"kind": "call", "name": "put_entry", "params": {"key": "did_run", "value": 1}}
+                ]
+            }),
+        );
+
         let result = run_scenario(&scenario, &procedures, &BuiltinChecker);
         assert!(result.passed, "expected pass, got: {:?}", result);
     }
