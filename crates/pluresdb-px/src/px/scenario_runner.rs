@@ -358,7 +358,16 @@ pub fn run_scenario(
                         result.variables.get("emit").cloned()
                     {
                         for event in &events {
-                            let _ = handler.call("emit", event);
+                            if let Err(e) = handler.call("emit", event) {
+                                return ScenarioResult {
+                                    name,
+                                    given,
+                                    passed: false,
+                                    expectations: vec![],
+                                    error: Some(format!("emit failed: {e}")),
+                                    duration_ms: start.elapsed().as_millis() as u64,
+                                };
+                            }
                         }
                     }
                     vars = result.variables;
