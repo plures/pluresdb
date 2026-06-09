@@ -878,6 +878,31 @@ mod parse_step_tests {
     }
 
     #[test]
+    fn parse_step_calls_with_keyword_prefix_names() {
+        let source = "procedure keyword_prefix_calls:\n  trigger: manual\n  return_block {reason: 'x'}\n  abort_handler {}\n  emit_notification {kind: 'k'}\n  when_ready {}\n  loop_count {n: 1}\n  try_connect {}\n  parallel_scan {}\n";
+        let doc = parse(source).expect("parse failed");
+        let proc = &doc.procedures[0];
+        assert_eq!(proc.steps.len(), 7);
+
+        let expected = [
+            "return_block",
+            "abort_handler",
+            "emit_notification",
+            "when_ready",
+            "loop_count",
+            "try_connect",
+            "parallel_scan",
+        ];
+
+        for (idx, name) in expected.iter().enumerate() {
+            match &proc.steps[idx] {
+                PxStep::Call { name: actual, .. } => assert_eq!(actual, name),
+                other => panic!("expected Call({name}), got {:?}", other),
+            }
+        }
+    }
+
+    #[test]
     fn parse_scenario_basic() {
         let source = r#"
 scenario expired_entries_removed:
