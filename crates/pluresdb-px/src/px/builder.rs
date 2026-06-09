@@ -655,7 +655,7 @@ fn build_step(pair: Pair<'_, Rule>) -> PxStep {
         Rule::step_when => {
             let mut wi = inner.into_inner();
             let condition = wi
-                .next()
+                .find(|p| p.as_rule() == Rule::expr)
                 .map(|p| p.as_str().to_string())
                 .unwrap_or_default();
             let steps = wi
@@ -909,11 +909,15 @@ fn build_step(pair: Pair<'_, Rule>) -> PxStep {
             }
         }
         Rule::step_return => {
-            let value = inner.into_inner().next().map(|p| parse_value(p));
+            let value = inner.into_inner()
+                .find(|p| p.as_rule() != Rule::kw_return)
+                .map(|p| parse_value(p));
             PxStep::Return { value }
         }
         Rule::step_abort => {
-            let value = inner.into_inner().next().map(|p| parse_value(p));
+            let value = inner.into_inner()
+                .find(|p| p.as_rule() != Rule::kw_abort)
+                .map(|p| parse_value(p));
             PxStep::Abort { value }
         }
         _ => PxStep::Call {
