@@ -160,7 +160,7 @@ fn execute_step_async<'a>(
             "try" => execute_try_async(step, index, vars, handler).await,
             "parallel" => execute_parallel_async(step, index, vars, handler).await,
             "return" => {
-                let value = step.get("value").cloned();
+                let value = step.get("value").cloned().map(|v| resolve_vars(&v, vars));
                 Ok(StepResult {
                     index,
                     kind: "return".to_string(),
@@ -295,6 +295,15 @@ async fn execute_when_async(
     let mut last_output = None;
     for (i, nested) in nested_steps.iter().enumerate() {
         let result = execute_step_async(nested, i, vars, handler).await?;
+        // If a nested step was a `return` or `abort`, propagate it upward
+        if result.kind == "return" || result.kind == "abort" {
+            return Ok(StepResult {
+                index,
+                kind: result.kind,
+                output: result.output,
+                skipped: false,
+            });
+        }
         last_output = result.output;
     }
 
