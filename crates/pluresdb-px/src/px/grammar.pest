@@ -1,22 +1,15 @@
-// Praxis Intent Language (.px) — Unified Grammar v4
-// Single source of truth: pluresdb/crates/pluresdb-px/src/px/grammar.pest
+// Praxis Intent Language (.px) ΓÇö Grammar v4 (GENERATED)
+// DO NOT EDIT MANUALLY ΓÇö regenerate with: cargo run -p px-grammar-gen
+// Source of truth: praxis/crates/px-ast/src/
+// ADR: pares-radix/.praxis/decisions/ADR-0021-grammar-as-generated-artifact.md
 //
-// Design principles:
-// - YAML-native declarations (entity, config, fact, rule, constraint, contract)
-// - Rust-native code blocks for procedure bodies (v2: { let x = f(); if x { ... } })
-// - Queue-driven dataflow procedures with typed args (v3: no triggers, no on_write)
-// - Borrow expression grammar from Rust (operator precedence, closures, match)
-// - Borrow declaration grammar from YAML/HCL (indentation-optional, key: value)
-//
-// References:
-// - Rust expression precedence: https://doc.rust-lang.org/reference/expressions.html
-// - YAML scalar types: https://yaml.org/spec/1.2.2/
-// - tree-sitter-rust (grammar.js): statement/expression structure
-// - tree-sitter-hcl: interpolation patterns (future: string interpolation)
+// Pinned fragments (hand-curated, too complex for pure codegen):
+// - V1 expressions (operator precedence hierarchy)
+// - V2 code expressions (Rust-style with closures, match, parallel)
+// - Token definitions (ident, var_ref, string literals)
 
 WHITESPACE = _{ " " | "\t" }
 COMMENT = _{ ("#" ~ (!NEWLINE ~ ANY)*) | ("//" ~ (!NEWLINE ~ ANY)*) }
-
 document = { SOI ~ NEWLINE* ~ (statement ~ NEWLINE*)* ~ EOI }
 
 statement = _{
@@ -34,9 +27,9 @@ statement = _{
   | scenario_decl
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 // DECLARATIONS (YAML-native: keyword name: \n body)
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
 // === Imports ===
 import_decl = { "import" ~ rust_path ~ ("as" ~ ident)? }
@@ -64,7 +57,7 @@ fact_decl = { "fact" ~ ident ~ ":" ~ NEWLINE ~ field_list }
 field_list = { (field ~ NEWLINE)+ }
 field = { ident ~ ":" ~ type_expr }
 
-// === Rules (reactive: when conditions → then actions) ===
+// === Rules (reactive: when conditions ΓåÆ then actions) ===
 rule_decl = { "rule" ~ ident ~ ":" ~ NEWLINE ~ rule_body }
 rule_body = { priority_clause? ~ when_clause ~ let_clause* ~ then_clause ~ capture_clause? }
 priority_clause = { "priority:" ~ integer ~ NEWLINE }
@@ -125,7 +118,7 @@ param_list = { param ~ ("," ~ param)* }
 param = { ident ~ ":" ~ type_expr }
 docstring = @{ "\"\"\"" ~ (!("\"\"\"") ~ ANY)* ~ "\"\"\"" }
 
-// === Triggers (legacy — kept for backward compat, compiles to single-input dataflow) ===
+// === Triggers (legacy ΓÇö kept for backward compat, compiles to single-input dataflow) ===
 trigger_decl = { "trigger" ~ ident ~ ":" ~ NEWLINE ~ trigger_body }
 trigger_body = { on_clause ~ schedule_clause? ~ run_clause }
 on_clause = { "on:" ~ trigger_event ~ NEWLINE }
@@ -144,11 +137,11 @@ expectation = { not_expectation | positive_expectation }
 not_expectation = { "NOT" ~ positive_expectation }
 positive_expectation = { ident ~ map_val? }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 // PROCEDURES (the executable logic layer)
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
-// === Dataflow Procedures (v3 — queue-driven, typed args, NO triggers) ===
+// === Dataflow Procedures (v3 ΓÇö queue-driven, typed args, NO triggers) ===
 // This is the PRIMARY procedure form. Uses typed parameters with queue bindings.
 // procedure name(arg: type from "queue", ...) -> return_type into "queue":
 //   steps...
@@ -165,7 +158,7 @@ dataflow_source_binding = { "from" ~ string }
 dataflow_return_type = { "->" ~ type_expr ~ dataflow_dest_binding? }
 dataflow_dest_binding = { "into" ~ string }
 
-// === Legacy Procedures (v1 — step-list with optional trigger, kept for migration) ===
+// === Legacy Procedures (v1 ΓÇö step-list with optional trigger, kept for migration) ===
 procedure_decl = { "procedure" ~ ident ~ ":" ~ NEWLINE ~ procedure_body }
 procedure_body = { procedure_trigger_clause? ~ params_clause? ~ given_clause? ~ (code_block | step_list) }
 params_clause = { "params:" ~ "[" ~ param_ident ~ ("," ~ param_ident)* ~ "]" ~ NEWLINE }
@@ -186,9 +179,9 @@ trigger_sub_keys = { (trigger_sub_key ~ NEWLINE)+ }
 trigger_sub_key = { !("params:" | "given:" | "steps:" | "{") ~ ident ~ ":" ~ trigger_sub_value }
 trigger_sub_value = @{ (!NEWLINE ~ ANY)+ }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 // V1 STEP LIST (declarative step-by-step execution)
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
 step_list = { ((step_decl ~ NEWLINE) | NEWLINE)+ }
 block_step_list = { (!("end" | "catch:") ~ ((step_decl ~ NEWLINE) | NEWLINE))+ }
@@ -250,9 +243,9 @@ kw_emit = @{ "emit" ~ !(ASCII_ALPHANUMERIC | "_") }
 kw_try = @{ "try" ~ !(ASCII_ALPHANUMERIC | "_") }
 kw_parallel = @{ "parallel" ~ !(ASCII_ALPHANUMERIC | "_") }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 // V2 CODE BLOCK (Rust-style imperative body with braces + semicolons)
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
 code_block = { "{" ~ NEWLINE* ~ (code_stmt ~ NEWLINE*)* ~ "}" }
 code_stmt = {
@@ -283,10 +276,10 @@ code_return_stmt = { "return" ~ code_expr? ~ ";" }
 code_emit_stmt = { "emit" ~ "(" ~ code_expr ~ ("," ~ code_expr)? ~ ")" ~ ";" }
 code_expr_stmt = { code_expr ~ ";" }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 // V2 EXPRESSIONS (Rust-style: full operator precedence, closures, match)
 // Used inside code_block bodies.
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
 code_expr = { code_inline_if | code_logic }
 code_inline_if = { "if" ~ code_logic ~ "{" ~ code_expr ~ "}" ~ "else" ~ "{" ~ code_expr ~ "}" }
@@ -331,10 +324,10 @@ code_integer = @{ "-"? ~ ASCII_DIGIT+ }
 code_boolean = { "true" | "false" }
 code_null = { "null" }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 // V1 EXPRESSIONS (declarative contexts: rules, constraints, when clauses)
 // Simpler than code_expr but handles comparison, logic, arithmetic.
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
 expr = { inline_if | comparison ~ (logic_op ~ comparison)* }
 inline_if = { "if" ~ comparison ~ ":" ~ comparison ~ "else:" ~ comparison }
@@ -364,9 +357,9 @@ call_expr = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 dotted_ident = @{ ident ~ (("." ~ ident) | bracket_segment)* }
 bracket_segment = @{ "[" ~ (ASCII_DIGIT+ | ("\"" ~ (!"\"" ~ ANY)* ~ "\"") | ("'" ~ (!("'") ~ ANY)* ~ "'")) ~ "]" }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 // TYPES
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
 type_expr = { enum_type | list_type | optional_type | map_type | base_type | ident_type }
 base_type = { "bool" | "int" | "float" | "string" | "duration" }
@@ -376,9 +369,9 @@ list_type = { "list[" ~ type_expr ~ "]" }
 optional_type = { "optional[" ~ type_expr ~ "]" }
 map_type = { "map[" ~ type_expr ~ "," ~ type_expr ~ "]" }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 // VALUES (shared between v1 expressions and declarations)
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
 value = { string | float | integer | boolean | list_val | map_val | call_expr | arith_val | var_ref | dotted_ident | paren_expr | ident }
 paren_expr = { "(" ~ expr ~ ")" }
@@ -390,9 +383,9 @@ boolean = { "true" | "false" }
 list_val = { "[" ~ NEWLINE* ~ (value ~ ("," ~ NEWLINE* ~ value)* ~ ","?)? ~ NEWLINE* ~ "]" }
 map_val = { "{" ~ NEWLINE* ~ (ident ~ ":" ~ value ~ ("," ~ NEWLINE* ~ ident ~ ":" ~ value)* ~ ","?)? ~ NEWLINE* ~ "}" }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 // TOKENS
-// ══════════════════════════════════════════════════════════════════════════════
+// ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
 ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 var_ref = @{ "$" ~ ident ~ (("[" ~ (ASCII_DIGIT+ | ("\"" ~ (!"\"" ~ ANY)* ~ "\"")) ~ "]") | ("." ~ ident))* }
