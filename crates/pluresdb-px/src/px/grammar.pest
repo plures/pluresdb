@@ -166,7 +166,7 @@ match_pattern = { "_" | multi_pattern }
 multi_pattern = { match_single_pattern ~ ("|" ~ match_single_pattern)* }
 match_single_pattern = { value }
 match_result = { call_expr | dotted_ident | value }
-not_expr = { "NOT" ~ term }
+not_expr = { ("!" | "NOT" | "not") ~ term }
 call_expr = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 dotted_ident = @{ ident ~ (("." ~ ident) | bracket_segment)* }
 bracket_segment = @{ "[" ~ (ASCII_DIGIT+ | ("\"" ~ (!"\"" ~ ANY)* ~ "\"") | ("'" ~ (!("'") ~ ANY)* ~ "'")) ~ "]" }
@@ -178,10 +178,8 @@ string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
 integer = @{ ASCII_DIGIT+ }
 float = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 boolean = { "true" | "false" }
-list_val = { "[" ~ inner_list ~ "]" }
-inner_list = _{ (NEWLINE | value ~ ("," ~ (NEWLINE)* ~ value)*)? }
-map_val = { "{" ~ inner_map ~ "}" }
-inner_map = _{ (NEWLINE | ident ~ ":" ~ value ~ ("," ~ (NEWLINE)* ~ ident ~ ":" ~ value)*)? }
+list_val = { "[" ~ NEWLINE* ~ (value ~ ("," ~ NEWLINE* ~ value)* ~ ","?)? ~ NEWLINE* ~ "]" }
+map_val = { "{" ~ NEWLINE* ~ (ident ~ ":" ~ value ~ ("," ~ NEWLINE* ~ ident ~ ":" ~ value)* ~ ","?)? ~ NEWLINE* ~ "}" }
 
 // === Tokens ===
 ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
