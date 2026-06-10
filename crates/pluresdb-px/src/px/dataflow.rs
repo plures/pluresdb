@@ -647,6 +647,54 @@ pub fn signature_to_node(sig: &ProcedureSignature, body: Value) -> ProcedureNode
     }
 }
 
+/// Convert a parsed PxDataflowProcedure AST node into a runtime ProcedureNode.
+///
+/// This bridges the parser output to the dataflow graph:
+/// 1. Parse .px file → PxDataflowProcedure (via builder)
+/// 2. This function → ProcedureNode (for DataflowGraph)
+/// 3. Register into DataflowGraph → ready for execution
+pub fn ast_to_node(proc: &super::PxDataflowProcedure) -> ProcedureNode {
+    let inputs = proc
+        .params
+        .iter()
+        .map(|p| InputSlot {
+            name: p.name.clone(),
+            source: p.source.clone().unwrap_or_else(|| p.name.clone()),
+            type_hint: Some(p.type_expr.clone()),
+        })
+        .collect();
+
+    let outputs = match &proc.return_type {
+        Some(ret) => vec![OutputSlot {
+            name: "result".to_string(),
+            destination: ret.destination.clone().unwrap_or_else(|| proc.name.clone()),
+            type_hint: Some(ret.type_expr.clone()),
+        }],
+        None => Vec::new(),
+    };
+
+    // Compile steps to the JSON format the executor expects.
+    // Each PxStep becomes a JSON step object.
+    let steps: Vec<Value> = proc
+        .steps
+        .iter()
+        .map(|step| super::compiler::compile_step(step))
+        .collect();
+
+    let body = serde_json::json!({
+        "name": proc.name,
+        "steps": steps
+    });
+
+    ProcedureNode {
+        name: proc.name.clone(),
+        inputs,
+        outputs,
+        body,
+        description: proc.given.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -936,5 +984,37 @@ mod tests {
         // Each consumer got one
         assert!(graph.queues.get("out_a").unwrap().has_data());
         assert!(graph.queues.get("out_b").unwrap().has_data());
+    }
+
+    #[test]
+    fn end_to_end_parse_to_graph() {
+        // Parse a dataflow .px source, convert to ProcedureNode, register, run
+        let source = r#"
+procedure classify_message(message: string from "inbound") -> classification into "classification":
+  given: "Classify a message"
+  classify {text: $message} -> $result
+  return $result
+"#;
+        let doc = crate::px::parse(source).expect("parse failed");
+        assert_eq!(doc.dataflow_procedures.len(), 1);
+
+        // Convert AST to graph node
+        let node = super::ast_to_node(&doc.dataflow_procedures[0]);
+        assert_eq!(node.name, "classify_message");
+        assert_eq!(node.inputs.len(), 1);
+        assert_eq!(node.inputs[0].source, "inbound");
+        assert_eq!(node.outputs.len(), 1);
+        assert_eq!(node.outputs[0].destination, "classification");
+
+        // Register and run
+        let mut graph = DataflowGraph::new();
+        graph.register(node).unwrap();
+        graph.push("inbound", Datum::root(json!("Hello world"))).unwrap();
+
+        let fired = graph.run_to_completion(&EchoHandler).unwrap();
+        assert_eq!(fired, 1);
+
+        // Output should be in classification queue
+        assert!(graph.queues.get("classification").unwrap().has_data());
     }
 }

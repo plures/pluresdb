@@ -1,37 +1,29 @@
-feat(px): dataflow-driven procedure execution — queues ARE the executor
+feat(px): dataflow procedure parser + builder + ident types
 
-Implements the queue-driven dataflow architecture for .px procedures:
+Completes the grammar-to-AST pipeline for dataflow procedures:
 
-Core Architecture:
-- Procedures are pure functions with typed inputs and outputs
-- PluresDB materializes inputs into queues; procedures fire when ALL
-  input queues have data
-- No scheduler, no dispatcher, no priority system — queues ARE the executor
+Parser:
+- dataflow_procedure_decl grammar rule now fully functional
+- Parses typed parameters with optional `from "queue"` bindings
+- Parses return type with optional `into "queue"` bindings
+- Added `ident_type` to `type_expr` so user-defined types (classification,
+  response, etc.) are valid in procedure signatures
 
-Key Properties:
-- Procedures are pure: no side effects, don't mutate inputs
-- 100% concurrent: independent procedures fire simultaneously
-- No cycles in execution: topology can loop, each datum is distinct
-- Termination is natural: procedure returns nothing, queue stays empty
-- Depth guard: queue rejects writes at configured limit (default 25)
+Builder:
+- build_dataflow_procedure() produces PxDataflowProcedure from parse tree
+- Extracts param name, type_expr, source binding for each parameter
+- Extracts return type_expr and destination binding
+- Delegates step parsing to existing build_step()
 
-New Module: px::dataflow
-- Datum: tagged value with lineage depth tracking
-- Queue: bounded FIFO with depth guards and backpressure
-- ProcedureNode: typed input/output slots + compiled body
-- DataflowGraph: synchronous execution (step/run_to_completion)
-- AsyncDataflowGraph: concurrent execution via tokio::spawn
-- ProcedureSignature: parser support for typed procedure syntax
-- signature_to_node(): converts parsed signatures to graph nodes
+AST:
+- PxDataflowProcedure struct (name, params, return_type, given, steps)
+- PxDataflowParam struct (name, type_expr, source)
+- PxDataflowReturn struct (type_expr, destination)
+- PxDocument.dataflow_procedures field
 
-Grammar Extension:
-- New dataflow procedure syntax (backwards-compatible)
-- procedure name(arg: type) -> output_type:
-- Optional source/dest bindings: from "key" / into "key"
+Tests (3 new, all passing):
+- parse_dataflow_procedure_simple: basic signature without bindings
+- parse_dataflow_procedure_with_bindings: from/into queue bindings
+- parse_dataflow_procedure_no_return: void procedures (sinks)
 
-Effect Boundary (C-PLURES-004):
-- Pure logic compiles into DataflowGraph nodes
-- Side-effecting actions are actors triggered BY queue writes
-- Procedures compose logic; actors perform effects
-
-Tests: 6/6 passing
+Full suite: 502 pass, 1 pre-existing failure (resolver IO test, unrelated)

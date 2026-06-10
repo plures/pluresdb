@@ -244,7 +244,7 @@ fn compile_procedure(procedure: &PxProcedure) -> CompiledRecord {
     }
 }
 
-fn compile_step(step: &PxStep) -> serde_json::Value {
+pub(crate) fn compile_step(step: &PxStep) -> serde_json::Value {
     match step {
         PxStep::Call {
             name,
