@@ -53,8 +53,8 @@ procedure_decl = { "procedure" ~ ident ~ ":" ~ NEWLINE ~ procedure_body }
 procedure_body = { procedure_trigger_clause? ~ given_clause? ~ step_list }
 procedure_trigger_clause = { "trigger:" ~ procedure_trigger_kind ~ NEWLINE }
 procedure_trigger_kind = { "on_write" ~ map_val? | "before_response" | "after_response" | "cron" ~ map_val? | "manual" }
-step_list = { (step_decl ~ NEWLINE)+ }
-block_step_list = { (!("end" | "catch:") ~ step_decl ~ NEWLINE)+ }
+step_list = { ((step_decl ~ NEWLINE) | NEWLINE)+ }
+block_step_list = { (!("end" | "catch:") ~ ((step_decl ~ NEWLINE) | NEWLINE))+ }
 step_decl = { step_define | step_match | step_when | step_loop | step_emit | step_try | step_parallel | step_return | step_abort | step_call }
 step_define = { kw_define ~ "$" ~ ident ~ "=" ~ value }
 step_return = { kw_return ~ value? }
