@@ -141,8 +141,9 @@ schedule_clause = { "schedule:" ~ string ~ NEWLINE }
 run_clause = { "run:" ~ ident ~ NEWLINE }
 
 // === Types ===
-type_expr = { enum_type | list_type | optional_type | base_type }
+type_expr = { enum_type | list_type | optional_type | base_type | ident_type }
 base_type = { "bool" | "int" | "float" | "string" | "duration" }
+ident_type = { ident }
 enum_type = { "enum(" ~ ident ~ ("," ~ ident)* ~ ")" }
 list_type = { "list[" ~ type_expr ~ "]" }
 optional_type = { "optional[" ~ type_expr ~ "]" }

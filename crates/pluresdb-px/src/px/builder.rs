@@ -4,9 +4,10 @@ use pest::iterators::{Pair, Pairs};
 use std::collections::HashMap;
 
 use super::{
-    FunctionMode, PxAction, PxCapture, PxConstraint, PxContract, PxDocument, PxExample,
-    PxExpectation, PxFact, PxField, PxFunction, PxImport, PxMatchArm, PxParallelBranch,
-    PxProcedure, PxProcedureTrigger, PxRule, PxScenario, PxScenarioRun, PxStep, PxTrigger, Rule,
+    FunctionMode, PxAction, PxCapture, PxConstraint, PxContract, PxDataflowParam,
+    PxDataflowProcedure, PxDataflowReturn, PxDocument, PxExample, PxExpectation, PxFact, PxField,
+    PxFunction, PxImport, PxMatchArm, PxParallelBranch, PxProcedure, PxProcedureTrigger, PxRule,
+    PxScenario, PxScenarioRun, PxStep, PxTrigger, Rule,
 };
 
 /// Build a PxDocument from parsed pest pairs.
@@ -20,6 +21,7 @@ pub fn build(pairs: Pairs<'_, Rule>) -> PxDocument {
         functions: vec![],
         triggers: vec![],
         procedures: vec![],
+        dataflow_procedures: vec![],
         scenarios: vec![],
     };
 
@@ -50,6 +52,7 @@ fn push_pair_into_document(pair: Pair<'_, Rule>, doc: &mut PxDocument) {
         Rule::function_decl => doc.functions.push(build_function(pair)),
         Rule::trigger_decl => doc.triggers.push(build_trigger(pair)),
         Rule::procedure_decl => doc.procedures.push(build_procedure(pair)),
+        Rule::dataflow_procedure_decl => doc.dataflow_procedures.push(build_dataflow_procedure(pair)),
         Rule::scenario_decl => doc.scenarios.push(build_scenario(pair)),
         Rule::EOI => {}
         _ => {}
@@ -593,6 +596,76 @@ fn build_procedure(pair: Pair<'_, Rule>) -> PxProcedure {
     PxProcedure {
         name,
         trigger,
+        given,
+        steps,
+    }
+}
+
+fn build_dataflow_procedure(pair: Pair<'_, Rule>) -> PxDataflowProcedure {
+    let mut inner = pair.into_inner();
+    let name = next_str(&mut inner);
+
+    let mut params = vec![];
+    let mut return_type = None;
+    let mut given = None;
+    let mut steps = vec![];
+
+    for child in inner {
+        match child.as_rule() {
+            Rule::dataflow_param_list => {
+                for param_pair in child.into_inner() {
+                    if param_pair.as_rule() == Rule::dataflow_param {
+                        let mut pi = param_pair.into_inner();
+                        let param_name = next_str(&mut pi);
+                        let type_expr = pi
+                            .find(|p| p.as_rule() == Rule::type_expr)
+                            .map(|p| p.as_str().to_string())
+                            .unwrap_or_default();
+                        let source = pi
+                            .find(|p| p.as_rule() == Rule::dataflow_source_binding)
+                            .and_then(|p| p.into_inner().next())
+                            .map(|p| unquote(p.as_str()));
+                        params.push(PxDataflowParam {
+                            name: param_name,
+                            type_expr,
+                            source,
+                        });
+                    }
+                }
+            }
+            Rule::dataflow_return_type => {
+                let mut ri = child.into_inner();
+                let type_expr = ri
+                    .find(|p| p.as_rule() == Rule::type_expr)
+                    .map(|p| p.as_str().to_string())
+                    .unwrap_or_default();
+                let destination = ri
+                    .find(|p| p.as_rule() == Rule::dataflow_dest_binding)
+                    .and_then(|p| p.into_inner().next())
+                    .map(|p| unquote(p.as_str()));
+                return_type = Some(PxDataflowReturn {
+                    type_expr,
+                    destination,
+                });
+            }
+            Rule::given_clause => {
+                given = child.into_inner().next().map(|p| unquote(p.as_str()));
+            }
+            Rule::step_list => {
+                steps = child
+                    .into_inner()
+                    .filter(|p| p.as_rule() == Rule::step_decl)
+                    .map(build_step)
+                    .collect();
+            }
+            _ => {}
+        }
+    }
+
+    PxDataflowProcedure {
+        name,
+        params,
+        return_type,
         given,
         steps,
     }

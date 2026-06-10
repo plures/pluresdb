@@ -479,6 +479,7 @@ mod tests {
             functions: vec![],
             triggers: vec![],
             procedures: vec![],
+            dataflow_procedures: vec![],
             scenarios: vec![],
         }
     }

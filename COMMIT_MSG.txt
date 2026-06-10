@@ -1,0 +1,37 @@
+feat(px): dataflow-driven procedure execution — queues ARE the executor
+
+Implements the queue-driven dataflow architecture for .px procedures:
+
+Core Architecture:
+- Procedures are pure functions with typed inputs and outputs
+- PluresDB materializes inputs into queues; procedures fire when ALL
+  input queues have data
+- No scheduler, no dispatcher, no priority system — queues ARE the executor
+
+Key Properties:
+- Procedures are pure: no side effects, don't mutate inputs
+- 100% concurrent: independent procedures fire simultaneously
+- No cycles in execution: topology can loop, each datum is distinct
+- Termination is natural: procedure returns nothing, queue stays empty
+- Depth guard: queue rejects writes at configured limit (default 25)
+
+New Module: px::dataflow
+- Datum: tagged value with lineage depth tracking
+- Queue: bounded FIFO with depth guards and backpressure
+- ProcedureNode: typed input/output slots + compiled body
+- DataflowGraph: synchronous execution (step/run_to_completion)
+- AsyncDataflowGraph: concurrent execution via tokio::spawn
+- ProcedureSignature: parser support for typed procedure syntax
+- signature_to_node(): converts parsed signatures to graph nodes
+
+Grammar Extension:
+- New dataflow procedure syntax (backwards-compatible)
+- procedure name(arg: type) -> output_type:
+- Optional source/dest bindings: from "key" / into "key"
+
+Effect Boundary (C-PLURES-004):
+- Pure logic compiles into DataflowGraph nodes
+- Side-effecting actions are actors triggered BY queue writes
+- Procedures compose logic; actors perform effects
+
+Tests: 6/6 passing

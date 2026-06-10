@@ -36,6 +36,7 @@ pub struct PxDocument {
     pub functions: Vec<PxFunction>,
     pub triggers: Vec<PxTrigger>,
     pub procedures: Vec<PxProcedure>,
+    pub dataflow_procedures: Vec<PxDataflowProcedure>,
     pub scenarios: Vec<PxScenario>,
 }
 
@@ -150,6 +151,34 @@ pub struct PxProcedure {
 pub struct PxProcedureTrigger {
     pub kind: String,
     pub params: Option<serde_json::Value>,
+}
+
+/// A dataflow procedure: pure function with typed inputs and outputs.
+/// Fires when all input queues have data. No trigger keyword.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PxDataflowProcedure {
+    pub name: String,
+    pub params: Vec<PxDataflowParam>,
+    pub return_type: Option<PxDataflowReturn>,
+    pub given: Option<String>,
+    pub steps: Vec<PxStep>,
+}
+
+/// A typed parameter with optional source queue binding.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PxDataflowParam {
+    pub name: String,
+    pub type_expr: String,
+    /// Source queue. If None, defaults to param name.
+    pub source: Option<String>,
+}
+
+/// Return type with optional destination queue binding.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PxDataflowReturn {
+    pub type_expr: String,
+    /// Destination queue. If None, defaults to procedure name.
+    pub destination: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -990,5 +1019,64 @@ scenario ttl_enforced:
         let doc = parse(source).expect("failed to parse mixed doc");
         assert_eq!(doc.constraints.len(), 1);
         assert_eq!(doc.scenarios.len(), 1);
+    }
+
+    #[test]
+    fn parse_dataflow_procedure_simple() {
+        let source = r#"
+procedure classify_message(message: string) -> classification:
+  given: "Classify an incoming message"
+  detect_intent {text: $message} -> $intent
+  return $intent
+"#;
+        let doc = parse(source).expect("failed to parse dataflow procedure");
+        assert_eq!(doc.dataflow_procedures.len(), 1);
+        let proc = &doc.dataflow_procedures[0];
+        assert_eq!(proc.name, "classify_message");
+        assert_eq!(proc.params.len(), 1);
+        assert_eq!(proc.params[0].name, "message");
+        assert_eq!(proc.params[0].type_expr, "string");
+        assert!(proc.params[0].source.is_none());
+        assert!(proc.return_type.is_some());
+        let ret = proc.return_type.as_ref().unwrap();
+        assert_eq!(ret.type_expr, "classification");
+        assert!(ret.destination.is_none());
+        assert_eq!(proc.steps.len(), 2); // detect_intent + return
+    }
+
+    #[test]
+    fn parse_dataflow_procedure_with_bindings() {
+        let source = r#"
+procedure invoke_model(history: list from "chat_history", prompt: string from "system_prompt") -> response into "model_response":
+  given: "Call the model"
+  model_complete {messages: $history} -> $response
+  return $response
+"#;
+        let doc = parse(source).expect("failed to parse dataflow with bindings");
+        assert_eq!(doc.dataflow_procedures.len(), 1);
+        let proc = &doc.dataflow_procedures[0];
+        assert_eq!(proc.name, "invoke_model");
+        assert_eq!(proc.params.len(), 2);
+        assert_eq!(proc.params[0].name, "history");
+        assert_eq!(proc.params[0].source.as_deref(), Some("chat_history"));
+        assert_eq!(proc.params[1].name, "prompt");
+        assert_eq!(proc.params[1].source.as_deref(), Some("system_prompt"));
+        let ret = proc.return_type.as_ref().unwrap();
+        assert_eq!(ret.type_expr, "response");
+        assert_eq!(ret.destination.as_deref(), Some("model_response"));
+    }
+
+    #[test]
+    fn parse_dataflow_procedure_no_return() {
+        let source = r#"
+procedure record_message(message: string):
+  given: "Record to history"
+  append_history {content: $message} -> $ok
+"#;
+        let doc = parse(source).expect("failed to parse dataflow without return");
+        assert_eq!(doc.dataflow_procedures.len(), 1);
+        let proc = &doc.dataflow_procedures[0];
+        assert_eq!(proc.name, "record_message");
+        assert!(proc.return_type.is_none());
     }
 }
