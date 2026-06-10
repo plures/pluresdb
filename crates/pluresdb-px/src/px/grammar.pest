@@ -59,7 +59,7 @@ step_decl = { step_define | step_match | step_when | step_loop | step_emit | ste
 step_define = { kw_define ~ "$" ~ ident ~ "=" ~ value }
 step_return = { kw_return ~ value? }
 step_abort = { kw_abort ~ value? }
-step_call = { ident ~ (map_val | param_pair*) ~ ("->" ~ "$" ~ ident)? }
+step_call = { ident ~ (map_val | value+ | param_pair*) ~ ("->" ~ "$" ~ ident)? }
 step_match = { "match:" ~ NEWLINE ~ match_arm_list ~ "end" }
 match_arm_list = { (!("end") ~ match_arm ~ NEWLINE)+ }
 match_arm = { expr ~ "->" ~ ident }
@@ -172,7 +172,7 @@ dotted_ident = @{ ident ~ (("." ~ ident) | bracket_segment)* }
 bracket_segment = @{ "[" ~ (ASCII_DIGIT+ | ("\"" ~ (!"\"" ~ ANY)* ~ "\"") | ("'" ~ (!("'") ~ ANY)* ~ "'")) ~ "]" }
 
 // === Values ===
-value = { string | float | integer | boolean | list_val | map_val | var_ref | dotted_ident | paren_expr | ident }
+value = { string | float | integer | boolean | list_val | map_val | call_expr | var_ref | dotted_ident | paren_expr | ident }
 paren_expr = { "(" ~ expr ~ ")" }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
 integer = @{ ASCII_DIGIT+ }
@@ -183,5 +183,5 @@ map_val = { "{" ~ NEWLINE* ~ (ident ~ ":" ~ value ~ ("," ~ NEWLINE* ~ ident ~ ":
 
 // === Tokens ===
 ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-var_ref = @{ "$" ~ ident ~ ("." ~ ident)* }
+var_ref = @{ "$" ~ ident ~ (("[" ~ (ASCII_DIGIT+ | ("\"" ~ (!"\"" ~ ANY)* ~ "\"")) ~ "]") | ("." ~ ident))* }
 NEWLINE = _{ "\n" | "\r\n" }
