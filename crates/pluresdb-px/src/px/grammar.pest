@@ -172,13 +172,15 @@ dotted_ident = @{ ident ~ (("." ~ ident) | bracket_segment)* }
 bracket_segment = @{ "[" ~ (ASCII_DIGIT+ | ("\"" ~ (!"\"" ~ ANY)* ~ "\"") | ("'" ~ (!("'") ~ ANY)* ~ "'")) ~ "]" }
 
 // === Values ===
-value = { string | float | integer | boolean | list_val | map_val | var_ref | ident }
+value = { string | float | integer | boolean | list_val | map_val | var_ref | dotted_ident | ident }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
 integer = @{ ASCII_DIGIT+ }
 float = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 boolean = { "true" | "false" }
-list_val = { "[" ~ (value ~ ("," ~ value)*)? ~ "]" }
-map_val = { "{" ~ (ident ~ ":" ~ value ~ ("," ~ ident ~ ":" ~ value)*)? ~ "}" }
+list_val = { "[" ~ inner_list ~ "]" }
+inner_list = _{ (NEWLINE | value ~ ("," ~ (NEWLINE)* ~ value)*)? }
+map_val = { "{" ~ inner_map ~ "}" }
+inner_map = _{ (NEWLINE | ident ~ ":" ~ value ~ ("," ~ (NEWLINE)* ~ ident ~ ":" ~ value)*)? }
 
 // === Tokens ===
 ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
