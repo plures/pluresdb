@@ -1,23 +1,70 @@
-// Praxis Intent Language (.px) grammar for pest
-// See docs/PX-GRAMMAR.md for the full specification
+// Praxis Intent Language (.px) — Unified Grammar v4
+// Single source of truth: pluresdb/crates/pluresdb-px/src/px/grammar.pest
+//
+// Design principles:
+// - YAML-native declarations (entity, config, fact, rule, constraint, contract)
+// - Rust-native code blocks for procedure bodies (v2: { let x = f(); if x { ... } })
+// - Queue-driven dataflow procedures with typed args (v3: no triggers, no on_write)
+// - Borrow expression grammar from Rust (operator precedence, closures, match)
+// - Borrow declaration grammar from YAML/HCL (indentation-optional, key: value)
+//
+// References:
+// - Rust expression precedence: https://doc.rust-lang.org/reference/expressions.html
+// - YAML scalar types: https://yaml.org/spec/1.2.2/
+// - tree-sitter-rust (grammar.js): statement/expression structure
+// - tree-sitter-hcl: interpolation patterns (future: string interpolation)
 
 WHITESPACE = _{ " " | "\t" }
-COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
+COMMENT = _{ ("#" ~ (!NEWLINE ~ ANY)*) | ("//" ~ (!NEWLINE ~ ANY)*) }
 
 document = { SOI ~ NEWLINE* ~ (statement ~ NEWLINE*)* ~ EOI }
 
-statement = _{ import_decl | fact_decl | rule_decl | constraint_decl | contract_decl | function_decl | trigger_decl | dataflow_procedure_decl | procedure_decl | scenario_decl }
+statement = _{
+    import_decl
+  | entity_decl
+  | config_decl
+  | fact_decl
+  | rule_decl
+  | constraint_decl
+  | contract_decl
+  | function_decl
+  | trigger_decl
+  | dataflow_procedure_decl
+  | procedure_decl
+  | scenario_decl
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DECLARATIONS (YAML-native: keyword name: \n body)
+// ══════════════════════════════════════════════════════════════════════════════
 
 // === Imports ===
 import_decl = { "import" ~ rust_path ~ ("as" ~ ident)? }
 rust_path = @{ ident ~ ("::" ~ ident)* }
 
-// === Facts ===
+// === Entities (typed PluresDB node schemas) ===
+entity_decl = { "entity" ~ ident ~ ":" ~ NEWLINE ~ entity_body }
+entity_body = { entity_prefix_clause? ~ entity_fields_clause }
+entity_prefix_clause = { "prefix:" ~ string ~ NEWLINE }
+entity_fields_clause = { "fields:" ~ NEWLINE ~ entity_field_list }
+entity_field_list = { (entity_field ~ NEWLINE)+ }
+entity_field = { ident ~ ":" ~ entity_type_expr }
+entity_type_expr = { enum_type | list_type | optional_type | base_type | ident_type }
+
+// === Config (static key-value blocks, nested) ===
+config_decl = { "config" ~ ident ~ ":" ~ NEWLINE ~ config_body }
+config_body = { (config_entry ~ NEWLINE?)+ }
+config_entry = { ident ~ ":" ~ (config_nested | config_value) ~ NEWLINE? }
+config_nested = { NEWLINE ~ (config_kv ~ NEWLINE)+ }
+config_kv = { ident ~ ":" ~ (config_nested | config_value) }
+config_value = { list_val | float | integer | string | boolean }
+
+// === Facts (typed structures, like entity but lighter) ===
 fact_decl = { "fact" ~ ident ~ ":" ~ NEWLINE ~ field_list }
 field_list = { (field ~ NEWLINE)+ }
 field = { ident ~ ":" ~ type_expr }
 
-// === Rules ===
+// === Rules (reactive: when conditions → then actions) ===
 rule_decl = { "rule" ~ ident ~ ":" ~ NEWLINE ~ rule_body }
 rule_body = { priority_clause? ~ when_clause ~ let_clause* ~ then_clause ~ capture_clause? }
 priority_clause = { "priority:" ~ integer ~ NEWLINE }
@@ -33,9 +80,19 @@ param_pair = { ident ~ ":" ~ value }
 capture_clause = { "capture:" ~ NEWLINE ~ ("-" ~ capture_entry ~ NEWLINE)+ }
 capture_entry = { "fact:" ~ string ~ ("category:" ~ ident)? ~ ("tags:" ~ list_val)? }
 
-// === Constraints ===
+// === Constraints (invariant enforcement) ===
 constraint_decl = { "constraint" ~ ident ~ ":" ~ NEWLINE ~ constraint_body }
-constraint_body = { scope_clause? ~ phase_clause? ~ trait_clause? ~ weight_clause? ~ prompt_clause? ~ when_expr? ~ require_expr? ~ severity_clause ~ message_clause? }
+constraint_body = {
+    scope_clause?
+  ~ phase_clause?
+  ~ trait_clause?
+  ~ weight_clause?
+  ~ prompt_clause?
+  ~ when_expr?
+  ~ require_expr?
+  ~ severity_clause
+  ~ message_clause?
+}
 scope_clause = { "scope:" ~ ident ~ NEWLINE }
 phase_clause = { "phase:" ~ ident_csv ~ NEWLINE }
 trait_clause = { "trait:" ~ ident ~ NEWLINE }
@@ -48,73 +105,7 @@ severity_level = { "error" | "warning" | "info" }
 message_clause = { "message:" ~ string ~ NEWLINE }
 ident_csv = { ident ~ ("," ~ ident)* }
 
-// === Procedures ===
-procedure_decl = { "procedure" ~ ident ~ ":" ~ NEWLINE ~ procedure_body }
-procedure_body = { procedure_trigger_clause? ~ given_clause? ~ step_list }
-procedure_trigger_clause = { "trigger:" ~ procedure_trigger_kind ~ NEWLINE }
-procedure_trigger_kind = { "on_write" ~ map_val? | "before_response" | "after_response" | "cron" ~ map_val? | "manual" }
-step_list = { ((step_decl ~ NEWLINE) | NEWLINE)+ }
-block_step_list = { (!("end" | "catch:") ~ ((step_decl ~ NEWLINE) | NEWLINE))+ }
-step_decl = { step_define | step_match | step_when | step_loop | step_emit | step_try | step_parallel | step_return | step_abort | step_call }
-step_define = { kw_define ~ "$" ~ ident ~ "=" ~ value }
-step_return = { kw_return ~ value? }
-step_abort = { kw_abort ~ value? }
-step_call = { ident ~ (map_val | value+ | param_pair*) ~ ("->" ~ "$" ~ ident)? }
-step_match = { "match:" ~ NEWLINE ~ match_arm_list ~ "end" }
-match_arm_list = { (!("end") ~ match_arm ~ NEWLINE)+ }
-match_arm = { expr ~ "->" ~ ident }
-step_when = { kw_when ~ expr ~ ":" ~ NEWLINE ~ block_step_list ~ "end" }
-step_loop = { kw_loop ~ loop_source ~ ("as" ~ ident)? ~ key_as_clause? ~ ("->" ~ "$" ~ ident)? ~ ":" ~ NEWLINE ~ block_step_list ~ "end" }
-key_as_clause = { "key_as" ~ ident }
-loop_source = { "over" ~ "$" ~ ident | "times" ~ integer }
-step_emit = { kw_emit ~ (map_val | param_pair+) }
-step_try = { kw_try ~ try_retry_clause? ~ ":" ~ NEWLINE ~ try_step_list ~ catch_clause? ~ "end" }
-try_retry_clause = { "retry" ~ integer ~ branch_retry_opt* }
-try_step_list = { (!("catch:" | "end") ~ step_decl ~ NEWLINE)+ }
-catch_clause = { "catch:" ~ NEWLINE ~ (!("end") ~ step_decl ~ NEWLINE)+ }
-step_parallel = { kw_parallel ~ ("-" ~ ">" ~ "$" ~ ident)? ~ ":" ~ NEWLINE ~ parallel_branch_list ~ "end" }
-
-// Keyword boundary rules (atomic to prevent implicit whitespace between keyword and lookahead)
-kw_return = @{ "return" ~ !(ASCII_ALPHANUMERIC | "_") }
-kw_abort = @{ "abort" ~ !(ASCII_ALPHANUMERIC | "_") }
-kw_define = @{ "define" ~ !(ASCII_ALPHANUMERIC | "_") }
-kw_when = @{ "when" ~ !(ASCII_ALPHANUMERIC | "_") }
-kw_loop = @{ "loop" ~ !(ASCII_ALPHANUMERIC | "_") }
-kw_emit = @{ "emit" ~ !(ASCII_ALPHANUMERIC | "_") }
-kw_try = @{ "try" ~ !(ASCII_ALPHANUMERIC | "_") }
-kw_parallel = @{ "parallel" ~ !(ASCII_ALPHANUMERIC | "_") }
-parallel_branch_list = { (parallel_branch ~ NEWLINE?)+ }
-parallel_branch = { "branch" ~ ident ~ branch_retry_clause? ~ ":" ~ NEWLINE ~ block_step_list ~ "end" }
-branch_retry_clause = { "retry" ~ integer ~ branch_retry_opt* }
-branch_retry_opt = { retry_delay_opt | retry_backoff_opt | retry_max_delay_opt | retry_jitter_opt }
-retry_delay_opt = { "delay" ~ integer ~ "ms" }
-retry_backoff_opt = { "backoff" ~ backoff_strategy }
-backoff_strategy = { "exponential" | "fixed" }
-retry_max_delay_opt = { "max_delay" ~ integer ~ "ms" }
-retry_jitter_opt = { "jitter" }
-
-// === Scenarios ===
-scenario_decl = { "scenario" ~ ident ~ ":" ~ NEWLINE ~ scenario_body }
-
-// === Dataflow Procedures (queue-driven, typed signatures) ===
-// procedure name(arg: type, arg: type) -> output_type:
-//   steps...
-dataflow_procedure_decl = { "procedure" ~ ident ~ "(" ~ dataflow_param_list? ~ ")" ~ dataflow_return_type? ~ ":" ~ NEWLINE ~ given_clause? ~ step_list }
-dataflow_param_list = { dataflow_param ~ ("," ~ dataflow_param)* }
-dataflow_param = { ident ~ ":" ~ type_expr ~ dataflow_source_binding? }
-dataflow_source_binding = { "from" ~ string }
-dataflow_return_type = { "->" ~ type_expr ~ dataflow_dest_binding? }
-dataflow_dest_binding = { "into" ~ string }
-scenario_body = { given_clause ~ setup_clause? ~ scenario_run_clause? ~ expect_clause }
-setup_clause = { "setup:" ~ NEWLINE ~ step_list }
-scenario_run_clause = { "run:" ~ ident ~ map_val? ~ NEWLINE }
-expect_clause = { "expect:" ~ NEWLINE ~ expectation_list }
-expectation_list = { ("-" ~ expectation ~ NEWLINE)+ }
-expectation = { not_expectation | positive_expectation }
-not_expectation = { "NOT" ~ positive_expectation }
-positive_expectation = { ident ~ map_val? }
-
-// === Contracts ===
+// === Contracts (behavioral specifications with examples) ===
 contract_decl = { "contract" ~ ident ~ ":" ~ NEWLINE ~ contract_body }
 contract_body = { given_clause? ~ when_desc? ~ then_desc? ~ threshold_clause? ~ examples_clause }
 given_clause = { "given:" ~ string ~ NEWLINE }
@@ -125,7 +116,7 @@ examples_clause = { "examples:" ~ NEWLINE ~ example_list }
 example_list = { ("-" ~ example ~ NEWLINE)+ }
 example = { "input:" ~ value ~ NEWLINE ~ "expect:" ~ value ~ (NEWLINE ~ "threshold:" ~ float)? }
 
-// === Functions ===
+// === Functions (typed signatures with docstrings) ===
 function_decl = { "function" ~ ident ~ "(" ~ param_list? ~ ")" ~ "->" ~ type_expr ~ ":" ~ NEWLINE ~ function_body }
 function_body = { mode_clause? ~ docstring }
 mode_clause = { "mode:" ~ function_mode ~ NEWLINE }
@@ -134,7 +125,7 @@ param_list = { param ~ ("," ~ param)* }
 param = { ident ~ ":" ~ type_expr }
 docstring = @{ "\"\"\"" ~ (!("\"\"\"") ~ ANY)* ~ "\"\"\"" }
 
-// === Triggers ===
+// === Triggers (legacy — kept for backward compat, compiles to single-input dataflow) ===
 trigger_decl = { "trigger" ~ ident ~ ":" ~ NEWLINE ~ trigger_body }
 trigger_body = { on_clause ~ schedule_clause? ~ run_clause }
 on_clause = { "on:" ~ trigger_event ~ NEWLINE }
@@ -142,22 +133,223 @@ trigger_event = { "after_store" | "before_search" | "on_event(" ~ string ~ ")" |
 schedule_clause = { "schedule:" ~ string ~ NEWLINE }
 run_clause = { "run:" ~ ident ~ NEWLINE }
 
-// === Types ===
-type_expr = { enum_type | list_type | optional_type | base_type | ident_type }
-base_type = { "bool" | "int" | "float" | "string" | "duration" }
-ident_type = { ident }
-enum_type = { "enum(" ~ ident ~ ("," ~ ident)* ~ ")" }
-list_type = { "list[" ~ type_expr ~ "]" }
-optional_type = { "optional[" ~ type_expr ~ "]" }
+// === Scenarios (test specifications) ===
+scenario_decl = { "scenario" ~ ident ~ ":" ~ NEWLINE ~ scenario_body }
+scenario_body = { given_clause ~ setup_clause? ~ scenario_run_clause? ~ expect_clause }
+setup_clause = { "setup:" ~ NEWLINE ~ step_list }
+scenario_run_clause = { "run:" ~ ident ~ map_val? ~ NEWLINE }
+expect_clause = { "expect:" ~ NEWLINE ~ expectation_list }
+expectation_list = { ("-" ~ expectation ~ NEWLINE)+ }
+expectation = { not_expectation | positive_expectation }
+not_expectation = { "NOT" ~ positive_expectation }
+positive_expectation = { ident ~ map_val? }
 
-// === Expressions ===
-expr = { comparison ~ (logic_op ~ comparison)* }
-comparison = { arith_expr ~ (comp_op ~ arith_expr)? }
-arith_expr = { term ~ (arith_op ~ term)* }
+// ══════════════════════════════════════════════════════════════════════════════
+// PROCEDURES (the executable logic layer)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// === Dataflow Procedures (v3 — queue-driven, typed args, NO triggers) ===
+// This is the PRIMARY procedure form. Uses typed parameters with queue bindings.
+// procedure name(arg: type from "queue", ...) -> return_type into "queue":
+//   steps...
+//   OR
+//   { code_block }
+dataflow_procedure_decl = {
+    "procedure" ~ ident ~ "(" ~ dataflow_param_list? ~ ")" ~ dataflow_return_type? ~ ":" ~ NEWLINE
+  ~ given_clause?
+  ~ (code_block | step_list)
+}
+dataflow_param_list = { dataflow_param ~ ("," ~ dataflow_param)* }
+dataflow_param = { ident ~ ":" ~ type_expr ~ dataflow_source_binding? }
+dataflow_source_binding = { "from" ~ string }
+dataflow_return_type = { "->" ~ type_expr ~ dataflow_dest_binding? }
+dataflow_dest_binding = { "into" ~ string }
+
+// === Legacy Procedures (v1 — step-list with optional trigger, kept for migration) ===
+procedure_decl = { "procedure" ~ ident ~ ":" ~ NEWLINE ~ procedure_body }
+procedure_body = { procedure_trigger_clause? ~ params_clause? ~ given_clause? ~ (code_block | step_list) }
+params_clause = { "params:" ~ "[" ~ param_ident ~ ("," ~ param_ident)* ~ "]" ~ NEWLINE }
+param_ident = @{ "$"? ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+procedure_trigger_clause = { "trigger:" ~ procedure_trigger_kind ~ NEWLINE ~ trigger_sub_keys? }
+procedure_trigger_kind = {
+    "periodic" ~ map_val?
+  | "on_write" ~ trigger_pattern? ~ map_val?
+  | "on_event" ~ "(" ~ string ~ ")"
+  | "startup"
+  | "before_response"
+  | "after_response"
+  | "cron" ~ map_val?
+  | "manual"
+}
+trigger_pattern = { "(" ~ string ~ ")" }
+trigger_sub_keys = { (trigger_sub_key ~ NEWLINE)+ }
+trigger_sub_key = { !("params:" | "given:" | "steps:" | "{") ~ ident ~ ":" ~ trigger_sub_value }
+trigger_sub_value = @{ (!NEWLINE ~ ANY)+ }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// V1 STEP LIST (declarative step-by-step execution)
+// ══════════════════════════════════════════════════════════════════════════════
+
+step_list = { ((step_decl ~ NEWLINE) | NEWLINE)+ }
+block_step_list = { (!("end" | "catch:") ~ ((step_decl ~ NEWLINE) | NEWLINE))+ }
+step_decl = {
+    step_define
+  | step_match
+  | step_when
+  | step_for
+  | step_loop
+  | step_emit
+  | step_try
+  | step_parallel
+  | step_return
+  | step_abort
+  | step_assign
+  | step_if
+  | step_call
+}
+step_define = { kw_define ~ "$" ~ ident ~ "=" ~ value }
+step_return = { kw_return ~ value? }
+step_abort = { kw_abort ~ value? }
+step_call = { ident ~ (call_args | map_val | param_pair+ | value+)? ~ ("->" ~ "$" ~ ident)? }
+call_args = { "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
+step_assign = { var_ref ~ "=" ~ assign_value }
+assign_value = @{ (!"\n" ~ ANY)+ }
+step_if = { "if" ~ expr ~ ":" ~ NEWLINE ~ block_step_list ~ step_else? ~ "end" }
+step_else = { "else:" ~ NEWLINE ~ block_step_list }
+step_match = { "match:" ~ NEWLINE ~ match_arm_list ~ "end" }
+match_arm_list = { (!("end") ~ match_arm ~ NEWLINE)+ }
+match_arm = { expr ~ "->" ~ ident }
+step_when = { kw_when ~ expr ~ ":" ~ NEWLINE ~ block_step_list ~ "end" }
+step_for = { "for" ~ var_ref ~ "in" ~ (call_expr | var_ref | dotted_ident) ~ ":" ~ NEWLINE ~ block_step_list ~ "end" }
+step_loop = { kw_loop ~ loop_source ~ ("as" ~ ident)? ~ key_as_clause? ~ ("->" ~ "$" ~ ident)? ~ ":" ~ NEWLINE ~ block_step_list ~ "end" }
+key_as_clause = { "key_as" ~ ident }
+loop_source = { "over" ~ "$" ~ ident | "times" ~ integer }
+step_emit = { kw_emit ~ (map_val | param_pair+) }
+step_try = { kw_try ~ try_retry_clause? ~ ":" ~ NEWLINE ~ try_step_list ~ catch_clause? ~ "end" }
+try_retry_clause = { "retry" ~ integer ~ branch_retry_opt* }
+try_step_list = { (!("catch:" | "end") ~ step_decl ~ NEWLINE)+ }
+catch_clause = { "catch:" ~ NEWLINE ~ (!("end") ~ step_decl ~ NEWLINE)+ }
+step_parallel = { kw_parallel ~ ("-" ~ ">" ~ "$" ~ ident)? ~ ":" ~ NEWLINE ~ parallel_branch_list ~ "end" }
+parallel_branch_list = { (parallel_branch ~ NEWLINE?)+ }
+parallel_branch = { "branch" ~ ident ~ branch_retry_clause? ~ ":" ~ NEWLINE ~ block_step_list ~ "end" }
+branch_retry_clause = { "retry" ~ integer ~ branch_retry_opt* }
+branch_retry_opt = { retry_delay_opt | retry_backoff_opt | retry_max_delay_opt | retry_jitter_opt }
+retry_delay_opt = { "delay" ~ integer ~ "ms" }
+retry_backoff_opt = { "backoff" ~ backoff_strategy }
+backoff_strategy = { "exponential" | "fixed" }
+retry_max_delay_opt = { "max_delay" ~ integer ~ "ms" }
+retry_jitter_opt = { "jitter" }
+
+// Keyword boundaries (prevents matching keyword prefix of longer identifiers)
+kw_return = @{ "return" ~ !(ASCII_ALPHANUMERIC | "_") }
+kw_abort = @{ "abort" ~ !(ASCII_ALPHANUMERIC | "_") }
+kw_define = @{ "define" ~ !(ASCII_ALPHANUMERIC | "_") }
+kw_when = @{ "when" ~ !(ASCII_ALPHANUMERIC | "_") }
+kw_loop = @{ "loop" ~ !(ASCII_ALPHANUMERIC | "_") }
+kw_emit = @{ "emit" ~ !(ASCII_ALPHANUMERIC | "_") }
+kw_try = @{ "try" ~ !(ASCII_ALPHANUMERIC | "_") }
+kw_parallel = @{ "parallel" ~ !(ASCII_ALPHANUMERIC | "_") }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// V2 CODE BLOCK (Rust-style imperative body with braces + semicolons)
+// ══════════════════════════════════════════════════════════════════════════════
+
+code_block = { "{" ~ NEWLINE* ~ (code_stmt ~ NEWLINE*)* ~ "}" }
+code_stmt = {
+    code_let_stmt
+  | code_if_stmt
+  | code_for_stmt
+  | code_match_stmt
+  | code_try_stmt
+  | code_parallel_stmt
+  | code_return_stmt
+  | code_emit_stmt
+  | code_assign_stmt
+  | code_expr_stmt
+}
+code_let_stmt = { "let" ~ ident ~ "=" ~ code_expr ~ ";" }
+code_assign_stmt = { code_lvalue ~ code_assign_op ~ code_expr ~ ";" }
+code_assign_op = { "+=" | "-=" | "=" }
+code_lvalue = @{ ident ~ (("." ~ ident) | ("[" ~ (ASCII_DIGIT+ | ("\"" ~ (!"\"" ~ ANY)* ~ "\"") | ("'" ~ (!"'" ~ ANY)* ~ "'")) ~ "]"))* }
+code_if_stmt = { "if" ~ code_expr ~ code_block ~ ("else" ~ (code_if_stmt | code_block))? }
+code_for_stmt = { "for" ~ ident ~ "in" ~ code_expr ~ code_block }
+code_match_stmt = { "match" ~ code_expr ~ "{" ~ NEWLINE* ~ (code_match_arm ~ NEWLINE*)+ ~ "}" }
+code_match_arm = { code_match_pattern ~ "=>" ~ (code_block | code_expr ~ ","?) }
+code_match_pattern = { "_" | code_expr }
+code_try_stmt = { "try" ~ code_block ~ ("catch" ~ ident? ~ code_block)? }
+code_parallel_stmt = { "parallel" ~ "{" ~ NEWLINE* ~ (code_parallel_branch ~ NEWLINE*)+ ~ "}" }
+code_parallel_branch = { ident ~ ":" ~ code_block }
+code_return_stmt = { "return" ~ code_expr? ~ ";" }
+code_emit_stmt = { "emit" ~ "(" ~ code_expr ~ ("," ~ code_expr)? ~ ")" ~ ";" }
+code_expr_stmt = { code_expr ~ ";" }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// V2 EXPRESSIONS (Rust-style: full operator precedence, closures, match)
+// Used inside code_block bodies.
+// ══════════════════════════════════════════════════════════════════════════════
+
+code_expr = { code_inline_if | code_logic }
+code_inline_if = { "if" ~ code_logic ~ "{" ~ code_expr ~ "}" ~ "else" ~ "{" ~ code_expr ~ "}" }
+code_logic = { code_comparison ~ (code_logic_op ~ code_comparison)* }
+code_logic_op = { "&&" | "||" }
+code_comparison = { code_additive ~ (code_comp_op ~ code_additive)? }
+code_comp_op = { "==" | "!=" | ">=" | "<=" | ">" | "<" }
+code_additive = { code_multiplicative ~ (code_add_op ~ code_multiplicative)* }
+code_add_op = { "+" | "-" }
+code_multiplicative = { code_power ~ (code_mul_op ~ code_power)* }
+code_mul_op = { "*" | "/" | "%" }
+code_power = { code_unary ~ ("^" ~ code_unary)* }
+code_unary = { code_neg | code_not | code_atom }
+code_neg = { "-" ~ code_atom }
+code_not = { "!" ~ code_atom }
+code_atom = {
+    code_parallel_expr
+  | code_object_literal
+  | code_closure
+  | code_call_expr
+  | code_float
+  | code_integer
+  | code_string
+  | code_boolean
+  | code_null
+  | "(" ~ code_expr ~ ")"
+  | code_access_expr
+}
+code_parallel_expr = { "parallel" ~ "{" ~ NEWLINE* ~ (code_parallel_branch ~ NEWLINE*)+ ~ "}" }
+code_call_expr = { ident ~ "(" ~ (code_expr ~ ("," ~ code_expr)*)? ~ ")" ~ code_access_chain? }
+code_access_expr = { code_dotted_ident ~ code_access_chain? }
+code_access_chain = { (code_bracket_access | code_dot_access)+ }
+code_bracket_access = { "[" ~ code_expr ~ "]" }
+code_dot_access = { "." ~ ident }
+code_dotted_ident = @{ ident ~ ("." ~ ident)* }
+code_object_literal = { "{" ~ NEWLINE* ~ (code_obj_field ~ ("," ~ NEWLINE* ~ code_obj_field)* ~ ","?)? ~ NEWLINE* ~ "}" }
+code_obj_field = { ident ~ ":" ~ code_expr }
+code_closure = { "|" ~ ident ~ ("," ~ ident)* ~ "|" ~ code_expr }
+code_string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
+code_float = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+code_integer = @{ "-"? ~ ASCII_DIGIT+ }
+code_boolean = { "true" | "false" }
+code_null = { "null" }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// V1 EXPRESSIONS (declarative contexts: rules, constraints, when clauses)
+// Simpler than code_expr but handles comparison, logic, arithmetic.
+// ══════════════════════════════════════════════════════════════════════════════
+
+expr = { inline_if | comparison ~ (logic_op ~ comparison)* }
+inline_if = { "if" ~ comparison ~ ":" ~ comparison ~ "else:" ~ comparison }
+comparison = { additive ~ (comp_op ~ additive)? }
+additive = { multiplicative ~ (add_op ~ multiplicative)* }
+multiplicative = { power ~ (mul_op ~ power)* }
+power = { unary ~ ("^" ~ unary)* }
+unary = { neg_expr | not_expr | atom }
+neg_expr = { "-" ~ atom }
+atom = { match_expr | call_expr | dotted_ident | value | "(" ~ expr ~ ")" }
 logic_op = { "&&" | "||" | "AND" | "OR" | "and" | "or" }
 comp_op = { "==" | "!=" | ">=" | "<=" | ">" | "<" }
-arith_op = { "+" | "-" | "*" | "/" | "%" }
-term = { not_expr | match_expr | call_expr | dotted_ident | value | "(" ~ expr ~ ")" }
+add_op = { "+" | "-" }
+mul_op = { "*" | "/" | "%" }
+not_expr = { ("!" | "NOT" | "not") ~ atom }
 
 // Match expression: match subject { pattern => result, _ => default }
 match_expr = { "match" ~ match_subject ~ "{" ~ NEWLINE? ~ match_expr_arm_list ~ "}" }
@@ -168,15 +360,29 @@ match_pattern = { "_" | multi_pattern }
 multi_pattern = { match_single_pattern ~ ("|" ~ match_single_pattern)* }
 match_single_pattern = { value }
 match_result = { call_expr | dotted_ident | value }
-not_expr = { ("!" | "NOT" | "not") ~ term }
 call_expr = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 dotted_ident = @{ ident ~ (("." ~ ident) | bracket_segment)* }
 bracket_segment = @{ "[" ~ (ASCII_DIGIT+ | ("\"" ~ (!"\"" ~ ANY)* ~ "\"") | ("'" ~ (!("'") ~ ANY)* ~ "'")) ~ "]" }
 
-// === Values ===
+// ══════════════════════════════════════════════════════════════════════════════
+// TYPES
+// ══════════════════════════════════════════════════════════════════════════════
+
+type_expr = { enum_type | list_type | optional_type | map_type | base_type | ident_type }
+base_type = { "bool" | "int" | "float" | "string" | "duration" }
+ident_type = { ident }
+enum_type = { "enum(" ~ ident ~ ("," ~ ident)* ~ ")" }
+list_type = { "list[" ~ type_expr ~ "]" }
+optional_type = { "optional[" ~ type_expr ~ "]" }
+map_type = { "map[" ~ type_expr ~ "," ~ type_expr ~ "]" }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VALUES (shared between v1 expressions and declarations)
+// ══════════════════════════════════════════════════════════════════════════════
+
 value = { string | float | integer | boolean | list_val | map_val | call_expr | arith_val | var_ref | dotted_ident | paren_expr | ident }
 paren_expr = { "(" ~ expr ~ ")" }
-arith_val = { (call_expr | var_ref | integer | float) ~ arith_op ~ (call_expr | var_ref | integer | float | paren_expr) }
+arith_val = { (call_expr | var_ref | integer | float) ~ add_op ~ (call_expr | var_ref | integer | float | paren_expr) }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
 integer = @{ "-"? ~ ASCII_DIGIT+ }
 float = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
@@ -184,7 +390,10 @@ boolean = { "true" | "false" }
 list_val = { "[" ~ NEWLINE* ~ (value ~ ("," ~ NEWLINE* ~ value)* ~ ","?)? ~ NEWLINE* ~ "]" }
 map_val = { "{" ~ NEWLINE* ~ (ident ~ ":" ~ value ~ ("," ~ NEWLINE* ~ ident ~ ":" ~ value)* ~ ","?)? ~ NEWLINE* ~ "}" }
 
-// === Tokens ===
+// ══════════════════════════════════════════════════════════════════════════════
+// TOKENS
+// ══════════════════════════════════════════════════════════════════════════════
+
 ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 var_ref = @{ "$" ~ ident ~ (("[" ~ (ASCII_DIGIT+ | ("\"" ~ (!"\"" ~ ANY)* ~ "\"")) ~ "]") | ("." ~ ident))* }
 NEWLINE = _{ "\n" | "\r\n" }
