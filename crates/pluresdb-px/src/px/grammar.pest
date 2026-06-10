@@ -55,7 +55,8 @@ procedure_trigger_clause = { "trigger:" ~ procedure_trigger_kind ~ NEWLINE }
 procedure_trigger_kind = { "on_write" ~ map_val? | "before_response" | "after_response" | "cron" ~ map_val? | "manual" }
 step_list = { (step_decl ~ NEWLINE)+ }
 block_step_list = { (!("end" | "catch:") ~ step_decl ~ NEWLINE)+ }
-step_decl = { step_match | step_when | step_loop | step_emit | step_try | step_parallel | step_return | step_abort | step_call }
+step_decl = { step_define | step_match | step_when | step_loop | step_emit | step_try | step_parallel | step_return | step_abort | step_call }
+step_define = { kw_define ~ "$" ~ ident ~ "=" ~ value }
 step_return = { kw_return ~ value? }
 step_abort = { kw_abort ~ value? }
 step_call = { ident ~ (map_val | param_pair*) ~ ("->" ~ "$" ~ ident)? }
@@ -76,6 +77,7 @@ step_parallel = { kw_parallel ~ ("-" ~ ">" ~ "$" ~ ident)? ~ ":" ~ NEWLINE ~ par
 // Keyword boundary rules (atomic to prevent implicit whitespace between keyword and lookahead)
 kw_return = @{ "return" ~ !(ASCII_ALPHANUMERIC | "_") }
 kw_abort = @{ "abort" ~ !(ASCII_ALPHANUMERIC | "_") }
+kw_define = @{ "define" ~ !(ASCII_ALPHANUMERIC | "_") }
 kw_when = @{ "when" ~ !(ASCII_ALPHANUMERIC | "_") }
 kw_loop = @{ "loop" ~ !(ASCII_ALPHANUMERIC | "_") }
 kw_emit = @{ "emit" ~ !(ASCII_ALPHANUMERIC | "_") }
@@ -180,5 +182,5 @@ map_val = { "{" ~ (ident ~ ":" ~ value ~ ("," ~ ident ~ ":" ~ value)*)? ~ "}" }
 
 // === Tokens ===
 ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-var_ref = @{ "$" ~ ident }
+var_ref = @{ "$" ~ ident ~ ("." ~ ident)* }
 NEWLINE = _{ "\n" | "\r\n" }
