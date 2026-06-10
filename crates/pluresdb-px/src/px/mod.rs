@@ -4,6 +4,7 @@
 
 pub mod builder;
 pub mod compiler;
+pub mod dataflow;
 pub mod executor;
 pub mod lint;
 pub mod resolver;

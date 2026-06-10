@@ -6,7 +6,7 @@ COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 
 document = { SOI ~ NEWLINE* ~ (statement ~ NEWLINE*)* ~ EOI }
 
-statement = _{ import_decl | fact_decl | rule_decl | constraint_decl | contract_decl | function_decl | trigger_decl | procedure_decl | scenario_decl }
+statement = _{ import_decl | fact_decl | rule_decl | constraint_decl | contract_decl | function_decl | trigger_decl | dataflow_procedure_decl | procedure_decl | scenario_decl }
 
 // === Imports ===
 import_decl = { "import" ~ rust_path ~ ("as" ~ ident)? }
@@ -93,6 +93,16 @@ retry_jitter_opt = { "jitter" }
 
 // === Scenarios ===
 scenario_decl = { "scenario" ~ ident ~ ":" ~ NEWLINE ~ scenario_body }
+
+// === Dataflow Procedures (queue-driven, typed signatures) ===
+// procedure name(arg: type, arg: type) -> output_type:
+//   steps...
+dataflow_procedure_decl = { "procedure" ~ ident ~ "(" ~ dataflow_param_list? ~ ")" ~ dataflow_return_type? ~ ":" ~ NEWLINE ~ given_clause? ~ step_list }
+dataflow_param_list = { dataflow_param ~ ("," ~ dataflow_param)* }
+dataflow_param = { ident ~ ":" ~ type_expr ~ dataflow_source_binding? }
+dataflow_source_binding = { "from" ~ string }
+dataflow_return_type = { "->" ~ type_expr ~ dataflow_dest_binding? }
+dataflow_dest_binding = { "into" ~ string }
 scenario_body = { given_clause ~ setup_clause? ~ scenario_run_clause? ~ expect_clause }
 setup_clause = { "setup:" ~ NEWLINE ~ step_list }
 scenario_run_clause = { "run:" ~ ident ~ map_val? ~ NEWLINE }
