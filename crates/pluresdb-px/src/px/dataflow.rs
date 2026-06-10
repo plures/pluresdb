@@ -583,6 +583,22 @@ impl AsyncDataflowGraph {
 
         Ok(total)
     }
+
+    /// Pop a datum from a named queue (for reading output after quiescence).
+    pub async fn pop(&self, queue_name: &str) -> Option<Datum> {
+        let mut graph = self.inner.lock().await;
+        graph.queues.get_mut(queue_name).and_then(|q| q.pop())
+    }
+
+    /// Check if a named queue has data available.
+    pub async fn has_output(&self, queue_name: &str) -> bool {
+        let graph = self.inner.lock().await;
+        graph
+            .queues
+            .get(queue_name)
+            .map(|q| q.has_data())
+            .unwrap_or(false)
+    }
 }
 
 #[cfg(feature = "async")]
