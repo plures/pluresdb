@@ -174,7 +174,7 @@ dotted_ident = @{ ident ~ (("." ~ ident) | bracket_segment)* }
 bracket_segment = @{ "[" ~ (ASCII_DIGIT+ | ("\"" ~ (!"\"" ~ ANY)* ~ "\"") | ("'" ~ (!("'") ~ ANY)* ~ "'")) ~ "]" }
 
 // === Values ===
-value = { string | float | integer | boolean | list_val | map_val | call_expr | var_ref | dotted_ident | paren_expr | arith_val | ident }
+value = { string | float | integer | boolean | list_val | map_val | call_expr | arith_val | var_ref | dotted_ident | paren_expr | ident }
 paren_expr = { "(" ~ expr ~ ")" }
 arith_val = { (call_expr | var_ref | integer | float) ~ arith_op ~ (call_expr | var_ref | integer | float | paren_expr) }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
