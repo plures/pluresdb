@@ -93,6 +93,27 @@ to N queues.
 
 ## Implementation
 
-- `pluresdb-px/src/px/dataflow.rs` — DataflowGraph, AsyncDataflowGraph, Datum, Queue, ProcedureNode
-- Grammar extension: `dataflow_procedure_decl` rule
-- 6 tests proving: quiescence, single-fire, chaining, depth limit, null termination, multi-consumer
+**Status: Complete** (as of 2026-06-10)
+
+### pluresdb-px
+- `crates/pluresdb-px/src/px/dataflow.rs` — DataflowGraph, AsyncDataflowGraph, Datum, Queue, ProcedureNode
+- `crates/pluresdb-px/src/px/grammar.pest` — `dataflow_procedure_decl` rule, `ident_type` extension
+- `crates/pluresdb-px/src/px/builder.rs` — `build_dataflow_procedure()` → `PxDataflowProcedure` AST
+- `crates/pluresdb-px/src/px/mod.rs` — `PxDataflowProcedure`, `PxDataflowParam`, `PxDataflowReturn` structs
+- `crates/pluresdb-px/src/px/dataflow.rs` — `ast_to_node()` converts AST to runtime `ProcedureNode`
+- `crates/pluresdb-px/src/px/compiler.rs` — `compile_step()` made `pub(crate)` for step compilation
+
+### pares-radix
+- `crates/core/src/cerebellum/dataflow_bridge.rs` — `DataflowBridge`, `DataflowActionAdapter`
+- `crates/core/src/cerebellum/actions.rs` — 10 new classification actions
+- `crates/core/src/cerebellum/mod.rs` — 3-tier routing: dataflow → px_bridge → Rust
+- `crates/cli/src/main.rs` — auto-loads dataflow procedures at startup
+- `praxis/procedures/classify_dataflow.px` — example classification pipeline
+- `praxis/procedures/routing_dataflow.px` — example routing
+- `praxis/procedures/model_invoke_dataflow.px` — example model invocation
+
+### Tests
+- 8 dataflow unit tests (quiescence, single-fire, chaining, depth limit, null termination, multi-consumer, fan-out, end-to-end)
+- 3 parser tests (simple, bindings, no-return)
+- 147 cerebellum tests passing
+- 170 praxis tests passing
