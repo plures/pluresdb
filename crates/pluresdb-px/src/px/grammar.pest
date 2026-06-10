@@ -153,7 +153,7 @@ optional_type = { "optional[" ~ type_expr ~ "]" }
 // === Expressions ===
 expr = { comparison ~ (logic_op ~ comparison)* }
 comparison = { term ~ (comp_op ~ term)? }
-logic_op = { "&&" | "||" | "and" | "or" }
+logic_op = { "&&" | "||" | "AND" | "OR" | "and" | "or" }
 comp_op = { "==" | "!=" | ">=" | "<=" | ">" | "<" }
 term = { not_expr | match_expr | call_expr | dotted_ident | value | "(" ~ expr ~ ")" }
 
@@ -172,7 +172,8 @@ dotted_ident = @{ ident ~ (("." ~ ident) | bracket_segment)* }
 bracket_segment = @{ "[" ~ (ASCII_DIGIT+ | ("\"" ~ (!"\"" ~ ANY)* ~ "\"") | ("'" ~ (!("'") ~ ANY)* ~ "'")) ~ "]" }
 
 // === Values ===
-value = { string | float | integer | boolean | list_val | map_val | var_ref | dotted_ident | ident }
+value = { string | float | integer | boolean | list_val | map_val | var_ref | dotted_ident | paren_expr | ident }
+paren_expr = { "(" ~ expr ~ ")" }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
 integer = @{ ASCII_DIGIT+ }
 float = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
