@@ -152,9 +152,11 @@ optional_type = { "optional[" ~ type_expr ~ "]" }
 
 // === Expressions ===
 expr = { comparison ~ (logic_op ~ comparison)* }
-comparison = { term ~ (comp_op ~ term)? }
+comparison = { arith_expr ~ (comp_op ~ arith_expr)? }
+arith_expr = { term ~ (arith_op ~ term)* }
 logic_op = { "&&" | "||" | "AND" | "OR" | "and" | "or" }
 comp_op = { "==" | "!=" | ">=" | "<=" | ">" | "<" }
+arith_op = { "+" | "-" | "*" | "/" | "%" }
 term = { not_expr | match_expr | call_expr | dotted_ident | value | "(" ~ expr ~ ")" }
 
 // Match expression: match subject { pattern => result, _ => default }
