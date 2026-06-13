@@ -4,16 +4,19 @@ use pest::iterators::{Pair, Pairs};
 use std::collections::HashMap;
 
 use super::{
-    FunctionMode, PxAction, PxCapture, PxConstraint, PxContract, PxDataflowParam,
-    PxDataflowProcedure, PxDataflowReturn, PxDocument, PxExample, PxExpectation, PxFact, PxField,
-    PxFunction, PxImport, PxMatchArm, PxParallelBranch, PxProcedure, PxProcedureTrigger, PxRule,
-    PxScenario, PxScenarioRun, PxStep, PxTrigger, Rule,
+    FunctionMode, PxAction, PxCapture, PxConfig, PxConfigEntry, PxConstraint,
+    PxContract, PxDataflowParam, PxDataflowProcedure, PxDataflowReturn, PxDocument, PxEntity,
+    PxExample, PxExpectation, PxFact, PxField, PxFunction, PxImport, PxMatchArm,
+    PxParallelBranch, PxProcedure, PxProcedureTrigger, PxRule, PxScenario, PxScenarioRun,
+    PxStep, PxTrigger, Rule,
 };
 
 /// Build a PxDocument from parsed pest pairs.
 pub fn build(pairs: Pairs<'_, Rule>) -> PxDocument {
-        let mut doc = PxDocument {
+    let mut doc = PxDocument {
         imports: vec![],
+        configs: vec![],
+        entities: vec![],
         facts: vec![],
         rules: vec![],
         constraints: vec![],
@@ -45,6 +48,8 @@ fn push_pair_into_document(pair: Pair<'_, Rule>, doc: &mut PxDocument) {
             }
         }
         Rule::import_decl => doc.imports.push(build_import(pair)),
+        Rule::entity_decl => doc.entities.push(build_entity(pair)),
+        Rule::config_decl => doc.configs.push(build_config(pair)),
         Rule::fact_decl => doc.facts.push(build_fact(pair)),
         Rule::rule_decl => doc.rules.push(build_rule(pair)),
         Rule::constraint_decl => doc.constraints.push(build_constraint(pair)),
@@ -67,6 +72,109 @@ fn build_import(pair: Pair<'_, Rule>) -> PxImport {
         .unwrap_or_default();
     let alias = inner.next().map(|p| p.as_str().to_string());
     PxImport { path, alias }
+}
+
+fn build_entity(pair: Pair<'_, Rule>) -> PxEntity {
+    let mut inner = pair.into_inner();
+    let name = next_str(&mut inner);
+    let mut prefix = None;
+    let mut fields = vec![];
+
+    for p in inner {
+        match p.as_rule() {
+            Rule::entity_body => {
+                for body_part in p.into_inner() {
+                    match body_part.as_rule() {
+                        Rule::entity_prefix_clause => {
+                            prefix = body_part.into_inner().next().map(|s| {
+                                let raw = s.as_str();
+                                raw.trim_matches('"').to_string()
+                            });
+                        }
+                        Rule::entity_fields_clause => {
+                            if let Some(field_list) = body_part.into_inner().find(|fp| fp.as_rule() == Rule::entity_field_list) {
+                                fields = field_list
+                                    .into_inner()
+                                    .filter(|fp| fp.as_rule() == Rule::entity_field)
+                                    .map(|fp| {
+                                        let mut fi = fp.into_inner();
+                                        let fname = fi.next().map(|x| x.as_str().to_string()).unwrap_or_default();
+                                        let ftype = fi.next().map(|x| x.as_str().to_string()).unwrap_or_default();
+                                        PxField { name: fname, type_expr: ftype }
+                                    })
+                                    .collect();
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    PxEntity { name, prefix, fields }
+}
+
+fn build_config(pair: Pair<'_, Rule>) -> PxConfig {
+    let mut inner = pair.into_inner();
+    let name = next_str(&mut inner);
+    let mut entries = vec![];
+
+    if let Some(body) = inner.find(|p| p.as_rule() == Rule::config_body) {
+        for entry_pair in body.into_inner().filter(|p| p.as_rule() == Rule::config_entry) {
+            if let Some(e) = build_config_entry(entry_pair) {
+                entries.push(e);
+            }
+        }
+    }
+
+    PxConfig { name, entries }
+}
+
+fn build_config_entry(pair: Pair<'_, Rule>) -> Option<PxConfigEntry> {
+    let mut inner = pair.into_inner();
+    let key = inner.next()?.as_str().to_string();
+
+    let value = if let Some(next) = inner.next() {
+        match next.as_rule() {
+            Rule::config_value => parse_config_value(next),
+            Rule::config_nested => {
+                // Nested config: recursively build as JSON object
+                let mut map = serde_json::Map::new();
+                for kv in next.into_inner().filter(|p| p.as_rule() == Rule::config_kv) {
+                    let mut kv_inner = kv.into_inner();
+                    if let Some(k) = kv_inner.next() {
+                        let k_str = k.as_str().to_string();
+                        if let Some(v) = kv_inner.next() {
+                            let val = match v.as_rule() {
+                                Rule::config_value => parse_config_value(v),
+                                Rule::config_nested => serde_json::Value::Object(serde_json::Map::new()), // simplified
+                                _ => serde_json::Value::Null,
+                            };
+                            map.insert(k_str, val);
+                        }
+                    }
+                }
+                serde_json::Value::Object(map)
+            }
+            _ => serde_json::Value::Null,
+        }
+    } else {
+        serde_json::Value::Null
+    };
+
+    Some(PxConfigEntry { key, value })
+}
+
+fn parse_config_value(pair: Pair<'_, Rule>) -> serde_json::Value {
+    let inner_str = pair.as_str().trim();
+    // Try parsing as JSON literal
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(inner_str) {
+        return v;
+    }
+    // Fall back to string
+    serde_json::Value::String(inner_str.trim_matches('"').to_string())
 }
 
 fn build_fact(pair: Pair<'_, Rule>) -> PxFact {

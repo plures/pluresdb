@@ -798,6 +798,8 @@ mod tests {
     fn empty_doc() -> PxDocument {
         PxDocument {
             imports: vec![],
+            configs: vec![],
+            entities: vec![],
             facts: vec![],
             rules: vec![],
             constraints: vec![],

@@ -29,6 +29,8 @@ pub struct PxParser;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PxDocument {
     pub imports: Vec<PxImport>,
+    pub configs: Vec<PxConfig>,
+    pub entities: Vec<PxEntity>,
     pub facts: Vec<PxFact>,
     pub rules: Vec<PxRule>,
     pub constraints: Vec<PxConstraint>,
@@ -44,6 +46,25 @@ pub struct PxDocument {
 pub struct PxImport {
     pub path: String,
     pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PxConfig {
+    pub name: String,
+    pub entries: Vec<PxConfigEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PxConfigEntry {
+    pub key: String,
+    pub value: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PxEntity {
+    pub name: String,
+    pub prefix: Option<String>,
+    pub fields: Vec<PxField>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
