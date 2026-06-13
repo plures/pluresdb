@@ -294,6 +294,24 @@ fn collect_var_references(step: &PxStep, refs: &mut std::collections::HashSet<St
                 collect_refs_from_value(v, refs);
             }
         }
+        PxStep::Assign { value, .. } => {
+            collect_refs_from_str(value, refs);
+        }
+        PxStep::If { condition, then_steps, else_steps } => {
+            collect_refs_from_str(condition, refs);
+            for s in then_steps {
+                collect_var_references(s, refs);
+            }
+            for s in else_steps {
+                collect_var_references(s, refs);
+            }
+        }
+        PxStep::For { iterable, steps, .. } => {
+            collect_refs_from_str(iterable, refs);
+            for s in steps {
+                collect_var_references(s, refs);
+            }
+        }
     }
 }
 
@@ -656,7 +674,21 @@ fn collect_undefined_calls_in_steps(
             PxStep::Match { arms: _ }
             | PxStep::Emit { .. }
             | PxStep::Return { .. }
-            | PxStep::Abort { .. } => {}
+            | PxStep::Abort { .. }
+            | PxStep::Assign { .. } => {}
+            PxStep::If { then_steps, else_steps, .. } => {
+                collect_undefined_calls_in_steps(
+                    then_steps, proc_name, known_procs, known_fns, diags,
+                );
+                collect_undefined_calls_in_steps(
+                    else_steps, proc_name, known_procs, known_fns, diags,
+                );
+            }
+            PxStep::For { steps: nested, .. } => {
+                collect_undefined_calls_in_steps(
+                    nested, proc_name, known_procs, known_fns, diags,
+                );
+            }
         }
     }
 }
@@ -785,7 +817,15 @@ fn check_arity_in_steps(
             PxStep::Match { arms: _ }
             | PxStep::Emit { .. }
             | PxStep::Return { .. }
-            | PxStep::Abort { .. } => {}
+            | PxStep::Abort { .. }
+            | PxStep::Assign { .. } => {}
+            PxStep::If { then_steps, else_steps, .. } => {
+                check_arity_in_steps(then_steps, proc_name, proc_params, fn_params, diags);
+                check_arity_in_steps(else_steps, proc_name, proc_params, fn_params, diags);
+            }
+            PxStep::For { steps: nested, .. } => {
+                check_arity_in_steps(nested, proc_name, proc_params, fn_params, diags);
+            }
         }
     }
 }

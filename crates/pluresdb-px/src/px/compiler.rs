@@ -371,6 +371,23 @@ pub(crate) fn compile_step(step: &PxStep) -> serde_json::Value {
             }
             obj
         }
+        PxStep::Assign { var, value } => json!({
+            "kind": "assign",
+            "var": var,
+            "value": value,
+        }),
+        PxStep::If { condition, then_steps, else_steps } => json!({
+            "kind": "if",
+            "condition": condition,
+            "then": then_steps.iter().map(compile_step).collect::<Vec<_>>(),
+            "else": else_steps.iter().map(compile_step).collect::<Vec<_>>(),
+        }),
+        PxStep::For { var, iterable, steps } => json!({
+            "kind": "for",
+            "var": var,
+            "iterable": iterable,
+            "steps": steps.iter().map(compile_step).collect::<Vec<_>>(),
+        }),
     }
 }
 

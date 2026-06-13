@@ -1101,6 +1101,76 @@ fn build_step(pair: Pair<'_, Rule>) -> PxStep {
                 .map(|p| parse_value(p));
             PxStep::Abort { value }
         }
+        Rule::step_assign => {
+            let mut ai = inner.into_inner();
+            let var = ai
+                .find(|p| p.as_rule() == Rule::var_ref)
+                .map(|p| {
+                    let s = p.as_str();
+                    s.strip_prefix('$').unwrap_or(s).to_string()
+                })
+                .unwrap_or_default();
+            let value = ai
+                .find(|p| p.as_rule() == Rule::assign_value)
+                .map(|p| p.as_str().trim().to_string())
+                .unwrap_or_default();
+            PxStep::Assign { var, value }
+        }
+        Rule::step_if => {
+            let mut ii = inner.into_inner();
+            let condition = ii
+                .find(|p| p.as_rule() == Rule::expr)
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_default();
+            let then_steps = ii
+                .find(|p| p.as_rule() == Rule::block_step_list)
+                .map(|sl| {
+                    sl.into_inner()
+                        .filter(|p| p.as_rule() == Rule::step_decl)
+                        .map(build_step)
+                        .collect()
+                })
+                .unwrap_or_default();
+            let else_steps = ii
+                .find(|p| p.as_rule() == Rule::step_else)
+                .map(|se| {
+                    se.into_inner()
+                        .find(|p| p.as_rule() == Rule::block_step_list)
+                        .map(|sl| {
+                            sl.into_inner()
+                                .filter(|p| p.as_rule() == Rule::step_decl)
+                                .map(build_step)
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default();
+            PxStep::If { condition, then_steps, else_steps }
+        }
+        Rule::step_for => {
+            let mut fi = inner.into_inner();
+            let var = fi
+                .find(|p| p.as_rule() == Rule::var_ref)
+                .map(|p| {
+                    let s = p.as_str();
+                    s.strip_prefix('$').unwrap_or(s).to_string()
+                })
+                .unwrap_or_default();
+            let iterable = fi
+                .find(|p| matches!(p.as_rule(), Rule::call_expr | Rule::var_ref | Rule::dotted_ident))
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_default();
+            let steps = fi
+                .find(|p| p.as_rule() == Rule::block_step_list)
+                .map(|sl| {
+                    sl.into_inner()
+                        .filter(|p| p.as_rule() == Rule::step_decl)
+                        .map(build_step)
+                        .collect()
+                })
+                .unwrap_or_default();
+            PxStep::For { var, iterable, steps }
+        }
         _ => PxStep::Call {
             name: "unknown".into(),
             params: serde_json::Value::Null,
