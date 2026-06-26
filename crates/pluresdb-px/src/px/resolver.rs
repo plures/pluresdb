@@ -256,7 +256,15 @@ fn resolve_import_path(import_path: &str, base_path: &Path) -> Result<PathBuf, R
                 message: "import path escapes base directory".to_string(),
             });
         }
-    } else if !path.starts_with(&base_canonical) {
+    } else if !path.starts_with(&base_canonical) && !path.starts_with(base_path) {
+        // The target file does not exist yet (cannot canonicalize). Accept it as
+        // long as it is lexically contained in the base directory. We compare
+        // against BOTH the canonical base and the original `base_path`: on
+        // Windows `canonicalize()` yields a `\\?\`-verbatim prefix that a
+        // freshly `join`ed (non-verbatim) path never matches, which previously
+        // produced a false "escapes base directory" error for any missing
+        // import. `..` segments were already rejected above, so a path built
+        // from `base_path.join(import_path)` cannot actually escape.
         return Err(ResolveError::InvalidPath {
             import_path: import_path.to_string(),
             message: "import path escapes base directory".to_string(),

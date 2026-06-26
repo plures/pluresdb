@@ -81,35 +81,41 @@ fn build_entity(pair: Pair<'_, Rule>) -> PxEntity {
     let mut fields = vec![];
 
     for p in inner {
-        match p.as_rule() {
-            Rule::entity_body => {
-                for body_part in p.into_inner() {
-                    match body_part.as_rule() {
-                        Rule::entity_prefix_clause => {
-                            prefix = body_part.into_inner().next().map(|s| {
-                                let raw = s.as_str();
-                                raw.trim_matches('"').to_string()
-                            });
-                        }
-                        Rule::entity_fields_clause => {
-                            if let Some(field_list) = body_part.into_inner().find(|fp| fp.as_rule() == Rule::entity_field_list) {
-                                fields = field_list
-                                    .into_inner()
-                                    .filter(|fp| fp.as_rule() == Rule::entity_field)
-                                    .map(|fp| {
-                                        let mut fi = fp.into_inner();
-                                        let fname = fi.next().map(|x| x.as_str().to_string()).unwrap_or_default();
-                                        let ftype = fi.next().map(|x| x.as_str().to_string()).unwrap_or_default();
-                                        PxField { name: fname, type_expr: ftype }
-                                    })
-                                    .collect();
-                            }
-                        }
-                        _ => {}
+        // Only the entity_body carries prefix/fields; ignore other tokens.
+        if p.as_rule() == Rule::entity_body {
+            for body_part in p.into_inner() {
+                match body_part.as_rule() {
+                    Rule::entity_prefix_clause => {
+                        prefix = body_part.into_inner().next().map(|s| {
+                            let raw = s.as_str();
+                            raw.trim_matches('"').to_string()
+                        });
                     }
+                    Rule::entity_fields_clause => {
+                        if let Some(field_list) = body_part
+                            .into_inner()
+                            .find(|fp| fp.as_rule() == Rule::entity_field_list)
+                        {
+                            fields = field_list
+                                .into_inner()
+                                .filter(|fp| fp.as_rule() == Rule::entity_field)
+                                .map(|fp| {
+                                    let mut fi = fp.into_inner();
+                                    let fname =
+                                        fi.next().map(|x| x.as_str().to_string()).unwrap_or_default();
+                                    let ftype =
+                                        fi.next().map(|x| x.as_str().to_string()).unwrap_or_default();
+                                    PxField {
+                                        name: fname,
+                                        type_expr: ftype,
+                                    }
+                                })
+                                .collect();
+                        }
+                    }
+                    _ => {}
                 }
             }
-            _ => {}
         }
     }
 

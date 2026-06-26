@@ -694,7 +694,7 @@ pub fn ast_to_node(proc: &super::PxDataflowProcedure) -> ProcedureNode {
     let steps: Vec<Value> = proc
         .steps
         .iter()
-        .map(|step| super::compiler::compile_step(step))
+        .map(super::compiler::compile_step)
         .collect();
 
     let body = serde_json::json!({
