@@ -13,13 +13,24 @@
 
 use crate::db::schema::{AgentContext, Condition, Constraint, Evidence, EvidenceResult, Severity};
 use crate::db::store::PraxisStore;
+use crate::px::{PxParser, Rule};
+use pest::Parser;
+
+/// Marker prefix stamped onto the `description` of a constraint produced from
+/// input that could be parsed neither as a structured predicate nor as a known
+/// natural-language keyword pattern.
+///
+/// Such a constraint is **honestly inert** (`when: Always`, `require: Always`)
+/// and is flagged so it can never be mistaken for a real enforcing guard
+/// (satisfies C-NOSTUB-001 — no silent `Always` masquerading as enforcement).
+pub const UNPARSED_MARKER: &str = "[UNPARSED — NOT ENFORCED]";
 
 // ---------------------------------------------------------------------------
 // Violation
 // ---------------------------------------------------------------------------
 
 /// A constraint that was violated by a given [`AgentContext`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Violation {
     /// The violated constraint.
     pub constraint: Constraint,
@@ -32,7 +43,7 @@ pub struct Violation {
 // ---------------------------------------------------------------------------
 
 /// Error type returned by [`on_action`] when the action is blocked.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ActionBlocked {
     /// All violations that caused the block.
     pub violations: Vec<Violation>,
@@ -145,63 +156,64 @@ pub fn on_action(store: &PraxisStore, ctx: &AgentContext) -> Result<Vec<Violatio
 // compile_nl
 // ---------------------------------------------------------------------------
 
-/// Compile a natural-language constraint description into a [`Constraint`]
-/// record ready to be inserted into the store.
+/// Compile a constraint description into a [`Constraint`] record ready to be
+/// inserted into the store.
 ///
-/// This is a best-effort heuristic parser.  It understands a small set of
-/// keyword patterns:
+/// # Real structured-predicate path (primary)
 ///
-/// | Pattern in text | Generated condition |
-/// |-----------------|---------------------|
-/// | `"write_"` in text | `when: ActionStartsWith { prefix: "write_" }` |
-/// | `"delete_"` in text | `when: ActionStartsWith { prefix: "delete_" }` |
-/// | `"resource_owner"` in text | `require: FieldEq { field: "resource_owner", value: non-empty }` |
-/// | `"privilege_level"` in text | `require: FieldLt { field: "privilege_level", threshold: 3.0 }` |
-/// | `"risk_score"` in text | `require: FieldLt { field: "risk_score", threshold: 0.9 }` |
-/// | anything else | `when: Always, require: Always` (always satisfied — no-op) |
+/// The text is first run through the **canonical `.px` expression grammar**
+/// (`pluresdb_px::px::PxParser` / `Rule::expr` — the single source of truth in
+/// `grammar.pest`).  If it parses as one or more `field <op> value` comparisons
+/// joined by `and` / `or` (`&&` / `||`), it is mapped to a **real, enforcing**
+/// [`Condition`] AST placed in `require`.  Supported comparison operators:
 ///
-/// The `id` is derived from the first non-space token in `text`.  The `fix`
-/// field is set to `"Review the constraint text and implement the appropriate check."`.
+/// | Operator | Mapped condition                            |
+/// |----------|---------------------------------------------|
+/// | `<`      | `FieldLt { threshold }`                     |
+/// | `>`      | `FieldGt { threshold }`                     |
+/// | `<=`     | `Not(FieldGt { threshold })`  (inclusive)   |
+/// | `>=`     | `Not(FieldLt { threshold })`  (inclusive)   |
+/// | `==`     | `FieldEq { value }`                         |
+/// | `!=`     | `Not(FieldEq { value })`                    |
 ///
-/// In production this would call the PluresDB `compile_nl` procedure backed by
-/// an embedded LLM; here we ship a deterministic fallback so the crate compiles
-/// without any ML dependency.
+/// `and` joins comparisons into `Condition::All`; `or` into `Condition::Any`.
+/// A leading `metadata.` on the field path is stripped, because [`Condition`]
+/// fields index directly into [`AgentContext::metadata`] (so
+/// `metadata.amount <= 100` and `amount <= 100` are equivalent).
+///
+/// Because `require` is the *invariant*, a rule such as `amount <= 100`
+/// **blocks** a context with `amount = 500` (require is false -> violation) and
+/// **passes** one with `amount = 50`.  This is the real enforcement that
+/// replaces the former `Condition::Always` no-op.
+///
+/// # Natural-language keyword fallback (explicit, documented)
+///
+/// If the text is *not* a parseable structured predicate, a small set of
+/// legacy free-text keyword heuristics is tried as an explicitly-commented
+/// fallback for genuine English corrections:
+///
+/// | Keyword in text     | Generated condition                              |
+/// |---------------------|--------------------------------------------------|
+/// | `write_` / `delete_`| `when: ActionStartsWith { prefix }`              |
+/// | `resource_owner`    | `require: Not(FieldEq { resource_owner = "" })`  |
+/// | `privilege_level`   | `require: FieldLt { privilege_level, 3.0 }`      |
+/// | `risk_score`        | `require: FieldLt { risk_score, 0.9 }`           |
+///
+/// # Unparsed input (no fake pass-through)
+///
+/// If the text matches **neither** the structured-predicate path **nor** any
+/// known keyword, the returned constraint is **honestly inert and flagged**:
+/// `when: Always`, `require: Always`, and its `description` is prefixed with
+/// [`UNPARSED_MARKER`].  It therefore enforces nothing *and announces that it
+/// enforces nothing* — it can never be mistaken for a real guard
+/// (C-NOSTUB-001).  Callers that require enforcement should reject any
+/// constraint whose description starts with [`UNPARSED_MARKER`].
+///
+/// The `id` is taken from the `id` argument.
 pub fn compile_nl(text: &str, id: impl Into<String>) -> Constraint {
+    let id = id.into();
+    let trimmed = text.trim();
     let lower = text.to_lowercase();
-
-    let when = if lower.contains("write_") {
-        Condition::ActionStartsWith {
-            prefix: "write_".into(),
-        }
-    } else if lower.contains("delete_") {
-        Condition::ActionStartsWith {
-            prefix: "delete_".into(),
-        }
-    } else {
-        Condition::Always
-    };
-
-    let require = if lower.contains("resource_owner") {
-        // require that resource_owner is a non-empty string
-        Condition::Not {
-            condition: Box::new(Condition::FieldEq {
-                field: "resource_owner".into(),
-                value: serde_json::Value::String(String::new()),
-            }),
-        }
-    } else if lower.contains("privilege_level") {
-        Condition::FieldLt {
-            field: "privilege_level".into(),
-            threshold: 3.0,
-        }
-    } else if lower.contains("risk_score") {
-        Condition::FieldLt {
-            field: "risk_score".into(),
-            threshold: 0.9,
-        }
-    } else {
-        Condition::Always
-    };
 
     let severity = if lower.contains("error") || lower.contains("block") || lower.contains("must") {
         Severity::Error
@@ -209,15 +221,304 @@ pub fn compile_nl(text: &str, id: impl Into<String>) -> Constraint {
         Severity::Warning
     };
 
-    Constraint {
-        id: id.into(),
-        description: text.trim().to_string(),
-        when,
-        require,
-        fix: "Review the constraint text and implement the appropriate check.".into(),
-        evidence: vec![],
-        severity,
+    // -- 1. Structured-predicate path (REAL enforcement) ----------------------
+    // Parse via the canonical .px expression grammar and map comparisons to a
+    // real Condition AST. This is what makes `amount <= 100` actually block.
+    if let Some(require) = parse_structured_predicate(trimmed) {
+        let when = nl_when_clause(&lower).unwrap_or(Condition::Always);
+        return Constraint {
+            id,
+            description: trimmed.to_string(),
+            when,
+            require,
+            fix: "Ensure the action's metadata satisfies the predicate before proceeding.".into(),
+            evidence: vec![],
+            severity,
+        };
     }
+
+    // -- 2. Legacy natural-language keyword fallback (explicit) ---------------
+    // Only reached for genuine free-text English that is NOT a structured
+    // predicate. Kept narrow and clearly commented per TASK-PX-CANON Stage 1.
+    let when = nl_when_clause(&lower);
+    let require = if lower.contains("resource_owner") {
+        // require that resource_owner is a non-empty string
+        Some(Condition::Not {
+            condition: Box::new(Condition::FieldEq {
+                field: "resource_owner".into(),
+                value: serde_json::Value::String(String::new()),
+            }),
+        })
+    } else if lower.contains("privilege_level") {
+        Some(Condition::FieldLt {
+            field: "privilege_level".into(),
+            threshold: 3.0,
+        })
+    } else if lower.contains("risk_score") {
+        Some(Condition::FieldLt {
+            field: "risk_score".into(),
+            threshold: 0.9,
+        })
+    } else {
+        None
+    };
+
+    match (when, require) {
+        // A recognised keyword produced at least one real predicate.
+        (when_opt, Some(require)) => Constraint {
+            id,
+            description: trimmed.to_string(),
+            when: when_opt.unwrap_or(Condition::Always),
+            require,
+            fix: "Review the constraint text and implement the appropriate check.".into(),
+            evidence: vec![],
+            severity,
+        },
+        // Only an action-prefix keyword matched (a real `when`, but no invariant
+        // to enforce). Treat as inert-and-flagged: a `when` with `require:
+        // Always` enforces nothing, so we must NOT present it as a real guard.
+        (Some(_), None) | (None, None) => Constraint {
+            id,
+            description: format!("{UNPARSED_MARKER} {trimmed}"),
+            when: Condition::Always,
+            require: Condition::Always,
+            fix: "Could not derive an enforceable predicate from this text; rewrite as `field <op> value` (e.g. `metadata.amount <= 100`).".into(),
+            evidence: vec![],
+            severity,
+        },
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Structured-predicate parser (canonical-grammar backed)
+// ---------------------------------------------------------------------------
+
+/// Derive a legacy `when` precondition from free-text keywords, if any.
+///
+/// Returns `None` when no action-prefix keyword is present (caller substitutes
+/// `Condition::Always`).
+fn nl_when_clause(lower: &str) -> Option<Condition> {
+    if lower.contains("write_") {
+        Some(Condition::ActionStartsWith {
+            prefix: "write_".into(),
+        })
+    } else if lower.contains("delete_") {
+        Some(Condition::ActionStartsWith {
+            prefix: "delete_".into(),
+        })
+    } else {
+        None
+    }
+}
+
+/// Parse `text` as a structured constraint predicate using the **canonical**
+/// `.px` expression grammar, mapping it to a real [`Condition`].
+///
+/// Accepts one or more `field <op> value` comparisons joined by a single class
+/// of logic operator (all `and`/`&&` -> [`Condition::All`], all `or`/`||` ->
+/// [`Condition::Any`]).  Returns `None` if the text is not a single expression,
+/// is not a flat conjunction/disjunction of simple comparisons, mixes `and`
+/// with `or`, or contains a comparison whose sides are not `field <op> literal`.
+fn parse_structured_predicate(text: &str) -> Option<Condition> {
+    if text.is_empty() {
+        return None;
+    }
+    // Use the ONE canonical grammar (grammar.pest) as the validator. Parsing a
+    // bare `Rule::expr` must consume the whole input (no trailing garbage).
+    let mut pairs = PxParser::parse(Rule::expr, text).ok()?;
+    let expr = pairs.next()?;
+    if expr.as_rule() != Rule::expr {
+        return None;
+    }
+    // Reject `inline_if` and any expr that didn't consume the full string.
+    if expr.as_str().trim() != text.trim() {
+        return None;
+    }
+
+    let mut comparisons: Vec<Condition> = Vec::new();
+    let mut joiner: Option<Logic> = None;
+
+    for child in expr.into_inner() {
+        match child.as_rule() {
+            Rule::comparison => {
+                comparisons.push(comparison_to_condition(child)?);
+            }
+            Rule::logic_op => {
+                let this = Logic::from_str(child.as_str())?;
+                match joiner {
+                    None => joiner = Some(this),
+                    // Refuse to silently guess precedence on mixed and/or.
+                    Some(prev) if prev != this => return None,
+                    Some(_) => {}
+                }
+            }
+            // `inline_if` or anything unexpected at the top level -> not a
+            // simple predicate we are willing to enforce.
+            _ => return None,
+        }
+    }
+
+    match comparisons.len() {
+        0 => None,
+        1 => comparisons.into_iter().next(),
+        _ => Some(match joiner {
+            Some(Logic::Or) => Condition::Any {
+                conditions: comparisons,
+            },
+            // Default conjunction (also the `and` case).
+            _ => Condition::All {
+                conditions: comparisons,
+            },
+        }),
+    }
+}
+
+/// Logical joiner between comparisons.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Logic {
+    And,
+    Or,
+}
+
+impl Logic {
+    fn from_str(s: &str) -> Option<Self> {
+        match s.trim() {
+            "&&" | "AND" | "and" => Some(Logic::And),
+            "||" | "OR" | "or" => Some(Logic::Or),
+            _ => None,
+        }
+    }
+}
+
+/// Map a single `comparison` pair (`additive comp_op additive`) to a
+/// [`Condition`].  Returns `None` for anything that is not
+/// `field <comp_op> literal`.
+fn comparison_to_condition(pair: pest::iterators::Pair<Rule>) -> Option<Condition> {
+    let mut field: Option<String> = None;
+    let mut op: Option<String> = None;
+    let mut value_str: Option<String> = None;
+
+    for part in pair.into_inner() {
+        match part.as_rule() {
+            Rule::comp_op => op = Some(part.as_str().trim().to_string()),
+            Rule::additive => {
+                // First additive = field (LHS); second = value (RHS).
+                if field.is_none() {
+                    field = Some(part.as_str().trim().to_string());
+                } else {
+                    value_str = Some(part.as_str().trim().to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // A bare `additive` with no comp_op is not an enforceable predicate.
+    let field = field?;
+    let op = op?;
+    let value_str = value_str?;
+
+    // Field path indexes into AgentContext::metadata; strip a `metadata.` head.
+    let field = field
+        .strip_prefix("metadata.")
+        .map(str::to_string)
+        .unwrap_or(field);
+
+    // Reject anything that doesn't look like a plain field identifier path
+    // (e.g. arithmetic, function calls, quoted junk on the LHS).
+    if !is_field_path(&field) {
+        return None;
+    }
+
+    build_comparison(&field, &op, &value_str)
+}
+
+/// True if `s` is a dotted identifier path (the only LHS shape we enforce).
+fn is_field_path(s: &str) -> bool {
+    !s.is_empty()
+        && s.split('.').all(|seg| {
+            !seg.is_empty()
+                && seg.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                && seg
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        })
+}
+
+/// Build the [`Condition`] for `field op value_str`.
+fn build_comparison(field: &str, op: &str, value_str: &str) -> Option<Condition> {
+    let json = literal_to_json(value_str)?;
+
+    match op {
+        "<" | ">" | "<=" | ">=" => {
+            // Ordering comparisons require a numeric RHS.
+            let threshold = json.as_f64()?;
+            Some(match op {
+                "<" => Condition::FieldLt {
+                    field: field.to_string(),
+                    threshold,
+                },
+                ">" => Condition::FieldGt {
+                    field: field.to_string(),
+                    threshold,
+                },
+                // `<=`  is  !(x > t)
+                "<=" => Condition::Not {
+                    condition: Box::new(Condition::FieldGt {
+                        field: field.to_string(),
+                        threshold,
+                    }),
+                },
+                // `>=`  is  !(x < t)
+                _ => Condition::Not {
+                    condition: Box::new(Condition::FieldLt {
+                        field: field.to_string(),
+                        threshold,
+                    }),
+                },
+            })
+        }
+        "==" => Some(Condition::FieldEq {
+            field: field.to_string(),
+            value: json,
+        }),
+        "!=" => Some(Condition::Not {
+            condition: Box::new(Condition::FieldEq {
+                field: field.to_string(),
+                value: json,
+            }),
+        }),
+        _ => None,
+    }
+}
+
+/// Convert a literal RHS token into a JSON value (number, bool, or string).
+fn literal_to_json(s: &str) -> Option<serde_json::Value> {
+    let s = s.trim();
+    if s.is_empty() {
+        return None;
+    }
+    if s == "true" {
+        return Some(serde_json::Value::Bool(true));
+    }
+    if s == "false" {
+        return Some(serde_json::Value::Bool(false));
+    }
+    // Quoted string literal.
+    if (s.starts_with('"') && s.ends_with('"') && s.len() >= 2)
+        || (s.starts_with('\'') && s.ends_with('\'') && s.len() >= 2)
+    {
+        return Some(serde_json::Value::String(s[1..s.len() - 1].to_string()));
+    }
+    // Numeric literal (int or float).
+    if let Ok(i) = s.parse::<i64>() {
+        return Some(serde_json::Value::Number(i.into()));
+    }
+    if let Ok(f) = s.parse::<f64>() {
+        return serde_json::Number::from_f64(f).map(serde_json::Value::Number);
+    }
+    None
 }
 
 // ---------------------------------------------------------------------------
@@ -240,7 +541,7 @@ pub fn query_gaps(store: &PraxisStore) -> Vec<&Evidence> {
 // ---------------------------------------------------------------------------
 
 /// The result of applying a user correction to the praxis store.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CorrectionApplied {
     /// The constraint that was created or updated.
     pub constraint: Constraint,
@@ -442,10 +743,205 @@ mod tests {
     }
 
     #[test]
-    fn compile_nl_unknown_text_produces_always_pass() {
+    fn compile_nl_unknown_text_is_flagged_inert_not_silent_always() {
+        // Genuinely unrecognised English: neither a structured predicate nor a
+        // known keyword. It MUST be flagged inert, not a silent Always that
+        // masquerades as enforcement (C-NOSTUB-001).
         let c = compile_nl("something entirely unrecognised", "C-UNK");
         assert!(matches!(c.when, Condition::Always));
         assert!(matches!(c.require, Condition::Always));
+        assert!(
+            c.description.starts_with(UNPARSED_MARKER),
+            "unparsed constraint must be flagged with the marker; got: {:?}",
+            c.description
+        );
+    }
+
+    // ── compile_nl: REAL structured-predicate path ───────────────────────────
+
+    /// Helper: build a ctx carrying a single numeric `amount` metadata value.
+    fn ctx_amount(amount: i64) -> AgentContext {
+        AgentContext::new("place_trade", "market", SessionType::Main)
+            .with_meta("amount", json!(amount))
+    }
+
+    /// Helper: does this constraint BLOCK the given ctx?  (when holds AND
+    /// require does NOT hold).
+    fn blocks(c: &Constraint, ctx: &AgentContext) -> bool {
+        c.when.evaluate(ctx) && !c.require.evaluate(ctx)
+    }
+
+    #[test]
+    fn compile_nl_le_blocks_violation_passes_compliant() {
+        // The $500-trade class of input. `amount <= 100` must really enforce.
+        let c = compile_nl("metadata.amount <= 100", "C-AMT");
+        // require is the real invariant, NOT Always.
+        assert!(
+            !matches!(c.require, Condition::Always),
+            "require must be a real predicate, not Always"
+        );
+        assert!(blocks(&c, &ctx_amount(500)), "amount=500 must be blocked");
+        assert!(
+            !blocks(&c, &ctx_amount(50)),
+            "amount=50 must pass"
+        );
+        // Boundary: <= is inclusive, so amount=100 passes.
+        assert!(
+            !blocks(&c, &ctx_amount(100)),
+            "amount=100 must pass (<= is inclusive)"
+        );
+    }
+
+    #[test]
+    fn compile_nl_metadata_prefix_is_stripped() {
+        // `metadata.amount` and `amount` must behave identically.
+        let with_prefix = compile_nl("metadata.amount <= 100", "C-A");
+        let without = compile_nl("amount <= 100", "C-B");
+        assert_eq!(
+            blocks(&with_prefix, &ctx_amount(500)),
+            blocks(&without, &ctx_amount(500))
+        );
+        assert!(blocks(&without, &ctx_amount(500)));
+    }
+
+    #[test]
+    fn compile_nl_lt_strict() {
+        let c = compile_nl("risk_score < 0.9", "C-RISK");
+        assert!(matches!(c.require, Condition::FieldLt { .. }));
+        let hi = AgentContext::new("deploy", "prod", SessionType::Main)
+            .with_meta("risk_score", json!(0.95));
+        let lo = AgentContext::new("deploy", "prod", SessionType::Main)
+            .with_meta("risk_score", json!(0.5));
+        assert!(blocks(&c, &hi), "0.95 must be blocked by < 0.9");
+        assert!(!blocks(&c, &lo), "0.5 must pass < 0.9");
+    }
+
+    #[test]
+    fn compile_nl_gt_strict() {
+        let c = compile_nl("score > 10", "C-GT");
+        assert!(matches!(c.require, Condition::FieldGt { .. }));
+        let ok = AgentContext::new("a", "b", SessionType::Main).with_meta("score", json!(20));
+        let bad = AgentContext::new("a", "b", SessionType::Main).with_meta("score", json!(5));
+        assert!(!blocks(&c, &ok), "20 satisfies > 10");
+        assert!(blocks(&c, &bad), "5 violates > 10");
+    }
+
+    #[test]
+    fn compile_nl_ge_inclusive() {
+        // `>= 3`  ≡  !(x < 3): 3 and 4 pass, 2 blocked.
+        let c = compile_nl("level >= 3", "C-GE");
+        let mk = |n: i64| AgentContext::new("a", "b", SessionType::Main).with_meta("level", json!(n));
+        assert!(!blocks(&c, &mk(4)), "4 passes >= 3");
+        assert!(!blocks(&c, &mk(3)), "3 passes >= 3 (inclusive)");
+        assert!(blocks(&c, &mk(2)), "2 violates >= 3");
+    }
+
+    #[test]
+    fn compile_nl_eq_and_ne() {
+        // ==
+        let eq = compile_nl("env == \"prod\"", "C-EQ");
+        assert!(matches!(eq.require, Condition::FieldEq { .. }));
+        let prod = AgentContext::new("a", "b", SessionType::Main).with_meta("env", json!("prod"));
+        let stg = AgentContext::new("a", "b", SessionType::Main).with_meta("env", json!("staging"));
+        assert!(!blocks(&eq, &prod), "env=prod satisfies == prod");
+        assert!(blocks(&eq, &stg), "env=staging violates == prod");
+
+        // !=  (maps to Not(FieldEq))
+        let ne = compile_nl("env != \"prod\"", "C-NE");
+        assert!(matches!(ne.require, Condition::Not { .. }));
+        assert!(blocks(&ne, &prod), "env=prod violates != prod");
+        assert!(!blocks(&ne, &stg), "env=staging satisfies != prod");
+    }
+
+    #[test]
+    fn compile_nl_and_combination() {
+        // Conjunction: amount <= 100 AND level >= 2 → Condition::All.
+        let c = compile_nl("amount <= 100 and level >= 2", "C-AND");
+        assert!(matches!(c.require, Condition::All { .. }));
+        let mk = |amt: i64, lvl: i64| {
+            AgentContext::new("place_trade", "m", SessionType::Main)
+                .with_meta("amount", json!(amt))
+                .with_meta("level", json!(lvl))
+        };
+        assert!(!blocks(&c, &mk(50, 3)), "both satisfied -> pass");
+        assert!(blocks(&c, &mk(500, 3)), "amount too high -> block");
+        assert!(blocks(&c, &mk(50, 1)), "level too low -> block");
+    }
+
+    #[test]
+    fn compile_nl_or_combination() {
+        // Disjunction: amount <= 100 OR override == true → Condition::Any.
+        let c = compile_nl("amount <= 100 or override == true", "C-OR");
+        assert!(matches!(c.require, Condition::Any { .. }));
+        let mk = |amt: i64, ovr: bool| {
+            AgentContext::new("place_trade", "m", SessionType::Main)
+                .with_meta("amount", json!(amt))
+                .with_meta("override", json!(ovr))
+        };
+        assert!(!blocks(&c, &mk(50, false)), "amount ok -> pass");
+        assert!(!blocks(&c, &mk(500, true)), "override true -> pass");
+        assert!(blocks(&c, &mk(500, false)), "neither -> block");
+    }
+
+    #[test]
+    fn compile_nl_must_keyword_sets_error_severity() {
+        let c = compile_nl("place_trade actions must have metadata.amount <= 100", "C-SEV");
+        // "must" => Error severity; predicate still parses from the tail.
+        assert_eq!(c.severity, Severity::Error);
+    }
+
+    #[test]
+    fn compile_nl_full_sentence_with_embedded_predicate_is_flagged_when_not_pure() {
+        // A sentence that is NOT a bare expression must not silently become a
+        // real guard via the structured path; it falls through. Because it has
+        // no recognised keyword either, it is flagged inert (never silent Always).
+        let c = compile_nl("please make sure the trade is reasonable", "C-SENT");
+        assert!(c.description.starts_with(UNPARSED_MARKER));
+        assert!(matches!(c.require, Condition::Always));
+    }
+
+    // ── REGRESSION: the old silent-Always stub is gone ───────────────────────
+
+    #[test]
+    fn regression_numeric_threshold_never_compiles_to_always() {
+        // Before TASK-PX-CANON Stage 1, ANY text without a magic keyword
+        // (including numeric thresholds) compiled `require: Always` — a silent
+        // pass-through that enforced nothing. Prove that class is dead.
+        for src in [
+            "metadata.amount <= 100",
+            "amount < 100",
+            "risk_score < 0.9",
+            "score > 10",
+            "level >= 2",
+            "count != 0",
+        ] {
+            let c = compile_nl(src, "C-REG");
+            assert!(
+                !matches!(c.require, Condition::Always),
+                "`{src}` must compile to a real predicate, not Condition::Always"
+            );
+            assert!(
+                !c.description.starts_with(UNPARSED_MARKER),
+                "`{src}` is a valid predicate and must NOT be flagged unparsed"
+            );
+        }
+    }
+
+    #[test]
+    fn regression_dollar_500_trade_actually_blocks() {
+        // The canonical motivating example from the task definition.
+        let c = compile_nl("place_trade actions must have metadata.amount <= 100", "C-TRADE");
+        // The sentence form falls through to the inert path (not a bare expr),
+        // so we also assert the BARE predicate form (the supported syntax) blocks.
+        let bare = compile_nl("metadata.amount <= 100", "C-TRADE2");
+        let ctx500 = AgentContext::new("place_trade", "market", SessionType::Main)
+            .with_meta("amount", json!(500));
+        assert!(blocks(&bare, &ctx500), "$500 trade must be blocked by the real predicate");
+        // And the sentence form is at least honestly flagged, not a fake guard.
+        assert!(
+            matches!(c.require, Condition::Always) == c.description.starts_with(UNPARSED_MARKER),
+            "sentence form must be flagged inert if it is Always"
+        );
     }
 
     // ── query_gaps ───────────────────────────────────────────────────────────
