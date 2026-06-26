@@ -28,6 +28,7 @@ napi = { version = "3.9", features = ["napi6", "serde-json"] }
 napi-derive = "3.5.5"
 pluresdb-core = { path = "../pluresdb-core" }
 pluresdb-procedures = { path = "../pluresdb-procedures" }
+pluresdb-px = { path = "../pluresdb-px" }
 pluresdb-storage = { path = "../pluresdb-storage" }
 pluresdb-sync = { path = "../pluresdb-sync" }
 serde = { workspace = true }

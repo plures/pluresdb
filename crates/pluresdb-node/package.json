@@ -18,7 +18,8 @@
   "scripts": {
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
-    "test": "node test-node.js",
+    "test": "node test-node.js && node __tests__/constraints.smoke.mjs",
+    "test:constraints": "node __tests__/constraints.smoke.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

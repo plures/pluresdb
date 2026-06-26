@@ -3212,6 +3212,7 @@ dependencies = [
  "parking_lot 0.12.4",
  "pluresdb-core",
  "pluresdb-procedures",
+ "pluresdb-px",
  "pluresdb-storage",
  "pluresdb-sync",
  "serde",
