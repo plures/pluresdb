@@ -1,0 +1,10 @@
+procedure normalize_text:
+  trigger: manual
+  read_state {key: "input.text"} -> $raw
+  return $raw
+
+procedure compose_pipeline:
+  trigger: manual
+  normalize_text {} -> $normalized
+  write_state {key: "output.text", value: $normalized} -> $stored
+  return $stored

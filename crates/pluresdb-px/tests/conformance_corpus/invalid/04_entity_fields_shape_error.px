@@ -1,0 +1,5 @@
+entity invalid_entity:
+  prefix: "inv"
+  fields:
+    - id: string
+    - count: int

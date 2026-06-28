@@ -1,0 +1,10 @@
+procedure dev_lifecycle:
+  trigger: manual
+  params: [$task_id, $stage]
+  given: "Execute lifecycle stage with runtime action handlers"
+  generate_id {scope: "task", source: $task_id} -> $run_id
+  write_state {key: "run.id", value: $run_id} -> $ok
+  when $ok == true:
+    update_stage_status {task_id: $task_id, stage: $stage, status: "running"} -> $updated
+  end
+  return $updated

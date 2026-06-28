@@ -1,0 +1,13 @@
+procedure heartbeat_health:
+  trigger: manual
+  read_state {key: "heartbeat.last"} -> $last
+  return $last
+
+scenario heartbeat_kept_fresh:
+  given: "Heartbeat state exists"
+  setup:
+    timestamp_now {} -> $now
+  run: heartbeat_health
+  expect:
+    - NOT constraint_violated {name: "heartbeat_stale"}
+    - event_emitted {kind: "heartbeat"}

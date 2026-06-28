@@ -1,0 +1,19 @@
+entity user_profile:
+  prefix: "usr"
+  fields:
+    id: string
+    age: int
+    tags: list[string]
+
+contract profile_rules:
+  given: "A valid user profile"
+  when: "validation executes"
+  then: "profile remains accepted"
+  threshold: 0.95
+  examples:
+    - input: { id: "u-1", age: 23, tags: ["member"] }
+      expect: { accepted: true }
+
+trigger on_new_profile:
+  on: on_event("profile.created")
+  run: validate_profile

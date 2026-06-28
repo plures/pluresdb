@@ -1,0 +1,4 @@
+constraint broken_constraint
+  when: score > 10
+  require: approved == true
+  severity: error

@@ -1,0 +1,12 @@
+fact inbox_message:
+  body: string
+  channel: string
+
+procedure classify_message(message: string from "inbound", channel: string from "channel") -> classification into "classified":
+  given: "Classify message intents with structured code expressions"
+  {
+    let is_urgent = message == "urgent" || message == "p1";
+    let verdict = if is_urgent { "high" } else { "normal" };
+    emit({kind: "classification", level: verdict, channel: channel});
+    return {intent: verdict};
+  }

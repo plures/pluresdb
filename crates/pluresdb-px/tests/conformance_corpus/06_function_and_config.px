@@ -1,0 +1,10 @@
+config service_defaults:
+  retries: 3
+  timeout_ms: 5000
+  telemetry:
+    enabled: true
+    sample_rate: 0.25
+
+function choose_backoff(attempt: int, base: float) -> float:
+  mode: deterministic
+  """Returns a deterministic backoff multiple."""

@@ -1,0 +1,32 @@
+name: pluresdb-px conformance
+
+on:
+  push:
+    branches: [main, "copilot/**", "feature/**"]
+    paths:
+      - 'crates/pluresdb-px/**'
+      - '.github/workflows/pluresdb-px-conformance.yml'
+  pull_request:
+    paths:
+      - 'crates/pluresdb-px/**'
+      - '.github/workflows/pluresdb-px-conformance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pluresdb-px-conformance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo test conformance
+        run: cargo test -p pluresdb-px --test conformance --locked

@@ -1,0 +1,8 @@
+function score_alert(text: string, sev: int) -> int:
+  mode: deterministic
+  """Simple score function used by conformance fixture."""
+
+procedure route_alert(alert: string from "alerts", severity: int from "severity") -> routed into "dispatch":
+  given: "Route alerts by severity"
+  score_alert {text: $alert, sev: $severity} -> $score
+  return $score

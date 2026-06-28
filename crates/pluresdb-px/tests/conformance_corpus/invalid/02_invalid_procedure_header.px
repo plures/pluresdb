@@ -1,0 +1,3 @@
+procedure bad_proc(message string):
+  given: "missing colon in typed parameter"
+  return message

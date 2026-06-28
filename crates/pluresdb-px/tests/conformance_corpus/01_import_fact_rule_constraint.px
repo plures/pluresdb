@@ -1,0 +1,24 @@
+import common::types as ct
+
+fact pr_state:
+  ci_status: enum(green, failing, pending)
+  has_review: bool
+
+rule auto_merge:
+  priority: 10
+  when:
+    - pr_state.ci_status == green
+    - pr_state.has_review == true
+  then:
+    - action: write_state key: "pr:auto_merge" value: "ready"
+
+constraint merge_requires_review:
+  scope: repository
+  phase: pre_merge, post_ci
+  trait: discipline
+  weight: 0.9
+  prompt: "Require review before merge"
+  when: pr_state.ci_status == green
+  require: pr_state.has_review == true
+  severity: error
+  message: "Reviewed approval is required before merge"

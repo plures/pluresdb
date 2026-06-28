@@ -1,0 +1,4 @@
+constraint invalid_severity:
+  when: ok == true
+  require: done == true
+  severity: fatal
