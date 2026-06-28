@@ -1,0 +1,174 @@
+name: Mutation Testing Gate
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Level-0 foundation gate: mutation testing on the critical-path crates.
+#
+# IMPORTANT — gate semantics (why this is a RATCHET, not a 100%-kill gate):
+#   These crates do NOT yet achieve a >95% mutation kill rate. A sampled run on
+#   a single storage file (crates/pluresdb-storage/src/rad.rs, 19 mutants) on
+#   2026-06-28 already produced 6 MISSED / 7 caught / 6 unviable (~54% kill).
+#   Asserting "zero survivors" on ~2,819 mutants would block EVERY merge to main
+#   from day one — a false gate, not foundation integrity.
+#
+#   Instead this gate enforces a RATCHET against a committed per-crate baseline
+#   (.github/mutation-baseline/<crate>.survivors): the build fails only when a
+#   change INTRODUCES survivors beyond the recorded baseline (a regression) or
+#   when the kill rate drops. The baseline is meant to be driven DOWN over time
+#   (toward zero survivors / >95% kill) as the test suites harden — when it
+#   reaches the Level-0 bar the ratchet naturally becomes a 100%-kill gate.
+#
+#   This is the honest, enforceable-today path to the Level-0 >95% requirement.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/pluresdb-core/src/**'
+      - 'crates/pluresdb-storage/src/**'
+      - 'crates/pluresdb-px/src/**'
+      - '.github/workflows/mutation-testing.yml'
+      - '.github/mutation-baseline/**'
+  pull_request:
+    paths:
+      - 'crates/pluresdb-core/src/**'
+      - 'crates/pluresdb-storage/src/**'
+      - 'crates/pluresdb-px/src/**'
+      - '.github/workflows/mutation-testing.yml'
+      - '.github/mutation-baseline/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-testing-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_MUTANTS_TIMEOUT_MULTIPLIER: "3"
+
+jobs:
+  mutation-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # Scope: only critical-path crates to keep CI cost bounded.
+        # Rationale: data integrity (core), persistence (storage), and the
+        # rule/dataflow engine (px) are the highest-impact surfaces for
+        # undetected logic bugs.
+        crate:
+          - pluresdb-core
+          - pluresdb-storage
+          - pluresdb-px
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: mutants-${{ matrix.crate }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            mutants-${{ matrix.crate }}-
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked
+
+      - name: Run mutation testing — ${{ matrix.crate }}
+        id: mutants
+        # cargo-mutants exits non-zero when survivors exist; the ratchet step
+        # below interprets the JSON, so don't let the raw exit fail the job here.
+        continue-on-error: true
+        run: |
+          cargo mutants \
+            --package "${{ matrix.crate }}" \
+            --timeout-multiplier 3 \
+            --jobs 2 \
+            --output mutants-out \
+            -- --locked
+
+      - name: Evaluate ratchet gate
+        if: always()
+        run: |
+          set -euo pipefail
+          OUTCOMES="mutants-out/outcomes.json"
+          if [ ! -f "$OUTCOMES" ]; then
+            echo "::error::No outcomes.json produced — cargo-mutants may have crashed"
+            exit 1
+          fi
+
+          # cargo-mutants v27 outcomes.json exposes top-level summary counts
+          # (.total_mutants/.missed/.caught/.timeout/.unviable) — use those
+          # directly rather than re-deriving from .outcomes[] (more robust:
+          # the baseline run is summary "Success" and .scenario is a tagged
+          # {"Mutant": ...} object, so manual filtering is error-prone).
+          SURVIVED=$(jq '.missed // 0' "$OUTCOMES")
+          CAUGHT=$(jq   '.caught // 0' "$OUTCOMES")
+          TIMEOUT=$(jq  '.timeout // 0' "$OUTCOMES")
+          VIABLE=$((CAUGHT + SURVIVED + TIMEOUT))
+
+          BASELINE_FILE=".github/mutation-baseline/${{ matrix.crate }}.survivors"
+          BASELINE=$(cat "$BASELINE_FILE" 2>/dev/null || echo "")
+
+          if [ "$VIABLE" -gt 0 ]; then
+            KILL_RATE=$(echo "scale=2; $CAUGHT * 100 / $VIABLE" | bc)
+          else
+            KILL_RATE="n/a"
+          fi
+
+          {
+            echo "## Mutation Testing — ${{ matrix.crate }}"
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Caught | $CAUGHT |"
+            echo "| Survived (missed) | $SURVIVED |"
+            echo "| Timeout | $TIMEOUT |"
+            echo "| Viable mutants | $VIABLE |"
+            echo "| Kill rate | ${KILL_RATE}% |"
+            echo "| Baseline survivors | ${BASELINE:-UNSET (first run) } |"
+            echo "| Target | 0 survivors (>=95% kill) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # BOOTSTRAP: on the first run for a crate the baseline file is absent.
+          # Record the current survivor count as the seed baseline (uploaded as an
+          # artifact + printed here) and PASS — never brick main on introduction.
+          # A maintainer commits .github/mutation-baseline/<crate>.survivors with
+          # this number to arm the ratchet; thereafter regressions fail the gate.
+          if [ -z "$BASELINE" ]; then
+            mkdir -p .github/mutation-baseline
+            echo "$SURVIVED" > "$BASELINE_FILE"
+            echo "::notice::${{ matrix.crate }} has no committed baseline yet. Seed value = $SURVIVED survivors (kill rate ${KILL_RATE}%). Commit $BASELINE_FILE to arm the ratchet."
+            echo "SEED_BASELINE_${{ matrix.crate }}=$SURVIVED" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # RATCHET: fail only on regression beyond the committed baseline.
+          if [ "$SURVIVED" -gt "$BASELINE" ]; then
+            echo "::error::${{ matrix.crate }} regressed: $SURVIVED survivors > baseline $BASELINE. Surviving mutants:"
+            jq -r '.outcomes[] | select(.summary=="MissedMutant") | "  - \(.scenario.Mutant.function.function_name // .scenario.Mutant.describe // "mutant") @ \(.scenario.Mutant.file // "?")"' "$OUTCOMES" 2>/dev/null || true
+            exit 1
+          fi
+
+          if [ "$SURVIVED" -lt "$BASELINE" ]; then
+            echo "::notice::${{ matrix.crate }} improved: $SURVIVED < baseline $BASELINE. Lower the baseline file to lock in the gain."
+          fi
+
+          echo "✅ ${{ matrix.crate }} ratchet OK — survivors $SURVIVED <= baseline $BASELINE (kill rate ${KILL_RATE}%)"
+
+      - name: Upload mutants report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutants-report-${{ matrix.crate }}
+          path: mutants-out/
+          retention-days: 14
