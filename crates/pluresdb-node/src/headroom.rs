@@ -60,9 +60,22 @@ pub fn count_tokens(content: &str) -> usize {
 
 /// Detect content type: one of `json` | `log` | `code` | `error` | `prose`.
 /// Port of the `detect_content_type` actor (`headroom.rs` L68-86).
+///
+/// FIDELITY NOTE (H-TEST stage): the real pares-agens detector checks the
+/// `{`/`[` JSON prefix *first*, so a bracketed-level log line (`[ERROR] ...`)
+/// short-circuits to `json` before `is_log_content` is ever consulted — a
+/// detector-ordering gap. We add a single tightly-guarded carve-out: a line that
+/// begins with `[ERROR]`/`[WARN]`/`[INFO]`/`[DEBUG]`/`[TRACE]` is *never* a valid
+/// JSON array (a JSON array opens with whitespace, a digit, a quote, `{`, `[`, or
+/// `]` after `[` — never an uppercase level word), so we let it fall through to
+/// the log branch. This cannot reclassify any real JSON. Plain `[`-prefixed
+/// timestamp logs without a `[LEVEL]` token (e.g. `[2026-..T..Z] ERROR ...`)
+/// remain a documented limitation (still routed to json) — see
+/// `detect_bracketed_timestamp_log_is_documented_limitation`.
 pub fn detect_content_type(content: &str) -> &'static str {
     let trimmed = content.trim_start();
-    if trimmed.starts_with('{') || trimmed.starts_with('[') {
+    if (trimmed.starts_with('{') || trimmed.starts_with('[')) && !starts_like_bracketed_log(trimmed)
+    {
         "json"
     } else if is_log_content(content) {
         "log"
@@ -73,6 +86,14 @@ pub fn detect_content_type(content: &str) -> &'static str {
     } else {
         "prose"
     }
+}
+
+/// True when the (left-trimmed) content begins with a bracketed log-level token
+/// (`[ERROR]`/`[WARN]`/`[INFO]`/`[DEBUG]`/`[TRACE]`). Used only to keep such
+/// definitively-log lines out of the JSON branch; it never matches real JSON.
+fn starts_like_bracketed_log(trimmed: &str) -> bool {
+    const BRACKETED: [&str; 5] = ["[ERROR]", "[WARN]", "[INFO]", "[DEBUG]", "[TRACE]"];
+    BRACKETED.iter().any(|b| trimmed.starts_with(b))
 }
 
 /// Compress a single body by detected (or caller-forced) content type.
@@ -237,6 +258,21 @@ fn collapse_whitespace(content: &str) -> String {
 
 /// Returns true if the content looks like log output (timestamp + level
 /// patterns). Port of `is_log_content` (`headroom.rs` L~470-490).
+///
+/// FIDELITY NOTE (H-TEST stage, 2026-06-29): this is a *strict superset* of the
+/// pares-agens `is_log_content`. The real detector only matches a level token
+/// when it appears space-delimited *inside* a line (`" ERROR "`), so a line that
+/// literally **begins** with the level word (`ERROR worker crashed`, `WARN ...`)
+/// trims to `ERROR worker crashed`, does NOT contain `" ERROR "`, and was
+/// mis-classified as prose. The orchestrator caught exactly this on a repeated
+/// `ERROR`-prefixed log sample. Real, captured tool/CI logs routinely start with
+/// the bare level word, so we additionally recognize a *line-leading* level
+/// token (`is_level_prefixed`). This never false-positives on English prose
+/// (sentences do not start with a bare `ERROR `/`WARN `/`INFO `/`DEBUG `/`TRACE `
+/// followed by a space) and it still matches every input the real detector did.
+/// The remaining genuinely-ambiguous case (repeated identical lines with NO
+/// level token AND NO timestamp) stays prose — see the pinned
+/// `detect_repeated_bare_lines_is_documented_limitation` test.
 fn is_log_content(content: &str) -> bool {
     let lines: Vec<&str> = content.lines().take(10).collect();
     if lines.len() < 3 {
@@ -254,6 +290,10 @@ fn is_log_content(content: &str) -> bool {
                 || t.contains("[info]")
                 || t.contains("[warn]")
                 || t.contains("[error]")
+                // Faithful superset: a line that *starts* with a level token is
+                // unambiguously a log line (the real detector already keys on
+                // these exact words; it just required them mid-line).
+                || is_level_prefixed(t)
                 || (t.len() >= 19
                     && t.as_bytes().get(4) == Some(&b'-')
                     && t.as_bytes().get(7) == Some(&b'-')
@@ -262,6 +302,31 @@ fn is_log_content(content: &str) -> bool {
         })
         .count();
     log_line_count >= 2
+}
+
+/// True when a trimmed line *begins* with a canonical log-level token (the bare
+/// word followed by a space, or a bracketed form). Used to extend the real
+/// detector so line-leading levels (`ERROR ...`, `WARN ...`, `[ERROR] ...`) are
+/// recognized — the gap the orchestrator caught on repeated `ERROR`-prefixed
+/// logs. Deliberately requires the trailing space / bracket so it does not fire
+/// on identifiers like `ERRORS` or `INFORMATION`.
+fn is_level_prefixed(trimmed: &str) -> bool {
+    const LEVELS: [&str; 5] = ["ERROR", "WARN", "INFO", "DEBUG", "TRACE"];
+    for lvl in LEVELS {
+        // Bare leading level: "ERROR something" / "WARN: something".
+        if let Some(rest) = trimmed.strip_prefix(lvl) {
+            match rest.chars().next() {
+                Some(c) if c == ' ' || c == ':' || c == '\t' => return true,
+                _ => {}
+            }
+        }
+        // Bracketed leading level: "[ERROR] something".
+        let bracketed = format!("[{lvl}]");
+        if trimmed.starts_with(&bracketed) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Returns true if content looks like an error or stack trace. Requires multiple
@@ -443,6 +508,18 @@ fn extract_signatures_heuristic(content: &str, language: &str) -> Vec<String> {
 mod tests {
     use super::*;
 
+    // Compression ratio computed in REAL cl100k tokens (never a hardcoded ratio).
+    fn ratio(original: &str, compressed: &str) -> f64 {
+        let b = count_tokens(original);
+        let c = count_tokens(compressed);
+        if b == 0 {
+            return 1.0;
+        }
+        c as f64 / b as f64
+    }
+
+    // ── unit-level building blocks ─────────────────────────────────────
+
     #[test]
     fn whitespace_collapse_shrinks() {
         let input = "a\n\n\n   b      c\t\t d";
@@ -450,30 +527,45 @@ mod tests {
     }
 
     #[test]
-    fn log_dedup_collapses_runs() {
-        let log = "ERROR boom\nERROR boom\nERROR boom\nINFO ok\n";
-        let out = compress_log(log).unwrap();
-        assert!(out.contains("[×3]"), "expected run marker, got: {out}");
-        assert!(out.contains("INFO ok"));
+    fn token_count_is_real_cl100k() {
+        // "hello world" is 2 tokens under cl100k_base (matches tiktoken).
+        assert_eq!(count_tokens("hello world"), 2);
+        assert_eq!(count_tokens(""), 0);
     }
 
+    // ── PROSE: head+tail retained, middle elided, REAL tokens drop ─────────────
+    // Fidelity vs pares-agens `compress_prose` (headroom_bridge.rs L266-301):
+    // ≤6 sentences -> whitespace collapse; else keep first 3 + elision marker +
+    // last 3. We assert head/tail sentinels survive, middle is gone, marker is
+    // present, and the real cl100k token count strictly drops.
     #[test]
-    fn large_prose_trims_middle_keeps_head_tail() {
-        let prose: String = (0..80)
-            .map(|i| format!("This is sentence number {i} with some filler words. "))
+    fn prose_keeps_head_tail_elides_middle_and_drops_tokens() {
+        let prose: String = (0..40)
+            .map(|i| format!("Paragraph fact number {i} describes a distinct point about the subsystem. "))
             .collect();
-        let out = compress_text(&prose, None);
-        assert!(out.len() < prose.len(), "expected shrink");
-        assert!(out.contains("elided"), "expected elision marker");
-        // head sentinel (sentence 0) and tail sentinel (sentence 79) survive
-        assert!(out.contains("sentence number 0 "), "head sentence lost");
-        assert!(out.contains("sentence number 79 "), "tail sentence lost");
+        let out = compress_text(&prose, Some("prose"));
+        assert!(out.len() < prose.len(), "prose should shrink in bytes");
+        let r = ratio(&prose, &out);
+        assert!(r < 1.0, "prose tokens must drop (ratio={r})");
+        // head sentinel (sentence 0,1,2) and tail sentinel (37,38,39) survive
+        assert!(out.contains("fact number 0 "), "head sentence 0 lost: {out}");
+        assert!(out.contains("fact number 39 "), "tail sentence 39 lost: {out}");
+        // a clearly-middle sentence is gone
+        assert!(!out.contains("fact number 20 "), "middle sentence leaked: {out}");
+        assert!(out.contains("elided"), "elision marker missing: {out}");
+        // structural fidelity: first 3 + marker + last 3 == exactly head+tail kept
+        assert!(out.contains("fact number 1 ") && out.contains("fact number 2 "));
+        assert!(out.contains("fact number 37 ") && out.contains("fact number 38 "));
     }
 
+    // ── CODE: signatures retained, bodies dropped, REAL tokens drop ────────────
+    // Fidelity vs pares-agens `compress_code` (headroom_bridge.rs L310-342) +
+    // `extract_signatures_heuristic` (headroom.rs L600-657): emit a
+    // `// [headroom: <lang> body elided — N signature(s) kept]` header then the
+    // signature lines only. We assert every signature survives, bulky body lines
+    // are pruned, the header is present, and real tokens drop.
     #[test]
-    fn code_keeps_signature_lines() {
-        // Realistic Rust body well over the 200-char floor, with bulky function
-        // bodies that the signature skeleton should prune away.
+    fn code_keeps_signatures_drops_bodies_and_drops_tokens() {
         let code = r#"pub fn alpha(x: i32) -> i32 {
     let mut acc = 0;
     for i in 0..x {
@@ -505,36 +597,241 @@ impl Foo {
     }
 }
 "#;
-        assert!(code.len() >= PER_MESSAGE_MIN_CHARS, "fixture too small");
-        let out = compress_text(code, None);
-        assert!(out.len() < code.len(), "expected code shrink: {out}");
+        assert!(code.len() >= PER_MESSAGE_MIN_CHARS, "fixture under floor");
+        let out = compress_text(code, Some("code"));
+        assert!(out.len() < code.len(), "code should shrink: {out}");
+        let r = ratio(code, &out);
+        assert!(r < 1.0, "code tokens must drop (ratio={r})");
+        // every signature retained
         assert!(out.contains("pub fn alpha"), "alpha sig lost: {out}");
         assert!(out.contains("pub fn beta"), "beta sig lost: {out}");
         assert!(out.contains("struct Foo"), "struct sig lost: {out}");
-        assert!(out.contains("body elided"), "expected code header: {out}");
-        // bulky body lines must be gone
-        assert!(!out.contains("acc += i"), "body line leaked: {out}");
+        assert!(out.contains("impl Foo"), "impl sig lost: {out}");
+        assert!(out.contains("pub fn total"), "method sig lost: {out}");
+        // header present
+        assert!(out.contains("body elided"), "code header missing: {out}");
+        // bulky body lines pruned
+        assert!(!out.contains("acc += i"), "alpha body leaked: {out}");
+        assert!(!out.contains("out.push(ch)"), "beta body leaked: {out}");
+    }
+
+    // ── LOG: consecutive-dup runs collapse to `line  [×N]`, distinct preserved ──
+    // Fidelity vs pares-agens `compress_log` (headroom_bridge.rs L349-383): the
+    // run-collapse marker format is `line` + `"  [×N]"` for runs > 1, singletons
+    // pass through. We assert the marker format, distinct-line preservation, and
+    // real token drop.
+    #[test]
+    fn log_collapses_runs_preserves_distinct_and_drops_tokens() {
+        let mut log = String::new();
+        for _ in 0..30 {
+            log.push_str("2026-06-29 12:00:00 ERROR upstream connection refused\n");
+        }
+        log.push_str("2026-06-29 12:00:01 INFO recovery scheduled\n");
+        for _ in 0..12 {
+            log.push_str("2026-06-29 12:00:02 WARN retry backoff engaged\n");
+        }
+        let out = compress_text(&log, Some("log"));
+        assert!(out.len() < log.len(), "log should shrink: {out}");
+        let r = ratio(&log, &out);
+        assert!(r < 1.0, "log tokens must drop (ratio={r})");
+        // exact run-collapse marker format from the real algorithm
+        assert!(out.contains("[×30]"), "missing ×30 run marker: {out}");
+        assert!(out.contains("[×12]"), "missing ×12 run marker: {out}");
+        // the singleton distinct line is preserved verbatim, not collapsed
+        assert!(out.contains("INFO recovery scheduled"), "distinct line lost: {out}");
+        assert!(!out.contains("INFO recovery scheduled  [×"), "singleton wrongly marked");
     }
 
     #[test]
-    fn short_input_passes_through_unchanged() {
+    fn log_singletons_pass_through_unmarked() {
+        // direct compress_log unit check of the marker boundary
+        let log = "alpha\nbeta\nbeta\ngamma\n";
+        let out = compress_log(log).unwrap();
+        assert!(out.contains("beta  [×2]"), "run not marked: {out}");
+        assert!(out.starts_with("alpha"), "alpha lost: {out}");
+        assert!(out.contains("gamma"), "gamma lost: {out}");
+        assert!(!out.contains("alpha  [×"), "alpha wrongly marked: {out}");
+    }
+
+    // ── JSON/OTHER: whitespace squeeze, tokens drop-or-equal ─────────────────
+    // Fidelity vs `collapse_whitespace` (headroom_bridge.rs L406-422).
+    #[test]
+    fn json_whitespace_squeeze_does_not_grow_tokens() {
+        // Fixture deliberately over the 200-char floor so the strategy actually runs.
+        let json = "{\n    \"name\":     \"widget-assembly-component\",\n    \"description\": \"a fairly long descriptive label used to pad this object well past the floor\",\n    \"values\": [\n        100,\n        200,\n        300,\n        400\n    ],\n    \"nested\": {\n        \"deep\":   true,\n        \"owner\":  \"subsystem-alpha\",\n        \"label\":  \"another reasonably long descriptive string value here\"\n    }\n}";
+        assert!(json.len() >= PER_MESSAGE_MIN_CHARS, "json fixture under floor");
+        let out = compress_text(json, Some("json"));
+        assert!(out.len() <= json.len(), "json must not grow in bytes");
+        let r = ratio(json, &out);
+        assert!(r <= 1.0, "json tokens must not grow (ratio={r})");
+        // whitespace actually squeezed (byte shrink on this padded fixture)
+        assert!(out.len() < json.len(), "padded json should whitespace-shrink: {out}");
+        // keys preserved (whitespace-only squeeze, no key loss)
+        assert!(out.contains("\"name\"") && out.contains("\"nested\""), "key lost: {out}");
+    }
+
+    // ── NET-SAVINGS GUARD: incompressible/short input returned UNCHANGED ──────
+    // This is the per-message contract from `compress_one` (headroom_bridge.rs
+    // L231-258): output is only accepted if strictly smaller AND non-empty,
+    // else the original is returned verbatim. Output can never GROW.
+    #[test]
+    fn net_savings_guard_short_input_unchanged() {
         let s = "too short to bother compressing";
-        assert_eq!(compress_text(s, None), s);
+        assert_eq!(compress_text(s, None), s, "short input must pass through");
     }
 
     #[test]
-    fn token_count_is_real_cl100k() {
-        // "hello world" is 2 tokens under cl100k_base.
-        assert_eq!(count_tokens("hello world"), 2);
-        assert!(count_tokens("") == 0);
+    fn net_savings_guard_incompressible_never_grows() {
+        // A dense, already-tight blob over the 200-char floor with no compressible
+        // structure (no dup runs, no signatures, single whitespace runs). The
+        // guard must return it UNCHANGED rather than emit a larger rewrite.
+        let tight: String = std::iter::repeat("x7Qk")
+            .take(80)
+            .collect::<Vec<_>>()
+            .join(" "); // "x7Qk x7Qk ..." ~ 399 chars, single spaces, no structure
+        assert!(tight.len() >= PER_MESSAGE_MIN_CHARS, "guard fixture under floor");
+        let out = compress_text(&tight, None);
+        assert!(out.len() <= tight.len(), "guard: output grew in bytes");
+        let r = ratio(&tight, &out);
+        assert!(r <= 1.0, "guard: output grew in tokens (ratio={r})");
+        // when nothing beats the original, the contract returns it verbatim
+        assert_eq!(out, tight, "incompressible input must be returned unchanged");
     }
 
     #[test]
-    fn detect_routes_by_type() {
+    fn net_savings_guard_holds_across_all_autodetected_types() {
+        // Auto-detect path (content_type = None) must also never grow any type.
+        let json_s =
+            "{\"a\":1,\"b\":2,\"c\":[1,2,3,4,5,6,7,8,9,10],\"d\":\"some value here padding the length\"}"
+                .to_string();
+        let prose_s = "This is a normal English sentence used as prose padding. ".repeat(8);
+        for s in [json_s, prose_s] {
+            let out = compress_text(&s, None);
+            assert!(
+                count_tokens(&out) <= count_tokens(&s),
+                "auto-detect grew tokens for sample: {s}"
+            );
+        }
+    }
+
+    // ── DETECTOR ACCURACY ───────────────────────────────────────────
+    // Canonical samples of each content type must classify correctly.
+    #[test]
+    fn detector_classifies_canonical_samples() {
+        // json
         assert_eq!(detect_content_type("{\"a\":1}"), "json");
+        assert_eq!(detect_content_type("[1,2,3]"), "json");
+        // prose
         assert_eq!(
-            detect_content_type("just some normal english prose about a topic"),
+            detect_content_type(
+                "This is an ordinary English paragraph that simply describes a situation in words."
+            ),
             "prose"
+        );
+        // code
+        let code = "pub fn run(x: i32) -> i32 {\n    let y = x + 1;\n    y * 2\n}\nfn helper() {\n    let z = 3;\n}\n";
+        assert_eq!(detect_content_type(code), "code");
+        // error (>=2 indicators: panic line + stack frames)
+        let err = "thread 'main' panicked at src/lib.rs:10:5:\nindex out of bounds\n  at foo (src/a.rs:1)\n  at bar (src/b.rs:2)\n";
+        assert_eq!(detect_content_type(err), "error");
+    }
+
+    // The orchestrator's canonical catch: a repeated LOG sample whose lines
+    // *start* with the level word (no leading space) was mis-classified as prose
+    // by the real pares-agens heuristic (which only matched " ERROR " mid-line).
+    // The H-TEST fix (is_level_prefixed) makes this classify as `log`.
+    #[test]
+    fn detector_repeated_level_prefixed_log_is_log_not_prose() {
+        let log = "ERROR worker crashed: connection timeout\nERROR worker crashed: connection timeout\nERROR worker crashed: connection timeout\n";
+        // sanity: this is the exact shape the orchestrator flagged
+        assert_eq!(
+            detect_content_type(log),
+            "log",
+            "line-leading-level log must detect as log (orchestrator regression)"
+        );
+        // and detection drives correct routing end-to-end (real token drop)
+        let big = log.repeat(12); // push over the 200-char floor with many dup runs
+        let out = compress_text(&big, None); // None = auto-detect
+        assert!(out.contains("[×"), "auto-detected log did not run-collapse: {out}");
+        assert!(
+            count_tokens(&out) < count_tokens(&big),
+            "auto-detected log did not save tokens"
+        );
+    }
+
+    #[test]
+    fn detector_bracketed_and_warn_prefixed_logs_detect_as_log() {
+        let bracketed = "[ERROR] disk full on /var\n[ERROR] disk full on /var\n[WARN] retrying write\n";
+        assert_eq!(detect_content_type(bracketed), "log", "[LEVEL]-prefixed must be log");
+        let warn = "WARN: cache miss for key abc\nWARN: cache miss for key abc\nINFO ready\n";
+        assert_eq!(detect_content_type(warn), "log", "WARN-prefixed must be log");
+    }
+
+    #[test]
+    fn detector_level_prefix_does_not_false_positive_on_prose() {
+        // Guard the superset: prose words that merely START with the letters of a
+        // level token (ERRORS, INFORMATION) must NOT trip log detection.
+        let prose = "ERRORS in judgment are common.\nINFORMATION wants to be free.\nWARNING signs were ignored.\n";
+        assert_ne!(
+            detect_content_type(prose),
+            "log",
+            "is_level_prefixed false-positived on prose: {prose}"
+        );
+    }
+
+    // DOCUMENTED LIMITATION (pinned, not hidden): repeated identical lines with
+    // NO level token and NO timestamp are structurally indistinguishable from
+    // repeated prose. The real pares-agens detector has the SAME gap, and any
+    // heuristic aggressive enough to catch this would mis-classify genuine
+    // prose. So it stays `prose`. CRITICAL: compression is still CORRECT when the
+    // caller pins `Some("log")` (the TS seam can), and even under auto-detect the
+    // prose strategy still SAVES tokens — it just does not use run-collapse.
+    // This test pins the current behavior so any future change is intentional.
+    #[test]
+    fn detect_repeated_bare_lines_is_documented_limitation() {
+        let bare = "Connection refused to upstream host\nConnection refused to upstream host\nConnection refused to upstream host\n";
+        // Pinned faithful behavior: classified as prose (NOT log). Documented gap.
+        assert_eq!(
+            detect_content_type(bare),
+            "prose",
+            "behavior changed: bare repeated lines now detect differently — update H-TEST-NOTES"
+        );
+        // Honesty check: explicitly pinning `log` still compresses correctly,
+        // so the limitation is detection-only, never a compression failure.
+        let big = bare.repeat(20);
+        let pinned = compress_text(&big, Some("log"));
+        assert!(pinned.contains("[×"), "explicit log type must still run-collapse: {pinned}");
+        assert!(
+            count_tokens(&pinned) < count_tokens(&big),
+            "explicit log type must save tokens"
+        );
+    }
+
+    // DOCUMENTED LIMITATION (pinned, not hidden): a `[`-prefixed *timestamp* log
+    // (e.g. `[2026-06-29T12:00:00Z] ERROR ...`) opens with `[`, so the JSON
+    // branch claims it before the log branch is reached. Unlike a `[LEVEL]`
+    // prefix (which we safely carve out, since it is never valid JSON), a
+    // `[<timestamp>]` prefix is syntactically a plausible JSON-array opener, so
+    // routing it to log would risk reclassifying real JSON arrays. We therefore
+    // leave it as the faithful pares-agens behavior (json) and pin it here.
+    // Compression remains correct + lossless when the caller pins `Some("log")`.
+    #[test]
+    fn detect_bracketed_timestamp_log_is_documented_limitation() {
+        let ts_log = "[2026-06-29T12:00:00Z] ERROR upstream refused\n[2026-06-29T12:00:00Z] ERROR upstream refused\n[2026-06-29T12:00:01Z] INFO retry\n";
+        // Pinned faithful behavior: `[`-prefix wins -> json. Documented gap.
+        assert_eq!(
+            detect_content_type(ts_log),
+            "json",
+            "behavior changed: bracketed-timestamp log now detects differently — update H-TEST-NOTES"
+        );
+        // Honesty: pinning log still run-collapses + saves tokens (lossless).
+        let big = ts_log.repeat(20);
+        let pinned = compress_text(&big, Some("log"));
+        assert!(pinned.contains("[×"), "explicit log type must still run-collapse: {pinned}");
+        assert!(
+            count_tokens(&pinned) < count_tokens(&big),
+            "explicit log type must save tokens"
         );
     }
 }
+
