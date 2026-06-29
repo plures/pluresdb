@@ -366,5 +366,63 @@ export declare class PluresDatabase {
   agensTimerReschedule(timerId: string): boolean
 }
 
+/**
+ * Compress a single message/chunk body, routing by content type exactly like
+ * the production `compress_one`:
+ *
+ * * `prose` / `error` → head+tail sentence window (first 3 + `[… N sentences
+ *   elided …]` + last 3),
+ * * `code` → language-detected signature skeleton,
+ * * `log` → consecutive-duplicate run collapse (`line  [×N]`),
+ * * `json` / other → whitespace-run squeeze.
+ *
+ * Preserves the real per-message net-savings guard: the rewrite is returned
+ * only when it is actually smaller (in bytes) and non-empty; otherwise the
+ * original `content` is returned unchanged. Bodies under 200 chars pass
+ * through untouched. `contentType`, when provided, pins the route the TS seam
+ * already knows; otherwise the real detector classifies the content.
+ *
+ * This never fabricates a ratio and never paraphrases — the output is always a
+ * smaller-or-equal, byte-derived transform of the SAME content.
+ *
+ * ## JavaScript example
+ *
+ * ```js
+ * const { compressText } = require('@plures/pluresdb');
+ * const compact = compressText(longChunk);                 // auto-detect
+ * const code    = compressText(src, { contentType: 'code' }); // pin route
+ * ```
+ */
+export declare function compressText(content: string, contentType?: string | undefined | null): string
+
+/**
+ * Count tokens in `text` using the real `tiktoken_rs::cl100k_base` tokenizer
+ * (the same tokenizer pares-agens uses), with the BPE tables cached process-
+ * wide so repeated calls do not reallocate. Returns the exact cl100k token
+ * count — the canonical metric for compression-ratio reporting.
+ *
+ * ## JavaScript example
+ *
+ * ```js
+ * const { countTokens } = require('@plures/pluresdb');
+ * const ratio = countTokens(compact) / countTokens(original);
+ * ```
+ */
+export declare function countTokens(text: string): number
+
+/**
+ * Detect the content type of `content`, returning one of
+ * `"json" | "log" | "code" | "error" | "prose"`. Port of the real
+ * `detect_content_type` actor (structural heuristics, not just keywords).
+ *
+ * ## JavaScript example
+ *
+ * ```js
+ * const { detectContentType } = require('@plures/pluresdb');
+ * const kind = detectContentType(chunk); // 'code' | 'log' | ...
+ * ```
+ */
+export declare function detectContentType(content: string): string
+
 /** Initialize the module */
 export declare function init(): void

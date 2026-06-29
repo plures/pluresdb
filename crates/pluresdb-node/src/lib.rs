@@ -6,6 +6,9 @@
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use parking_lot::Mutex;
+
+/// Real ported headroom token-compression algorithm (no stubs, no agens dep).
+mod headroom;
 use pluresdb_core::{CoreErrorCode, CrdtStore, NodeRecord, StoreError};
 use pluresdb_procedures::agens::{AgensEvent, AgensRuntime};
 use pluresdb_procedures::engine::ProcedureEngine;
@@ -1349,4 +1352,73 @@ impl PluresDatabase {
 #[napi]
 pub fn init() -> Result<()> {
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Headroom token-compression — REAL ported algorithm (EPIC-MEMORY-SUPERIORITY,
+// child H). These free functions wrap the dependency-free port in `headroom.rs`
+// (faithful copy of pares-agens `compress_one` + 4 strategies + 5 real actors;
+// the ~160-actor `.px` stub farm is NOT ported). The transient message-loop,
+// the 500-token aggregate gate and the net-savings batch guard stay in TS.
+// ---------------------------------------------------------------------------
+
+/// Compress a single message/chunk body, routing by content type exactly like
+/// the production `compress_one`:
+///
+/// * `prose` / `error` → head+tail sentence window (first 3 + `[… N sentences
+///   elided …]` + last 3),
+/// * `code` → language-detected signature skeleton,
+/// * `log` → consecutive-duplicate run collapse (`line  [×N]`),
+/// * `json` / other → whitespace-run squeeze.
+///
+/// Preserves the real per-message net-savings guard: the rewrite is returned
+/// only when it is actually smaller (in bytes) and non-empty; otherwise the
+/// original `content` is returned unchanged. Bodies under 200 chars pass
+/// through untouched. `contentType`, when provided, pins the route the TS seam
+/// already knows; otherwise the real detector classifies the content.
+///
+/// This never fabricates a ratio and never paraphrases — the output is always a
+/// smaller-or-equal, byte-derived transform of the SAME content.
+///
+/// ## JavaScript example
+///
+/// ```js
+/// const { compressText } = require('@plures/pluresdb');
+/// const compact = compressText(longChunk);                 // auto-detect
+/// const code    = compressText(src, { contentType: 'code' }); // pin route
+/// ```
+#[napi]
+pub fn compress_text(content: String, content_type: Option<String>) -> String {
+    headroom::compress_text(&content, content_type.as_deref())
+}
+
+/// Count tokens in `text` using the real `tiktoken_rs::cl100k_base` tokenizer
+/// (the same tokenizer pares-agens uses), with the BPE tables cached process-
+/// wide so repeated calls do not reallocate. Returns the exact cl100k token
+/// count — the canonical metric for compression-ratio reporting.
+///
+/// ## JavaScript example
+///
+/// ```js
+/// const { countTokens } = require('@plures/pluresdb');
+/// const ratio = countTokens(compact) / countTokens(original);
+/// ```
+#[napi]
+pub fn count_tokens(text: String) -> u32 {
+    headroom::count_tokens(&text) as u32
+}
+
+/// Detect the content type of `content`, returning one of
+/// `"json" | "log" | "code" | "error" | "prose"`. Port of the real
+/// `detect_content_type` actor (structural heuristics, not just keywords).
+///
+/// ## JavaScript example
+///
+/// ```js
+/// const { detectContentType } = require('@plures/pluresdb');
+/// const kind = detectContentType(chunk); // 'code' | 'log' | ...
+/// ```
+#[napi]
+pub fn detect_content_type(content: String) -> String {
+    headroom::detect_content_type(&content).to_string()
 }

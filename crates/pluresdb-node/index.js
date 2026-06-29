@@ -588,4 +588,7 @@ if (!nativeBinding) {
 
 module.exports = nativeBinding
 module.exports.PluresDatabase = nativeBinding.PluresDatabase
+module.exports.compressText = nativeBinding.compressText
+module.exports.countTokens = nativeBinding.countTokens
+module.exports.detectContentType = nativeBinding.detectContentType
 module.exports.init = nativeBinding.init

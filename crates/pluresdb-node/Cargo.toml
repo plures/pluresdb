@@ -36,5 +36,11 @@ serde_json = { workspace = true }
 parking_lot = { workspace = true }
 chrono = { workspace = true }
 
+# Headroom token-compression port (EPIC-MEMORY-SUPERIORITY, child H).
+# Same crates pares-agens uses for the real algorithm — neither is pares-agens
+# itself, so the forbidden plugin→agens dependency edge stays intact.
+tiktoken-rs = "0.6"
+unicode-segmentation = "1"
+
 [build-dependencies]
 napi-build = "2.3"
