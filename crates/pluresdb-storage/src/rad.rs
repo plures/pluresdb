@@ -142,8 +142,9 @@ impl RadAdapter for SledRadAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{MemoryStorage, StorageEngine, StoredNode};
+    use crate::{MemoryStorage, SledStorage, StorageEngine, StoredNode};
     use serde_json::json;
+    use tempfile::TempDir;
 
     async fn populate(storage: &dyn StorageEngine, nodes: &[(&str, serde_json::Value)]) {
         for (id, payload) in nodes {
@@ -241,5 +242,75 @@ mod tests {
         assert!(ids.contains(&"a"));
         assert!(ids.contains(&"b"));
         assert!(!ids.contains(&"c"));
+    }
+
+    // --- SledRadAdapter sled-backed round-trips (kill SledRadAdapter mutants) ---
+    // These exercise the real sled implementation (put/get/delete/list +
+    // native prefix/range scan) so that no-op/empty replacements are caught.
+
+    fn sled_adapter() -> (TempDir, SledRadAdapter) {
+        let dir = TempDir::new().unwrap();
+        let storage = SledStorage::open(dir.path()).unwrap();
+        (dir, SledRadAdapter(storage))
+    }
+
+    #[tokio::test]
+    async fn test_sled_put_get_roundtrip() {
+        let (_d, a) = sled_adapter();
+        a.put(StoredNode { id: "k1".into(), payload: json!({"v": 7}) })
+            .await
+            .unwrap();
+        let got = a.get("k1").await.unwrap();
+        assert!(got.is_some(), "put then get must return the node (put no-op survives otherwise)");
+        assert_eq!(got.unwrap().payload, json!({"v": 7}), "get must return stored payload");
+        assert!(a.get("missing").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_sled_delete_then_get_none() {
+        let (_d, a) = sled_adapter();
+        a.put(StoredNode { id: "d1".into(), payload: json!(1) }).await.unwrap();
+        assert!(a.get("d1").await.unwrap().is_some());
+        a.delete("d1").await.unwrap();
+        assert!(a.get("d1").await.unwrap().is_none(), "delete must remove (delete no-op survives otherwise)");
+    }
+
+    #[tokio::test]
+    async fn test_sled_list_returns_all() {
+        let (_d, a) = sled_adapter();
+        for id in ["a", "b", "c"] {
+            a.put(StoredNode { id: id.into(), payload: json!(id) }).await.unwrap();
+        }
+        let all = a.list().await.unwrap();
+        assert_eq!(all.len(), 3, "list must return all nodes (empty-vec mutant survives otherwise)");
+    }
+
+    #[tokio::test]
+    async fn test_sled_prefix_scan_native() {
+        let (_d, a) = sled_adapter();
+        for (id, p) in [("user:alice", json!(1)), ("user:bob", json!(2)), ("post:1", json!(3))] {
+            a.put(StoredNode { id: id.into(), payload: p }).await.unwrap();
+        }
+        let users = a.prefix_scan("user:").await.unwrap();
+        assert_eq!(users.len(), 2);
+        assert_eq!(users[0].id, "user:alice");
+        assert_eq!(users[1].id, "user:bob");
+        assert!(a.prefix_scan("none:").await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_sled_range_scan_native() {
+        let (_d, a) = sled_adapter();
+        for id in ["a", "b", "c", "d"] {
+            a.put(StoredNode { id: id.into(), payload: json!(id) }).await.unwrap();
+        }
+        let range = a.range_scan("b", Some("d")).await.unwrap();
+        assert_eq!(range.len(), 2);
+        assert_eq!(range[0].id, "b");
+        assert_eq!(range[1].id, "c");
+        let tail = a.range_scan("c", None).await.unwrap();
+        assert_eq!(tail.len(), 2);
+        assert_eq!(tail[0].id, "c");
+        assert_eq!(tail[1].id, "d");
     }
 }
