@@ -418,4 +418,37 @@ mod tests {
         assert_eq!(manifest.node_count, restored.node_count);
         assert_eq!(manifest.label, restored.label);
     }
+
+    /// L167 `Debug for BlobObjectBridge::fmt`: the hand-written impl must emit a
+    /// non-empty, structured representation that names the type and exposes the
+    /// `chunk_size` field.
+    ///
+    /// The mutant replaces the body with `Ok(Default::default())`, which writes
+    /// NOTHING to the formatter — producing an empty `{:?}` string. Asserting the
+    /// output is non-empty and contains both the type name and the field token
+    /// (with its value) kills that mutant.
+    #[test]
+    fn test_blob_object_bridge_debug_is_non_empty_and_structured() {
+        let bridge = BlobObjectBridge::with_chunk_size(
+            Arc::new(MemoryBlobStore::default()),
+            7,
+        );
+        let dbg = format!("{bridge:?}");
+
+        assert!(!dbg.is_empty(), "Debug output must not be empty");
+        assert!(
+            dbg.contains("BlobObjectBridge"),
+            "Debug output must name the type; got: {dbg}"
+        );
+        assert!(
+            dbg.contains("chunk_size"),
+            "Debug output must expose the chunk_size field; got: {dbg}"
+        );
+        // The configured value must be rendered, proving real field formatting
+        // (not a blank default).
+        assert!(
+            dbg.contains('7'),
+            "Debug output must render the chunk_size value; got: {dbg}"
+        );
+    }
 }

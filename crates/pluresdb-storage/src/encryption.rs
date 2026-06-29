@@ -561,4 +561,158 @@ mod tests {
             "Default config should be disabled to prevent accidental use"
         );
     }
+
+    // ----------------------------------------------------------------------
+    // Mutation-hardening tests (Level-0 #6): pin exact behavioral boundaries
+    // so cargo-mutants survivors in decrypt() and disable() are killed.
+    // ----------------------------------------------------------------------
+
+    /// L80 `from_password_with_salt`: the guard `hash_bytes.len() < KEY_SIZE`
+    /// rejects an Argon2 output shorter than the AES-256 key size before the
+    /// `copy_from_slice(&hash_bytes[..KEY_SIZE])` that would otherwise panic.
+    ///
+    /// This test pins the invariant that a password-derived config is fully
+    /// usable, which is only possible if the guard let a >= KEY_SIZE hash
+    /// through and exactly KEY_SIZE bytes were copied into the key.
+    ///
+    /// NOTE (equivalent-mutant disclosure): the `< -> >` mutant at L80 is a
+    /// GENUINE EQUIVALENT mutant via the public API. `Argon2::default()` here
+    /// always emits a PHC hash of exactly `KEY_SIZE` (32) bytes, so the only
+    /// reachable comparison is `32 <op> 32`, which is `false` for BOTH `<` and
+    /// `>`. The guard therefore never fires on any input the public surface can
+    /// construct, and no behavioral test can distinguish `<` from `>`. It is
+    /// retained as defense-in-depth against a future params change that sets a
+    /// shorter output length. Documented as unkillable-by-design rather than
+    /// papered over with a stub.
+    #[test]
+    fn test_from_password_with_salt_derives_full_length_usable_key() {
+        let salt = [7u8; SALT_SIZE];
+        let config = EncryptionConfig::from_password_with_salt("boundary-pw", &salt)
+            .expect("valid salt length must derive a key");
+
+        // A full KEY_SIZE key must have been copied: round-trip must succeed.
+        let plaintext = b"derived-key-length-invariant";
+        let ct = config.encrypt(plaintext).unwrap();
+        let pt = config.decrypt(&ct).unwrap();
+        assert_eq!(pt, plaintext);
+
+        // The salt the guard accepted must be preserved verbatim.
+        assert_eq!(config.salt(), &salt);
+    }
+
+    /// Companion to the L80 guard: a salt of the WRONG length is rejected up
+    /// front (`salt_bytes.len() != SALT_SIZE`). This pins the sibling length
+    /// contract so the function's input validation stays behaviorally tested.
+    #[test]
+    fn test_from_password_with_salt_rejects_wrong_salt_length() {
+        let short_salt = [0u8; SALT_SIZE - 1];
+        let long_salt = [0u8; SALT_SIZE + 1];
+        assert!(
+            EncryptionConfig::from_password_with_salt("pw", &short_salt).is_err(),
+            "salt shorter than SALT_SIZE must be rejected"
+        );
+        assert!(
+            EncryptionConfig::from_password_with_salt("pw", &long_salt).is_err(),
+            "salt longer than SALT_SIZE must be rejected"
+        );
+    }
+
+    /// L202 `decrypt`: the length guard is `ciphertext_with_nonce.len() < NONCE_SIZE`.
+    /// An input of EXACTLY `NONCE_SIZE` (12) bytes must PASS the length guard
+    /// (12 < 12 == false) and fall through to the AEAD layer, which then fails
+    /// because there is no ciphertext/tag — yielding the *AEAD* error
+    /// ("Decryption failed"), NOT the length-guard error ("too short ... nonce").
+    ///
+    /// Mutants `< -> <=` and `< -> ==` both make `12 <op> 12 == true`, so they
+    /// bail at the length guard with the "too short to contain nonce" message.
+    /// Asserting the boundary input does NOT produce the length-guard message
+    /// (and DOES surface the AEAD failure) kills both mutants.
+    #[test]
+    fn test_decrypt_exact_nonce_len_passes_length_guard_then_aead_fails() {
+        let config = EncryptionConfig::new().unwrap();
+        // Exactly NONCE_SIZE bytes: valid nonce, empty ciphertext, no auth tag.
+        let boundary_input = [0u8; NONCE_SIZE];
+        assert_eq!(boundary_input.len(), NONCE_SIZE);
+
+        let err = config
+            .decrypt(&boundary_input)
+            .expect_err("empty ciphertext (no auth tag) must fail to decrypt");
+        let msg = err.to_string();
+
+        // Original (`<`): falls through to AEAD -> "Decryption failed".
+        // Mutants (`<=`/`==`): bail at guard -> "... too short to contain nonce".
+        assert!(
+            !msg.contains("too short to contain nonce"),
+            "input of exactly NONCE_SIZE must NOT be rejected by the length guard; \
+             got length-guard error instead of AEAD error: {msg}"
+        );
+        assert!(
+            msg.contains("Decryption failed"),
+            "boundary input must reach the AEAD layer and fail there; got: {msg}"
+        );
+    }
+
+    /// L202 `decrypt`: an input of `NONCE_SIZE - 1` (11) bytes is genuinely too
+    /// short to hold a nonce and MUST be rejected by the length guard with the
+    /// "too short to contain nonce" message (original `<`: 11 < 12 == true).
+    ///
+    /// Mutant `< -> ==` makes `11 == 12 == false`, so it would *skip* the guard
+    /// and call `split_at(12)` on an 11-byte slice — which panics. Asserting a
+    /// clean `Err` carrying the length-guard message (no panic) kills `==`.
+    #[test]
+    fn test_decrypt_below_nonce_len_is_rejected_by_length_guard() {
+        let config = EncryptionConfig::new().unwrap();
+        let too_short = [0u8; NONCE_SIZE - 1];
+        assert_eq!(too_short.len(), NONCE_SIZE - 1);
+
+        let err = config
+            .decrypt(&too_short)
+            .expect_err("input shorter than the nonce must be rejected");
+        assert!(
+            err.to_string().contains("too short to contain nonce"),
+            "sub-nonce input must hit the length guard; got: {err}"
+        );
+    }
+
+    /// L231 `disable`: must have an OBSERVABLE effect. Starting from an ENABLED
+    /// config, `disable()` must flip `is_enabled()` to false AND change the
+    /// encrypt path into the plaintext-passthrough no-op.
+    ///
+    /// The mutant replaces the body with `()` (no-op), leaving `enabled == true`,
+    /// so both the state assertion and the passthrough assertion fail.
+    /// (The existing `test_encryption_disabled` starts from an already-disabled
+    /// `default()` config and therefore does NOT kill this mutant.)
+    #[test]
+    fn test_disable_has_observable_effect_from_enabled_config() {
+        let mut config = EncryptionConfig::new().unwrap();
+        assert!(
+            config.is_enabled(),
+            "precondition: a freshly created config is enabled"
+        );
+
+        // Sanity: while enabled, encrypt produces real ciphertext (!= plaintext).
+        let plaintext = b"observable-disable-probe";
+        let enabled_ct = config.encrypt(plaintext).unwrap();
+        assert_ne!(
+            enabled_ct.as_slice(),
+            plaintext.as_slice(),
+            "precondition: enabled encrypt must transform the plaintext"
+        );
+
+        config.disable();
+
+        // State flip must be observable.
+        assert!(
+            !config.is_enabled(),
+            "disable() must flip is_enabled() to false (mutant no-op leaves it true)"
+        );
+
+        // Behavioral flip: disabled encrypt is an identity passthrough.
+        let disabled_ct = config.encrypt(plaintext).unwrap();
+        assert_eq!(
+            disabled_ct.as_slice(),
+            plaintext.as_slice(),
+            "after disable(), encrypt must pass plaintext through unchanged"
+        );
+    }
 }
