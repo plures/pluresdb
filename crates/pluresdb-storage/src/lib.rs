@@ -407,4 +407,363 @@ mod tests {
         StorageEngine::delete(&storage, "1").await.unwrap();
         assert!(StorageEngine::get(&storage, "1").await.unwrap().is_none());
     }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    fn node(id: &str) -> StoredNode {
+        StoredNode {
+            id: id.to_string(),
+            payload: serde_json::json!({ "id": id }),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // StorageErrorCode::as_str + Display (kills "xyzzy" and Default::default fmt)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn storage_error_code_as_str_exact_mapping() {
+        assert_eq!(StorageErrorCode::OpenFailed.as_str(), "STORAGE_OPEN_FAILED");
+        assert_eq!(
+            StorageErrorCode::OperationFailed.as_str(),
+            "STORAGE_OPERATION_FAILED"
+        );
+        assert_eq!(
+            StorageErrorCode::SerializationError.as_str(),
+            "STORAGE_SERIALIZATION_ERROR"
+        );
+        assert_eq!(
+            StorageErrorCode::WalImplausibleEntrySize.as_str(),
+            "STORAGE_WAL_IMPLAUSIBLE_ENTRY_SIZE"
+        );
+        assert_eq!(
+            StorageErrorCode::WalTruncatedEntry.as_str(),
+            "STORAGE_WAL_TRUNCATED_ENTRY"
+        );
+    }
+
+    #[test]
+    fn storage_error_code_display_matches_as_str() {
+        // Display must produce the exact non-empty code string (kills the
+        // `Ok(Default::default())` fmt mutant, which would write nothing).
+        for code in [
+            StorageErrorCode::OpenFailed,
+            StorageErrorCode::OperationFailed,
+            StorageErrorCode::SerializationError,
+            StorageErrorCode::WalImplausibleEntrySize,
+            StorageErrorCode::WalTruncatedEntry,
+        ] {
+            let shown = format!("{code}");
+            assert_eq!(shown, code.as_str());
+            assert!(!shown.is_empty());
+        }
+        // Pin one concrete value so an all-empty Display can never pass.
+        assert_eq!(format!("{}", StorageErrorCode::OpenFailed), "STORAGE_OPEN_FAILED");
+    }
+
+    // -----------------------------------------------------------------------
+    // SledStorage cache-capacity constant (kills L257 `* -> +` / `* -> /`)
+    // -----------------------------------------------------------------------
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn sled_default_cache_capacity_is_256_mib() {
+        // 256 * 1024 * 1024 == 268_435_456. `+` would give 256+1024+1024=2304;
+        // `/` would give 256/1024/1024=0. Exact value pins the arithmetic.
+        assert_eq!(SledStorage::DEFAULT_CACHE_CAPACITY_BYTES, 268_435_456);
+    }
+
+    // -----------------------------------------------------------------------
+    // SyncStorageEngine default methods via MemoryStorage
+    // (count / for_each / for_each_by_prefix contracts)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn sync_count_reflects_inserted_node_set() {
+        let storage = MemoryStorage::default();
+        // Distinct count that is neither 0 nor 1, so Ok(0)/Ok(1) both die.
+        for i in 0..7 {
+            SyncStorageEngine::put(&storage, node(&format!("k{i}"))).unwrap();
+        }
+        assert_eq!(SyncStorageEngine::count(&storage).unwrap(), 7);
+    }
+
+    #[test]
+    fn sync_for_each_visits_exactly_the_full_set() {
+        let storage = MemoryStorage::default();
+        let ids = ["a", "b", "c", "d"];
+        for id in ids {
+            SyncStorageEngine::put(&storage, node(id)).unwrap();
+        }
+        let mut visited = std::collections::BTreeSet::new();
+        SyncStorageEngine::for_each(&storage, &mut |n: StoredNode| {
+            visited.insert(n.id);
+            true
+        })
+        .unwrap();
+        let expected: std::collections::BTreeSet<String> =
+            ids.iter().map(|s| s.to_string()).collect();
+        // Empty-set would pass an `Ok(())` early-return mutant, so assert the
+        // exact membership AND non-empty size.
+        assert_eq!(visited, expected);
+        assert_eq!(visited.len(), 4);
+    }
+
+    #[test]
+    fn sync_for_each_negation_mutant_dies_on_early_stop() {
+        // The body is `if !f(node) { break; }`. Deleting the `!` inverts the
+        // stop condition: a callback that returns false on the FIRST node
+        // would (mutated) keep going and visit everything. We return false
+        // immediately and assert we stopped after exactly one visit.
+        let storage = MemoryStorage::default();
+        for i in 0..5 {
+            SyncStorageEngine::put(&storage, node(&format!("n{i}"))).unwrap();
+        }
+        let mut count = 0usize;
+        SyncStorageEngine::for_each(&storage, &mut |_n: StoredNode| {
+            count += 1;
+            false // request stop after the first element
+        })
+        .unwrap();
+        // Correct code: stops after 1. Negated `!`: would visit all 5.
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn sync_for_each_by_prefix_filters() {
+        let storage = MemoryStorage::default();
+        for id in ["user:1", "user:2", "job:1", "job:2", "user:3"] {
+            SyncStorageEngine::put(&storage, node(id)).unwrap();
+        }
+        let mut visited = std::collections::BTreeSet::new();
+        SyncStorageEngine::for_each_by_prefix(&storage, "user:", &mut |n: StoredNode| {
+            visited.insert(n.id);
+            true
+        })
+        .unwrap();
+        let expected: std::collections::BTreeSet<String> =
+            ["user:1", "user:2", "user:3"].iter().map(|s| s.to_string()).collect();
+        // An `Ok(())` early-return mutant yields empty (fails). A broken
+        // filter that visited everything would include the job:* ids (fails).
+        assert_eq!(visited, expected);
+    }
+
+    // -----------------------------------------------------------------------
+    // Async StorageEngine default methods via MemoryStorage
+    // -----------------------------------------------------------------------
+
+    #[cfg(feature = "native")]
+    #[tokio::test]
+    async fn async_count_reflects_inserted_node_set() {
+        let storage = MemoryStorage::default();
+        for i in 0..6 {
+            StorageEngine::put(&storage, node(&format!("k{i}"))).await.unwrap();
+        }
+        assert_eq!(StorageEngine::count(&storage).await.unwrap(), 6);
+    }
+
+    #[cfg(feature = "native")]
+    #[tokio::test]
+    async fn async_for_each_visits_exactly_the_full_set() {
+        let storage = MemoryStorage::default();
+        let ids = ["a", "b", "c"];
+        for id in ids {
+            StorageEngine::put(&storage, node(id)).await.unwrap();
+        }
+        let mut visited = std::collections::BTreeSet::new();
+        StorageEngine::for_each(&storage, &mut |n: StoredNode| {
+            visited.insert(n.id);
+            true
+        })
+        .await
+        .unwrap();
+        let expected: std::collections::BTreeSet<String> =
+            ids.iter().map(|s| s.to_string()).collect();
+        assert_eq!(visited, expected);
+        assert_eq!(visited.len(), 3);
+    }
+
+    #[cfg(feature = "native")]
+    #[tokio::test]
+    async fn async_for_each_negation_mutant_dies_on_early_stop() {
+        let storage = MemoryStorage::default();
+        for i in 0..5 {
+            StorageEngine::put(&storage, node(&format!("n{i}"))).await.unwrap();
+        }
+        let mut count = 0usize;
+        StorageEngine::for_each(&storage, &mut |_n: StoredNode| {
+            count += 1;
+            false
+        })
+        .await
+        .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[cfg(feature = "native")]
+    #[tokio::test]
+    async fn async_for_each_by_prefix_filters() {
+        let storage = MemoryStorage::default();
+        for id in ["user:1", "user:2", "job:1", "user:3"] {
+            StorageEngine::put(&storage, node(id)).await.unwrap();
+        }
+        let mut visited = std::collections::BTreeSet::new();
+        StorageEngine::for_each_by_prefix(&storage, "user:", &mut |n: StoredNode| {
+            visited.insert(n.id);
+            true
+        })
+        .await
+        .unwrap();
+        let expected: std::collections::BTreeSet<String> =
+            ["user:1", "user:2", "user:3"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(visited, expected);
+    }
+
+    // -----------------------------------------------------------------------
+    // SledStorage (durable) impls — full round-trips + count/for_each
+    // -----------------------------------------------------------------------
+
+    #[cfg(feature = "native")]
+    fn sled_storage() -> (SledStorage, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let storage = SledStorage::open(dir.path()).unwrap();
+        (storage, dir)
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn sled_sync_put_get_delete_list_round_trip() {
+        let (storage, _dir) = sled_storage();
+        let n1 = node("alpha");
+        let n2 = node("beta");
+
+        // put + get returns the exact stored value (kills put->Ok(()) and
+        // get->Ok(None)).
+        SyncStorageEngine::put(&storage, n1.clone()).unwrap();
+        SyncStorageEngine::put(&storage, n2.clone()).unwrap();
+        assert_eq!(
+            SyncStorageEngine::get(&storage, "alpha").unwrap(),
+            Some(n1.clone())
+        );
+        assert_eq!(
+            SyncStorageEngine::get(&storage, "beta").unwrap(),
+            Some(n2.clone())
+        );
+
+        // list returns both (kills list->Ok(vec![])).
+        let mut listed: Vec<String> = SyncStorageEngine::list(&storage)
+            .unwrap()
+            .into_iter()
+            .map(|n| n.id)
+            .collect();
+        listed.sort();
+        assert_eq!(listed, vec!["alpha".to_string(), "beta".to_string()]);
+
+        // delete then get is None (kills delete->Ok(()) which would leave it).
+        SyncStorageEngine::delete(&storage, "alpha").unwrap();
+        assert_eq!(SyncStorageEngine::get(&storage, "alpha").unwrap(), None);
+        assert_eq!(
+            SyncStorageEngine::get(&storage, "beta").unwrap(),
+            Some(n2)
+        );
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn sled_sync_count_reflects_node_set() {
+        let (storage, _dir) = sled_storage();
+        for i in 0..9 {
+            SyncStorageEngine::put(&storage, node(&format!("k{i}"))).unwrap();
+        }
+        // Neither 0 nor 1 — kills both count mutants.
+        assert_eq!(SyncStorageEngine::count(&storage).unwrap(), 9);
+        // And it tracks deletions.
+        SyncStorageEngine::delete(&storage, "k0").unwrap();
+        assert_eq!(SyncStorageEngine::count(&storage).unwrap(), 8);
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn sled_sync_for_each_visits_full_set_and_stops_early() {
+        let (storage, _dir) = sled_storage();
+        let ids = ["a", "b", "c", "d"];
+        for id in ids {
+            SyncStorageEngine::put(&storage, node(id)).unwrap();
+        }
+
+        // Full visit.
+        let mut visited = std::collections::BTreeSet::new();
+        SyncStorageEngine::for_each(&storage, &mut |n: StoredNode| {
+            visited.insert(n.id);
+            true
+        })
+        .unwrap();
+        let expected: std::collections::BTreeSet<String> =
+            ids.iter().map(|s| s.to_string()).collect();
+        assert_eq!(visited, expected);
+
+        // Early-stop: kills the `delete !` negation mutant in the Sled
+        // for_each body (sled iterates in key order, so returning false on the
+        // first element must stop after exactly one visit).
+        let mut count = 0usize;
+        SyncStorageEngine::for_each(&storage, &mut |_n: StoredNode| {
+            count += 1;
+            false
+        })
+        .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn sled_sync_for_each_by_prefix_filters_and_stops_early() {
+        let (storage, _dir) = sled_storage();
+        for id in ["user:1", "user:2", "user:3", "job:1", "job:2"] {
+            SyncStorageEngine::put(&storage, node(id)).unwrap();
+        }
+
+        // Only the user: prefix is visited (kills for_each_by_prefix->Ok(())).
+        let mut visited = std::collections::BTreeSet::new();
+        SyncStorageEngine::for_each_by_prefix(&storage, "user:", &mut |n: StoredNode| {
+            visited.insert(n.id);
+            true
+        })
+        .unwrap();
+        let expected: std::collections::BTreeSet<String> =
+            ["user:1", "user:2", "user:3"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(visited, expected);
+
+        // Early-stop within the prefix scan kills the `delete !` negation.
+        let mut count = 0usize;
+        SyncStorageEngine::for_each_by_prefix(&storage, "user:", &mut |_n: StoredNode| {
+            count += 1;
+            false
+        })
+        .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[cfg(feature = "native")]
+    #[tokio::test]
+    async fn sled_async_put_get_delete_list_round_trip() {
+        let (storage, _dir) = sled_storage();
+        let n1 = node("alpha");
+        let n2 = node("beta");
+        StorageEngine::put(&storage, n1.clone()).await.unwrap();
+        StorageEngine::put(&storage, n2.clone()).await.unwrap();
+        assert_eq!(
+            StorageEngine::get(&storage, "alpha").await.unwrap(),
+            Some(n1)
+        );
+        let listed = StorageEngine::list(&storage).await.unwrap();
+        assert_eq!(listed.len(), 2);
+        StorageEngine::delete(&storage, "alpha").await.unwrap();
+        assert_eq!(StorageEngine::get(&storage, "alpha").await.unwrap(), None);
+        assert_eq!(
+            StorageEngine::get(&storage, "beta").await.unwrap(),
+            Some(n2)
+        );
+    }
 }
