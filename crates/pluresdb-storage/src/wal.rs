@@ -790,4 +790,341 @@ mod tests {
             "expected multiple segments due to rotation"
         );
     }
+
+    // ---------------------------------------------------------------------
+    // Mutation-hardening tests (Level-0 #6).
+    //
+    // Each test asserts the EXACT behavior a specific cargo-mutants survivor
+    // would break, so the mutant is provably killed rather than merely covered.
+    // Survivor coordinates are noted inline for traceability.
+    // ---------------------------------------------------------------------
+
+    /// Kills wal.rs `compute_checksum -> u32 with 1`.
+    ///
+    /// The checksum must depend on entry content: entries differing in payload,
+    /// actor, or seq must produce different checksums, and a fixed entry must
+    /// not collapse to the trivial constant `1`.
+    #[test]
+    fn checksum_depends_on_content_and_is_not_constant() {
+        let base = WalEntry::new(
+            7,
+            "actor-x".to_string(),
+            WalOperation::Put {
+                id: "node-a".to_string(),
+                data: serde_json::json!({"k": "v1"}),
+            },
+        );
+
+        let mut differ_data = base.clone();
+        differ_data.operation = WalOperation::Put {
+            id: "node-a".to_string(),
+            data: serde_json::json!({"k": "v2"}),
+        };
+        differ_data.checksum = differ_data.compute_checksum();
+
+        let mut differ_actor = base.clone();
+        differ_actor.actor = "actor-y".to_string();
+        differ_actor.checksum = differ_actor.compute_checksum();
+
+        let mut differ_seq = base.clone();
+        differ_seq.seq = 8;
+        differ_seq.checksum = differ_seq.compute_checksum();
+
+        // If compute_checksum returned the constant `1`, all of these would be
+        // `1` and every inequality below would fail.
+        assert_ne!(
+            base.checksum, differ_data.checksum,
+            "checksum must change when payload changes"
+        );
+        assert_ne!(
+            base.checksum, differ_actor.checksum,
+            "checksum must change when actor changes"
+        );
+        assert_ne!(
+            base.checksum, differ_seq.checksum,
+            "checksum must change when seq changes"
+        );
+        assert_ne!(base.checksum, 1, "checksum must not be the trivial constant 1");
+        assert_ne!(differ_data.checksum, 1);
+    }
+
+    /// Kills wal.rs `MAX_ENTRY_SIZE: 16 * 1024 * 1024` -> `16 + 1024 + 1024`.
+    ///
+    /// The real 16 MiB ceiling must admit a legitimately large entry. The
+    /// mutated constant (2064) would treat a ~5 KiB entry's length prefix as an
+    /// `ImplausibleEntrySize`, erroring the segment read so the entry is dropped
+    /// (read_all returns 0 entries). We assert the large entry round-trips.
+    #[tokio::test]
+    async fn large_but_valid_entry_is_accepted_under_real_max_entry_size() {
+        let temp_dir = TempDir::new().unwrap();
+        let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+
+        let big_value = "z".repeat(5000);
+        wal.append(
+            "actor-1".to_string(),
+            WalOperation::Put {
+                id: "big".to_string(),
+                data: serde_json::json!({ "blob": big_value }),
+            },
+        )
+        .await
+        .unwrap();
+
+        let entries = wal.read_all().await.unwrap();
+        assert_eq!(
+            entries.len(),
+            1,
+            "a ~5 KiB entry must be readable; mutated MAX_ENTRY_SIZE would drop it"
+        );
+        match &entries[0].operation {
+            WalOperation::Put { id, data } => {
+                assert_eq!(id, "big");
+                assert_eq!(
+                    data.get("blob").and_then(|v| v.as_str()).map(|s| s.len()),
+                    Some(5000)
+                );
+            }
+            other => panic!("unexpected operation: {other:?}"),
+        }
+    }
+
+    /// Kills wal.rs `open` default segment size `64 * 1024 * 1024` ->
+    /// `64 + 1024 + 1024` (= 2112).
+    ///
+    /// Using the default `open()`, writing several KiB of entries (well over
+    /// 2112 bytes, far under 64 MiB) must NOT rotate: a correct WAL keeps a
+    /// single segment. The mutated tiny limit would rotate into many.
+    #[tokio::test]
+    async fn default_open_does_not_rotate_for_a_few_kib() {
+        let temp_dir = TempDir::new().unwrap();
+        let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+
+        for i in 0..40 {
+            wal.append(
+                format!("actor-{i}"),
+                WalOperation::Put {
+                    id: format!("node-{i}"),
+                    data: serde_json::json!({ "index": i, "pad": "xxxxxxxxxxxxxxxxxxxx" }),
+                },
+            )
+            .await
+            .unwrap();
+        }
+
+        let segments = wal.list_segments().unwrap();
+        assert_eq!(
+            segments.len(),
+            1,
+            "default 64 MiB segment must not rotate for a few KiB; got {} segments",
+            segments.len()
+        );
+    }
+
+    /// Kills wal.rs `scan_max_sequence -> Ok(0)` and `-> Ok(1)`, and
+    /// `max_seq + 1` -> `max_seq * 1`.
+    ///
+    /// A fresh WAL on an empty dir starts at seq 1 (empty scan returns
+    /// max_seq(0) + 1). After writing 3 entries (seqs 1,2,3) and reopening, the
+    /// next assigned sequence must continue at 4 (= real max 3, plus 1). The
+    /// mutants yield next-seq 0, 1, or 3 respectively — all distinct from 4.
+    #[tokio::test]
+    async fn scan_max_sequence_resumes_after_reopen() {
+        let temp_dir = TempDir::new().unwrap();
+
+        {
+            let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+            for expected in 1..=3u64 {
+                let seq = wal
+                    .append(
+                        "actor-1".to_string(),
+                        WalOperation::Put {
+                            id: format!("node-{expected}"),
+                            data: serde_json::json!({ "i": expected }),
+                        },
+                    )
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    seq, expected,
+                    "fresh WAL must assign sequential seqs starting at 1"
+                );
+            }
+        } // drop WAL, forcing a fresh scan on reopen
+
+        let reopened = WriteAheadLog::open(temp_dir.path()).unwrap();
+        let next = reopened
+            .append(
+                "actor-1".to_string(),
+                WalOperation::Put {
+                    id: "node-4".to_string(),
+                    data: serde_json::json!({ "i": 4 }),
+                },
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            next, 4,
+            "reopened WAL must resume at max_seq+1 = 4; Ok(0)/Ok(1)/(*1) give 0/1/3"
+        );
+
+        let entries = reopened.read_all().await.unwrap();
+        let seqs: Vec<u64> = entries.iter().map(|e| e.seq).collect();
+        assert_eq!(seqs, vec![1, 2, 3, 4]);
+    }
+
+    /// Kills wal.rs `validate` `corrupted_entries += 1` -> `-=`/`*=` and
+    /// `corrupted_segments += 1` -> `-=`/`*=`.
+    ///
+    /// Two on-disk checksums are tampered (corrupted_entries must reach exactly
+    /// 2) and one structurally-broken segment with an implausibly large length
+    /// prefix is added (corrupted_segments must reach exactly 1). `-=` from 0
+    /// underflow-panics and `*=` stays 0 — both differ from the correct counts.
+    #[tokio::test]
+    async fn validate_counts_corrupted_entries_and_segments() {
+        let temp_dir = TempDir::new().unwrap();
+        let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+
+        for i in 0..2 {
+            wal.append(
+                "actor-1".to_string(),
+                WalOperation::Put {
+                    id: format!("node-{i}"),
+                    data: serde_json::json!({ "i": i }),
+                },
+            )
+            .await
+            .unwrap();
+        }
+        // Flush the active segment so its bytes are on disk before we mutate it.
+        wal.read_all().await.unwrap();
+
+        // Rewrite the segment with every entry's checksum forced to 0 (correct
+        // length prefixes preserved): records still deserialize but fail
+        // validate_checksum() => corrupted_entries += 1 twice.
+        let seg_path = wal.list_segments().unwrap().into_iter().next().unwrap();
+        let raw = std::fs::read(&seg_path).unwrap();
+        let corrupted = corrupt_all_checksums_to_zero(&raw);
+        std::fs::write(&seg_path, &corrupted).unwrap();
+
+        // Structurally-corrupt extra segment: a 4-byte length prefix claiming a
+        // ~4 GiB payload (> MAX_ENTRY_SIZE) with no body. read_all returns
+        // ImplausibleEntrySize => corrupted_segments += 1.
+        let bad_seg = temp_dir.path().join("ffffffffffffffff.wal");
+        std::fs::write(&bad_seg, u32::MAX.to_le_bytes()).unwrap();
+
+        let v = wal.validate().await.unwrap();
+        assert_eq!(
+            v.corrupted_entries, 2,
+            "two tampered checksums must be counted; got {}",
+            v.corrupted_entries
+        );
+        assert_eq!(
+            v.corrupted_segments, 1,
+            "one implausible-length segment must be counted; got {}",
+            v.corrupted_segments
+        );
+        assert!(!v.is_healthy(), "WAL with corruption must report unhealthy");
+    }
+
+    /// Rewrites a WAL segment's bytes, setting every entry's `checksum` field to
+    /// 0 while keeping each record's length prefix correct. Helper for the
+    /// validation-counting test above.
+    fn corrupt_all_checksums_to_zero(raw: &[u8]) -> Vec<u8> {
+        let mut out: Vec<u8> = Vec::with_capacity(raw.len());
+        let mut i = 0usize;
+        while i + 4 <= raw.len() {
+            let len =
+                u32::from_le_bytes([raw[i], raw[i + 1], raw[i + 2], raw[i + 3]]) as usize;
+            let start = i + 4;
+            let end = start + len;
+            if end > raw.len() {
+                break;
+            }
+            let mut entry: WalEntry =
+                serde_json::from_slice(&raw[start..end]).expect("valid entry to corrupt");
+            entry.checksum = 0; // tamper: validate_checksum() now mismatches
+            let new_body = serde_json::to_vec(&entry).unwrap();
+            out.extend_from_slice(&(new_body.len() as u32).to_le_bytes());
+            out.extend_from_slice(&new_body);
+            i = end;
+        }
+        out
+    }
+
+    /// Kills wal.rs `compact -> Result<()> with Ok(())` and
+    /// `e.seq < checkpoint_seq` -> `==` / `>`.
+    ///
+    /// With tiny segments we create several segment files. Compacting at a
+    /// checkpoint inside a LATER segment must delete the fully-obsolete EARLY
+    /// segment(s) (entries strictly below the checkpoint) while preserving the
+    /// segment holding the boundary entry.
+    ///
+    /// - `Ok(())` body deletes nothing -> segment count unchanged.
+    /// - `<` -> `==` deletes only segments whose entries ALL equal the
+    ///   checkpoint (none) -> nothing deleted.
+    /// - `<` -> `>` deletes the wrong (later) segments / keeps the early one.
+    #[tokio::test]
+    async fn compact_removes_only_fully_obsolete_segments() {
+        let temp_dir = TempDir::new().unwrap();
+        let wal = WriteAheadLog::open_with_options(
+            temp_dir.path(),
+            DurabilityLevel::Wal,
+            64, // force a new segment almost every append
+        )
+        .unwrap();
+
+        let mut seqs = Vec::new();
+        for i in 0..6u64 {
+            let seq = wal
+                .append(
+                    "actor-1".to_string(),
+                    WalOperation::Put {
+                        id: format!("node-{i}"),
+                        data: serde_json::json!({ "i": i }),
+                    },
+                )
+                .await
+                .unwrap();
+            seqs.push(seq);
+        }
+
+        let segments_before = wal.list_segments().unwrap();
+        assert!(
+            segments_before.len() >= 3,
+            "need multiple segments to test selective compaction; got {}",
+            segments_before.len()
+        );
+        let first_segment = segments_before[0].clone();
+
+        // Checkpoint at seq 3: entries 0,1,2 are strictly below it (earlier
+        // segments); entry 3 is the boundary and MUST survive.
+        let checkpoint = seqs[3];
+        wal.compact(checkpoint).await.unwrap();
+
+        assert!(
+            !first_segment.exists(),
+            "earliest fully-obsolete segment must be removed by compact"
+        );
+        let segments_after = wal.list_segments().unwrap();
+        assert!(
+            segments_after.len() < segments_before.len(),
+            "compact must reduce segment count: before={} after={}",
+            segments_before.len(),
+            segments_after.len()
+        );
+
+        let remaining = wal.read_all().await.unwrap();
+        let remaining_seqs: Vec<u64> = remaining.iter().map(|e| e.seq).collect();
+        assert!(
+            remaining_seqs.contains(&checkpoint),
+            "boundary entry seq=={checkpoint} must NOT be compacted away; remaining={remaining_seqs:?}"
+        );
+        assert!(
+            !remaining_seqs.contains(&seqs[0]),
+            "entry seq={} (strictly below checkpoint) must be gone; remaining={:?}",
+            seqs[0],
+            remaining_seqs
+        );
+    }
 }
