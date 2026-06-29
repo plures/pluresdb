@@ -385,12 +385,17 @@ export declare class PluresDatabase {
  * This never fabricates a ratio and never paraphrases — the output is always a
  * smaller-or-equal, byte-derived transform of the SAME content.
  *
+ * `contentType` is an OPTIONAL bare string (`'json' | 'log' | 'code' | 'error'
+ * | 'prose'`) that pins the route; omit it (or pass `undefined`) to auto-detect.
+ * It is a plain string argument, NOT an options object — passing
+ * `{ contentType: 'code' }` throws a NAPI `StringExpected` error.
+ *
  * ## JavaScript example
  *
  * ```js
  * const { compressText } = require('@plures/pluresdb');
- * const compact = compressText(longChunk);                 // auto-detect
- * const code    = compressText(src, { contentType: 'code' }); // pin route
+ * const compact = compressText(longChunk);          // auto-detect
+ * const code    = compressText(src, 'code');        // pin route (bare string)
  * ```
  */
 export declare function compressText(content: string, contentType?: string | undefined | null): string

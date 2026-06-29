@@ -833,5 +833,337 @@ impl Foo {
             "explicit log type must save tokens"
         );
     }
+
+    // ════════════════════════════════════════════════════════════════════
+    // H-QA STAGE: ADVERSARIAL / HARDENING TESTS (added 2026-06-29).
+    // These exercise the breakage the happy-path TEST-stage tests miss:
+    // boundary/degenerate inputs, mixed/adversarial content, idempotency +
+    // determinism, exact-count structure integrity, and token fidelity.
+    // Contract under all of them: NEVER panic, NEVER grow tokens (net-savings
+    // guard), NEVER corrupt structure, detector always returns a known label.
+    // ════════════════════════════════════════════════════════════════════
+
+    /// All content-type labels the detector is allowed to emit.
+    const KNOWN_TYPES: [&str; 5] = ["json", "log", "code", "error", "prose"];
+
+    /// Core safety contract for ANY input, under auto-detect AND every forced
+    /// type: compress_text must not panic, must not grow tokens, count_tokens
+    /// must be finite/sane (usize is always >=0), detect must return a known
+    /// label. Returns the auto-detected output for further inspection.
+    fn assert_safe(input: &str) -> String {
+        // detector always yields a known label
+        let dt = detect_content_type(input);
+        assert!(
+            KNOWN_TYPES.contains(&dt),
+            "detect_content_type returned unknown label {dt:?} for {input:?}"
+        );
+        let base = count_tokens(input);
+        // auto-detect path
+        let auto = compress_text(input, None);
+        assert!(
+            count_tokens(&auto) <= base,
+            "NET-SAVINGS GUARD VIOLATED (auto): base={base} comp={} input={input:?}",
+            count_tokens(&auto)
+        );
+        // every forced type must also be safe (caller-pinned route)
+        for t in KNOWN_TYPES {
+            let forced = compress_text(input, Some(t));
+            assert!(
+                count_tokens(&forced) <= base,
+                "NET-SAVINGS GUARD VIOLATED (forced={t}): base={base} comp={} input={input:?}",
+                count_tokens(&forced)
+            );
+        }
+        auto
+    }
+
+    // ── 1. BOUNDARY / DEGENERATE INPUTS ────────────────────────────────────
+
+    #[test]
+    fn qa_boundary_empty_and_tiny_inputs_are_safe() {
+        // empty, single char, single line, all-whitespace, only-newlines.
+        for s in [
+            "",
+            "x",
+            "just one single line of text with no terminator",
+            "   \t   \n   \t  \n    ",
+            "\n\n\n\n\n\n\n\n",
+        ] {
+            assert_safe(s);
+        }
+        // sub-floor inputs are returned verbatim (the floor short-circuit).
+        assert_eq!(compress_text("", None), "");
+        assert_eq!(compress_text("x", None), "x");
+        // count_tokens on degenerate inputs is finite/correct.
+        assert_eq!(count_tokens(""), 0);
+        assert_eq!(count_tokens("\n"), 1);
+    }
+
+    #[test]
+    fn qa_boundary_extremely_long_single_line_no_sentence_breaks_is_safe() {
+        // ~20k chars, a single "line", no sentence-ending punctuation. Forces
+        // the prose splitter to treat it as ~1 sentence; must never grow or panic.
+        let blob = "word ".repeat(4000);
+        let auto = assert_safe(&blob);
+        // <=6 "sentences" -> whitespace-collapse path; never an elision marker,
+        // never larger.
+        assert!(!auto.contains("elided"), "single-line blob wrongly elided");
+        // explicit prose on the same blob is still guarded.
+        let prose = compress_text(&blob, Some("prose"));
+        assert!(count_tokens(&prose) <= count_tokens(&blob));
+    }
+
+    #[test]
+    fn qa_boundary_unicode_emoji_cjk_is_safe_and_byte_boundary_clean() {
+        // Multi-byte graphemes must never cause a panic (no byte-index slicing
+        // into the middle of a codepoint) and must never grow tokens.
+        let u = "日本語のテキスト 🚀🔥💯 émojis café résumé 中文字符 한국어 ".repeat(40);
+        let auto = assert_safe(&u);
+        // the output is valid UTF-8 by construction (String), and not larger.
+        assert!(count_tokens(&auto) <= count_tokens(&u));
+        // a single emoji / CJK char under the floor passes through untouched.
+        assert_eq!(compress_text("🚀", None), "🚀");
+        assert_eq!(compress_text("中", None), "中");
+    }
+
+    #[test]
+    fn qa_boundary_token_dense_blob_never_grows() {
+        // A high-entropy, structureless blob over the floor: no dup runs, no
+        // signatures, no sentence breaks. The guard must return it unchanged
+        // (or smaller) under every route — it must NEVER emit a larger rewrite.
+        let blob = "a1B2c3D4e5F6g7H8".repeat(200); // 3200 chars, single token-dense run
+        let base = count_tokens(&blob);
+        for t in [None, Some("prose"), Some("code"), Some("log"), Some("json"), Some("error")] {
+            let out = compress_text(&blob, t);
+            assert!(
+                count_tokens(&out) <= base,
+                "token-dense blob grew under {t:?}: {base} -> {}",
+                count_tokens(&out)
+            );
+        }
+    }
+
+    // ── 2. MIXED / ADVERSARIAL CONTENT ─────────────────────────────────────
+
+    #[test]
+    fn qa_mixed_prose_with_embedded_code_fence_is_safe() {
+        let mixed = format!(
+            "Here is some explanatory prose about the system. It describes a problem in plain words.\n```rust\nfn handler() {{\n    let x = 1;\n    x + 1\n}}\n```\n{}",
+            "And then the prose continues after the fence with more discussion of the matter at hand. ".repeat(3)
+        );
+        assert_safe(&mixed);
+    }
+
+    #[test]
+    fn qa_mixed_log_with_interleaved_prose_lines_is_safe() {
+        let mixed = "INFO starting service alpha\nINFO starting service alpha\nThis is an interjected prose sentence the operator left in the log file by hand.\nERROR connection refused to db\nERROR connection refused to db\nERROR connection refused to db\n";
+        assert_safe(mixed);
+    }
+
+    #[test]
+    fn qa_mixed_json_with_escaped_newlines_is_safe_and_keeps_keys() {
+        // Escaped \n inside JSON string values must not be treated as real line
+        // breaks in a way that corrupts the object; whitespace squeeze only.
+        let json = format!(
+            "{{\"note\": \"line one\\nline two\\nline three\", \"tags\": [\"a\", \"b\", \"c\"], \"padding\": \"{}\"}}",
+            "x".repeat(220)
+        );
+        let out = compress_text(&json, None);
+        assert!(count_tokens(&out) <= count_tokens(&json), "json grew");
+        assert!(out.contains("\"note\"") && out.contains("\"tags\""), "json key lost: {out}");
+        // the escaped sequence is preserved (not expanded into real newlines).
+        assert!(out.contains("line one\\nline two"), "escaped newline corrupted: {out}");
+    }
+
+    #[test]
+    fn qa_mixed_all_unique_log_lines_does_not_claim_collapse() {
+        // A "log" where every line is unique: there are NO consecutive dup runs,
+        // so run-collapse must NOT fire (no `[×N]` marker may appear) and the
+        // result must stay safe.
+        let mut log = String::new();
+        for i in 0..40 {
+            log.push_str(&format!(
+                "2026-06-29 12:00:{:02} ERROR unique event number {i} occurred\n",
+                i % 60
+            ));
+        }
+        let out = compress_text(&log, Some("log"));
+        assert!(
+            !out.contains("[\u{00d7}"),
+            "claimed a run-collapse on an all-unique log: {out}"
+        );
+        assert!(count_tokens(&out) <= count_tokens(&log), "all-unique log grew");
+        // every distinct event survives (lossless — nothing collapsed away).
+        for i in 0..40 {
+            assert!(out.contains(&format!("unique event number {i} ")), "lost event {i}");
+        }
+    }
+
+    #[test]
+    fn qa_mixed_prose_boundary_1_2_3_sentences_no_dup_no_drop() {
+        // At <=6 sentences the prose path is whitespace-collapse only: it must
+        // NOT insert an elision marker and must NOT duplicate or drop the unique
+        // sentence markers. Tests the head+tail window boundary precisely.
+        for n in 1..=3usize {
+            let mut body = String::new();
+            for i in 0..n {
+                body.push_str(&format!("Sentence {i} carries a uniqueZ{i} distinct marker. "));
+            }
+            // pad over the floor WITHOUT re-introducing the watched markers.
+            while body.len() < 260 {
+                body.push_str("Extra neutral filler clause keeps the body above the floor. ");
+            }
+            let out = compress_text(&body, Some("prose"));
+            assert!(
+                !out.contains("elided"),
+                "unexpected elision at {n} sentence(s): {out}"
+            );
+            for i in 0..n {
+                let marker = format!("uniqueZ{i}");
+                let count = out.matches(&marker).count();
+                assert_eq!(
+                    count, 1,
+                    "marker {marker} should appear exactly once, appeared {count}x: {out}"
+                );
+            }
+        }
+    }
+
+    // ── 3. IDEMPOTENCY / DETERMINISM ───────────────────────────────────────
+
+    #[test]
+    fn qa_determinism_same_input_same_output() {
+        // Same input twice -> byte-identical output (no nondeterminism from
+        // hashing, iteration order, etc.) across all real strategies.
+        let cases: [(&str, String); 3] = [
+            ("prose", "Distinct prose sentence number A about subsystems. ".repeat(40)),
+            (
+                "code",
+                "pub fn one(x: i32) -> i32 {\n    let y = x + 1;\n    y\n}\npub fn two(z: i32) -> i32 {\n    let w = z - 1;\n    w\n}\n".repeat(3),
+            ),
+            ("log", {
+                let mut s = String::new();
+                for _ in 0..30 { s.push_str("ERROR upstream connection refused mid run\n"); }
+                s.push_str("INFO recovered ok\n");
+                for _ in 0..10 { s.push_str("WARN retry backoff\n"); }
+                s
+            }),
+        ];
+        for (t, inp) in &cases {
+            let a = compress_text(inp, Some(t));
+            let b = compress_text(inp, Some(t));
+            assert_eq!(a, b, "non-deterministic output for type {t}");
+        }
+    }
+
+    #[test]
+    fn qa_idempotency_second_pass_never_grows_and_reaches_fixpoint() {
+        // compress_text(compress_text(x)) must not corrupt or further-mangle
+        // beyond the guard: pass 2 never grows tokens, and a fixpoint is reached
+        // by pass 3 (pass2 == pass3) — the transform stabilizes, no oscillation.
+        let cases: [(&str, String); 3] = [
+            ("prose", "Distinct prose sentence number A about subsystems. ".repeat(40)),
+            (
+                "code",
+                "pub fn one(x: i32) -> i32 {\n    let y = x + 1;\n    y\n}\npub fn two(z: i32) -> i32 {\n    let w = z - 1;\n    w\n}\n".repeat(3),
+            ),
+            ("log", {
+                let mut s = String::new();
+                for _ in 0..30 { s.push_str("ERROR upstream connection refused mid run\n"); }
+                s.push_str("INFO recovered ok\n");
+                for _ in 0..10 { s.push_str("WARN retry backoff\n"); }
+                s
+            }),
+        ];
+        for (t, inp) in &cases {
+            let p1 = compress_text(inp, Some(t));
+            let p2 = compress_text(&p1, Some(t));
+            assert!(
+                count_tokens(&p2) <= count_tokens(&p1),
+                "idempotency {t}: pass2 grew tokens {} -> {}",
+                count_tokens(&p1),
+                count_tokens(&p2)
+            );
+            let p3 = compress_text(&p2, Some(t));
+            assert_eq!(p2, p3, "idempotency {t}: no fixpoint reached by pass 3");
+        }
+    }
+
+    // ── 4. STRUCTURE INTEGRITY (exact counts on crafted inputs) ────────────
+
+    #[test]
+    fn qa_structure_code_every_signature_present_bodies_dropped() {
+        // Crafted code where the exact set of signatures is known: all four must
+        // survive verbatim, and the bulky body lines must be gone.
+        let code = "pub fn sig_alpha(a: i32) -> i32 {\n    let body_alpha = a * 2;\n    body_alpha + 1\n}\npub fn sig_beta(b: i32) -> i32 {\n    let body_beta = b - 3;\n    body_beta\n}\nstruct SigGamma {\n    f1: i32,\n    f2: i32,\n}\nimpl SigGamma {\n    pub fn sig_method_delta(&self) -> i32 {\n        self.f1 + self.f2\n    }\n}\n";
+        let out = compress_text(code, Some("code"));
+        for s in ["sig_alpha", "sig_beta", "SigGamma", "sig_method_delta"] {
+            assert!(out.contains(s), "dropped signature {s}: {out}");
+        }
+        assert!(!out.contains("body_alpha = a"), "alpha body leaked: {out}");
+        assert!(!out.contains("body_beta = b"), "beta body leaked: {out}");
+    }
+
+    #[test]
+    fn qa_structure_log_run_counts_are_exactly_accurate() {
+        // A crafted log with a run of EXACTLY 7 then EXACTLY 4, then 1 distinct
+        // line. The `[×N]` markers must match the real run lengths precisely,
+        // with no off-by-one and no spurious counts.
+        let mut log = String::new();
+        for _ in 0..7 { log.push_str("ERROR exact run of seven identical lines here\n"); }
+        for _ in 0..4 { log.push_str("WARN exact run of four identical lines here\n"); }
+        log.push_str("INFO one distinct trailing line\n");
+        let out = compress_text(&log, Some("log"));
+        assert!(out.contains("[\u{00d7}7]"), "expected [\u{00d7}7]: {out}");
+        assert!(out.contains("[\u{00d7}4]"), "expected [\u{00d7}4]: {out}");
+        // the distinct line is preserved and NOT marked as a run.
+        assert!(out.contains("INFO one distinct trailing line"), "distinct line lost: {out}");
+        assert!(
+            !out.contains("distinct trailing line  [\u{00d7}"),
+            "distinct singleton wrongly marked: {out}"
+        );
+        // no off-by-one / spurious run counts.
+        for spurious in ["[\u{00d7}6]", "[\u{00d7}8]", "[\u{00d7}3]", "[\u{00d7}5]"] {
+            assert!(!out.contains(spurious), "spurious run count {spurious}: {out}");
+        }
+    }
+
+    #[test]
+    fn qa_structure_prose_elision_count_matches_real_elided_count() {
+        // 40 distinct sentences -> head 3 + tail 3 kept -> 34 elided. The marker
+        // must say EXACTLY "34 sentences elided", appear EXACTLY once, keep the
+        // exact head/tail sentences, and drop a known middle sentence.
+        let mut prose = String::new();
+        for i in 0..40 {
+            prose.push_str(&format!("Distinct prose unit {i} with numeric tokenZ {i}. "));
+        }
+        let out = compress_text(&prose, Some("prose"));
+        assert!(out.contains("34 sentences elided"), "wrong elided count: {out}");
+        assert_eq!(
+            out.matches("sentences elided").count(),
+            1,
+            "elision marker must appear exactly once: {out}"
+        );
+        for i in [0, 1, 2, 37, 38, 39] {
+            assert!(out.contains(&format!("tokenZ {i}.")), "lost head/tail sentence {i}: {out}");
+        }
+        assert!(!out.contains("tokenZ 20."), "middle sentence 20 leaked: {out}");
+    }
+
+    // ── 5. TOKEN-COUNT FIDELITY (known cl100k expectations) ─────────────────
+
+    #[test]
+    fn qa_token_count_matches_known_cl100k_values() {
+        // Spot-check count_tokens against fixed, tiktoken-verified cl100k_base
+        // counts — proves it is the REAL tokenizer, not an approximation.
+        assert_eq!(count_tokens(""), 0, "empty");
+        assert_eq!(count_tokens("hello world"), 2, "hello world");
+        assert_eq!(count_tokens("\n"), 1, "newline");
+        assert_eq!(
+            count_tokens("The quick brown fox jumps over the lazy dog"),
+            9,
+            "pangram"
+        );
+    }
 }
 
