@@ -1,0 +1,82 @@
+# Realistic structured-log sample in the canonical `tracing`/`log`-crate format
+# (YYYY-MM-DD HH:MM:SS LEVEL message) that real Rust/Node services emit.
+# Used as the `log`-route realistic item because no in-repo file classifies as log
+2026-06-29 12:00:00 INFO pluresdb sync worker started pool=4
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:01 ERROR upstream connection refused endpoint=10.0.0.7:7777 retrying
+2026-06-29 12:00:02 WARN retry backoff engaged attempt=3 delay=800ms
+2026-06-29 12:00:02 WARN retry backoff engaged attempt=3 delay=800ms
+2026-06-29 12:00:02 WARN retry backoff engaged attempt=3 delay=800ms
+2026-06-29 12:00:02 WARN retry backoff engaged attempt=3 delay=800ms
+2026-06-29 12:00:02 WARN retry backoff engaged attempt=3 delay=800ms
+2026-06-29 12:00:02 WARN retry backoff engaged attempt=3 delay=800ms
+2026-06-29 12:00:02 WARN retry backoff engaged attempt=3 delay=800ms
+2026-06-29 12:00:02 WARN retry backoff engaged attempt=3 delay=800ms
+2026-06-29 12:00:02 WARN retry backoff engaged attempt=3 delay=800ms
+2026-06-29 12:00:02 WARN retry backoff engaged attempt=3 delay=800ms
+2026-06-29 12:00:02 WARN retry backoff engaged attempt=3 delay=800ms
+2026-06-29 12:00:02 WARN retry backoff engaged attempt=3 delay=800ms
+2026-06-29 12:00:03 INFO recovery scheduled token=abc123 lease=30s
+2026-06-29 12:00:04 ERROR crdt merge conflict node=42 field=tags resolved=lww
+2026-06-29 12:00:04 ERROR crdt merge conflict node=42 field=tags resolved=lww
+2026-06-29 12:00:04 ERROR crdt merge conflict node=42 field=tags resolved=lww
+2026-06-29 12:00:04 ERROR crdt merge conflict node=42 field=tags resolved=lww
+2026-06-29 12:00:04 ERROR crdt merge conflict node=42 field=tags resolved=lww
+2026-06-29 12:00:04 ERROR crdt merge conflict node=42 field=tags resolved=lww
+2026-06-29 12:00:04 ERROR crdt merge conflict node=42 field=tags resolved=lww
+2026-06-29 12:00:04 ERROR crdt merge conflict node=42 field=tags resolved=lww
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:05 DEBUG flush batch=512 bytes=131072 fsync=true
+2026-06-29 12:00:06 INFO compaction complete reclaimed=18MB segments=6
+2026-06-29 12:00:07 WARN embedder queue depth high depth=2048 dropping=false
+2026-06-29 12:00:07 WARN embedder queue depth high depth=2048 dropping=false
+2026-06-29 12:00:07 WARN embedder queue depth high depth=2048 dropping=false
+2026-06-29 12:00:07 WARN embedder queue depth high depth=2048 dropping=false
+2026-06-29 12:00:07 WARN embedder queue depth high depth=2048 dropping=false
+2026-06-29 12:00:08 INFO sync worker idle pending=0
