@@ -3262,8 +3262,6 @@ dependencies = [
  "chrono",
  "futures",
  "notify",
- "pest",
- "pest_derive",
  "px-ast",
  "px-compiler",
  "px-eval",
