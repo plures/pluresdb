@@ -17,6 +17,21 @@ pub mod compose;
 #[cfg(feature = "watcher")]
 pub mod watcher;
 
+// ── M6 shim (praxis-lang SSOT engine) ───────────────────────────────────────
+// M6.1: bring praxis-lang's real .px engine in ALONGSIDE the local one so both
+// compile side-by-side for differential testing. This module is namespaced to
+// avoid colliding with the local flat `Px*` AST during the migration; in M6.3
+// the local parser/AST is deleted and these become the crate's top-level
+// `parse` + AST re-exports (the re-export hub). Names-only re-export — the
+// SHAPES are px-ast's richer typed shape, adapted inside compiler/dataflow/lint.
+pub mod pxlang {
+    //! Re-exports of the single-source-of-truth `.px` engine from `praxis-lang`
+    //! (pinned git rev bbc306c). Parser + AST + evaluator primitives.
+    pub use px_ast::{self, PxDocument, Statement};
+    pub use px_compiler::{parse, parse_statement, CompileError};
+    pub use px_eval;
+}
+
 use pest::Parser;
 use pest_derive::Parser;
 use serde::{Deserialize, Serialize};

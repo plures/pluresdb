@@ -24,6 +24,13 @@ tokio = { workspace = true, features = ["time", "rt"], optional = true }
 pest = "2.8"
 pest_derive = "2.8"
 tracing = "0.1"
+
+# praxis-lang — the single-source-of-truth .px language engine (M6: stop duplicating it).
+# Pinned to git rev bbc306c on plures/praxis-lang. pluresdb-px imports parse+AST+eval
+# from here and keeps ONLY its unique record-lowering/executor/store runtime.
+px-ast = { git = "https://github.com/plures/praxis-lang.git", rev = "bbc306ca4377cb437e7366d07dabb50392a0e659", package = "px-ast" }
+px-compiler = { git = "https://github.com/plures/praxis-lang.git", rev = "bbc306ca4377cb437e7366d07dabb50392a0e659", package = "px-compiler" }
+px-eval = { git = "https://github.com/plures/praxis-lang.git", rev = "bbc306ca4377cb437e7366d07dabb50392a0e659", package = "px-eval" }
 futures = { version = "0.3", optional = true }
 regex = "1"
 
