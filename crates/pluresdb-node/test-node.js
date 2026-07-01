@@ -12,6 +12,14 @@ async function test() {
   
   console.log('  ✓ Creating database instance');
   console.log('  ✓ Actor ID:', db.getActorId());
+
+  // Baseline: a fresh PluresDatabase is pre-seeded with the default praxis
+  // constraints as first-class CrdtStore nodes (ADR-0017 B6 / TASK-PX-CANON
+  // Stage 2 — constraints are single-source-of-truth nodes, not a side table).
+  // So list() legitimately returns those seeds; assert a DELTA, never a
+  // hardcoded absolute count (the old `=== 1` predated the unification).
+  const baseline = db.list().length;
+  console.log('  ✓ Baseline nodes (seeded praxis constraints):', baseline);
   
   // Put
   const id1 = db.put('node-1', { name: 'Alice', age: 30, type: 'Person' });
@@ -33,9 +41,12 @@ async function test() {
   
   // List
   const all = db.list();
-  console.log('  ✓ List nodes:', all.length, 'nodes');
-  if (all.length !== 1) {
-    throw new Error('List failed: expected 1 node');
+  console.log('  ✓ List nodes:', all.length, 'nodes (baseline', baseline, '+ node-1)');
+  if (all.length !== baseline + 1) {
+    throw new Error(`List failed: expected baseline+1 (${baseline + 1}) nodes, got ${all.length}`);
+  }
+  if (!all.some(n => n.id === 'node-1')) {
+    throw new Error('List failed: node-1 not present in list()');
   }
   
   // Delete
