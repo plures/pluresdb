@@ -13,8 +13,10 @@
 
 use crate::db::schema::{AgentContext, Condition, Constraint, Evidence, EvidenceResult, Severity};
 use crate::db::store::PraxisStore;
-use crate::px::{PxParser, Rule};
-use pest::Parser;
+// M6: constraint-predicate parsing now uses the SSOT praxis-lang grammar via
+// `px_eval::parse_expr` (which parses through `px_compiler`), walking the
+// resulting `px_ast::Expr` instead of the deleted local pest grammar.
+use px_ast::{BinOp, Expr};
 
 /// Marker prefix stamped onto the `description` of a constraint produced from
 /// input that could be parsed neither as a structured predicate nor as a known
@@ -162,8 +164,9 @@ pub fn on_action(store: &PraxisStore, ctx: &AgentContext) -> Result<Vec<Violatio
 /// # Real structured-predicate path (primary)
 ///
 /// The text is first run through the **canonical `.px` expression grammar**
-/// (`pluresdb_px::px::PxParser` / `Rule::expr` — the single source of truth in
-/// `grammar.pest`).  If it parses as one or more `field <op> value` comparisons
+/// (`px_eval::parse_expr`, which parses via `px_compiler` — the single source
+/// of truth in praxis-lang).  If it parses as one or more `field <op> value`
+/// comparisons
 /// joined by `and` / `or` (`&&` / `||`), it is mapped to a **real, enforcing**
 /// [`Condition`] AST placed in `require`.  Supported comparison operators:
 ///
@@ -323,39 +326,19 @@ fn parse_structured_predicate(text: &str) -> Option<Condition> {
     if text.is_empty() {
         return None;
     }
-    // Use the ONE canonical grammar (grammar.pest) as the validator. Parsing a
-    // bare `Rule::expr` must consume the whole input (no trailing garbage).
-    let mut pairs = PxParser::parse(Rule::expr, text).ok()?;
-    let expr = pairs.next()?;
-    if expr.as_rule() != Rule::expr {
-        return None;
-    }
-    // Reject `inline_if` and any expr that didn't consume the full string.
-    if expr.as_str().trim() != text.trim() {
-        return None;
-    }
+    // Use the ONE canonical grammar (praxis-lang via px_eval::parse_expr) as the
+    // validator/parser. `parse_expr` parses the text as a constraint `require:`
+    // expression through px_compiler, so an invalid/garbage expression yields
+    // `Err` -> `None` here.
+    let expr = px_eval::parse_expr(text).ok()?;
 
+    // Flatten a flat conjunction/disjunction of comparisons joined by a SINGLE
+    // class of logic operator. Mixed `and`/`or`, or any non-comparison operand,
+    // is refused (we will not guess precedence or enforce complex predicates).
     let mut comparisons: Vec<Condition> = Vec::new();
     let mut joiner: Option<Logic> = None;
-
-    for child in expr.into_inner() {
-        match child.as_rule() {
-            Rule::comparison => {
-                comparisons.push(comparison_to_condition(child)?);
-            }
-            Rule::logic_op => {
-                let this = Logic::from_str(child.as_str())?;
-                match joiner {
-                    None => joiner = Some(this),
-                    // Refuse to silently guess precedence on mixed and/or.
-                    Some(prev) if prev != this => return None,
-                    Some(_) => {}
-                }
-            }
-            // `inline_if` or anything unexpected at the top level -> not a
-            // simple predicate we are willing to enforce.
-            _ => return None,
-        }
+    if !flatten_predicate(&expr, &mut comparisons, &mut joiner) {
+        return None;
     }
 
     match comparisons.len() {
@@ -373,6 +356,48 @@ fn parse_structured_predicate(text: &str) -> Option<Condition> {
     }
 }
 
+/// Recursively flatten a single-joiner logic chain of comparisons.
+///
+/// Returns `false` (reject the whole predicate) if the expression mixes `and`
+/// with `or`, or contains an operand that is not itself a simple comparison or
+/// a same-joiner logic node. `Paren` is transparent.
+fn flatten_predicate(
+    expr: &Expr,
+    out: &mut Vec<Condition>,
+    joiner: &mut Option<Logic>,
+) -> bool {
+    match expr {
+        Expr::Paren(inner) => flatten_predicate(inner, out, joiner),
+        Expr::Binary { left, op, right } => {
+            let this_logic = match op {
+                BinOp::And => Some(Logic::And),
+                BinOp::Or => Some(Logic::Or),
+                _ => None,
+            };
+            if let Some(this) = this_logic {
+                // Refuse to silently guess precedence on mixed and/or.
+                match joiner {
+                    None => *joiner = Some(this),
+                    Some(prev) if *prev != this => return false,
+                    Some(_) => {}
+                }
+                flatten_predicate(left, out, joiner) && flatten_predicate(right, out, joiner)
+            } else {
+                // A comparison operator (==, !=, <, >, <=, >=) or something we
+                // don't enforce. `comparison_expr_to_condition` filters the rest.
+                match comparison_expr_to_condition(expr) {
+                    Some(c) => {
+                        out.push(c);
+                        true
+                    }
+                    None => false,
+                }
+            }
+        }
+        _ => false,
+    }
+}
+
 /// Logical joiner between comparisons.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Logic {
@@ -380,43 +405,25 @@ enum Logic {
     Or,
 }
 
-impl Logic {
-    fn from_str(s: &str) -> Option<Self> {
-        match s.trim() {
-            "&&" | "AND" | "and" => Some(Logic::And),
-            "||" | "OR" | "or" => Some(Logic::Or),
-            _ => None,
-        }
-    }
-}
+/// Map a single comparison expression (`left <cmp> right`) to a [`Condition`].
+/// Returns `None` for anything that is not `field <comp_op> literal`.
+fn comparison_expr_to_condition(expr: &Expr) -> Option<Condition> {
+    let Expr::Binary { left, op, right } = expr else {
+        return None;
+    };
+    // Only the six comparison operators are enforceable predicates.
+    let op_str = match op {
+        BinOp::Eq => "==",
+        BinOp::Neq => "!=",
+        BinOp::Gt => ">",
+        BinOp::Lt => "<",
+        BinOp::Gte => ">=",
+        BinOp::Lte => "<=",
+        _ => return None,
+    };
 
-/// Map a single `comparison` pair (`additive comp_op additive`) to a
-/// [`Condition`].  Returns `None` for anything that is not
-/// `field <comp_op> literal`.
-fn comparison_to_condition(pair: pest::iterators::Pair<Rule>) -> Option<Condition> {
-    let mut field: Option<String> = None;
-    let mut op: Option<String> = None;
-    let mut value_str: Option<String> = None;
-
-    for part in pair.into_inner() {
-        match part.as_rule() {
-            Rule::comp_op => op = Some(part.as_str().trim().to_string()),
-            Rule::additive => {
-                // First additive = field (LHS); second = value (RHS).
-                if field.is_none() {
-                    field = Some(part.as_str().trim().to_string());
-                } else {
-                    value_str = Some(part.as_str().trim().to_string());
-                }
-            }
-            _ => {}
-        }
-    }
-
-    // A bare `additive` with no comp_op is not an enforceable predicate.
-    let field = field?;
-    let op = op?;
-    let value_str = value_str?;
+    let field = expr_to_predicate_string(left)?;
+    let value_str = expr_to_predicate_string(right)?;
 
     // Field path indexes into AgentContext::metadata; strip a `metadata.` head.
     let field = field
@@ -430,7 +437,66 @@ fn comparison_to_condition(pair: pest::iterators::Pair<Rule>) -> Option<Conditio
         return None;
     }
 
-    build_comparison(&field, &op, &value_str)
+    build_comparison(&field, op_str, &value_str)
+}
+
+/// Render the LHS/RHS of a comparison back to the source-equivalent string the
+/// string-based predicate helpers (`is_field_path`, `literal_to_json`) expect.
+///
+/// Only the shapes that can appear as a `field <op> literal` side are handled:
+/// dotted identifier paths, bare identifiers (enum-style bareword literals),
+/// `$var`/`$var.field` references, and scalar literals. Anything else (calls,
+/// arithmetic, nested exprs, lists/maps) yields `None`, which the caller treats
+/// as "not an enforceable predicate".
+fn expr_to_predicate_string(expr: &Expr) -> Option<String> {
+    use px_ast::Value as AstValue;
+    match expr {
+        Expr::Paren(inner) => expr_to_predicate_string(inner),
+        // `foo.bar.baz` dotted path (LHS field, or a bareword-enum RHS like `green`).
+        Expr::Path(dotted) => Some(
+            dotted
+                .segments
+                .iter()
+                .map(|s| s.name.as_str())
+                .collect::<Vec<_>>()
+                .join("."),
+        ),
+        // `$var` / `$var.field` -> keep the `$`-prefixed source form.
+        Expr::Var(var) => {
+            let mut s = format!("${}", var.name.name);
+            for acc in &var.accessors {
+                match acc {
+                    px_ast::Accessor::Dot(id) => {
+                        s.push('.');
+                        s.push_str(&id.name);
+                    }
+                    // Bracket/index accessors are not enforceable field paths.
+                    px_ast::Accessor::Bracket(_) => return None,
+                }
+            }
+            Some(s)
+        }
+        // Scalar literals -> render to the string form `literal_to_json` parses.
+        Expr::Literal(v) => match v {
+            AstValue::String(s) => Some(format!("\"{s}\"")),
+            AstValue::Integer(i) => Some(i.to_string()),
+            AstValue::Float(f) => Some(f.to_string()),
+            AstValue::Boolean(b) => Some(b.to_string()),
+            // A bare identifier literal (e.g. an enum value `green`).
+            AstValue::Ident(id) => Some(id.name.clone()),
+            // A dotted path can also appear in value position.
+            AstValue::Path(dotted) => Some(
+                dotted
+                    .segments
+                    .iter()
+                    .map(|seg| seg.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join("."),
+            ),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 /// True if `s` is a dotted identifier path (the only LHS shape we enforce).
