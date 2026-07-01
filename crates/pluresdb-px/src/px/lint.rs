@@ -4,8 +4,347 @@
 //! - Non-exhaustive match steps (no wildcard `_` arm)
 //! - Empty procedure bodies
 //! - Unreachable code after unconditional match arms
+//!
+//! ## M6 (praxis-lang import)
+//!
+//! The linter's rules were authored against the **string-form** projection of a
+//! procedure (conditions as `String`, params as JSON, `over`/`item_var` as
+//! `String`) — exactly the shape the executor consumes. Rather than re-derive
+//! that projection from px-ast a second time, the public [`lint`] entry accepts a
+//! [`px_ast::PxDocument`] and **lowers** each procedure to a small lint-local view
+//! ([`LintDoc`]) using the compiler's record renderer
+//! ([`super::compiler::step_to_json`]) as the single source of truth. All rule
+//! logic then runs unchanged over that view. The view types are lint's own
+//! concern (they outlive the deleted local flat AST).
 
-use super::{PxDocument, PxMatchArm, PxProcedure, PxStep};
+use serde_json::Value as Json;
+
+// ───────────────────────────────────────────────────────────────────
+// Lint-local view of a document (string-form projection the rules operate on).
+// Byte-identical in shape to the v1 flat AST the rule logic + tests were built
+// against. Populated from px-ast via `LintDoc::from_px_ast`.
+// ───────────────────────────────────────────────────────────────────
+
+/// A procedure's trigger, in lint-view form.
+#[derive(Debug, Clone)]
+pub struct LintTrigger {
+    pub kind: String,
+    pub params: Option<Json>,
+}
+
+/// A procedure, in lint-view form.
+#[derive(Debug, Clone)]
+pub struct LintProc {
+    pub name: String,
+    pub trigger: Option<LintTrigger>,
+    pub given: Option<String>,
+    pub steps: Vec<LintStep>,
+}
+
+/// A match arm, in lint-view form (condition + result rendered as strings).
+#[derive(Debug, Clone)]
+pub struct LintMatchArm {
+    pub condition: String,
+    pub result: String,
+}
+
+/// A parallel branch, in lint-view form.
+#[derive(Debug, Clone)]
+pub struct LintBranch {
+    pub name: String,
+    pub steps: Vec<LintStep>,
+    pub retry: Option<u64>,
+    pub retry_delay_ms: Option<u64>,
+    pub retry_backoff: Option<String>,
+    pub retry_max_delay_ms: Option<u64>,
+    pub retry_jitter: Option<bool>,
+}
+
+/// A single step, in lint-view form (string-form conditions, JSON params).
+#[derive(Debug, Clone)]
+pub enum LintStep {
+    Call {
+        name: String,
+        params: Json,
+        output_var: Option<String>,
+    },
+    Match {
+        arms: Vec<LintMatchArm>,
+    },
+    When {
+        condition: String,
+        steps: Vec<LintStep>,
+    },
+    Loop {
+        over: Option<String>,
+        times: Option<u64>,
+        item_var: String,
+        key_var: Option<String>,
+        steps: Vec<LintStep>,
+        output_var: Option<String>,
+    },
+    Emit {
+        event: Json,
+    },
+    Try {
+        steps: Vec<LintStep>,
+        catch: Vec<LintStep>,
+        retry: Option<u64>,
+        retry_delay_ms: Option<u64>,
+        retry_backoff: Option<String>,
+        retry_max_delay_ms: Option<u64>,
+        retry_jitter: Option<bool>,
+    },
+    Parallel {
+        branches: Vec<LintBranch>,
+        output_var: Option<String>,
+    },
+    Return {
+        value: Option<Json>,
+    },
+    Abort {
+        value: Option<Json>,
+    },
+    Assign {
+        var: String,
+        value: String,
+    },
+    If {
+        condition: String,
+        then_steps: Vec<LintStep>,
+        else_steps: Vec<LintStep>,
+    },
+    For {
+        var: String,
+        iterable: String,
+        steps: Vec<LintStep>,
+    },
+}
+
+/// A document, in lint-view form. Only the parts the linter inspects are kept
+/// (procedures + functions); everything else is irrelevant to the lint rules.
+#[derive(Debug, Clone, Default)]
+pub struct LintDoc {
+    pub procedures: Vec<LintProc>,
+    /// Function signatures (name + declared param names) for call-arity checks.
+    pub functions: Vec<(String, Vec<String>)>,
+}
+
+// ───────────────────────────────────────────────────────────────────
+// px-ast → lint-view lowering (reuses compiler::step_to_json as SSOT).
+// ───────────────────────────────────────────────────────────────────
+
+fn steps_from_records(records: &[Json]) -> Vec<LintStep> {
+    records.iter().filter_map(LintStep::from_record).collect()
+}
+
+impl LintStep {
+    /// Build a lint-view step from the executor record JSON emitted by
+    /// `compiler::step_to_json`. Returns `None` for record kinds the linter does
+    /// not analyze (e.g. `define`, `code`), which are intentionally skipped —
+    /// they are NOT dropped from compilation (the record compiler preserves
+    /// them); the linter simply has no rule for them yet.
+    fn from_record(rec: &Json) -> Option<LintStep> {
+        let kind = rec.get("kind").and_then(|k| k.as_str())?;
+        let s = |k: &str| rec.get(k).and_then(|v| v.as_str()).map(|s| s.to_string());
+        let u = |k: &str| rec.get(k).and_then(|v| v.as_u64());
+        let b = |k: &str| rec.get(k).and_then(|v| v.as_bool());
+        let steps_at = |k: &str| {
+            rec.get(k)
+                .and_then(|v| v.as_array())
+                .map(|a| steps_from_records(a))
+                .unwrap_or_default()
+        };
+        Some(match kind {
+            "call" => LintStep::Call {
+                name: s("name").unwrap_or_default(),
+                params: rec.get("params").cloned().unwrap_or(Json::Null),
+                output_var: s("output_var"),
+            },
+            "match" => LintStep::Match {
+                arms: rec
+                    .get("arms")
+                    .and_then(|v| v.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .map(|arm| LintMatchArm {
+                                condition: arm
+                                    .get("condition")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or_default()
+                                    .to_string(),
+                                result: arm
+                                    .get("result")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or_default()
+                                    .to_string(),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            },
+            "when" => LintStep::When {
+                condition: s("condition").unwrap_or_default(),
+                steps: steps_at("steps"),
+            },
+            "loop" => LintStep::Loop {
+                over: s("over"),
+                times: u("times"),
+                item_var: s("as").unwrap_or_else(|| "item".to_string()),
+                key_var: s("key_as"),
+                steps: steps_at("steps"),
+                output_var: s("output_var"),
+            },
+            "emit" => LintStep::Emit {
+                event: rec.get("event").cloned().unwrap_or(Json::Null),
+            },
+            "try" => LintStep::Try {
+                steps: steps_at("steps"),
+                catch: steps_at("catch"),
+                retry: u("retry"),
+                retry_delay_ms: u("retry_delay_ms"),
+                retry_backoff: s("retry_backoff"),
+                retry_max_delay_ms: u("retry_max_delay_ms"),
+                retry_jitter: b("retry_jitter"),
+            },
+            "parallel" => LintStep::Parallel {
+                branches: rec
+                    .get("branches")
+                    .and_then(|v| v.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .map(|br| LintBranch {
+                                name: br
+                                    .get("name")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or_default()
+                                    .to_string(),
+                                steps: br
+                                    .get("steps")
+                                    .and_then(|v| v.as_array())
+                                    .map(|a| steps_from_records(a))
+                                    .unwrap_or_default(),
+                                retry: br.get("retry").and_then(|v| v.as_u64()),
+                                retry_delay_ms: br
+                                    .get("retry_delay_ms")
+                                    .and_then(|v| v.as_u64()),
+                                retry_backoff: br
+                                    .get("retry_backoff")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string()),
+                                retry_max_delay_ms: br
+                                    .get("retry_max_delay_ms")
+                                    .and_then(|v| v.as_u64()),
+                                retry_jitter: br.get("retry_jitter").and_then(|v| v.as_bool()),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                output_var: s("output_var"),
+            },
+            "return" => LintStep::Return {
+                value: rec.get("value").cloned(),
+            },
+            "abort" => LintStep::Abort {
+                value: rec.get("value").cloned(),
+            },
+            "assign" => LintStep::Assign {
+                var: s("var").unwrap_or_default(),
+                value: s("value").unwrap_or_default(),
+            },
+            "if" => LintStep::If {
+                condition: s("condition").unwrap_or_default(),
+                then_steps: steps_at("then"),
+                else_steps: steps_at("else"),
+            },
+            "for" => LintStep::For {
+                var: s("var").unwrap_or_default(),
+                iterable: s("iterable").unwrap_or_default(),
+                steps: steps_at("steps"),
+            },
+            // `define`, `code`, and any future kinds have no lint rule yet.
+            _ => return None,
+        })
+    }
+}
+
+impl LintDoc {
+    /// Lower a px-ast document to the lint view. Only legacy (step-list)
+    /// procedures are analyzed by the current rules; dataflow procedures and
+    /// code-block bodies carry no v1 step list to lint (documented follow-up).
+    pub fn from_px_ast(doc: &px_ast::PxDocument) -> LintDoc {
+        use px_ast::{ProcedureBody, ProcedureTrigger, Statement};
+
+        let trigger_kind = |t: &ProcedureTrigger| -> &'static str {
+            match t {
+                ProcedureTrigger::Periodic { .. } => "periodic",
+                ProcedureTrigger::OnWrite { .. } => "on_write",
+                ProcedureTrigger::OnEvent(_) => "on_event",
+                ProcedureTrigger::Startup => "startup",
+                ProcedureTrigger::BeforeResponse => "before_response",
+                ProcedureTrigger::AfterResponse => "after_response",
+                ProcedureTrigger::Cron { .. } => "cron",
+                ProcedureTrigger::Manual => "manual",
+            }
+        };
+
+        let mut procedures = Vec::new();
+        let mut functions = Vec::new();
+
+        for stmt in &doc.statements {
+            match stmt {
+                Statement::LegacyProcedure(p) => {
+                    let steps = match &p.body {
+                        ProcedureBody::Steps(s) => {
+                            let records: Vec<Json> =
+                                s.iter().map(super::compiler::step_to_json).collect();
+                            steps_from_records(&records)
+                        }
+                        // A code-block body has no v1 steps to lint.
+                        ProcedureBody::Code(_) => Vec::new(),
+                    };
+                    // px-ast carries procedure params as a flat `Vec<Ident>`.
+                    // The param-hygiene rules (L010/L012) key off an object of
+                    // param names, so synthesize one.
+                    let params_obj = if p.params.is_empty() {
+                        None
+                    } else {
+                        let mut m = serde_json::Map::new();
+                        for id in &p.params {
+                            m.insert(id.name.clone(), Json::String(String::new()));
+                        }
+                        Some(Json::Object(m))
+                    };
+                    let trigger = Some(LintTrigger {
+                        kind: p
+                            .trigger
+                            .as_ref()
+                            .map(|t| trigger_kind(t).to_string())
+                            .unwrap_or_else(|| "manual".to_string()),
+                        params: params_obj,
+                    });
+                    procedures.push(LintProc {
+                        name: p.name.name.clone(),
+                        trigger,
+                        given: p.given.as_ref().map(|g| g.value.clone()),
+                        steps,
+                    });
+                }
+                Statement::Function(f) => {
+                    let param_names =
+                        f.params.iter().map(|p| p.name.name.clone()).collect::<Vec<_>>();
+                    functions.push((f.name.name.clone(), param_names));
+                }
+                _ => {}
+            }
+        }
+
+        LintDoc {
+            procedures,
+            functions,
+        }
+    }
+}
 
 /// Severity of a lint diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -44,8 +383,16 @@ impl std::fmt::Display for LintDiagnostic {
     }
 }
 
-/// Run all lint passes on a parsed document.
-pub fn lint(doc: &PxDocument) -> Vec<LintDiagnostic> {
+/// Run all lint passes on a parsed px-ast document.
+///
+/// Lowers the document to the string-form lint view, then runs every rule.
+pub fn lint(doc: &px_ast::PxDocument) -> Vec<LintDiagnostic> {
+    let view = LintDoc::from_px_ast(doc);
+    lint_view(&view)
+}
+
+/// Run all lint passes over an already-lowered lint view.
+fn lint_view(doc: &LintDoc) -> Vec<LintDiagnostic> {
     let mut diagnostics = Vec::new();
 
     for procedure in &doc.procedures {
@@ -60,7 +407,7 @@ pub fn lint(doc: &PxDocument) -> Vec<LintDiagnostic> {
 }
 
 /// Lint a single procedure.
-fn lint_procedure(proc: &PxProcedure, diags: &mut Vec<LintDiagnostic>) {
+fn lint_procedure(proc: &LintProc, diags: &mut Vec<LintDiagnostic>) {
     // L001: Empty procedure body
     if proc.steps.is_empty() {
         diags.push(LintDiagnostic {
@@ -91,14 +438,14 @@ fn lint_procedure(proc: &PxProcedure, diags: &mut Vec<LintDiagnostic>) {
 }
 
 /// Lint a single step (recursing into nested structures).
-fn lint_step(step: &PxStep, proc_name: &str, idx: usize, diags: &mut Vec<LintDiagnostic>) {
+fn lint_step(step: &LintStep, proc_name: &str, idx: usize, diags: &mut Vec<LintDiagnostic>) {
     match step {
-        PxStep::Match { arms } => {
+        LintStep::Match { arms } => {
             lint_match_exhaustiveness(arms, proc_name, idx, diags);
             lint_match_unreachable(arms, proc_name, idx, diags);
             lint_match_duplicate_conditions(arms, proc_name, idx, diags);
         }
-        PxStep::Loop {
+        LintStep::Loop {
             over,
             item_var,
             key_var,
@@ -110,12 +457,12 @@ fn lint_step(step: &PxStep, proc_name: &str, idx: usize, diags: &mut Vec<LintDia
                 lint_step(sub_step, proc_name, sub_idx, diags);
             }
         }
-        PxStep::When { steps, .. } => {
+        LintStep::When { steps, .. } => {
             for (sub_idx, sub_step) in steps.iter().enumerate() {
                 lint_step(sub_step, proc_name, sub_idx, diags);
             }
         }
-        PxStep::Try { steps, catch, .. } => {
+        LintStep::Try { steps, catch, .. } => {
             lint_empty_catch(catch, proc_name, idx, diags);
             for (sub_idx, sub_step) in steps.iter().enumerate() {
                 lint_step(sub_step, proc_name, sub_idx, diags);
@@ -124,7 +471,7 @@ fn lint_step(step: &PxStep, proc_name: &str, idx: usize, diags: &mut Vec<LintDia
                 lint_step(sub_step, proc_name, sub_idx, diags);
             }
         }
-        PxStep::Parallel { branches, .. } => {
+        LintStep::Parallel { branches, .. } => {
             for branch in branches {
                 for (sub_idx, sub_step) in branch.steps.iter().enumerate() {
                     lint_step(sub_step, proc_name, sub_idx, diags);
@@ -137,7 +484,7 @@ fn lint_step(step: &PxStep, proc_name: &str, idx: usize, diags: &mut Vec<LintDia
 
 /// PX-L002: Non-exhaustive match — no wildcard `_` arm present.
 fn lint_match_exhaustiveness(
-    arms: &[PxMatchArm],
+    arms: &[LintMatchArm],
     proc_name: &str,
     idx: usize,
     diags: &mut Vec<LintDiagnostic>,
@@ -163,7 +510,7 @@ fn lint_match_exhaustiveness(
 
 /// PX-L004: Duplicate arm conditions in a match.
 fn lint_match_duplicate_conditions(
-    arms: &[PxMatchArm],
+    arms: &[LintMatchArm],
     proc_name: &str,
     idx: usize,
     diags: &mut Vec<LintDiagnostic>,
@@ -194,7 +541,7 @@ fn lint_match_duplicate_conditions(
 }
 
 /// PX-L005: Unused output variables — bound but never referenced in subsequent steps.
-fn lint_unused_output_vars(proc: &PxProcedure, diags: &mut Vec<LintDiagnostic>) {
+fn lint_unused_output_vars(proc: &LintProc, diags: &mut Vec<LintDiagnostic>) {
     // Collect all output_var bindings with their step index
     let mut bindings: Vec<(usize, &str)> = Vec::new();
     for (idx, step) in proc.steps.iter().enumerate() {
@@ -231,34 +578,34 @@ fn lint_unused_output_vars(proc: &PxProcedure, diags: &mut Vec<LintDiagnostic>) 
 }
 
 /// Extract the output_var from a step, if any.
-fn step_output_var(step: &PxStep) -> Option<&str> {
+fn step_output_var(step: &LintStep) -> Option<&str> {
     match step {
-        PxStep::Call { output_var, .. } => output_var.as_deref(),
-        PxStep::Loop { output_var, .. } => output_var.as_deref(),
-        PxStep::Parallel { output_var, .. } => output_var.as_deref(),
+        LintStep::Call { output_var, .. } => output_var.as_deref(),
+        LintStep::Loop { output_var, .. } => output_var.as_deref(),
+        LintStep::Parallel { output_var, .. } => output_var.as_deref(),
         _ => None,
     }
 }
 
 /// Recursively collect all `$variable` references from a step.
-fn collect_var_references(step: &PxStep, refs: &mut std::collections::HashSet<String>) {
+fn collect_var_references(step: &LintStep, refs: &mut std::collections::HashSet<String>) {
     match step {
-        PxStep::Call { params, .. } => {
+        LintStep::Call { params, .. } => {
             collect_refs_from_value(params, refs);
         }
-        PxStep::Match { arms } => {
+        LintStep::Match { arms } => {
             for arm in arms {
                 collect_refs_from_str(&arm.condition, refs);
                 collect_refs_from_str(&arm.result, refs);
             }
         }
-        PxStep::When { condition, steps } => {
+        LintStep::When { condition, steps } => {
             collect_refs_from_str(condition, refs);
             for s in steps {
                 collect_var_references(s, refs);
             }
         }
-        PxStep::Loop { over, steps, .. } => {
+        LintStep::Loop { over, steps, .. } => {
             if let Some(over_expr) = over {
                 collect_refs_from_str(over_expr, refs);
             }
@@ -266,10 +613,10 @@ fn collect_var_references(step: &PxStep, refs: &mut std::collections::HashSet<St
                 collect_var_references(s, refs);
             }
         }
-        PxStep::Emit { event } => {
+        LintStep::Emit { event } => {
             collect_refs_from_value(event, refs);
         }
-        PxStep::Try { steps, catch, .. } => {
+        LintStep::Try { steps, catch, .. } => {
             for s in steps {
                 collect_var_references(s, refs);
             }
@@ -277,27 +624,27 @@ fn collect_var_references(step: &PxStep, refs: &mut std::collections::HashSet<St
                 collect_var_references(s, refs);
             }
         }
-        PxStep::Parallel { branches, .. } => {
+        LintStep::Parallel { branches, .. } => {
             for branch in branches {
                 for s in &branch.steps {
                     collect_var_references(s, refs);
                 }
             }
         }
-        PxStep::Return { value } => {
+        LintStep::Return { value } => {
             if let Some(v) = value {
                 collect_refs_from_value(v, refs);
             }
         }
-        PxStep::Abort { value } => {
+        LintStep::Abort { value } => {
             if let Some(v) = value {
                 collect_refs_from_value(v, refs);
             }
         }
-        PxStep::Assign { value, .. } => {
+        LintStep::Assign { value, .. } => {
             collect_refs_from_str(value, refs);
         }
-        PxStep::If { condition, then_steps, else_steps } => {
+        LintStep::If { condition, then_steps, else_steps } => {
             collect_refs_from_str(condition, refs);
             for s in then_steps {
                 collect_var_references(s, refs);
@@ -306,7 +653,7 @@ fn collect_var_references(step: &PxStep, refs: &mut std::collections::HashSet<St
                 collect_var_references(s, refs);
             }
         }
-        PxStep::For { iterable, steps, .. } => {
+        LintStep::For { iterable, steps, .. } => {
             collect_refs_from_str(iterable, refs);
             for s in steps {
                 collect_var_references(s, refs);
@@ -360,7 +707,7 @@ fn lint_unused_loop_item_var(
     over: &Option<String>,
     item_var: &str,
     key_var: &Option<String>,
-    steps: &[PxStep],
+    steps: &[LintStep],
     proc_name: &str,
     idx: usize,
     diags: &mut Vec<LintDiagnostic>,
@@ -409,7 +756,7 @@ fn lint_unused_loop_item_var(
 
 /// PX-L007: Empty catch block — errors are silently swallowed.
 fn lint_empty_catch(
-    catch: &[PxStep],
+    catch: &[LintStep],
     proc_name: &str,
     idx: usize,
     diags: &mut Vec<LintDiagnostic>,
@@ -428,7 +775,7 @@ fn lint_empty_catch(
 
 /// PX-L003: Unreachable arms after a wildcard `_`.
 fn lint_match_unreachable(
-    arms: &[PxMatchArm],
+    arms: &[LintMatchArm],
     proc_name: &str,
     idx: usize,
     diags: &mut Vec<LintDiagnostic>,
@@ -459,7 +806,7 @@ fn lint_match_unreachable(
 ///
 /// The later binding overwrites the earlier one, making the first call's output
 /// inaccessible. This is usually a copy-paste bug.
-fn lint_shadowed_output_vars(proc: &PxProcedure, diags: &mut Vec<LintDiagnostic>) {
+fn lint_shadowed_output_vars(proc: &LintProc, diags: &mut Vec<LintDiagnostic>) {
     let mut seen: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
 
     for (idx, step) in proc.steps.iter().enumerate() {
@@ -487,13 +834,13 @@ fn lint_shadowed_output_vars(proc: &PxProcedure, diags: &mut Vec<LintDiagnostic>
 ///
 /// A `return` or `abort` step unconditionally terminates execution.
 /// Any subsequent steps at the same nesting level are unreachable.
-fn lint_unreachable_after_terminal(proc: &PxProcedure, diags: &mut Vec<LintDiagnostic>) {
+fn lint_unreachable_after_terminal(proc: &LintProc, diags: &mut Vec<LintDiagnostic>) {
     check_steps_for_unreachable(&proc.steps, &proc.name, diags);
 }
 
 /// Check a step list for terminal steps followed by unreachable code.
 fn check_steps_for_unreachable(
-    steps: &[PxStep],
+    steps: &[LintStep],
     proc_name: &str,
     diags: &mut Vec<LintDiagnostic>,
 ) {
@@ -516,24 +863,24 @@ fn check_steps_for_unreachable(
         }
 
         match step {
-            PxStep::Return { .. } => {
+            LintStep::Return { .. } => {
                 found_terminal = Some((idx, "return"));
             }
-            PxStep::Abort { .. } => {
+            LintStep::Abort { .. } => {
                 found_terminal = Some((idx, "abort"));
             }
             // Recurse into nested blocks
-            PxStep::When { steps: inner, .. } => {
+            LintStep::When { steps: inner, .. } => {
                 check_steps_for_unreachable(inner, proc_name, diags);
             }
-            PxStep::Loop { steps: inner, .. } => {
+            LintStep::Loop { steps: inner, .. } => {
                 check_steps_for_unreachable(inner, proc_name, diags);
             }
-            PxStep::Try { steps: try_steps, catch, .. } => {
+            LintStep::Try { steps: try_steps, catch, .. } => {
                 check_steps_for_unreachable(try_steps, proc_name, diags);
                 check_steps_for_unreachable(catch, proc_name, diags);
             }
-            PxStep::Parallel { branches, .. } => {
+            LintStep::Parallel { branches, .. } => {
                 for branch in branches {
                     check_steps_for_unreachable(&branch.steps, proc_name, diags);
                 }
@@ -548,7 +895,7 @@ fn check_steps_for_unreachable(
 /// When a procedure's trigger declares parameters (e.g., `trigger: on_event {channel: "string", message: "string"}`),
 /// each param key should be referenced as `$key` somewhere in the procedure body.
 /// Unreferenced params are likely dead code or indicate a typo.
-fn lint_unused_procedure_params(proc: &PxProcedure, diags: &mut Vec<LintDiagnostic>) {
+fn lint_unused_procedure_params(proc: &LintProc, diags: &mut Vec<LintDiagnostic>) {
     // Extract parameter names from trigger params (if it's an object)
     let param_names: Vec<String> = match &proc.trigger {
         Some(trigger) => match &trigger.params {
@@ -595,7 +942,7 @@ fn lint_unused_procedure_params(proc: &PxProcedure, diags: &mut Vec<LintDiagnost
 ///
 /// Collects all procedure names, then walks all Call steps to check if their `name` matches
 /// a known procedure. Unresolved calls likely indicate typos or missing imports.
-fn lint_undefined_calls(doc: &PxDocument, diags: &mut Vec<LintDiagnostic>) {
+fn lint_undefined_calls(doc: &LintDoc, diags: &mut Vec<LintDiagnostic>) {
     let known_procedures: std::collections::HashSet<&str> = doc
         .procedures
         .iter()
@@ -606,7 +953,7 @@ fn lint_undefined_calls(doc: &PxDocument, diags: &mut Vec<LintDiagnostic>) {
     let known_functions: std::collections::HashSet<&str> = doc
         .functions
         .iter()
-        .map(|f| f.name.as_str())
+        .map(|(name, _params)| name.as_str())
         .collect();
 
     for procedure in &doc.procedures {
@@ -622,7 +969,7 @@ fn lint_undefined_calls(doc: &PxDocument, diags: &mut Vec<LintDiagnostic>) {
 
 /// Recursively walk steps looking for Call steps with undefined targets.
 fn collect_undefined_calls_in_steps(
-    steps: &[PxStep],
+    steps: &[LintStep],
     proc_name: &str,
     known_procs: &std::collections::HashSet<&str>,
     known_fns: &std::collections::HashSet<&str>,
@@ -630,7 +977,7 @@ fn collect_undefined_calls_in_steps(
 ) {
     for (idx, step) in steps.iter().enumerate() {
         match step {
-            PxStep::Call { name, .. } => {
+            LintStep::Call { name, .. } => {
                 if !known_procs.contains(name.as_str())
                     && !known_fns.contains(name.as_str())
                 {
@@ -646,17 +993,17 @@ fn collect_undefined_calls_in_steps(
                     });
                 }
             }
-            PxStep::When { steps: nested, .. } => {
+            LintStep::When { steps: nested, .. } => {
                 collect_undefined_calls_in_steps(
                     nested, proc_name, known_procs, known_fns, diags,
                 );
             }
-            PxStep::Loop { steps: nested, .. } => {
+            LintStep::Loop { steps: nested, .. } => {
                 collect_undefined_calls_in_steps(
                     nested, proc_name, known_procs, known_fns, diags,
                 );
             }
-            PxStep::Try { steps, catch, .. } => {
+            LintStep::Try { steps, catch, .. } => {
                 collect_undefined_calls_in_steps(
                     steps, proc_name, known_procs, known_fns, diags,
                 );
@@ -664,19 +1011,19 @@ fn collect_undefined_calls_in_steps(
                     catch, proc_name, known_procs, known_fns, diags,
                 );
             }
-            PxStep::Parallel { branches, .. } => {
+            LintStep::Parallel { branches, .. } => {
                 for branch in branches {
                     collect_undefined_calls_in_steps(
                         &branch.steps, proc_name, known_procs, known_fns, diags,
                     );
                 }
             }
-            PxStep::Match { arms: _ }
-            | PxStep::Emit { .. }
-            | PxStep::Return { .. }
-            | PxStep::Abort { .. }
-            | PxStep::Assign { .. } => {}
-            PxStep::If { then_steps, else_steps, .. } => {
+            LintStep::Match { arms: _ }
+            | LintStep::Emit { .. }
+            | LintStep::Return { .. }
+            | LintStep::Abort { .. }
+            | LintStep::Assign { .. } => {}
+            LintStep::If { then_steps, else_steps, .. } => {
                 collect_undefined_calls_in_steps(
                     then_steps, proc_name, known_procs, known_fns, diags,
                 );
@@ -684,7 +1031,7 @@ fn collect_undefined_calls_in_steps(
                     else_steps, proc_name, known_procs, known_fns, diags,
                 );
             }
-            PxStep::For { steps: nested, .. } => {
+            LintStep::For { steps: nested, .. } => {
                 collect_undefined_calls_in_steps(
                     nested, proc_name, known_procs, known_fns, diags,
                 );
@@ -699,7 +1046,7 @@ fn collect_undefined_calls_in_steps(
 /// For intra-document calls only (targets that resolve to a procedure or function in this document).
 /// - Extra params (passed but not declared): Warning — likely a typo or stale param.
 /// - Missing params (declared but not passed): Warning — target may expect this value.
-fn lint_arity_mismatch(doc: &PxDocument, diags: &mut Vec<LintDiagnostic>) {
+fn lint_arity_mismatch(doc: &LintDoc, diags: &mut Vec<LintDiagnostic>) {
     use std::collections::{HashMap, HashSet};
 
     // Build signature maps: name → set of declared param names
@@ -717,9 +1064,9 @@ fn lint_arity_mismatch(doc: &PxDocument, diags: &mut Vec<LintDiagnostic>) {
     let fn_params: HashMap<&str, HashSet<&str>> = doc
         .functions
         .iter()
-        .map(|f| {
-            let keys: HashSet<&str> = f.params.iter().map(|p| p.name.as_str()).collect();
-            (f.name.as_str(), keys)
+        .map(|(name, params)| {
+            let keys: HashSet<&str> = params.iter().map(|p| p.as_str()).collect();
+            (name.as_str(), keys)
         })
         .collect();
 
@@ -736,7 +1083,7 @@ fn lint_arity_mismatch(doc: &PxDocument, diags: &mut Vec<LintDiagnostic>) {
 
 /// Recursively walk steps checking arity for Call steps with known targets.
 fn check_arity_in_steps(
-    steps: &[PxStep],
+    steps: &[LintStep],
     proc_name: &str,
     proc_params: &std::collections::HashMap<&str, std::collections::HashSet<&str>>,
     fn_params: &std::collections::HashMap<&str, std::collections::HashSet<&str>>,
@@ -744,7 +1091,7 @@ fn check_arity_in_steps(
 ) {
     for (idx, step) in steps.iter().enumerate() {
         match step {
-            PxStep::Call { name, params, .. } => {
+            LintStep::Call { name, params, .. } => {
                 // Find the target's declared params
                 let declared = proc_params.get(name.as_str())
                     .or_else(|| fn_params.get(name.as_str()));
@@ -799,31 +1146,31 @@ fn check_arity_in_steps(
                     }
                 }
             }
-            PxStep::When { steps: nested, .. } => {
+            LintStep::When { steps: nested, .. } => {
                 check_arity_in_steps(nested, proc_name, proc_params, fn_params, diags);
             }
-            PxStep::Loop { steps: nested, .. } => {
+            LintStep::Loop { steps: nested, .. } => {
                 check_arity_in_steps(nested, proc_name, proc_params, fn_params, diags);
             }
-            PxStep::Try { steps, catch, .. } => {
+            LintStep::Try { steps, catch, .. } => {
                 check_arity_in_steps(steps, proc_name, proc_params, fn_params, diags);
                 check_arity_in_steps(catch, proc_name, proc_params, fn_params, diags);
             }
-            PxStep::Parallel { branches, .. } => {
+            LintStep::Parallel { branches, .. } => {
                 for branch in branches {
                     check_arity_in_steps(&branch.steps, proc_name, proc_params, fn_params, diags);
                 }
             }
-            PxStep::Match { arms: _ }
-            | PxStep::Emit { .. }
-            | PxStep::Return { .. }
-            | PxStep::Abort { .. }
-            | PxStep::Assign { .. } => {}
-            PxStep::If { then_steps, else_steps, .. } => {
+            LintStep::Match { arms: _ }
+            | LintStep::Emit { .. }
+            | LintStep::Return { .. }
+            | LintStep::Abort { .. }
+            | LintStep::Assign { .. } => {}
+            LintStep::If { then_steps, else_steps, .. } => {
                 check_arity_in_steps(then_steps, proc_name, proc_params, fn_params, diags);
                 check_arity_in_steps(else_steps, proc_name, proc_params, fn_params, diags);
             }
-            PxStep::For { steps: nested, .. } => {
+            LintStep::For { steps: nested, .. } => {
                 check_arity_in_steps(nested, proc_name, proc_params, fn_params, diags);
             }
         }
@@ -833,29 +1180,15 @@ fn check_arity_in_steps(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::px::{PxDocument, PxMatchArm, PxProcedure, PxProcedureTrigger, PxStep};
 
-    fn empty_doc() -> PxDocument {
-        PxDocument {
-            imports: vec![],
-            configs: vec![],
-            entities: vec![],
-            facts: vec![],
-            rules: vec![],
-            constraints: vec![],
-            contracts: vec![],
-            functions: vec![],
-            triggers: vec![],
-            procedures: vec![],
-            dataflow_procedures: vec![],
-            scenarios: vec![],
-        }
+    fn empty_doc() -> LintDoc {
+        LintDoc::default()
     }
 
-    fn make_proc(name: &str, steps: Vec<PxStep>) -> PxProcedure {
-        PxProcedure {
+    fn make_proc(name: &str, steps: Vec<LintStep>) -> LintProc {
+        LintProc {
             name: name.to_string(),
-            trigger: Some(PxProcedureTrigger {
+            trigger: Some(LintTrigger {
                 kind: "manual".to_string(),
                 params: None,
             }),
@@ -869,7 +1202,7 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc("empty", vec![]));
 
-        let diags = lint(&doc);
+        let diags = lint_view(&doc);
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].code, "PX-L001");
         assert_eq!(diags[0].severity, LintSeverity::Warning);
@@ -881,13 +1214,13 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "handler",
-            vec![PxStep::Match {
+            vec![LintStep::Match {
                 arms: vec![
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "status == \"active\"".to_string(),
                         result: "active".to_string(),
                     },
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "status == \"inactive\"".to_string(),
                         result: "inactive".to_string(),
                     },
@@ -895,7 +1228,7 @@ mod tests {
             }],
         ));
 
-        let diags = lint(&doc);
+        let diags = lint_view(&doc);
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].code, "PX-L002");
         assert!(diags[0].message.contains("no wildcard"));
@@ -906,13 +1239,13 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "handler",
-            vec![PxStep::Match {
+            vec![LintStep::Match {
                 arms: vec![
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "status == \"active\"".to_string(),
                         result: "active".to_string(),
                     },
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "_".to_string(),
                         result: "unknown".to_string(),
                     },
@@ -920,7 +1253,7 @@ mod tests {
             }],
         ));
 
-        let diags = lint(&doc);
+        let diags = lint_view(&doc);
         assert!(diags.is_empty());
     }
 
@@ -929,17 +1262,17 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "handler",
-            vec![PxStep::Match {
+            vec![LintStep::Match {
                 arms: vec![
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "status == \"active\"".to_string(),
                         result: "active".to_string(),
                     },
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "_".to_string(),
                         result: "default".to_string(),
                     },
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "status == \"pending\"".to_string(),
                         result: "pending".to_string(),
                     },
@@ -947,7 +1280,7 @@ mod tests {
             }],
         ));
 
-        let diags = lint(&doc);
+        let diags = lint_view(&doc);
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].code, "PX-L003");
         assert!(diags[0].message.contains("unreachable"));
@@ -958,13 +1291,13 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "processor",
-            vec![PxStep::Loop {
+            vec![LintStep::Loop {
                 over: Some("$items".to_string()),
                 times: None,
                 item_var: "item".to_string(),
                 key_var: None,
-                steps: vec![PxStep::Match {
-                    arms: vec![PxMatchArm {
+                steps: vec![LintStep::Match {
+                    arms: vec![LintMatchArm {
                         condition: "item.type == \"a\"".to_string(),
                         result: "handled".to_string(),
                     }],
@@ -973,7 +1306,7 @@ mod tests {
             }],
         ));
 
-        let diags = lint(&doc);
+        let diags = lint_view(&doc);
         // L002 for non-exhaustive match + L006 for unused $item (condition uses bare `item.type` not `$item`)
         assert_eq!(diags.len(), 2);
         assert!(diags.iter().any(|d| d.code == "PX-L002"));
@@ -986,25 +1319,25 @@ mod tests {
         // Add target so L011 (undefined call) doesn't fire
         doc.procedures.push(make_proc(
             "greet",
-            vec![PxStep::Emit {
+            vec![LintStep::Emit {
                 event: serde_json::json!({"type": "hello"}),
             }],
         ));
         doc.procedures.push(make_proc(
             "simple",
             vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "greet".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
                 },
-                PxStep::Emit {
+                LintStep::Emit {
                     event: serde_json::json!({"type": "done"}),
                 },
             ],
         ));
 
-        let diags = lint(&doc);
+        let diags = lint_view(&doc);
         assert!(diags.is_empty());
     }
 
@@ -1029,21 +1362,21 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "handler",
-            vec![PxStep::Match {
+            vec![LintStep::Match {
                 arms: vec![
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "status == \"active\"".to_string(),
                         result: "first".to_string(),
                     },
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "status == \"pending\"".to_string(),
                         result: "second".to_string(),
                     },
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "status == \"active\"".to_string(),
                         result: "duplicate".to_string(),
                     },
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "_".to_string(),
                         result: "default".to_string(),
                     },
@@ -1051,7 +1384,7 @@ mod tests {
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L004").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L004").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("same condition as arm 1"));
     }
@@ -1061,17 +1394,17 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "handler",
-            vec![PxStep::Match {
+            vec![LintStep::Match {
                 arms: vec![
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "status == \"a\"".to_string(),
                         result: "a".to_string(),
                     },
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "status == \"b\"".to_string(),
                         result: "b".to_string(),
                     },
-                    PxMatchArm {
+                    LintMatchArm {
                         condition: "_".to_string(),
                         result: "default".to_string(),
                     },
@@ -1079,7 +1412,7 @@ mod tests {
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L004").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L004").collect();
         assert!(diags.is_empty());
     }
 
@@ -1089,18 +1422,18 @@ mod tests {
         doc.procedures.push(make_proc(
             "pipeline",
             vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "fetch_data".to_string(),
                     params: serde_json::json!({}),
                     output_var: Some("data".to_string()),
                 },
-                PxStep::Emit {
+                LintStep::Emit {
                     event: serde_json::json!({"type": "done"}),
                 },
             ],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L005").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L005").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("$data"));
         assert!(diags[0].message.contains("never referenced"));
@@ -1112,12 +1445,12 @@ mod tests {
         doc.procedures.push(make_proc(
             "pipeline",
             vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "fetch_data".to_string(),
                     params: serde_json::json!({}),
                     output_var: Some("data".to_string()),
                 },
-                PxStep::Call {
+                LintStep::Call {
                     name: "process".to_string(),
                     params: serde_json::json!({"input": "$data"}),
                     output_var: None,
@@ -1125,7 +1458,7 @@ mod tests {
             ],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L005").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L005").collect();
         assert!(diags.is_empty());
     }
 
@@ -1135,17 +1468,17 @@ mod tests {
         doc.procedures.push(make_proc(
             "pipeline",
             vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "get_items".to_string(),
                     params: serde_json::json!({}),
                     output_var: Some("items".to_string()),
                 },
-                PxStep::Loop {
+                LintStep::Loop {
                     over: Some("$items".to_string()),
                     times: None,
                     item_var: "item".to_string(),
                     key_var: None,
-                    steps: vec![PxStep::Emit {
+                    steps: vec![LintStep::Emit {
                         event: serde_json::json!({"item": "$item"}),
                     }],
                     output_var: None,
@@ -1153,7 +1486,7 @@ mod tests {
             ],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L005").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L005").collect();
         assert!(diags.is_empty());
     }
 
@@ -1163,21 +1496,21 @@ mod tests {
         doc.procedures.push(make_proc(
             "pipeline",
             vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "check".to_string(),
                     params: serde_json::json!({}),
                     output_var: Some("result".to_string()),
                 },
-                PxStep::When {
+                LintStep::When {
                     condition: "$result == true".to_string(),
-                    steps: vec![PxStep::Emit {
+                    steps: vec![LintStep::Emit {
                         event: serde_json::json!({"status": "ok"}),
                     }],
                 },
             ],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L005").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L005").collect();
         assert!(diags.is_empty());
     }
 
@@ -1204,12 +1537,12 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "counter",
-            vec![PxStep::Loop {
+            vec![LintStep::Loop {
                 over: Some("$items".to_string()),
                 times: None,
                 item_var: "item".to_string(),
                 key_var: None,
-                steps: vec![PxStep::Call {
+                steps: vec![LintStep::Call {
                     name: "increment".to_string(),
                     params: serde_json::json!({"value": 1}),
                     output_var: None,
@@ -1218,7 +1551,7 @@ mod tests {
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L006").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L006").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("$item"));
         assert!(diags[0].message.contains("never referenced"));
@@ -1229,12 +1562,12 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "processor",
-            vec![PxStep::Loop {
+            vec![LintStep::Loop {
                 over: Some("$items".to_string()),
                 times: None,
                 item_var: "item".to_string(),
                 key_var: None,
-                steps: vec![PxStep::Call {
+                steps: vec![LintStep::Call {
                     name: "process".to_string(),
                     params: serde_json::json!({"data": "$item"}),
                     output_var: None,
@@ -1243,7 +1576,7 @@ mod tests {
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L006").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L006").collect();
         assert!(diags.is_empty());
     }
 
@@ -1252,12 +1585,12 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "mapper",
-            vec![PxStep::Loop {
+            vec![LintStep::Loop {
                 over: Some("$map".to_string()),
                 times: None,
                 item_var: "val".to_string(),
                 key_var: Some("key".to_string()),
-                steps: vec![PxStep::Call {
+                steps: vec![LintStep::Call {
                     name: "process".to_string(),
                     params: serde_json::json!({"data": "$val"}),
                     output_var: None,
@@ -1266,7 +1599,7 @@ mod tests {
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L006").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L006").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("$key"));
     }
@@ -1276,12 +1609,12 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "repeater",
-            vec![PxStep::Loop {
+            vec![LintStep::Loop {
                 over: None,
                 times: Some(5),
                 item_var: "i".to_string(),
                 key_var: None,
-                steps: vec![PxStep::Call {
+                steps: vec![LintStep::Call {
                     name: "ping".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
@@ -1290,7 +1623,7 @@ mod tests {
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L006").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L006").collect();
         assert!(diags.is_empty());
     }
 
@@ -1299,8 +1632,8 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "risky",
-            vec![PxStep::Try {
-                steps: vec![PxStep::Call {
+            vec![LintStep::Try {
+                steps: vec![LintStep::Call {
                     name: "risky_op".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
@@ -1314,7 +1647,7 @@ mod tests {
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L007").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L007").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("silently swallowed"));
     }
@@ -1324,13 +1657,13 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "safe",
-            vec![PxStep::Try {
-                steps: vec![PxStep::Call {
+            vec![LintStep::Try {
+                steps: vec![LintStep::Call {
                     name: "risky_op".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
                 }],
-                catch: vec![PxStep::Emit {
+                catch: vec![LintStep::Emit {
                     event: serde_json::json!({"error": "handled"}),
                 }],
                 retry: None,
@@ -1341,7 +1674,7 @@ mod tests {
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L007").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L007").collect();
         assert!(diags.is_empty());
     }
 
@@ -1351,12 +1684,12 @@ mod tests {
         doc.procedures.push(make_proc(
             "pipeline",
             vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "fetch_data".to_string(),
                     params: serde_json::json!({}),
                     output_var: Some("result".to_string()),
                 },
-                PxStep::Call {
+                LintStep::Call {
                     name: "transform_data".to_string(),
                     params: serde_json::json!({"input": "$result"}),
                     output_var: Some("result".to_string()),
@@ -1364,7 +1697,7 @@ mod tests {
             ],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L008").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L008").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("$result"));
         assert!(diags[0].message.contains("step 1"));
@@ -1377,12 +1710,12 @@ mod tests {
         doc.procedures.push(make_proc(
             "pipeline",
             vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "fetch_data".to_string(),
                     params: serde_json::json!({}),
                     output_var: Some("data".to_string()),
                 },
-                PxStep::Call {
+                LintStep::Call {
                     name: "transform".to_string(),
                     params: serde_json::json!({"input": "$data"}),
                     output_var: Some("transformed".to_string()),
@@ -1390,7 +1723,7 @@ mod tests {
             ],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L008").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L008").collect();
         assert!(diags.is_empty());
     }
 
@@ -1400,17 +1733,17 @@ mod tests {
         doc.procedures.push(make_proc(
             "pipeline",
             vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "step1".to_string(),
                     params: serde_json::json!({}),
                     output_var: Some("x".to_string()),
                 },
-                PxStep::Call {
+                LintStep::Call {
                     name: "step2".to_string(),
                     params: serde_json::json!({}),
                     output_var: Some("x".to_string()),
                 },
-                PxStep::Call {
+                LintStep::Call {
                     name: "step3".to_string(),
                     params: serde_json::json!({}),
                     output_var: Some("x".to_string()),
@@ -1418,7 +1751,7 @@ mod tests {
             ],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L008").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L008").collect();
         // Two shadows: step 2 shadows step 1, step 3 shadows step 1
         assert_eq!(diags.len(), 2);
         assert_eq!(diags[0].step_index, Some(1));
@@ -1433,13 +1766,13 @@ mod tests {
         doc.procedures.push(make_proc(
             "early_exit",
             vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "setup".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
                 },
-                PxStep::Return { value: Some(serde_json::json!("done")) },
-                PxStep::Call {
+                LintStep::Return { value: Some(serde_json::json!("done")) },
+                LintStep::Call {
                     name: "cleanup".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
@@ -1447,7 +1780,7 @@ mod tests {
             ],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L009").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L009").collect();
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].step_index, Some(2));
         assert!(diags[0].message.contains("return"));
@@ -1460,13 +1793,13 @@ mod tests {
         doc.procedures.push(make_proc(
             "fail_fast",
             vec![
-                PxStep::Abort { value: Some(serde_json::json!("fatal error")) },
-                PxStep::Call {
+                LintStep::Abort { value: Some(serde_json::json!("fatal error")) },
+                LintStep::Call {
                     name: "never_reached".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
                 },
-                PxStep::Call {
+                LintStep::Call {
                     name: "also_unreachable".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
@@ -1474,7 +1807,7 @@ mod tests {
             ],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L009").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L009").collect();
         assert_eq!(diags.len(), 2);
         assert_eq!(diags[0].step_index, Some(1));
         assert_eq!(diags[1].step_index, Some(2));
@@ -1486,16 +1819,16 @@ mod tests {
         doc.procedures.push(make_proc(
             "clean_exit",
             vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "work".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
                 },
-                PxStep::Return { value: None },
+                LintStep::Return { value: None },
             ],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L009").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L009").collect();
         assert!(diags.is_empty());
     }
 
@@ -1504,11 +1837,11 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "nested",
-            vec![PxStep::When {
+            vec![LintStep::When {
                 condition: "$flag == true".to_string(),
                 steps: vec![
-                    PxStep::Return { value: None },
-                    PxStep::Call {
+                    LintStep::Return { value: None },
+                    LintStep::Call {
                         name: "dead_code".to_string(),
                         params: serde_json::json!({}),
                         output_var: None,
@@ -1517,7 +1850,7 @@ mod tests {
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L009").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L009").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("return"));
     }
@@ -1527,15 +1860,15 @@ mod tests {
     #[test]
     fn l010_unused_trigger_param() {
         let mut doc = empty_doc();
-        doc.procedures.push(PxProcedure {
+        doc.procedures.push(LintProc {
             name: "handler".to_string(),
-            trigger: Some(PxProcedureTrigger {
+            trigger: Some(LintTrigger {
                 kind: "on_event".to_string(),
                 params: Some(serde_json::json!({"channel": "string", "message": "string"})),
             }),
             given: None,
             steps: vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "process".to_string(),
                     params: serde_json::json!({"msg": "$message"}),
                     output_var: None,
@@ -1543,7 +1876,7 @@ mod tests {
             ],
         });
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L010").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L010").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("channel"));
         assert!(diags[0].message.contains("never referenced"));
@@ -1552,15 +1885,15 @@ mod tests {
     #[test]
     fn l010_no_warning_when_all_params_used() {
         let mut doc = empty_doc();
-        doc.procedures.push(PxProcedure {
+        doc.procedures.push(LintProc {
             name: "handler".to_string(),
-            trigger: Some(PxProcedureTrigger {
+            trigger: Some(LintTrigger {
                 kind: "on_event".to_string(),
                 params: Some(serde_json::json!({"channel": "string", "message": "string"})),
             }),
             given: None,
             steps: vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "send".to_string(),
                     params: serde_json::json!({"to": "$channel", "text": "$message"}),
                     output_var: None,
@@ -1568,22 +1901,22 @@ mod tests {
             ],
         });
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L010").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L010").collect();
         assert!(diags.is_empty());
     }
 
     #[test]
     fn l010_no_warning_without_trigger_params() {
         let mut doc = empty_doc();
-        doc.procedures.push(PxProcedure {
+        doc.procedures.push(LintProc {
             name: "handler".to_string(),
-            trigger: Some(PxProcedureTrigger {
+            trigger: Some(LintTrigger {
                 kind: "manual".to_string(),
                 params: None,
             }),
             given: None,
             steps: vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "work".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
@@ -1591,22 +1924,22 @@ mod tests {
             ],
         });
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L010").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L010").collect();
         assert!(diags.is_empty());
     }
 
     #[test]
     fn l010_param_used_in_given_clause() {
         let mut doc = empty_doc();
-        doc.procedures.push(PxProcedure {
+        doc.procedures.push(LintProc {
             name: "handler".to_string(),
-            trigger: Some(PxProcedureTrigger {
+            trigger: Some(LintTrigger {
                 kind: "on_event".to_string(),
                 params: Some(serde_json::json!({"priority": "string"})),
             }),
             given: Some("$priority == \"high\"".to_string()),
             steps: vec![
-                PxStep::Call {
+                LintStep::Call {
                     name: "alert".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
@@ -1614,28 +1947,28 @@ mod tests {
             ],
         });
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L010").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L010").collect();
         assert!(diags.is_empty());
     }
 
     #[test]
     fn l010_multiple_unused_params() {
         let mut doc = empty_doc();
-        doc.procedures.push(PxProcedure {
+        doc.procedures.push(LintProc {
             name: "handler".to_string(),
-            trigger: Some(PxProcedureTrigger {
+            trigger: Some(LintTrigger {
                 kind: "webhook".to_string(),
                 params: Some(serde_json::json!({"url": "string", "method": "string", "body": "string"})),
             }),
             given: None,
             steps: vec![
-                PxStep::Emit {
+                LintStep::Emit {
                     event: serde_json::json!({"type": "received"}),
                 },
             ],
         });
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L010").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L010").collect();
         assert_eq!(diags.len(), 3);
     }
 
@@ -1646,14 +1979,14 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "caller",
-            vec![PxStep::Call {
+            vec![LintStep::Call {
                 name: "nonexistent_proc".to_string(),
                 params: serde_json::json!({}),
                 output_var: None,
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L011").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L011").collect();
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].severity, LintSeverity::Error);
         assert!(diags[0].message.contains("nonexistent_proc"));
@@ -1664,43 +1997,37 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "helper",
-            vec![PxStep::Emit {
+            vec![LintStep::Emit {
                 event: serde_json::json!({"done": true}),
             }],
         ));
         doc.procedures.push(make_proc(
             "caller",
-            vec![PxStep::Call {
+            vec![LintStep::Call {
                 name: "helper".to_string(),
                 params: serde_json::json!({}),
                 output_var: None,
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L011").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L011").collect();
         assert_eq!(diags.len(), 0);
     }
 
     #[test]
     fn lint_l011_call_to_function_no_diagnostic() {
         let mut doc = empty_doc();
-        doc.functions.push(crate::px::PxFunction {
-            name: "compute_hash".to_string(),
-            params: vec![],
-            return_type: "string".to_string(),
-            mode: crate::px::FunctionMode::Deterministic,
-            docstring: String::new(),
-        });
+        doc.functions.push(("compute_hash".to_string(), Vec::new()));
         doc.procedures.push(make_proc(
             "caller",
-            vec![PxStep::Call {
+            vec![LintStep::Call {
                 name: "compute_hash".to_string(),
                 params: serde_json::json!({"input": "data"}),
                 output_var: Some("hash".to_string()),
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L011").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L011").collect();
         assert_eq!(diags.len(), 0);
     }
 
@@ -1709,9 +2036,9 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "outer",
-            vec![PxStep::When {
+            vec![LintStep::When {
                 condition: "$x == true".to_string(),
-                steps: vec![PxStep::Call {
+                steps: vec![LintStep::Call {
                     name: "missing_fn".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
@@ -1719,7 +2046,7 @@ mod tests {
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L011").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L011").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("missing_fn"));
     }
@@ -1729,13 +2056,13 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "handler",
-            vec![PxStep::Try {
-                steps: vec![PxStep::Call {
+            vec![LintStep::Try {
+                steps: vec![LintStep::Call {
                     name: "ok_proc".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
                 }],
-                catch: vec![PxStep::Call {
+                catch: vec![LintStep::Call {
                     name: "fallback_missing".to_string(),
                     params: serde_json::json!({}),
                     output_var: None,
@@ -1748,7 +2075,7 @@ mod tests {
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L011").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L011").collect();
         // Both ok_proc and fallback_missing are undefined
         assert_eq!(diags.len(), 2);
     }
@@ -1758,14 +2085,14 @@ mod tests {
         let mut doc = empty_doc();
         doc.procedures.push(make_proc(
             "recursive",
-            vec![PxStep::Call {
+            vec![LintStep::Call {
                 name: "recursive".to_string(),
                 params: serde_json::json!({"depth": 1}),
                 output_var: None,
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L011").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L011").collect();
         assert_eq!(diags.len(), 0);
     }
 
@@ -1775,26 +2102,26 @@ mod tests {
     fn lint_l012_extra_param_in_call() {
         let mut doc = empty_doc();
         // Target procedure declares {x, y}
-        doc.procedures.push(PxProcedure {
+        doc.procedures.push(LintProc {
             name: "target".to_string(),
-            trigger: Some(PxProcedureTrigger {
+            trigger: Some(LintTrigger {
                 kind: "manual".to_string(),
                 params: Some(serde_json::json!({"x": "number", "y": "number"})),
             }),
             given: None,
-            steps: vec![PxStep::Emit { event: serde_json::json!({"done": true}) }],
+            steps: vec![LintStep::Emit { event: serde_json::json!({"done": true}) }],
         });
         // Caller passes {x, y, z} — z is extra
         doc.procedures.push(make_proc(
             "caller",
-            vec![PxStep::Call {
+            vec![LintStep::Call {
                 name: "target".to_string(),
                 params: serde_json::json!({"x": 1, "y": 2, "z": 3}),
                 output_var: None,
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("`z`"));
         assert!(diags[0].message.contains("unexpected"));
@@ -1805,26 +2132,26 @@ mod tests {
     fn lint_l012_missing_param_in_call() {
         let mut doc = empty_doc();
         // Target declares {x, y}
-        doc.procedures.push(PxProcedure {
+        doc.procedures.push(LintProc {
             name: "target".to_string(),
-            trigger: Some(PxProcedureTrigger {
+            trigger: Some(LintTrigger {
                 kind: "manual".to_string(),
                 params: Some(serde_json::json!({"x": "number", "y": "number"})),
             }),
             given: None,
-            steps: vec![PxStep::Emit { event: serde_json::json!({"done": true}) }],
+            steps: vec![LintStep::Emit { event: serde_json::json!({"done": true}) }],
         });
         // Caller passes {x} only — y is missing
         doc.procedures.push(make_proc(
             "caller",
-            vec![PxStep::Call {
+            vec![LintStep::Call {
                 name: "target".to_string(),
                 params: serde_json::json!({"x": 1}),
                 output_var: None,
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("`y`"));
         assert!(diags[0].message.contains("missing"));
@@ -1833,52 +2160,46 @@ mod tests {
     #[test]
     fn lint_l012_exact_match_no_diagnostic() {
         let mut doc = empty_doc();
-        doc.procedures.push(PxProcedure {
+        doc.procedures.push(LintProc {
             name: "target".to_string(),
-            trigger: Some(PxProcedureTrigger {
+            trigger: Some(LintTrigger {
                 kind: "manual".to_string(),
                 params: Some(serde_json::json!({"x": "number", "y": "number"})),
             }),
             given: None,
-            steps: vec![PxStep::Emit { event: serde_json::json!({"done": true}) }],
+            steps: vec![LintStep::Emit { event: serde_json::json!({"done": true}) }],
         });
         doc.procedures.push(make_proc(
             "caller",
-            vec![PxStep::Call {
+            vec![LintStep::Call {
                 name: "target".to_string(),
                 params: serde_json::json!({"x": 1, "y": 2}),
                 output_var: None,
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
         assert_eq!(diags.len(), 0);
     }
 
     #[test]
     fn lint_l012_function_arity_mismatch() {
         let mut doc = empty_doc();
-        doc.functions.push(crate::px::PxFunction {
-            name: "compute".to_string(),
-            params: vec![
-                crate::px::PxField { name: "input".to_string(), type_expr: "string".to_string() },
-                crate::px::PxField { name: "mode".to_string(), type_expr: "string".to_string() },
-            ],
-            return_type: "string".to_string(),
-            mode: crate::px::FunctionMode::Deterministic,
-            docstring: String::new(),
-        });
+        doc.functions.push((
+            "compute".to_string(),
+            vec!["input".to_string(), "mode".to_string()],
+        ));
         // Call passes {input, mode, extra}
         doc.procedures.push(make_proc(
             "caller",
-            vec![PxStep::Call {
+            vec![LintStep::Call {
                 name: "compute".to_string(),
                 params: serde_json::json!({"input": "data", "mode": "fast", "extra": true}),
                 output_var: None,
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("`extra`"));
     }
@@ -1887,52 +2208,52 @@ mod tests {
     fn lint_l012_no_trigger_params_no_diagnostic() {
         let mut doc = empty_doc();
         // Target has no declared params (trigger without params)
-        doc.procedures.push(PxProcedure {
+        doc.procedures.push(LintProc {
             name: "target".to_string(),
-            trigger: Some(PxProcedureTrigger {
+            trigger: Some(LintTrigger {
                 kind: "manual".to_string(),
                 params: None,
             }),
             given: None,
-            steps: vec![PxStep::Emit { event: serde_json::json!({"done": true}) }],
+            steps: vec![LintStep::Emit { event: serde_json::json!({"done": true}) }],
         });
         // Caller passes params — target has no signature so we can't check
         doc.procedures.push(make_proc(
             "caller",
-            vec![PxStep::Call {
+            vec![LintStep::Call {
                 name: "target".to_string(),
                 params: serde_json::json!({"anything": 1}),
                 output_var: None,
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
         assert_eq!(diags.len(), 0);
     }
 
     #[test]
     fn lint_l012_null_params_with_declared_params() {
         let mut doc = empty_doc();
-        doc.procedures.push(PxProcedure {
+        doc.procedures.push(LintProc {
             name: "target".to_string(),
-            trigger: Some(PxProcedureTrigger {
+            trigger: Some(LintTrigger {
                 kind: "manual".to_string(),
                 params: Some(serde_json::json!({"required_param": "string"})),
             }),
             given: None,
-            steps: vec![PxStep::Emit { event: serde_json::json!({"done": true}) }],
+            steps: vec![LintStep::Emit { event: serde_json::json!({"done": true}) }],
         });
         // Caller passes null (no object)
         doc.procedures.push(make_proc(
             "caller",
-            vec![PxStep::Call {
+            vec![LintStep::Call {
                 name: "target".to_string(),
                 params: serde_json::Value::Null,
                 output_var: None,
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("no parameters"));
         assert!(diags[0].message.contains("`required_param`"));
@@ -1941,20 +2262,20 @@ mod tests {
     #[test]
     fn lint_l012_nested_call_in_when() {
         let mut doc = empty_doc();
-        doc.procedures.push(PxProcedure {
+        doc.procedures.push(LintProc {
             name: "target".to_string(),
-            trigger: Some(PxProcedureTrigger {
+            trigger: Some(LintTrigger {
                 kind: "manual".to_string(),
                 params: Some(serde_json::json!({"a": "number"})),
             }),
             given: None,
-            steps: vec![PxStep::Emit { event: serde_json::json!({"done": true}) }],
+            steps: vec![LintStep::Emit { event: serde_json::json!({"done": true}) }],
         });
         doc.procedures.push(make_proc(
             "caller",
-            vec![PxStep::When {
+            vec![LintStep::When {
                 condition: "$x == true".to_string(),
-                steps: vec![PxStep::Call {
+                steps: vec![LintStep::Call {
                     name: "target".to_string(),
                     params: serde_json::json!({"a": 1, "b": 2}),
                     output_var: None,
@@ -1962,7 +2283,7 @@ mod tests {
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("`b`"));
     }
@@ -1973,14 +2294,14 @@ mod tests {
         // Call to a procedure NOT in the document — L012 shouldn't fire (only L011 handles that)
         doc.procedures.push(make_proc(
             "caller",
-            vec![PxStep::Call {
+            vec![LintStep::Call {
                 name: "external_api".to_string(),
                 params: serde_json::json!({"any": "thing"}),
                 output_var: None,
             }],
         ));
 
-        let diags: Vec<_> = lint(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
+        let diags: Vec<_> = lint_view(&doc).into_iter().filter(|d| d.code == "PX-L012").collect();
         assert_eq!(diags.len(), 0);
     }
 }

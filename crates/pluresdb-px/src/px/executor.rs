@@ -4133,7 +4133,8 @@ mod tests {
     #[test]
     fn end_to_end_parse_compile_execute() {
         // Full pipeline: parse .px source → compile → execute
-        use crate::px::{compiler::compile, parse};
+        // M6: parse via px-compiler (SSOT) → px_ast::PxDocument for `compile`.
+        use crate::px::{compiler::compile, pxlang::parse};
 
         // Use valid .px grammar syntax
         let source = "procedure greet_user:\n  trigger: manual\n  say_hello {} -> $greeting\n";

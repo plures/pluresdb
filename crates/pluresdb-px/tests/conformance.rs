@@ -1,6 +1,7 @@
 use pluresdb_px::px::compiler::compile;
 use pluresdb_px::px::lint::{lint, LintSeverity};
-use pluresdb_px::px::parse;
+// M6: parse via px-compiler (SSOT) so `compile`/`lint` receive a px_ast doc.
+use pluresdb_px::px::pxlang::parse;
 use std::fs;
 use std::path::{Path, PathBuf};
 

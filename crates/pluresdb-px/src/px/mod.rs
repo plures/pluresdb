@@ -636,7 +636,8 @@ constraint deploy_gate:
 
         let source = "procedure with_retry:\n  trigger: manual\n  try retry 2 delay 500 ms backoff fixed:\n    call_api {}\n  catch:\n    handle_error {}\n  end\n";
 
-        let doc = parse(source).expect("parse failed");
+        // M6: parse via px-compiler (SSOT) → px_ast::PxDocument for `compile`.
+        let doc = pxlang::parse(source).expect("parse failed");
         let records = compile(&doc);
         let data = &records[0].data;
         let steps = data["steps"].as_array().unwrap();
@@ -688,7 +689,8 @@ constraint deploy_gate:
 
         let source = "procedure pipeline:\n  trigger: manual\n  get_items {} -> $items\n  loop over $items as item -> $results:\n    transform {val: $item}\n  end\n  emit {type: \"complete\", count: 3}\n";
 
-        let doc = parse(source).expect("parse failed");
+        // M6: parse via px-compiler (SSOT) → px_ast::PxDocument for `compile`.
+        let doc = pxlang::parse(source).expect("parse failed");
         let records = compile(&doc);
         assert_eq!(records.len(), 1);
 
@@ -727,7 +729,8 @@ constraint deploy_gate:
 
         let source = "procedure map_kv:\n  trigger: manual\n  loop over $config as val key_as k -> $pairs:\n    collect {k: $k, v: $val}\n  end\n";
 
-        let doc = parse(source).expect("parse failed");
+        // M6: parse via px-compiler (SSOT) → px_ast::PxDocument for `compile`.
+        let doc = pxlang::parse(source).expect("parse failed");
         let records = compile(&doc);
         assert_eq!(records.len(), 1);
 
@@ -837,7 +840,8 @@ mod parse_step_tests {
 
         let source = "procedure with_retry:\n  trigger: manual\n  parallel -> $out:\n    branch api retry 2 delay 200 ms backoff fixed jitter:\n      call_api {}\n    end\n  end\n";
 
-        let doc = parse(source).expect("parse failed");
+        // M6: parse via px-compiler (SSOT) → px_ast::PxDocument for `compile`.
+        let doc = pxlang::parse(source).expect("parse failed");
         let records = compile(&doc);
         assert_eq!(records.len(), 1);
 
