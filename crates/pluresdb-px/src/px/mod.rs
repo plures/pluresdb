@@ -43,6 +43,17 @@ pub use px_ast::{self, PxDocument, Statement};
 pub use px_compiler::{parse, parse_statement, CompileError};
 pub use px_eval;
 
+// M6.4 compat: pares-radix's `praxis` crate re-exports these dataflow AST types
+// under their historical `Px*` names (`crates/praxis/src/lib.rs`). The M6 AST
+// migration renamed them to px-ast's canonical `Dataflow*Decl`/`Dataflow*`
+// shapes; alias them back so downstream consumers that import
+// `pluresdb_px::px::PxDataflow{Procedure,Param,Return}` keep resolving without
+// source churn (the "transparent to consumers" contract of the SSOT re-export).
+pub use px_ast::{
+    DataflowParam as PxDataflowParam, DataflowProcedureDecl as PxDataflowProcedure,
+    DataflowReturn as PxDataflowReturn,
+};
+
 // Public expr renderer (Expr -> canonical executor source form). Re-exported so
 // external consumers (pluresdb-node's .px loader) reuse the ONE renderer rather
 // than duplicating it (ADR-0010).
@@ -54,6 +65,10 @@ pub use compiler::expr_to_string;
 pub mod pxlang {
     //! Alias of the crate's praxis-lang `.px` engine re-exports (see parent).
     pub use px_ast::{self, PxDocument, Statement};
+    pub use px_ast::{
+        DataflowParam as PxDataflowParam, DataflowProcedureDecl as PxDataflowProcedure,
+        DataflowReturn as PxDataflowReturn,
+    };
     pub use px_compiler::{parse, parse_statement, CompileError};
     pub use px_eval;
 }
