@@ -17,15 +17,19 @@ Branch: `m6-pluresdb-px-praxis-lang` (base dd62623). praxis-lang pinned rev: bbc
 - [x] GATE M6.2a: `cargo build -p pluresdb-px` GREEN — result: **EXIT 0, 0 errors, 9.78s** (warm; both engines coexist).
 - [x] GATE M6.2b: `cargo test -p pluresdb-px` GREEN — result: **517 lib + 2 + 4 passed, 0 failed (5 pre-existing ignored)**. Includes byte-fidelity e2e: full_pipeline_loop_emit_try, full_pipeline_loop_key_as, parse_try_retry_compiles_to_json, parse_parallel_branch_retry_compiles_to_json, end_to_end_parse_compile_execute, conformance corpus.
 - [x] GATE M6.2 build-the-binary: ran real .px end-to-end via **`cargo run -p pluresdb-px --example run_px -- crates/pluresdb-px/examples/pipeline.px`** (real binary `run_px.exe` + real DemoHandler) — output: **compiled 3 records (fact/rule/procedure); executed `pipeline` success=true, 4 steps, $results=["ALPHA","BETA","GAMMA"], emit=[{count:3,type:complete}]**.
-- [x] committed: ____ (sha filled in after commit below)
+- [x] committed: **43951a7** (`M6: M6.2 rewire pluresdb-px AST-facing files onto px-ast [praxis-lang epic]`)
 
 ## M6.3 — delete duplicate engine
-- [ ] deleted: grammar.pest, builder.rs, PxParser+Px* AST+local parse in mod.rs
-- [ ] pest/pest_derive removed from Cargo.toml (or noted why kept): ____
-- [ ] GATE M6.3 build+test GREEN with one grammar — result: ____
-- [ ] verify `git grep grammar.pest crates/pluresdb-px` → 0 hits: ____
-- [ ] GATE M6.3 clippy `-D warnings` (or documented Defender-FP-blocked): ____
-- [ ] committed: ____
+- [x] deleted: grammar.pest, builder.rs, PxParser+Px* AST+local parse in mod.rs (mod.rs 40KB→2.4KB, now the praxis-lang re-export hub: `pub use px_ast::{PxDocument,Statement}` + `px_compiler::{parse,parse_statement,CompileError}` + `px_eval`, top-level so `px::parse`/`px::PxDocument` resolve as before; `pxlang` kept as thin back-compat alias). PREREQ committed first: db/procedures.rs migrated off local pest `PxParser`/`Rule` to `px_eval::parse_expr` (9bceb22) — it was the LAST non-engine consumer of the local grammar.
+- [x] pest/pest_derive removed from Cargo.toml: YES — grep confirmed 0 remaining pest/Rule/#[grammar] refs in crate src before removal.
+- [x] GATE M6.3 build+test GREEN with one grammar — result: **build EXIT 0 (8.60s); test 472 lib + 2 + 4 passed, 0 failed (5 pre-existing ignored)**. Count 517→472 = the ~45 deleted in-file tests that tested the OLD pest parser (parse_value_tests/parse_step_tests/old mod tests) — correct removal, not regression; all runtime+integration+e2e tests still pass against praxis-lang.
+- [x] verify `git grep grammar.pest crates/pluresdb-px` → only 1 hit and it's a DOC-COMMENT in mod.rs describing the deletion; builder.rs + grammar.pest both absent from disk (Test-Path=False). Genuinely ONE grammar in the tree (praxis-lang's). ✅
+- [x] GATE M6.3 build-the-binary: `cargo run -p pluresdb-px --example run_px -- crates/pluresdb-px/examples/pipeline.px` → compiled 3 records (fact/rule/procedure), executed `pipeline` success=true 4 steps $results=[ALPHA,BETA,GAMMA] emit=[{count:3,type:complete}]. Full engine works via praxis-lang. ✅
+- [x] GATE M6.3 clippy `-D warnings`: **BLOCKED-LOCALLY by the same Windows Defender FP as M5** — clippy-driver.exe "could not execute process ... (never executed)", exit 101 @1s (Trojan:Win32/Wacatac.B!ml ML false-positive quarantine, NOT a real clippy failure — build+478 tests pass, driver just can't launch). **CI runs clippy on Linux (no FP) = authoritative verdict**, the path kbristol approved for M5.
+- [x] committed: (see below)
 
-## Branch HEAD after M6.3: ____
-## Honest gaps / deferrals: ____
+## Branch HEAD after M6.3: (see final commit)
+## Honest gaps / deferrals:
+- executor.rs `default_evaluate_condition` NOT collapsed onto px_eval (deferred per spec to keep M6 blast radius tight) — filed as follow-up.
+- dataflow.rs: a Code-body dataflow procedure lowers to an empty v1 step list at the node level, but the RECORD compiler still preserves the code block (body_kind=code, test code_block_body_is_preserved_not_dropped) — code-block EXECUTION remains the documented open runtime gap (unchanged by M6; honest, not a stub).
+- clippy local verdict deferred to CI (Defender FP).
