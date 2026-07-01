@@ -824,7 +824,10 @@ async fn handle_vsearch(
 
     println!("Found {} matches:", results.len());
     for r in results {
-        println!("  {} (score: {:.4})", r.record.id, r.score);
+        println!(
+            "  {} (score: {:.4}, similarity: {:.4})",
+            r.record.id, r.score, r.similarity
+        );
         let preview = serde_json::to_string_pretty(&r.record.data)?;
         let preview_lines: Vec<&str> = preview.lines().take(5).collect();
         // is_truncated if we hit the take(5) limit and there are more lines.
@@ -1868,6 +1871,8 @@ async fn vector_search_handler(
                 "id": r.record.id,
                 "data": r.record.data,
                 "score": r.score,
+                "similarity": r.similarity,
+                "quality": r.quality,
                 "timestamp": r.record.timestamp.to_rfc3339(),
             })
         })

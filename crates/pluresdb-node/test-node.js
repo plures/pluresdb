@@ -110,10 +110,30 @@ async function test() {
   if (vectorResults.length === 0 || vectorResults[0].id !== 'emb-rust') {
     throw new Error('Vector search failed: expected emb-rust as top result, got: ' + JSON.stringify(vectorResults));
   }
-  if (vectorResults[0].score < 0.99) {
-    throw new Error('Vector search failed: expected score ~1.0 for identical vector, got: ' + vectorResults[0].score);
+  const top = vectorResults[0];
+  // The honest API surfaces three distinct fields:
+  //   - `similarity`: raw cosine (~1.0 for an identical vector)
+  //   - `score`: the *blended* rank score (0.7*sim + 0.2*quality + 0.1*recency),
+  //              which is intentionally lower than raw cosine
+  //   - `quality`: the quality component folded into `score`
+  // Assert on `similarity` for the identical-vector expectation — NOT `score`,
+  // which is blended and correctly < 1.0. (This is Bug-2 honesty: earlier this
+  // test wrongly assumed score == cosine.)
+  if (typeof top.similarity !== 'number' || typeof top.quality !== 'number') {
+    throw new Error('Vector search failed: expected honest similarity+quality fields, got: ' + JSON.stringify(top));
   }
-  console.log('  ✓ Top result:', vectorResults[0].id, 'score:', vectorResults[0].score);
+  if (top.similarity < 0.99) {
+    throw new Error('Vector search failed: expected similarity ~1.0 for identical vector, got: ' + top.similarity);
+  }
+  // The blended score must be <= raw similarity and must match the documented blend.
+  const expectedBlend = 0.7 * top.similarity + 0.2 * top.quality + 0.1 * 1.0; // node is freshly written => recent
+  if (top.score > top.similarity + 1e-6) {
+    throw new Error('Vector search failed: blended score (' + top.score + ') should not exceed raw similarity (' + top.similarity + ')');
+  }
+  if (Math.abs(top.score - expectedBlend) > 1e-3) {
+    throw new Error('Vector search failed: blended score ' + top.score + ' does not match documented blend ' + expectedBlend);
+  }
+  console.log('  ✓ Top result:', top.id, '| similarity:', top.similarity.toFixed(4), '| blended score:', top.score.toFixed(4), '| quality:', top.quality.toFixed(4));
   console.log('');
   
   // Test 5: Statistics
@@ -134,8 +154,13 @@ async function test() {
   // Test 7: DSL query engine (execDsl / execIr)
   console.log('Test 7: DSL query engine');
 
-  // Seed a fresh database for predictable results
+  // Seed a fresh database for predictable results.
+  // NOTE: the constructor auto-seeds praxis constraints as first-class nodes,
+  // so a "fresh" DB is not empty. Measure that baseline and assert relative to
+  // it rather than hardcoding a total (same constraints-as-nodes drift the
+  // list() assertion fix, #1014, accounts for).
   const qdb = new PluresDatabase('query-actor');
+  const qdbBaseline = qdb.list().length;
   qdb.put('q1', { category: 'decision', score: 0.9, label: 'A' });
   qdb.put('q2', { category: 'decision', score: 0.5, label: 'B' });
   qdb.put('q3', { category: 'note',     score: 0.7, label: 'C' });
@@ -151,15 +176,17 @@ async function test() {
   }
   console.log('  ✓ execDsl filter+sort+limit:', dslResult.nodes.length, 'nodes');
 
-  // 7b: aggregate count via DSL string
+  // 7b: aggregate count via DSL string.
+  // Counts ALL nodes in the store => the 4 we inserted plus the seeded baseline.
   const aggResult = qdb.execDsl('aggregate(count)');
   if (!aggResult || aggResult.aggregate === undefined) {
     throw new Error('execDsl aggregate failed: ' + JSON.stringify(aggResult));
   }
-  if (aggResult.aggregate !== 4) {
-    throw new Error('execDsl aggregate count: expected 4, got ' + aggResult.aggregate);
+  const expectedCount = qdbBaseline + 4;
+  if (aggResult.aggregate !== expectedCount) {
+    throw new Error('execDsl aggregate count: expected ' + expectedCount + ' (baseline ' + qdbBaseline + ' + 4), got ' + aggResult.aggregate);
   }
-  console.log('  ✓ execDsl aggregate count:', aggResult.aggregate);
+  console.log('  ✓ execDsl aggregate count:', aggResult.aggregate, '(baseline', qdbBaseline, '+ 4)');
 
   // 7c: execIr with JSON IR payload
   const irSteps = [

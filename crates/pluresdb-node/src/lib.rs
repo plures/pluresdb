@@ -605,8 +605,17 @@ impl PluresDatabase {
 
     /// Vector similarity search using a pre-computed embedding.
     ///
-    /// `embedding` must be a flat array of finite floats.  Results are ordered
-    /// by cosine similarity (highest first) and filtered by `threshold` (0–1).
+    /// `embedding` must be a flat array of finite floats. Results are ordered
+    /// by a **blended** relevance score (highest first) and filtered by
+    /// `threshold` (0–1) against that same blended score — not raw cosine
+    /// similarity. Each result carries three honest fields:
+    ///
+    /// - `score`: the blended rank/filter score in `[0, 1]`
+    ///   (`0.7*similarity + 0.2*quality + 0.1*recency`). This is what ordering
+    ///   and `threshold` use.
+    /// - `similarity`: the raw cosine similarity in `[0, 1]` before blending.
+    ///   Use this if you want an actual similarity threshold client-side.
+    /// - `quality`: the quality component in `[0, 1]` folded into `score`.
     #[napi]
     pub fn vector_search(
         &self,
@@ -653,6 +662,8 @@ impl PluresDatabase {
                     "id": r.record.id,
                     "data": r.record.data,
                     "score": r.score,
+                    "similarity": r.similarity,
+                    "quality": r.quality,
                     "timestamp": r.record.timestamp.to_rfc3339(),
                 })
             })

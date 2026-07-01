@@ -99,10 +99,35 @@ pub struct EmbeddingWorkerStats {
 }
 
 /// A search result from vector similarity search.
+///
+/// # Score semantics (read this before comparing to a raw cosine threshold)
+///
+/// `vector_search` does **not** rank purely on cosine similarity. It ranks and
+/// filters on a *blended* score that mixes vector similarity with the node's
+/// quality and recency (see [`CrdtStore::blended_search_score`]). To keep that
+/// behavior honest and inspectable, this struct exposes all three components:
+///
+/// - [`score`](Self::score): the **blended** score in `[0, 1]`. This is the
+///   value results are sorted by, and the value the `min_score` argument of
+///   [`CrdtStore::vector_search`] filters against. It is **not** raw cosine.
+/// - [`similarity`](Self::similarity): the raw cosine similarity in `[0, 1]`
+///   between the query embedding and this node's embedding, before blending.
+///   Use this if you actually want a similarity threshold.
+/// - [`quality`](Self::quality): the quality component in `[0, 1]` that was
+///   folded into the blend for this node.
+///
+/// A result with high `score` but modest `similarity` was boosted by quality
+/// and/or recency; a caller that assumed `score == similarity` would have been
+/// misled, which is exactly why both are surfaced.
 #[derive(Debug, Clone)]
 pub struct VectorSearchResult {
     pub record: NodeRecord,
+    /// Blended rank/filter score in `[0, 1]` (see struct docs). Not raw cosine.
     pub score: f32,
+    /// Raw cosine similarity in `[0, 1]` before quality/recency blending.
+    pub similarity: f32,
+    /// Quality component in `[0, 1]` folded into the blended `score`.
+    pub quality: f32,
 }
 
 /// Metadata associated with a persisted node in the CRDT store.
@@ -516,6 +541,14 @@ impl CrdtStore {
         record
     }
 
+    /// Blend raw vector similarity with node quality and recency into the
+    /// final rank/filter score used by [`Self::vector_search`].
+    ///
+    /// Weighting is `0.7 * similarity + 0.2 * quality + 0.1 * recency`, clamped
+    /// to `[0, 1]`. This is the value exposed as [`VectorSearchResult::score`]
+    /// and the value `min_score` filters against — it is deliberately **not**
+    /// raw cosine similarity. The unblended cosine value is preserved on
+    /// [`VectorSearchResult::similarity`] for callers that want it.
     fn blended_search_score(vector_similarity: f32, quality: f32, is_recent: bool) -> f32 {
         let recency = if is_recent { 1.0 } else { 0.0 };
         (0.7 * vector_similarity.clamp(0.0, 1.0) + 0.2 * quality.clamp(0.0, 1.0) + 0.1 * recency)
@@ -1109,6 +1142,8 @@ impl CrdtStore {
                 Some(VectorSearchResult {
                     record,
                     score: blended_score,
+                    similarity: vector_similarity.clamp(0.0, 1.0),
+                    quality: quality.clamp(0.0, 1.0),
                 })
             })
             .collect();

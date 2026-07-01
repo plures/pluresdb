@@ -41,14 +41,19 @@ pub fn apply_vector_search(
                     return None;
                 }
             }
-            // Inject the similarity score into the node data for downstream steps
+            // Inject scores into the node data for downstream steps.
             let mut record = vsr.record;
             if let serde_json::Value::Object(ref mut map) = record.data {
                 let score_value = serde_json::json!(vsr.score);
                 // Keep `_score` for backward compatibility, but also set `score`
                 // so downstream pipeline steps that expect `score` can use it.
+                // NOTE: `score`/`_score` are the *blended* rank score, not raw
+                // cosine. Expose the honest raw similarity (and quality) too so
+                // pipelines can threshold on real similarity if they want.
                 map.insert("_score".to_string(), score_value.clone());
                 map.insert("score".to_string(), score_value);
+                map.insert("_similarity".to_string(), serde_json::json!(vsr.similarity));
+                map.insert("_quality".to_string(), serde_json::json!(vsr.quality));
             }
             Some(record)
         })
