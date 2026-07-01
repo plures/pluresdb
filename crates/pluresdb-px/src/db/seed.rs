@@ -31,9 +31,7 @@ pub fn seed_constraints(store: &mut PraxisStore) {
         description: "Every agent action must carry a non-empty action_type.".into(),
         when: Condition::Always,
         require: Condition::Not {
-            condition: Box::new(Condition::ActionTypeEq {
-                value: "".into(),
-            }),
+            condition: Box::new(Condition::ActionTypeEq { value: "".into() }),
         },
         fix: "Ensure the orchestration layer sets a non-empty action_type before dispatching."
             .into(),

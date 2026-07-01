@@ -12,7 +12,43 @@
 use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
 
-use super::{parse, PxDocument};
+use px_ast::{PxDocument, Statement};
+use px_compiler::parse;
+
+/// Join a px_ast import path (`Vec<Ident>`, e.g. `common::types`) back to the
+/// `module::sub` string form that `resolve_import_path` understands.
+fn import_path_string(segments: &[px_ast::Ident]) -> String {
+    segments
+        .iter()
+        .map(|s| s.name.as_str())
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
+/// Prefix a declaration's name in-place with an optional import alias.
+/// px_ast declaration names are `Ident`, so this rewrites `decl.name.name`.
+fn prefix_statement_name(stmt: &mut Statement, alias: Option<&str>) {
+    let apply = |id: &mut px_ast::Ident| {
+        if let Some(a) = alias {
+            id.name = format!("{}.{}", a, id.name);
+        }
+    };
+    match stmt {
+        Statement::Fact(d) => apply(&mut d.name),
+        Statement::Rule(d) => apply(&mut d.name),
+        Statement::Constraint(d) => apply(&mut d.name),
+        Statement::Contract(d) => apply(&mut d.name),
+        Statement::Function(d) => apply(&mut d.name),
+        Statement::Trigger(d) => apply(&mut d.name),
+        Statement::LegacyProcedure(d) => apply(&mut d.name),
+        Statement::DataflowProcedure(d) => apply(&mut d.name),
+        Statement::Entity(d) => apply(&mut d.name),
+        Statement::Config(d) => apply(&mut d.name),
+        Statement::Scenario(d) => apply(&mut d.name),
+        // Imports are inlined (not carried), so they are never prefixed.
+        Statement::Import(_) => {}
+    }
+}
 
 /// Errors that can occur during import resolution.
 #[derive(Debug, Clone, PartialEq)]
@@ -102,7 +138,7 @@ pub fn resolve_from_source(
 ) -> Result<ResolvedDocument, ResolveError> {
     let doc = parse(source).map_err(|e| ResolveError::ParseError {
         path: base_path.to_path_buf(),
-        message: e,
+        message: e.to_string(),
     })?;
     resolve_imports(&doc, base_path)
 }
@@ -113,13 +149,24 @@ fn resolve_recursive(
     visited: &mut HashSet<PathBuf>,
     chain: &mut Vec<PathBuf>,
 ) -> Result<ResolvedDocument, ResolveError> {
-    let mut merged = doc.clone();
-    // Clear imports from the merged doc since we're inlining them
-    merged.imports = Vec::new();
+    // Start from all NON-import statements of this doc; imports are inlined below.
+    let mut merged = PxDocument {
+        statements: doc
+            .statements
+            .iter()
+            .filter(|s| !matches!(s, Statement::Import(_)))
+            .cloned()
+            .collect(),
+    };
     let mut resolved_paths = Vec::new();
 
-    for import in &doc.imports {
-        let resolved_path = resolve_import_path(&import.path, base_path)?;
+    for stmt in &doc.statements {
+        let Statement::Import(import) = stmt else {
+            continue;
+        };
+        let import_path = import_path_string(&import.path);
+        let import_alias = import.alias.as_ref().map(|a| a.name.clone());
+        let resolved_path = resolve_import_path(&import_path, base_path)?;
         let canonical = resolved_path
             .canonicalize()
             .unwrap_or_else(|_| resolved_path.clone());
@@ -146,7 +193,7 @@ fn resolve_recursive(
 
         let imported_doc = parse(&source).map_err(|e| ResolveError::ParseError {
             path: resolved_path.clone(),
-            message: e,
+            message: e.to_string(),
         })?;
 
         // Push onto chain BEFORE recursing (cycle detection)
@@ -165,7 +212,7 @@ fn resolve_recursive(
         merge_document(
             &mut merged,
             &child_resolved.document,
-            import.alias.as_deref(),
+            import_alias.as_deref(),
         );
         resolved_paths.push(resolved_path);
         resolved_paths.extend(child_resolved.resolved_paths);
@@ -277,47 +324,17 @@ fn resolve_import_path(import_path: &str, base_path: &Path) -> Result<PathBuf, R
 /// Merge an imported document's declarations into the target document.
 ///
 /// If an alias is provided, imported item names are prefixed: `alias.name`.
+/// Import statements from the source are NOT carried over (they were already
+/// inlined during recursion); every other statement is cloned, name-prefixed,
+/// and appended to the target's statement list.
 fn merge_document(target: &mut PxDocument, source: &PxDocument, alias: Option<&str>) {
-    let prefix = |name: &str| -> String {
-        match alias {
-            Some(a) => format!("{}.{}", a, name),
-            None => name.to_string(),
+    for stmt in &source.statements {
+        if matches!(stmt, Statement::Import(_)) {
+            continue;
         }
-    };
-
-    for mut fact in source.facts.clone() {
-        fact.name = prefix(&fact.name);
-        target.facts.push(fact);
-    }
-
-    for mut rule in source.rules.clone() {
-        rule.name = prefix(&rule.name);
-        target.rules.push(rule);
-    }
-
-    for mut constraint in source.constraints.clone() {
-        constraint.name = prefix(&constraint.name);
-        target.constraints.push(constraint);
-    }
-
-    for mut contract in source.contracts.clone() {
-        contract.name = prefix(&contract.name);
-        target.contracts.push(contract);
-    }
-
-    for mut function in source.functions.clone() {
-        function.name = prefix(&function.name);
-        target.functions.push(function);
-    }
-
-    for mut trigger in source.triggers.clone() {
-        trigger.name = prefix(&trigger.name);
-        target.triggers.push(trigger);
-    }
-
-    for mut procedure in source.procedures.clone() {
-        procedure.name = prefix(&procedure.name);
-        target.procedures.push(procedure);
+        let mut cloned = stmt.clone();
+        prefix_statement_name(&mut cloned, alias);
+        target.statements.push(cloned);
     }
 }
 
@@ -326,6 +343,30 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    // px_ast stores declarations in a flat statement list. These helpers count
+    // and locate facts/constraints by name across `doc.statements`.
+    fn fact_names(doc: &PxDocument) -> Vec<String> {
+        doc.statements
+            .iter()
+            .filter_map(|s| match s {
+                Statement::Fact(f) => Some(f.name.name.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+    fn count_facts(doc: &PxDocument) -> usize {
+        fact_names(doc).len()
+    }
+    fn has_fact(doc: &PxDocument, name: &str) -> bool {
+        fact_names(doc).iter().any(|n| n == name)
+    }
+    fn count_constraints(doc: &PxDocument) -> usize {
+        doc.statements
+            .iter()
+            .filter(|s| matches!(s, Statement::Constraint(_)))
+            .count()
+    }
 
     fn write_px_file(dir: &Path, relative_path: &str, content: &str) {
         let path = dir.join(relative_path);
@@ -427,20 +468,12 @@ fact local_state:
         let doc = parse(source).unwrap();
         let resolved = resolve_imports(&doc, base).unwrap();
 
-        assert_eq!(resolved.document.facts.len(), 2);
-        assert_eq!(resolved.document.constraints.len(), 1);
+        assert_eq!(count_facts(&resolved.document), 2);
+        assert_eq!(count_constraints(&resolved.document), 1);
         assert_eq!(resolved.resolved_paths.len(), 1);
         // Without alias, names are unchanged
-        assert!(resolved
-            .document
-            .facts
-            .iter()
-            .any(|f| f.name == "shared_state"));
-        assert!(resolved
-            .document
-            .facts
-            .iter()
-            .any(|f| f.name == "local_state"));
+        assert!(has_fact(&resolved.document, "shared_state"));
+        assert!(has_fact(&resolved.document, "local_state"));
     }
 
     #[test]
@@ -467,10 +500,10 @@ fact local:
         let doc = parse(source).unwrap();
         let resolved = resolve_imports(&doc, base).unwrap();
 
-        assert_eq!(resolved.document.facts.len(), 2);
+        assert_eq!(count_facts(&resolved.document), 2);
         // Aliased import gets prefixed
-        assert!(resolved.document.facts.iter().any(|f| f.name == "t.state"));
-        assert!(resolved.document.facts.iter().any(|f| f.name == "local"));
+        assert!(has_fact(&resolved.document, "t.state"));
+        assert!(has_fact(&resolved.document, "local"));
     }
 
     #[test]
@@ -508,18 +541,10 @@ fact top_fact:
         let doc = parse(source).unwrap();
         let resolved = resolve_imports(&doc, base).unwrap();
 
-        assert_eq!(resolved.document.facts.len(), 3);
-        assert!(resolved
-            .document
-            .facts
-            .iter()
-            .any(|f| f.name == "base_fact"));
-        assert!(resolved
-            .document
-            .facts
-            .iter()
-            .any(|f| f.name == "middle_fact"));
-        assert!(resolved.document.facts.iter().any(|f| f.name == "top_fact"));
+        assert_eq!(count_facts(&resolved.document), 3);
+        assert!(has_fact(&resolved.document, "base_fact"));
+        assert!(has_fact(&resolved.document, "middle_fact"));
+        assert!(has_fact(&resolved.document, "top_fact"));
         assert_eq!(resolved.resolved_paths.len(), 2);
     }
 
@@ -568,15 +593,13 @@ import b
         let resolved = resolve_imports(&doc, base).unwrap();
 
         // shared should only appear once (diamond dedup)
-        let shared_count = resolved
-            .document
-            .facts
+        let shared_count = fact_names(&resolved.document)
             .iter()
-            .filter(|f| f.name == "shared")
+            .filter(|n| *n == "shared")
             .count();
         assert_eq!(shared_count, 1);
-        assert!(resolved.document.facts.iter().any(|f| f.name == "a_fact"));
-        assert!(resolved.document.facts.iter().any(|f| f.name == "b_fact"));
+        assert!(has_fact(&resolved.document, "a_fact"));
+        assert!(has_fact(&resolved.document, "b_fact"));
     }
 
     #[test]
@@ -633,12 +656,8 @@ fact local:
         let doc = parse(source).unwrap();
         let resolved = resolve_imports(&doc, base).unwrap();
 
-        assert_eq!(resolved.document.facts.len(), 2);
-        assert!(resolved
-            .document
-            .facts
-            .iter()
-            .any(|f| f.name == "ct.common_type"));
+        assert_eq!(count_facts(&resolved.document), 2);
+        assert!(has_fact(&resolved.document, "ct.common_type"));
     }
 
     #[test]
@@ -662,6 +681,6 @@ fact app:
 "#;
 
         let resolved = resolve_from_source(source, base).unwrap();
-        assert_eq!(resolved.document.facts.len(), 2);
+        assert_eq!(count_facts(&resolved.document), 2);
     }
 }

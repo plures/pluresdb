@@ -17,6 +17,8 @@ use pluresdb_px::db::schema::{
 use pluresdb_px::db::seed::default_store as px_default_store;
 use pluresdb_px::db::store::PraxisStore;
 use pluresdb_px::px::parse as px_parse;
+use pluresdb_px::px::px_ast::{ConstraintDecl as PxAstConstraintDecl, Severity as PxAstSeverity};
+use pluresdb_px::px::{expr_to_string as px_expr_to_string, Statement as PxStatement};
 use pluresdb_storage::{SledStorage, StorageEngine, StorageErrorCode};
 use pluresdb_sync::{SyncBroadcaster, SyncErrorCode, SyncEvent};
 use std::collections::HashMap;
@@ -113,23 +115,32 @@ fn persist_constraint(
 /// a real [`Condition`] AST — so `require: amount <= 100` actually blocks
 /// `amount = 500`. The block's declared `severity:` overrides the keyword-
 /// inferred severity. The block `name` becomes the constraint `id`.
-fn px_constraint_to_schema(pc: &pluresdb_px::px::PxConstraint) -> PxConstraint {
-    // Compile the require expression via the real grammar-backed path.
-    let require_src = pc.require_expr.as_deref().unwrap_or("");
-    let mut constraint = px_procedures::compile_nl(require_src, pc.name.clone());
+fn px_constraint_to_schema(pc: &PxAstConstraintDecl) -> PxConstraint {
+    // px-ast carries `require`/`when` as typed `Expr`. Render each back to its
+    // canonical source string via the crate's single expr renderer (the same
+    // one the executor's condition parser round-trips), then compile through the
+    // real grammar-backed `compile_nl` path so `require: amount <= 100` actually
+    // blocks `amount = 500`.
+    let require_src = pc
+        .require
+        .as_ref()
+        .map(px_expr_to_string)
+        .unwrap_or_default();
+    let mut constraint = px_procedures::compile_nl(&require_src, pc.name.name.clone());
 
-    // Honor the explicitly declared severity from the .px source.
-    constraint.severity = match pc.severity.trim().to_lowercase().as_str() {
-        "error" => PxSeverity::Error,
-        // `info` has no schema variant; treat as the non-blocking severity.
+    // Honor the explicitly declared severity from the .px source (typed enum).
+    constraint.severity = match pc.severity {
+        PxAstSeverity::Error => PxSeverity::Error,
+        // `Warning`/`Info` are non-blocking; schema has no `info` variant.
         _ => PxSeverity::Warning,
     };
 
     // If the block declared a `when:` predicate, compile it too and use it as
     // the precondition (the `require`-derived `when` from compile_nl, typically
     // `Always`, is replaced). A non-parseable `when:` falls back to `Always`.
-    if let Some(when_src) = pc.when_expr.as_deref() {
-        let when_constraint = px_procedures::compile_nl(when_src, pc.name.clone());
+    if let Some(when_expr) = pc.when.as_ref() {
+        let when_src = px_expr_to_string(when_expr);
+        let when_constraint = px_procedures::compile_nl(&when_src, pc.name.name.clone());
         // A `when:` clause is semantically "only check when this predicate
         // holds"; reuse its compiled invariant as the precondition.
         if !matches!(when_constraint.require, PxCondition::Always) {
@@ -138,7 +149,7 @@ fn px_constraint_to_schema(pc: &pluresdb_px::px::PxConstraint) -> PxConstraint {
     }
 
     if let Some(msg) = &pc.message {
-        constraint.description = msg.clone();
+        constraint.description = msg.value.clone();
     }
     constraint
 }
@@ -854,7 +865,10 @@ impl PluresDatabase {
                     .map_err(|e| map_node_error(CoreErrorCode::SerializationError.as_str(), e))?;
                 Ok(serde_json::json!({ "violations": value }))
             }
-            Err(blocked) => Err(map_node_error(CoreErrorCode::InvalidInput.as_str(), blocked)),
+            Err(blocked) => Err(map_node_error(
+                CoreErrorCode::InvalidInput.as_str(),
+                blocked,
+            )),
         }
     }
 
@@ -949,9 +963,7 @@ impl PluresDatabase {
                 .publish(SyncEvent::NodeDelete {
                     id: constraint_id.clone(),
                 })
-                .map_err(|e| {
-                    map_node_error(SyncErrorCode::BroadcastPublishFailed.as_str(), e)
-                })?;
+                .map_err(|e| map_node_error(SyncErrorCode::BroadcastPublishFailed.as_str(), e))?;
         }
         serde_json::to_value(&removed)
             .map_err(|e| map_node_error(CoreErrorCode::SerializationError.as_str(), e))
@@ -1004,13 +1016,24 @@ impl PluresDatabase {
             px_parse(&text).map_err(|e| map_node_error(CoreErrorCode::InvalidInput.as_str(), e))?;
 
         let mut loaded_ids: Vec<String> = Vec::new();
-        for pc in &doc.constraints {
-            let constraint = px_constraint_to_schema(pc);
-            persist_constraint(&self.store, &self.broadcaster, &self.actor_id, &constraint)?;
-            loaded_ids.push(constraint.id);
+        for stmt in &doc.statements {
+            if let PxStatement::Constraint(pc) = stmt {
+                let constraint = px_constraint_to_schema(pc);
+                persist_constraint(&self.store, &self.broadcaster, &self.actor_id, &constraint)?;
+                loaded_ids.push(constraint.id);
+            }
         }
-        let procedure_names: Vec<String> =
-            doc.procedures.iter().map(|p| p.name.clone()).collect();
+        // Report procedure names (dataflow + legacy) but do not persist them as
+        // constraints. px-ast splits procedures into two statement variants.
+        let procedure_names: Vec<String> = doc
+            .statements
+            .iter()
+            .filter_map(|s| match s {
+                PxStatement::DataflowProcedure(p) => Some(p.name.name.clone()),
+                PxStatement::LegacyProcedure(p) => Some(p.name.name.clone()),
+                _ => None,
+            })
+            .collect();
 
         Ok(serde_json::json!({
             "constraints": loaded_ids,

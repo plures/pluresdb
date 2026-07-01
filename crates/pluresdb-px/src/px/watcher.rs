@@ -13,7 +13,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
 use super::compiler::{compile, CompiledRecord};
-use super::parse;
+use px_compiler::parse;
 
 /// Events emitted by the PxWatcher.
 #[derive(Debug, Clone)]
@@ -273,7 +273,7 @@ fn is_px_file(path: &Path) -> bool {
 fn load_and_compile(path: &Path) -> Result<Vec<CompiledRecord>, String> {
     let source = std::fs::read_to_string(path).map_err(|e| format!("read error: {e}"))?;
 
-    let doc = parse(&source)?;
+    let doc = parse(&source).map_err(|e| e.to_string())?;
     Ok(compile(&doc))
 }
 

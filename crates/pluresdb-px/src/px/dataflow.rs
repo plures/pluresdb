@@ -137,9 +137,19 @@ impl Default for DataflowConfig {
 /// Error types for dataflow operations.
 #[derive(Debug, Clone)]
 pub enum DataflowError {
-    DepthLimitExceeded { depth: u32, max: u32 },
-    QueueFull { queue: String, length: usize, max: usize },
-    ProcedureError { procedure: String, message: String },
+    DepthLimitExceeded {
+        depth: u32,
+        max: u32,
+    },
+    QueueFull {
+        queue: String,
+        length: usize,
+        max: usize,
+    },
+    ProcedureError {
+        procedure: String,
+        message: String,
+    },
     NoSuchQueue(String),
     ValidationError(String),
 }
@@ -148,7 +158,10 @@ impl std::fmt::Display for DataflowError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DepthLimitExceeded { depth, max } => {
-                write!(f, "depth limit exceeded: datum at depth {depth} exceeds max {max}")
+                write!(
+                    f,
+                    "depth limit exceeded: datum at depth {depth} exceeds max {max}"
+                )
             }
             Self::QueueFull { queue, length, max } => {
                 write!(f, "queue full: {queue} has {length} items (max {max})")
@@ -446,7 +459,10 @@ impl DataflowGraph {
     }
 
     pub fn queue_stats(&self) -> HashMap<&str, usize> {
-        self.queues.iter().map(|(k, q)| (k.as_str(), q.len())).collect()
+        self.queues
+            .iter()
+            .map(|(k, q)| (k.as_str(), q.len()))
+            .collect()
     }
 }
 
@@ -663,51 +679,65 @@ pub fn signature_to_node(sig: &ProcedureSignature, body: Value) -> ProcedureNode
     }
 }
 
-/// Convert a parsed PxDataflowProcedure AST node into a runtime ProcedureNode.
+/// Convert a parsed `px_ast::DataflowProcedureDecl` into a runtime ProcedureNode.
 ///
 /// This bridges the parser output to the dataflow graph:
-/// 1. Parse .px file → PxDataflowProcedure (via builder)
+/// 1. Parse .px file → `px_ast::DataflowProcedureDecl` (via px-compiler)
 /// 2. This function → ProcedureNode (for DataflowGraph)
 /// 3. Register into DataflowGraph → ready for execution
-pub fn ast_to_node(proc: &super::PxDataflowProcedure) -> ProcedureNode {
+///
+/// px_ast field mapping (§2d): a param's queue is `source_queue` (was `source`),
+/// its type is `param_type: TypeExpr` (rendered via `Display`); the return's
+/// queue is `dest_queue` (was `destination`) and its type is `return_type`.
+pub fn ast_to_node(proc: &px_ast::DataflowProcedureDecl) -> ProcedureNode {
     let inputs = proc
         .params
         .iter()
         .map(|p| InputSlot {
-            name: p.name.clone(),
-            source: p.source.clone().unwrap_or_else(|| p.name.clone()),
-            type_hint: Some(p.type_expr.clone()),
+            name: p.name.name.clone(),
+            source: p
+                .source_queue
+                .as_ref()
+                .map(|s| s.value.clone())
+                .unwrap_or_else(|| p.name.name.clone()),
+            type_hint: Some(p.param_type.to_string()),
         })
         .collect();
 
     let outputs = match &proc.return_type {
         Some(ret) => vec![OutputSlot {
             name: "result".to_string(),
-            destination: ret.destination.clone().unwrap_or_else(|| proc.name.clone()),
-            type_hint: Some(ret.type_expr.clone()),
+            destination: ret
+                .dest_queue
+                .as_ref()
+                .map(|s| s.value.clone())
+                .unwrap_or_else(|| proc.name.name.clone()),
+            type_hint: Some(ret.return_type.to_string()),
         }],
         None => Vec::new(),
     };
 
-    // Compile steps to the JSON format the executor expects.
-    // Each PxStep becomes a JSON step object.
-    let steps: Vec<Value> = proc
-        .steps
-        .iter()
-        .map(super::compiler::compile_step)
-        .collect();
+    // Compile the body's steps to the JSON format the executor expects.
+    // A v2 code-block body has no v1 steps; it is NOT dropped — the record
+    // compiler (`compiler::compile`) preserves code blocks under `code`. The
+    // dataflow graph runs v1 step lists, so for a code-block body the node
+    // carries an empty step list here (the code path is a documented follow-up).
+    let steps: Vec<Value> = match &proc.body {
+        px_ast::ProcedureBody::Steps(s) => s.iter().map(super::compiler::step_to_json).collect(),
+        px_ast::ProcedureBody::Code(_) => Vec::new(),
+    };
 
     let body = serde_json::json!({
-        "name": proc.name,
+        "name": proc.name.name,
         "steps": steps
     });
 
     ProcedureNode {
-        name: proc.name.clone(),
+        name: proc.name.name.clone(),
         inputs,
         outputs,
         body,
-        description: proc.given.clone(),
+        description: proc.given.as_ref().map(|s| s.value.clone()),
     }
 }
 
@@ -771,13 +801,21 @@ mod tests {
 
         assert!(graph.ready_procedures().is_empty());
 
-        graph.push("inbound", Datum::root(json!("What is Rust?"))).unwrap();
+        graph
+            .push("inbound", Datum::root(json!("What is Rust?")))
+            .unwrap();
         assert_eq!(graph.ready_procedures(), vec!["classify"]);
 
         let fired = graph.run_to_completion(&EchoHandler).unwrap();
         assert_eq!(fired, 1);
 
-        let datum = graph.queues.get("classification").unwrap().items.front().unwrap();
+        let datum = graph
+            .queues
+            .get("classification")
+            .unwrap()
+            .items
+            .front()
+            .unwrap();
         assert_eq!(datum.depth, 1);
         assert_eq!(datum.lineage, vec!["classify"]);
     }
@@ -839,7 +877,13 @@ mod tests {
         let fired = graph.step(&EchoHandler).unwrap();
         assert_eq!(fired, 1);
 
-        let resp = graph.queues.get("model_response").unwrap().items.front().unwrap();
+        let resp = graph
+            .queues
+            .get("model_response")
+            .unwrap()
+            .items
+            .front()
+            .unwrap();
         assert_eq!(resp.depth, 2);
         assert_eq!(resp.lineage, vec!["classify", "invoke_model"]);
     }
@@ -1004,18 +1048,28 @@ mod tests {
 
     #[test]
     fn end_to_end_parse_to_graph() {
-        // Parse a dataflow .px source, convert to ProcedureNode, register, run
+        // Parse a dataflow .px source, convert to ProcedureNode, register, run.
+        // M6: parse via px-compiler (SSOT engine) and pull the DataflowProcedure
+        // statement out of the px_ast statement list.
         let source = r#"
 procedure classify_message(message: string from "inbound") -> classification into "classification":
   given: "Classify a message"
   classify {text: $message} -> $result
   return $result
 "#;
-        let doc = crate::px::parse(source).expect("parse failed");
-        assert_eq!(doc.dataflow_procedures.len(), 1);
+        let doc = px_compiler::parse(source).expect("parse failed");
+        let dataflow: Vec<&px_ast::DataflowProcedureDecl> = doc
+            .statements
+            .iter()
+            .filter_map(|s| match s {
+                px_ast::Statement::DataflowProcedure(p) => Some(p),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(dataflow.len(), 1);
 
         // Convert AST to graph node
-        let node = super::ast_to_node(&doc.dataflow_procedures[0]);
+        let node = super::ast_to_node(dataflow[0]);
         assert_eq!(node.name, "classify_message");
         assert_eq!(node.inputs.len(), 1);
         assert_eq!(node.inputs[0].source, "inbound");
@@ -1025,7 +1079,9 @@ procedure classify_message(message: string from "inbound") -> classification int
         // Register and run
         let mut graph = DataflowGraph::new();
         graph.register(node).unwrap();
-        graph.push("inbound", Datum::root(json!("Hello world"))).unwrap();
+        graph
+            .push("inbound", Datum::root(json!("Hello world")))
+            .unwrap();
 
         let fired = graph.run_to_completion(&EchoHandler).unwrap();
         assert_eq!(fired, 1);

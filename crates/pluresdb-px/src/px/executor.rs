@@ -296,7 +296,8 @@ fn execute_match_subject(
     vars: &mut HashMap<String, Value>,
 ) -> Result<StepResult, ExecutionError> {
     // Resolve the subject as both string and raw Value (for tuple matching)
-    let (subject_val, subject_raw) = if (subject_expr.starts_with('"') && subject_expr.ends_with('"'))
+    let (subject_val, subject_raw) = if (subject_expr.starts_with('"')
+        && subject_expr.ends_with('"'))
         || (subject_expr.starts_with('\'') && subject_expr.ends_with('\''))
     {
         let s = subject_expr[1..subject_expr.len() - 1].to_string();
@@ -304,14 +305,14 @@ fn execute_match_subject(
     } else if let Some(val) = resolve_var(subject_expr, vars) {
         (value_to_interpolation_string(&val), val)
     } else {
-        (subject_expr.to_string(), Value::String(subject_expr.to_string()))
+        (
+            subject_expr.to_string(),
+            Value::String(subject_expr.to_string()),
+        )
     };
 
     for arm in arms {
-        let raw_pattern = arm
-            .get("pattern")
-            .and_then(|v| v.as_str())
-            .unwrap_or("_");
+        let raw_pattern = arm.get("pattern").and_then(|v| v.as_str()).unwrap_or("_");
 
         // Extract optional guard: `"active" if score > 50` → ("active", Some("score > 50"))
         let (pattern, guard) = extract_guard(raw_pattern);
@@ -370,7 +371,8 @@ fn execute_match_subject(
 
         if matched {
             // If there's a guard, evaluate it (with bindings available)
-            let guard_vars: HashMap<String, Value> = vars.iter()
+            let guard_vars: HashMap<String, Value> = vars
+                .iter()
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .chain(arm_bindings.iter().map(|(k, v)| (k.clone(), v.clone())))
                 .collect();
@@ -631,10 +633,7 @@ fn execute_try(
     let catch_steps = step.get("catch").and_then(|v| v.as_array());
 
     // Retry configuration: retry=N means up to N additional attempts after the first.
-    let max_retries = step
-        .get("retry")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
+    let max_retries = step.get("retry").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
 
     let retry_delay_ms = step
         .get("retry_delay_ms")
@@ -786,12 +785,9 @@ fn execute_parallel(
     let mut results_map = serde_json::Map::new();
 
     for branch in branches {
-        let branch_name = branch
-            .get("name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ExecutionError::InvalidStructure("parallel branch missing 'name'".into())
-            })?;
+        let branch_name = branch.get("name").and_then(|v| v.as_str()).ok_or_else(|| {
+            ExecutionError::InvalidStructure("parallel branch missing 'name'".into())
+        })?;
 
         let branch_steps = branch
             .get("steps")
@@ -801,10 +797,7 @@ fn execute_parallel(
             })?;
 
         // Per-branch retry configuration
-        let branch_retry = branch
-            .get("retry")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as usize;
+        let branch_retry = branch.get("retry").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
         let branch_retry_delay_ms = branch
             .get("retry_delay_ms")
             .and_then(|v| v.as_u64())
@@ -832,8 +825,8 @@ fn execute_parallel(
             if attempt > 0 && branch_retry_delay_ms > 0 {
                 let base_delay = match branch_retry_backoff {
                     "exponential" => {
-                        let exp_delay = branch_retry_delay_ms
-                            .saturating_mul(1u64 << (attempt as u64 - 1));
+                        let exp_delay =
+                            branch_retry_delay_ms.saturating_mul(1u64 << (attempt as u64 - 1));
                         exp_delay.min(branch_retry_max_delay_ms)
                     }
                     _ => branch_retry_delay_ms.min(branch_retry_max_delay_ms),
@@ -856,10 +849,7 @@ fn execute_parallel(
                 std::thread::sleep(std::time::Duration::from_millis(delay));
             }
 
-            branch_vars.insert(
-                "retry_count".to_string(),
-                Value::Number(attempt.into()),
-            );
+            branch_vars.insert("retry_count".to_string(), Value::Number(attempt.into()));
 
             let mut attempt_vars = branch_vars.clone();
             let mut last_output = Value::Null;
@@ -1223,13 +1213,14 @@ fn apply_filter_with_args(name: &str, value: &str, args_str: &str) -> Option<Str
             let sep = args_str.trim().trim_matches('"').trim_matches('\'');
             let parts: Vec<&str> = value.split(sep).collect();
             // Return as JSON array
-            let json_parts: Vec<String> = parts.iter().map(|p| format!("\"{}\"" , p)).collect();
+            let json_parts: Vec<String> = parts.iter().map(|p| format!("\"{}\"", p)).collect();
             Some(format!("[{}]", json_parts.join(", ")))
         }
         "pad_left" | "pad_start" => {
             let parts = split_filter_args(args_str);
             let width: usize = parts.first()?.trim().parse().ok()?;
-            let pad_char = parts.get(1)
+            let pad_char = parts
+                .get(1)
                 .map(|s| s.trim().trim_matches('"').trim_matches('\''))
                 .and_then(|s| s.chars().next())
                 .unwrap_or(' ');
@@ -1243,7 +1234,8 @@ fn apply_filter_with_args(name: &str, value: &str, args_str: &str) -> Option<Str
         "pad_right" | "pad_end" => {
             let parts = split_filter_args(args_str);
             let width: usize = parts.first()?.trim().parse().ok()?;
-            let pad_char = parts.get(1)
+            let pad_char = parts
+                .get(1)
                 .map(|s| s.trim().trim_matches('"').trim_matches('\''))
                 .and_then(|s| s.chars().next())
                 .unwrap_or(' ');
@@ -1299,7 +1291,11 @@ fn split_filter_args(s: &str) -> Vec<&str> {
                 }
                 ',' => {
                     let byte_start = s.char_indices().nth(start).map(|(idx, _)| idx).unwrap_or(0);
-                    let byte_end = s.char_indices().nth(i).map(|(idx, _)| idx).unwrap_or(s.len());
+                    let byte_end = s
+                        .char_indices()
+                        .nth(i)
+                        .map(|(idx, _)| idx)
+                        .unwrap_or(s.len());
                     args.push(&s[byte_start..byte_end]);
                     start = i + 1;
                 }
@@ -1476,7 +1472,10 @@ fn try_match_expr(expr: &str, vars: &HashMap<String, Value>) -> Option<String> {
     } else if let Some(val) = resolve_var(subject_str, vars) {
         (value_to_interpolation_string(&val), val)
     } else {
-        (subject_str.to_string(), Value::String(subject_str.to_string()))
+        (
+            subject_str.to_string(),
+            Value::String(subject_str.to_string()),
+        )
     };
 
     // Parse arms: split by top-level commas
@@ -1545,7 +1544,8 @@ fn try_match_expr(expr: &str, vars: &HashMap<String, Value>) -> Option<String> {
 
         if matched {
             // If there's a guard, evaluate it — with bindings available
-            let merged_vars: HashMap<String, Value> = vars.iter()
+            let merged_vars: HashMap<String, Value> = vars
+                .iter()
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .chain(arm_bindings.iter().map(|(k, v)| (k.clone(), v.clone())))
                 .collect();
@@ -1576,7 +1576,13 @@ fn extract_guard(pattern_with_guard: &str) -> (&str, Option<&str>) {
         match bytes[i] {
             b'"' if !in_single => in_double = !in_double,
             b'\'' if !in_double => in_single = !in_single,
-            b' ' if !in_double && !in_single && i + 3 < bytes.len() && bytes[i + 1] == b'i' && bytes[i + 2] == b'f' && bytes[i + 3] == b' ' => {
+            b' ' if !in_double
+                && !in_single
+                && i + 3 < bytes.len()
+                && bytes[i + 1] == b'i'
+                && bytes[i + 2] == b'f'
+                && bytes[i + 3] == b' ' =>
+            {
                 let pattern = pattern_with_guard[..i].trim();
                 let guard = pattern_with_guard[i + 4..].trim();
                 if !guard.is_empty() {
@@ -1663,7 +1669,11 @@ type MatchBindings = HashMap<String, Value>;
 /// - Quoted strings compare as strings
 /// - Numbers compare as numbers
 /// - Tuple length must match array length
-fn try_tuple_pattern(pattern: &str, subject_val: &Value, vars: &HashMap<String, Value>) -> Option<(bool, MatchBindings)> {
+fn try_tuple_pattern(
+    pattern: &str,
+    subject_val: &Value,
+    vars: &HashMap<String, Value>,
+) -> Option<(bool, MatchBindings)> {
     let trimmed = pattern.trim();
     if !trimmed.starts_with('(') || !trimmed.ends_with(')') {
         return None;
@@ -1784,7 +1794,11 @@ fn try_tuple_pattern(pattern: &str, subject_val: &Value, vars: &HashMap<String, 
 /// - Variables (`$name` or bare `ident` starting with `$`) are resolved from vars
 /// - The pattern does NOT require exhaustive fields — unmentioned fields are ignored
 /// - All mentioned fields must exist in the subject and match their patterns
-fn try_struct_pattern(pattern: &str, subject_val: &Value, vars: &HashMap<String, Value>) -> Option<(bool, MatchBindings)> {
+fn try_struct_pattern(
+    pattern: &str,
+    subject_val: &Value,
+    vars: &HashMap<String, Value>,
+) -> Option<(bool, MatchBindings)> {
     let trimmed = pattern.trim();
     if !trimmed.starts_with('{') || !trimmed.ends_with('}') {
         return None;
@@ -1838,7 +1852,8 @@ fn try_struct_pattern(pattern: &str, subject_val: &Value, vars: &HashMap<String,
         };
 
         // Match the value pattern against the subject field
-        let (field_matched, field_bindings) = struct_field_matches(value_pattern, subject_field, vars);
+        let (field_matched, field_bindings) =
+            struct_field_matches(value_pattern, subject_field, vars);
         if !field_matched {
             return Some((false, HashMap::new()));
         }
@@ -1850,7 +1865,11 @@ fn try_struct_pattern(pattern: &str, subject_val: &Value, vars: &HashMap<String,
 
 /// Check if a single struct field value matches the expected pattern.
 /// Returns (matched, bindings) where bindings are variables captured during matching.
-fn struct_field_matches(pattern: &str, subject: &Value, vars: &HashMap<String, Value>) -> (bool, MatchBindings) {
+fn struct_field_matches(
+    pattern: &str,
+    subject: &Value,
+    vars: &HashMap<String, Value>,
+) -> (bool, MatchBindings) {
     let pat = pattern.trim();
 
     // Wildcard
@@ -1872,7 +1891,10 @@ fn struct_field_matches(pattern: &str, subject: &Value, vars: &HashMap<String, V
         || (pat.starts_with('\'') && pat.ends_with('\''))
     {
         let pat_str = &pat[1..pat.len() - 1];
-        return (matches!(subject, Value::String(s) if s == pat_str), HashMap::new());
+        return (
+            matches!(subject, Value::String(s) if s == pat_str),
+            HashMap::new(),
+        );
     }
 
     // Boolean
@@ -2107,7 +2129,11 @@ fn try_ternary_expr(expr: &str, vars: &HashMap<String, Value>) -> Option<String>
     // Evaluate the condition using the same condition evaluator
     let condition_result = default_evaluate_condition(condition_str, vars);
 
-    let chosen = if condition_result { true_expr } else { false_expr };
+    let chosen = if condition_result {
+        true_expr
+    } else {
+        false_expr
+    };
 
     // Recursively evaluate if the chosen branch is itself a ternary
     if chosen.contains('?') && chosen.contains(':') {
@@ -2363,7 +2389,11 @@ fn split_logical<'a>(expr: &'a str, op: &str) -> Vec<&'a str> {
                     i += 1;
                 }
             }
-            _ if depth == 0 && brace_depth == 0 && i + op_len <= bytes.len() && &bytes[i..i + op_len] == op_bytes => {
+            _ if depth == 0
+                && brace_depth == 0
+                && i + op_len <= bytes.len()
+                && &bytes[i..i + op_len] == op_bytes =>
+            {
                 parts.push(&expr[last..i]);
                 i += op_len;
                 last = i;
@@ -2424,14 +2454,26 @@ fn split_comparison<'a>(expr: &'a str, op: &str) -> Option<(&'a str, &'a str)> {
                     i += 1;
                 }
             }
-            _ if depth == 0 && brace_depth == 0 && i + op_len <= bytes.len() && &bytes[i..i + op_len] == op_bytes => {
+            _ if depth == 0
+                && brace_depth == 0
+                && i + op_len <= bytes.len()
+                && &bytes[i..i + op_len] == op_bytes =>
+            {
                 // For single-char ops (> or <), ensure they're not part of >= or <= or =>
-                if op_len == 1 && i + 1 < bytes.len() && (bytes[i + 1] == b'=' || bytes[i + 1] == b'>') {
+                if op_len == 1
+                    && i + 1 < bytes.len()
+                    && (bytes[i + 1] == b'=' || bytes[i + 1] == b'>')
+                {
                     i += 1;
                     continue;
                 }
                 // For `==`, ensure it's not part of `=>`
-                if op == "==" && i > 0 && bytes[i] == b'=' && i + 1 < bytes.len() && bytes[i + 1] == b'>' {
+                if op == "=="
+                    && i > 0
+                    && bytes[i] == b'='
+                    && i + 1 < bytes.len()
+                    && bytes[i + 1] == b'>'
+                {
                     i += 1;
                     continue;
                 }
@@ -2440,7 +2482,7 @@ fn split_comparison<'a>(expr: &'a str, op: &str) -> Option<(&'a str, &'a str)> {
                 // Strip surrounding quotes from rhs, but allow empty result
                 // (comparing against "" is valid).
                 let rhs = if rhs.starts_with('"') && rhs.ends_with('"') && rhs.len() >= 2 {
-                    &rhs[1..rhs.len()-1]
+                    &rhs[1..rhs.len() - 1]
                 } else {
                     rhs.trim_matches('"')
                 };
@@ -2808,9 +2850,9 @@ fn resolve_function_call(expr: &str, vars: &HashMap<String, Value>) -> Option<Va
             };
             let result = match &haystack_val {
                 Value::String(s) => s.contains(needle_str.as_str()),
-                Value::Array(a) => a.iter().any(|item| {
-                    value_to_interpolation_string(item) == needle_str
-                }),
+                Value::Array(a) => a
+                    .iter()
+                    .any(|item| value_to_interpolation_string(item) == needle_str),
                 _ => false,
             };
             Some(Value::Bool(result))
@@ -3019,13 +3061,11 @@ fn resolve_function_call(expr: &str, vars: &HashMap<String, Value>) -> Option<Va
                 default_evaluate_condition(cond_arg, vars)
             };
             if cond_result {
-                resolve_arg(then_arg, vars).or_else(|| {
-                    Some(Value::String(then_arg.trim_matches('"').to_string()))
-                })
+                resolve_arg(then_arg, vars)
+                    .or_else(|| Some(Value::String(then_arg.trim_matches('"').to_string())))
             } else {
-                resolve_arg(else_arg, vars).or_else(|| {
-                    Some(Value::String(else_arg.trim_matches('"').to_string()))
-                })
+                resolve_arg(else_arg, vars)
+                    .or_else(|| Some(Value::String(else_arg.trim_matches('"').to_string())))
             }
         }
 
@@ -3127,7 +3167,9 @@ fn resolve_function_call(expr: &str, vars: &HashMap<String, Value>) -> Option<Va
             let lo = value_to_f64(&min_val)?;
             let hi = value_to_f64(&max_val)?;
             let clamped = n.max(lo).min(hi);
-            if clamped == clamped.floor() && clamped >= i64::MIN as f64 && clamped <= i64::MAX as f64
+            if clamped == clamped.floor()
+                && clamped >= i64::MIN as f64
+                && clamped <= i64::MAX as f64
             {
                 Some(Value::Number(serde_json::Number::from(clamped as i64)))
             } else {
@@ -3612,7 +3654,11 @@ mod tests {
         let vars = HashMap::from([("input".to_string(), json!(""))]);
         let result = execute_with_vars(&procedure, &handler, vars).unwrap();
         // The when step must propagate as kind="return", not kind="when"
-        assert_eq!(result.step_results.len(), 1, "should short-circuit after return");
+        assert_eq!(
+            result.step_results.len(),
+            1,
+            "should short-circuit after return"
+        );
         assert_eq!(result.step_results[0].kind, "return");
         assert_eq!(result.step_results[0].output, Some(json!("no_input")));
     }
@@ -3916,8 +3962,7 @@ mod tests {
 
     #[test]
     fn execute_loop_over_map() {
-        let handler = MockHandler::new()
-            .with_result("process", json!("ok"));
+        let handler = MockHandler::new().with_result("process", json!("ok"));
 
         let procedure = json!({
             "type": "procedure",
@@ -3935,7 +3980,10 @@ mod tests {
             ]
         });
 
-        let vars = HashMap::from([("config".to_string(), json!({ "host": "localhost", "port": "8080", "debug": "true" }))]);
+        let vars = HashMap::from([(
+            "config".to_string(),
+            json!({ "host": "localhost", "port": "8080", "debug": "true" }),
+        )]);
         let result = execute_with_vars(&procedure, &handler, vars).unwrap();
         assert!(result.success);
         // 3 entries in the map = 3 call results collected
@@ -3945,8 +3993,7 @@ mod tests {
 
     #[test]
     fn execute_loop_over_map_binds_key() {
-        let handler = MockHandler::new()
-            .with_result("noop", json!("done"));
+        let handler = MockHandler::new().with_result("noop", json!("done"));
 
         let procedure = json!({
             "type": "procedure",
@@ -3978,8 +4025,7 @@ mod tests {
 
     #[test]
     fn execute_loop_over_map_collects_output() {
-        let handler = MockHandler::new()
-            .with_result("double", json!("doubled"));
+        let handler = MockHandler::new().with_result("double", json!("doubled"));
 
         let procedure = json!({
             "type": "procedure",
@@ -4133,7 +4179,8 @@ mod tests {
     #[test]
     fn end_to_end_parse_compile_execute() {
         // Full pipeline: parse .px source → compile → execute
-        use crate::px::{compiler::compile, parse};
+        // M6: parse via px-compiler (SSOT) → px_ast::PxDocument for `compile`.
+        use crate::px::{compiler::compile, pxlang::parse};
 
         // Use valid .px grammar syntax
         let source = "procedure greet_user:\n  trigger: manual\n  say_hello {} -> $greeting\n";
@@ -4307,8 +4354,9 @@ mod tests {
 
     #[test]
     fn deep_dotted_path_resolution() {
-        let vars = HashMap::from([
-            ("response".to_string(), json!({
+        let vars = HashMap::from([(
+            "response".to_string(),
+            json!({
                 "data": {
                     "items": [1, 2, 3],
                     "meta": {
@@ -4317,14 +4365,23 @@ mod tests {
                     }
                 },
                 "status": 200
-            })),
-        ]);
+            }),
+        )]);
 
         // Two levels deep
-        assert!(default_evaluate_condition("response.data.meta.status == ok", &vars));
-        assert!(default_evaluate_condition("response.data.meta.count == 3", &vars));
+        assert!(default_evaluate_condition(
+            "response.data.meta.status == ok",
+            &vars
+        ));
+        assert!(default_evaluate_condition(
+            "response.data.meta.count == 3",
+            &vars
+        ));
         assert!(default_evaluate_condition("response.status == 200", &vars));
-        assert!(!default_evaluate_condition("response.data.meta.status == error", &vars));
+        assert!(!default_evaluate_condition(
+            "response.data.meta.status == error",
+            &vars
+        ));
     }
 
     #[test]
@@ -4337,8 +4394,14 @@ mod tests {
 
         // Array contains string literal
         assert!(default_evaluate_condition("tags contains \"rust\"", &vars));
-        assert!(default_evaluate_condition("tags contains \"praxis\"", &vars));
-        assert!(!default_evaluate_condition("tags contains \"python\"", &vars));
+        assert!(default_evaluate_condition(
+            "tags contains \"praxis\"",
+            &vars
+        ));
+        assert!(!default_evaluate_condition(
+            "tags contains \"python\"",
+            &vars
+        ));
 
         // Array contains via variable reference
         assert!(default_evaluate_condition("tags contains needle", &vars));
@@ -4355,9 +4418,18 @@ mod tests {
             ("sub".to_string(), json!("world")),
         ]);
 
-        assert!(default_evaluate_condition("message contains \"world\"", &vars));
-        assert!(default_evaluate_condition("message contains \"hello\"", &vars));
-        assert!(!default_evaluate_condition("message contains \"goodbye\"", &vars));
+        assert!(default_evaluate_condition(
+            "message contains \"world\"",
+            &vars
+        ));
+        assert!(default_evaluate_condition(
+            "message contains \"hello\"",
+            &vars
+        ));
+        assert!(!default_evaluate_condition(
+            "message contains \"goodbye\"",
+            &vars
+        ));
 
         // Contains with variable as substring
         assert!(default_evaluate_condition("message contains sub", &vars));
@@ -4428,14 +4500,29 @@ mod tests {
         ]);
 
         // Basic regex match
-        assert!(default_evaluate_condition(r#"email matches ".*@example\.com""#, &vars));
-        assert!(!default_evaluate_condition(r#"email matches ".*@other\.com""#, &vars));
+        assert!(default_evaluate_condition(
+            r#"email matches ".*@example\.com""#,
+            &vars
+        ));
+        assert!(!default_evaluate_condition(
+            r#"email matches ".*@other\.com""#,
+            &vars
+        ));
         // Version pattern
-        assert!(default_evaluate_condition(r#"version matches "^\d+\.\d+\.\d+$""#, &vars));
+        assert!(default_evaluate_condition(
+            r#"version matches "^\d+\.\d+\.\d+$""#,
+            &vars
+        ));
         // Character class
-        assert!(default_evaluate_condition(r#"name matches "^[a-z-]+$""#, &vars));
+        assert!(default_evaluate_condition(
+            r#"name matches "^[a-z-]+$""#,
+            &vars
+        ));
         // Invalid regex returns false (no panic)
-        assert!(!default_evaluate_condition(r#"name matches "[invalid""#, &vars));
+        assert!(!default_evaluate_condition(
+            r#"name matches "[invalid""#,
+            &vars
+        ));
     }
 
     #[test]
@@ -4445,9 +4532,18 @@ mod tests {
             ("status".to_string(), json!("error_timeout")),
         ]);
 
-        assert!(default_evaluate_condition(r#"path starts_with "/api/v2""#, &vars));
-        assert!(!default_evaluate_condition(r#"path starts_with "/admin""#, &vars));
-        assert!(default_evaluate_condition(r#"status starts_with "error""#, &vars));
+        assert!(default_evaluate_condition(
+            r#"path starts_with "/api/v2""#,
+            &vars
+        ));
+        assert!(!default_evaluate_condition(
+            r#"path starts_with "/admin""#,
+            &vars
+        ));
+        assert!(default_evaluate_condition(
+            r#"status starts_with "error""#,
+            &vars
+        ));
     }
 
     #[test]
@@ -4457,8 +4553,14 @@ mod tests {
             ("url".to_string(), json!("https://example.com/api")),
         ]);
 
-        assert!(default_evaluate_condition(r#"filename ends_with ".pdf""#, &vars));
-        assert!(!default_evaluate_condition(r#"filename ends_with ".txt""#, &vars));
+        assert!(default_evaluate_condition(
+            r#"filename ends_with ".pdf""#,
+            &vars
+        ));
+        assert!(!default_evaluate_condition(
+            r#"filename ends_with ".txt""#,
+            &vars
+        ));
         assert!(default_evaluate_condition(r#"url ends_with "/api""#, &vars));
     }
 
@@ -4580,10 +4682,7 @@ mod tests {
 
     #[test]
     fn bracket_indexing_with_operators() {
-        let vars = HashMap::from([(
-            "scores".to_string(),
-            json!([85, 92, 78, 95]),
-        )]);
+        let vars = HashMap::from([("scores".to_string(), json!([85, 92, 78, 95]))]);
 
         // Comparison operators with bracket indexing
         assert!(default_evaluate_condition("scores[0] > 80", &vars));
@@ -4796,7 +4895,10 @@ mod tests {
         let result = execute(&procedure, &handler).unwrap();
         assert!(result.success);
         // Succeeded on retry — catch was not reached
-        assert_eq!(result.variables.get("result"), Some(&json!("success_on_retry")));
+        assert_eq!(
+            result.variables.get("result"),
+            Some(&json!("success_on_retry"))
+        );
         // retry_count cleaned up
         assert!(!result.variables.contains_key("retry_count"));
         // error cleared
@@ -4828,7 +4930,10 @@ mod tests {
 
         let result = execute(&procedure, &handler).unwrap();
         assert!(result.success);
-        assert_eq!(result.step_results[0].output, Some(json!("caught_after_retries")));
+        assert_eq!(
+            result.step_results[0].output,
+            Some(json!("caught_after_retries"))
+        );
         // error variable was set before catch ran
         assert!(result.variables.contains_key("error"));
     }
@@ -4856,7 +4961,10 @@ mod tests {
         let result = execute(&procedure, &handler).unwrap();
         assert!(result.success);
         // Without retry field, catch runs immediately
-        assert_eq!(result.step_results[0].output, Some(json!("immediate_catch")));
+        assert_eq!(
+            result.step_results[0].output,
+            Some(json!("immediate_catch"))
+        );
     }
 
     #[test]
@@ -4908,7 +5016,11 @@ mod tests {
         assert!(result.success);
         assert_eq!(result.step_results[0].output, Some(json!("ok")));
         // Should have at least 20ms of delay (2 retries × 10ms each)
-        assert!(elapsed.as_millis() >= 18, "Expected >= 18ms, got {}ms", elapsed.as_millis());
+        assert!(
+            elapsed.as_millis() >= 18,
+            "Expected >= 18ms, got {}ms",
+            elapsed.as_millis()
+        );
     }
 
     #[test]
@@ -4961,7 +5073,11 @@ mod tests {
         assert!(result.success);
         assert_eq!(result.step_results[0].output, Some(json!("recovered")));
         // Exponential: 10 + 20 + 40 = 70ms for 3 retries
-        assert!(elapsed.as_millis() >= 60, "Expected >= 60ms exponential delay, got {}ms", elapsed.as_millis());
+        assert!(
+            elapsed.as_millis() >= 60,
+            "Expected >= 60ms exponential delay, got {}ms",
+            elapsed.as_millis()
+        );
     }
 
     #[test]
@@ -5015,9 +5131,17 @@ mod tests {
         assert!(result.success);
         assert_eq!(result.step_results[0].output, Some(json!("capped")));
         // Capped: 10 + 20 + 25 = 55ms (3rd would be 40 but capped at 25)
-        assert!(elapsed.as_millis() >= 45, "Expected >= 45ms capped delay, got {}ms", elapsed.as_millis());
+        assert!(
+            elapsed.as_millis() >= 45,
+            "Expected >= 45ms capped delay, got {}ms",
+            elapsed.as_millis()
+        );
         // Should NOT be as long as uncapped (10 + 20 + 40 = 70ms)
-        assert!(elapsed.as_millis() < 100, "Delay too long ({}ms) — max cap not working?", elapsed.as_millis());
+        assert!(
+            elapsed.as_millis() < 100,
+            "Delay too long ({}ms) — max cap not working?",
+            elapsed.as_millis()
+        );
     }
 
     #[test]
@@ -5065,7 +5189,10 @@ mod tests {
 
         let result = execute(&procedure, &handler).unwrap();
         assert!(result.success);
-        assert_eq!(result.step_results[0].output, Some(json!("jittered_success")));
+        assert_eq!(
+            result.step_results[0].output,
+            Some(json!("jittered_success"))
+        );
     }
 
     #[test]
@@ -5118,7 +5245,11 @@ mod tests {
 
         assert!(result.success);
         // Without jitter: 30 + 60 + 120 = 210ms. With jitter: [0,30] + [0,60] + [0,120] <= 210ms
-        assert!(elapsed.as_millis() <= 250, "Jitter delay too long: {}ms", elapsed.as_millis());
+        assert!(
+            elapsed.as_millis() <= 250,
+            "Jitter delay too long: {}ms",
+            elapsed.as_millis()
+        );
     }
 
     #[test]
@@ -5415,7 +5546,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("a".to_string(), json!(5));
         vars.insert("b".to_string(), json!(10));
-        let result = interpolate_string("${a > 0 ? b > 1 ? \"deep\" : \"shallow\" : \"negative\"}", &vars);
+        let result = interpolate_string(
+            "${a > 0 ? b > 1 ? \"deep\" : \"shallow\" : \"negative\"}",
+            &vars,
+        );
         assert_eq!(result, "deep");
     }
 
@@ -5424,7 +5558,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("a".to_string(), json!(5));
         vars.insert("b".to_string(), json!(0));
-        let result = interpolate_string("${a > 0 ? b > 1 ? \"deep\" : \"shallow\" : \"negative\"}", &vars);
+        let result = interpolate_string(
+            "${a > 0 ? b > 1 ? \"deep\" : \"shallow\" : \"negative\"}",
+            &vars,
+        );
         assert_eq!(result, "shallow");
     }
 
@@ -5433,7 +5570,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("a".to_string(), json!(-1));
         vars.insert("b".to_string(), json!(10));
-        let result = interpolate_string("${a > 0 ? b > 1 ? \"deep\" : \"shallow\" : \"negative\"}", &vars);
+        let result = interpolate_string(
+            "${a > 0 ? b > 1 ? \"deep\" : \"shallow\" : \"negative\"}",
+            &vars,
+        );
         assert_eq!(result, "negative");
     }
 
@@ -5443,7 +5583,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("a".to_string(), json!(-1));
         vars.insert("b".to_string(), json!(10));
-        let result = interpolate_string("${a > 0 ? \"positive\" : b > 5 ? \"big-neg\" : \"small-neg\"}", &vars);
+        let result = interpolate_string(
+            "${a > 0 ? \"positive\" : b > 5 ? \"big-neg\" : \"small-neg\"}",
+            &vars,
+        );
         assert_eq!(result, "big-neg");
     }
 
@@ -5452,7 +5595,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("a".to_string(), json!(-1));
         vars.insert("b".to_string(), json!(2));
-        let result = interpolate_string("${a > 0 ? \"positive\" : b > 5 ? \"big-neg\" : \"small-neg\"}", &vars);
+        let result = interpolate_string(
+            "${a > 0 ? \"positive\" : b > 5 ? \"big-neg\" : \"small-neg\"}",
+            &vars,
+        );
         assert_eq!(result, "small-neg");
     }
 
@@ -5649,15 +5795,24 @@ mod tests {
     fn test_condition_pipe_eq_uppercase() {
         let mut vars = HashMap::new();
         vars.insert("name".to_string(), json!("hello"));
-        assert!(default_evaluate_condition("name | uppercase == HELLO", &vars));
-        assert!(!default_evaluate_condition("name | uppercase == hello", &vars));
+        assert!(default_evaluate_condition(
+            "name | uppercase == HELLO",
+            &vars
+        ));
+        assert!(!default_evaluate_condition(
+            "name | uppercase == hello",
+            &vars
+        ));
     }
 
     #[test]
     fn test_condition_pipe_eq_lowercase() {
         let mut vars = HashMap::new();
         vars.insert("status".to_string(), json!("ACTIVE"));
-        assert!(default_evaluate_condition("status | lowercase == active", &vars));
+        assert!(default_evaluate_condition(
+            "status | lowercase == active",
+            &vars
+        ));
     }
 
     #[test]
@@ -5671,8 +5826,14 @@ mod tests {
     fn test_condition_pipe_ne() {
         let mut vars = HashMap::new();
         vars.insert("name".to_string(), json!("hello"));
-        assert!(default_evaluate_condition("name | uppercase != hello", &vars));
-        assert!(!default_evaluate_condition("name | uppercase != HELLO", &vars));
+        assert!(default_evaluate_condition(
+            "name | uppercase != hello",
+            &vars
+        ));
+        assert!(!default_evaluate_condition(
+            "name | uppercase != HELLO",
+            &vars
+        ));
     }
 
     #[test]
@@ -5763,7 +5924,10 @@ mod tests {
     fn test_condition_pipe_capitalize() {
         let mut vars = HashMap::new();
         vars.insert("name".to_string(), json!("hello"));
-        assert!(default_evaluate_condition("name | capitalize == Hello", &vars));
+        assert!(default_evaluate_condition(
+            "name | capitalize == Hello",
+            &vars
+        ));
     }
 
     #[test]
@@ -5838,10 +6002,22 @@ mod tests {
         vars.insert("greeting".to_string(), json!("hello world"));
         vars.insert("tags".to_string(), json!(["rust", "praxis", "radix"]));
 
-        assert!(default_evaluate_condition("contains(greeting, \"world\")", &vars));
-        assert!(!default_evaluate_condition("contains(greeting, \"foo\")", &vars));
-        assert!(default_evaluate_condition("contains(tags, \"rust\")", &vars));
-        assert!(!default_evaluate_condition("contains(tags, \"python\")", &vars));
+        assert!(default_evaluate_condition(
+            "contains(greeting, \"world\")",
+            &vars
+        ));
+        assert!(!default_evaluate_condition(
+            "contains(greeting, \"foo\")",
+            &vars
+        ));
+        assert!(default_evaluate_condition(
+            "contains(tags, \"rust\")",
+            &vars
+        ));
+        assert!(!default_evaluate_condition(
+            "contains(tags, \"python\")",
+            &vars
+        ));
     }
 
     #[test]
@@ -5849,10 +6025,22 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("path".to_string(), json!("/api/v2/users"));
 
-        assert!(default_evaluate_condition("starts_with(path, \"/api\")", &vars));
-        assert!(!default_evaluate_condition("starts_with(path, \"/web\")", &vars));
-        assert!(default_evaluate_condition("ends_with(path, \"users\")", &vars));
-        assert!(!default_evaluate_condition("ends_with(path, \"posts\")", &vars));
+        assert!(default_evaluate_condition(
+            "starts_with(path, \"/api\")",
+            &vars
+        ));
+        assert!(!default_evaluate_condition(
+            "starts_with(path, \"/web\")",
+            &vars
+        ));
+        assert!(default_evaluate_condition(
+            "ends_with(path, \"users\")",
+            &vars
+        ));
+        assert!(!default_evaluate_condition(
+            "ends_with(path, \"posts\")",
+            &vars
+        ));
     }
 
     #[test]
@@ -5861,7 +6049,10 @@ mod tests {
         vars.insert("input".to_string(), json!("  hello  "));
 
         assert!(default_evaluate_condition("trim(input) == hello", &vars));
-        assert!(!default_evaluate_condition("trim(input) == \"  hello  \"", &vars));
+        assert!(!default_evaluate_condition(
+            "trim(input) == \"  hello  \"",
+            &vars
+        ));
     }
 
     #[test]
@@ -5870,7 +6061,10 @@ mod tests {
         vars.insert("name".to_string(), json!("Hello"));
 
         assert!(default_evaluate_condition("upper(name) == HELLO", &vars));
-        assert!(default_evaluate_condition("lowercase(name) == hello", &vars));
+        assert!(default_evaluate_condition(
+            "lowercase(name) == hello",
+            &vars
+        ));
     }
 
     #[test]
@@ -5882,10 +6076,19 @@ mod tests {
         vars.insert("items".to_string(), json!([1, 2, 3]));
 
         assert!(default_evaluate_condition("type_of(name) == string", &vars));
-        assert!(default_evaluate_condition("type_of(count) == number", &vars));
-        assert!(default_evaluate_condition("type_of(flag) == boolean", &vars));
+        assert!(default_evaluate_condition(
+            "type_of(count) == number",
+            &vars
+        ));
+        assert!(default_evaluate_condition(
+            "type_of(flag) == boolean",
+            &vars
+        ));
         assert!(default_evaluate_condition("type_of(items) == array", &vars));
-        assert!(default_evaluate_condition("type_of(missing) == null", &vars));
+        assert!(default_evaluate_condition(
+            "type_of(missing) == null",
+            &vars
+        ));
     }
 
     #[test]
@@ -5894,9 +6097,18 @@ mod tests {
         vars.insert("name".to_string(), json!("world"));
         vars.insert("empty".to_string(), json!(""));
 
-        assert!(default_evaluate_condition("default(name, \"anon\") == world", &vars));
-        assert!(default_evaluate_condition("default(empty, \"anon\") == anon", &vars));
-        assert!(default_evaluate_condition("default(missing, \"anon\") == anon", &vars));
+        assert!(default_evaluate_condition(
+            "default(name, \"anon\") == world",
+            &vars
+        ));
+        assert!(default_evaluate_condition(
+            "default(empty, \"anon\") == anon",
+            &vars
+        ));
+        assert!(default_evaluate_condition(
+            "default(missing, \"anon\") == anon",
+            &vars
+        ));
     }
 
     #[test]
@@ -5906,9 +6118,18 @@ mod tests {
         vars.insert("name".to_string(), json!("admin"));
 
         // Combined with && and ||
-        assert!(default_evaluate_condition("len(items) > 2 && not_empty(name)", &vars));
-        assert!(default_evaluate_condition("is_empty(missing) || len(items) == 3", &vars));
-        assert!(!default_evaluate_condition("len(items) > 5 && not_empty(name)", &vars));
+        assert!(default_evaluate_condition(
+            "len(items) > 2 && not_empty(name)",
+            &vars
+        ));
+        assert!(default_evaluate_condition(
+            "is_empty(missing) || len(items) == 3",
+            &vars
+        ));
+        assert!(!default_evaluate_condition(
+            "len(items) > 5 && not_empty(name)",
+            &vars
+        ));
     }
 
     #[test]
@@ -5926,7 +6147,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("word".to_string(), json!("hello"));
 
-        assert!(default_evaluate_condition("capitalize(word) == Hello", &vars));
+        assert!(default_evaluate_condition(
+            "capitalize(word) == Hello",
+            &vars
+        ));
         assert!(default_evaluate_condition("reverse(word) == olleh", &vars));
     }
 
@@ -5937,7 +6161,10 @@ mod tests {
         vars.insert("offset".to_string(), json!(2));
 
         // len(items) + offset == 5
-        assert!(default_evaluate_condition("len(items) + offset == 5", &vars));
+        assert!(default_evaluate_condition(
+            "len(items) + offset == 5",
+            &vars
+        ));
     }
 
     // ===== Nested function call tests =====
@@ -5955,7 +6182,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("greeting".to_string(), json!("hi"));
         // len(upper(greeting)) == 2
-        assert!(default_evaluate_condition("len(upper(greeting)) == 2", &vars));
+        assert!(default_evaluate_condition(
+            "len(upper(greeting)) == 2",
+            &vars
+        ));
     }
 
     #[test]
@@ -5974,7 +6204,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("name".to_string(), json!(" world "));
         // upper(trim(name)) == "WORLD"
-        assert!(default_evaluate_condition(r#"upper(trim(name)) == "WORLD""#, &vars));
+        assert!(default_evaluate_condition(
+            r#"upper(trim(name)) == "WORLD""#,
+            &vars
+        ));
     }
 
     #[test]
@@ -5982,7 +6215,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("name".to_string(), json!(" HeLLo "));
         // lower(trim(name)) == "hello"
-        assert!(default_evaluate_condition(r#"lower(trim(name)) == "hello""#, &vars));
+        assert!(default_evaluate_condition(
+            r#"lower(trim(name)) == "hello""#,
+            &vars
+        ));
     }
 
     #[test]
@@ -5990,7 +6226,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("msg".to_string(), json!("Hello World"));
         // contains(lower(msg), "hello") should be true
-        assert!(default_evaluate_condition(r#"contains(lower(msg), "hello")"#, &vars));
+        assert!(default_evaluate_condition(
+            r#"contains(lower(msg), "hello")"#,
+            &vars
+        ));
     }
 
     #[test]
@@ -5998,7 +6237,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("path".to_string(), json!("  /api/v1/users"));
         // starts_with(trim(path), "/api") should be true
-        assert!(default_evaluate_condition(r#"starts_with(trim(path), "/api")"#, &vars));
+        assert!(default_evaluate_condition(
+            r#"starts_with(trim(path), "/api")"#,
+            &vars
+        ));
     }
 
     #[test]
@@ -6006,7 +6248,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("val".to_string(), json!(" Hello "));
         // len(lower(trim(val))) == 5 (trim->"Hello", lower->"hello", len->5)
-        assert!(default_evaluate_condition("len(lower(trim(val))) == 5", &vars));
+        assert!(default_evaluate_condition(
+            "len(lower(trim(val))) == 5",
+            &vars
+        ));
     }
 
     #[test]
@@ -6025,7 +6270,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("x".to_string(), json!("  42  "));
         // type_of(trim(x)) == "string" (trim returns a string)
-        assert!(default_evaluate_condition(r#"type_of(trim(x)) == "string""#, &vars));
+        assert!(default_evaluate_condition(
+            r#"type_of(trim(x)) == "string""#,
+            &vars
+        ));
     }
 
     #[test]
@@ -6033,7 +6281,10 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("name".to_string(), json!("JOHN"));
         // capitalize(lower(name)) == "John"
-        assert!(default_evaluate_condition(r#"capitalize(lower(name)) == "John""#, &vars));
+        assert!(default_evaluate_condition(
+            r#"capitalize(lower(name)) == "John""#,
+            &vars
+        ));
     }
 
     #[test]
@@ -6553,7 +6804,10 @@ mod tests {
     fn test_match_expr_range_exclusive() {
         let mut vars = HashMap::new();
         vars.insert("age".to_string(), json!(3));
-        let result = try_match_expr(r#"match age { 1..5 => "child", 5..18 => "teen", _ => "adult" }"#, &vars);
+        let result = try_match_expr(
+            r#"match age { 1..5 => "child", 5..18 => "teen", _ => "adult" }"#,
+            &vars,
+        );
         assert_eq!(result, Some("child".to_string()));
     }
 
@@ -6562,7 +6816,10 @@ mod tests {
         let mut vars = HashMap::new();
         // 5 should NOT match 1..5 (exclusive end), should match 5..18
         vars.insert("age".to_string(), json!(5));
-        let result = try_match_expr(r#"match age { 1..5 => "child", 5..18 => "teen", _ => "adult" }"#, &vars);
+        let result = try_match_expr(
+            r#"match age { 1..5 => "child", 5..18 => "teen", _ => "adult" }"#,
+            &vars,
+        );
         assert_eq!(result, Some("teen".to_string()));
     }
 
@@ -6570,7 +6827,10 @@ mod tests {
     fn test_match_expr_range_inclusive() {
         let mut vars = HashMap::new();
         vars.insert("score".to_string(), json!(100));
-        let result = try_match_expr(r#"match score { 0..=59 => "fail", 60..=100 => "pass", _ => "invalid" }"#, &vars);
+        let result = try_match_expr(
+            r#"match score { 0..=59 => "fail", 60..=100 => "pass", _ => "invalid" }"#,
+            &vars,
+        );
         assert_eq!(result, Some("pass".to_string()));
     }
 
@@ -6578,7 +6838,10 @@ mod tests {
     fn test_match_expr_range_inclusive_boundary() {
         let mut vars = HashMap::new();
         vars.insert("score".to_string(), json!(59));
-        let result = try_match_expr(r#"match score { 0..=59 => "fail", 60..=100 => "pass", _ => "invalid" }"#, &vars);
+        let result = try_match_expr(
+            r#"match score { 0..=59 => "fail", 60..=100 => "pass", _ => "invalid" }"#,
+            &vars,
+        );
         assert_eq!(result, Some("fail".to_string()));
     }
 
@@ -6603,7 +6866,10 @@ mod tests {
     fn test_match_expr_range_float() {
         let mut vars = HashMap::new();
         vars.insert("temp".to_string(), json!(36.6));
-        let result = try_match_expr(r#"match temp { 35.0..=37.5 => "normal", _ => "abnormal" }"#, &vars);
+        let result = try_match_expr(
+            r#"match temp { 35.0..=37.5 => "normal", _ => "abnormal" }"#,
+            &vars,
+        );
         assert_eq!(result, Some("normal".to_string()));
     }
 
@@ -6857,7 +7123,10 @@ mod tests {
             ("_", Some("enabled == \"true\""))
         );
         // "if" inside quotes should NOT be detected as guard
-        assert_eq!(extract_guard("\"check if ready\""), ("\"check if ready\"", None));
+        assert_eq!(
+            extract_guard("\"check if ready\""),
+            ("\"check if ready\"", None)
+        );
     }
 
     // ── Tuple Destructuring Tests ───────────────────────────────────────────────
@@ -6865,36 +7134,57 @@ mod tests {
     #[test]
     fn test_tuple_pattern_basic_string_match() {
         let vars = HashMap::new();
-        let subject = Value::Array(vec![Value::String("error".into()), Value::Number(500.into())]);
-        assert_eq!(try_tuple_pattern(r#"("error", 500)"#, &subject, &vars).map(|(m, _)| m), Some(true));
+        let subject = Value::Array(vec![
+            Value::String("error".into()),
+            Value::Number(500.into()),
+        ]);
+        assert_eq!(
+            try_tuple_pattern(r#"("error", 500)"#, &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
     }
 
     #[test]
     fn test_tuple_pattern_no_match() {
         let vars = HashMap::new();
         let subject = Value::Array(vec![Value::String("ok".into()), Value::Number(200.into())]);
-        assert_eq!(try_tuple_pattern(r#"("error", 500)"#, &subject, &vars).map(|(m, _)| m), Some(false));
+        assert_eq!(
+            try_tuple_pattern(r#"("error", 500)"#, &subject, &vars).map(|(m, _)| m),
+            Some(false)
+        );
     }
 
     #[test]
     fn test_tuple_pattern_wildcard() {
         let vars = HashMap::new();
-        let subject = Value::Array(vec![Value::String("error".into()), Value::Number(500.into())]);
-        assert_eq!(try_tuple_pattern(r#"("error", _)"#, &subject, &vars).map(|(m, _)| m), Some(true));
+        let subject = Value::Array(vec![
+            Value::String("error".into()),
+            Value::Number(500.into()),
+        ]);
+        assert_eq!(
+            try_tuple_pattern(r#"("error", _)"#, &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
     }
 
     #[test]
     fn test_tuple_pattern_all_wildcards() {
         let vars = HashMap::new();
         let subject = Value::Array(vec![Value::String("anything".into()), Value::Bool(true)]);
-        assert_eq!(try_tuple_pattern("(_, _)", &subject, &vars).map(|(m, _)| m), Some(true));
+        assert_eq!(
+            try_tuple_pattern("(_, _)", &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
     }
 
     #[test]
     fn test_tuple_pattern_length_mismatch() {
         let vars = HashMap::new();
         let subject = Value::Array(vec![Value::String("a".into())]);
-        assert_eq!(try_tuple_pattern(r#"("a", "b")"#, &subject, &vars).map(|(m, _)| m), Some(false));
+        assert_eq!(
+            try_tuple_pattern(r#"("a", "b")"#, &subject, &vars).map(|(m, _)| m),
+            Some(false)
+        );
     }
 
     #[test]
@@ -6902,7 +7192,10 @@ mod tests {
         let vars = HashMap::new();
         let subject = Value::String("hello".into());
         // Pattern starts with ( but subject is not an array
-        assert_eq!(try_tuple_pattern("(\"hello\")", &subject, &vars).map(|(m, _)| m), Some(false));
+        assert_eq!(
+            try_tuple_pattern("(\"hello\")", &subject, &vars).map(|(m, _)| m),
+            Some(false)
+        );
     }
 
     #[test]
@@ -6917,29 +7210,50 @@ mod tests {
     fn test_tuple_pattern_with_variable() {
         let mut vars = HashMap::new();
         vars.insert("code".into(), Value::Number(404.into()));
-        let subject = Value::Array(vec![Value::String("error".into()), Value::Number(404.into())]);
-        assert_eq!(try_tuple_pattern(r#"("error", $code)"#, &subject, &vars).map(|(m, _)| m), Some(true));
+        let subject = Value::Array(vec![
+            Value::String("error".into()),
+            Value::Number(404.into()),
+        ]);
+        assert_eq!(
+            try_tuple_pattern(r#"("error", $code)"#, &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
     }
 
     #[test]
     fn test_tuple_pattern_with_boolean() {
         let vars = HashMap::new();
         let subject = Value::Array(vec![Value::String("flag".into()), Value::Bool(true)]);
-        assert_eq!(try_tuple_pattern(r#"("flag", true)"#, &subject, &vars).map(|(m, _)| m), Some(true));
-        assert_eq!(try_tuple_pattern(r#"("flag", false)"#, &subject, &vars).map(|(m, _)| m), Some(false));
+        assert_eq!(
+            try_tuple_pattern(r#"("flag", true)"#, &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
+        assert_eq!(
+            try_tuple_pattern(r#"("flag", false)"#, &subject, &vars).map(|(m, _)| m),
+            Some(false)
+        );
     }
 
     #[test]
     fn test_tuple_pattern_with_null() {
         let vars = HashMap::new();
         let subject = Value::Array(vec![Value::String("x".into()), Value::Null]);
-        assert_eq!(try_tuple_pattern(r#"("x", null)"#, &subject, &vars).map(|(m, _)| m), Some(true));
+        assert_eq!(
+            try_tuple_pattern(r#"("x", null)"#, &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
     }
 
     #[test]
     fn test_tuple_pattern_in_match_expr() {
         let mut vars = HashMap::new();
-        vars.insert("pair".into(), Value::Array(vec![Value::String("error".into()), Value::Number(500.into())]));
+        vars.insert(
+            "pair".into(),
+            Value::Array(vec![
+                Value::String("error".into()),
+                Value::Number(500.into()),
+            ]),
+        );
         let expr = r#"match $pair { ("error", 500) => "server_error", ("error", 404) => "not_found", _ => "unknown" }"#;
         let result = try_match_expr(expr, &vars);
         assert_eq!(result, Some("server_error".to_string()));
@@ -6948,8 +7262,12 @@ mod tests {
     #[test]
     fn test_tuple_pattern_in_match_expr_wildcard_arm() {
         let mut vars = HashMap::new();
-        vars.insert("pair".into(), Value::Array(vec![Value::String("ok".into()), Value::Number(200.into())]));
-        let expr = r#"match $pair { ("error", _) => "failed", ("ok", _) => "success", _ => "unknown" }"#;
+        vars.insert(
+            "pair".into(),
+            Value::Array(vec![Value::String("ok".into()), Value::Number(200.into())]),
+        );
+        let expr =
+            r#"match $pair { ("error", _) => "failed", ("ok", _) => "success", _ => "unknown" }"#;
         let result = try_match_expr(expr, &vars);
         assert_eq!(result, Some("success".to_string()));
     }
@@ -6957,11 +7275,14 @@ mod tests {
     #[test]
     fn test_tuple_pattern_three_elements() {
         let mut vars = HashMap::new();
-        vars.insert("triple".into(), Value::Array(vec![
-            Value::String("deploy".into()),
-            Value::String("prod".into()),
-            Value::Number(3.into()),
-        ]));
+        vars.insert(
+            "triple".into(),
+            Value::Array(vec![
+                Value::String("deploy".into()),
+                Value::String("prod".into()),
+                Value::Number(3.into()),
+            ]),
+        );
         let expr = r#"match $triple { ("deploy", "prod", 3) => "full_prod", ("deploy", "staging", _) => "staging", _ => "other" }"#;
         let result = try_match_expr(expr, &vars);
         assert_eq!(result, Some("full_prod".to_string()));
@@ -6973,28 +7294,40 @@ mod tests {
     fn test_struct_pattern_basic_match() {
         let subject = json!({"kind": "error", "code": 500});
         let vars = HashMap::new();
-        assert_eq!(try_struct_pattern(r#"{kind: "error", code: 500}"#, &subject, &vars).map(|(m, _)| m), Some(true));
+        assert_eq!(
+            try_struct_pattern(r#"{kind: "error", code: 500}"#, &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
     }
 
     #[test]
     fn test_struct_pattern_no_match() {
         let subject = json!({"kind": "error", "code": 404});
         let vars = HashMap::new();
-        assert_eq!(try_struct_pattern(r#"{kind: "error", code: 500}"#, &subject, &vars).map(|(m, _)| m), Some(false));
+        assert_eq!(
+            try_struct_pattern(r#"{kind: "error", code: 500}"#, &subject, &vars).map(|(m, _)| m),
+            Some(false)
+        );
     }
 
     #[test]
     fn test_struct_pattern_wildcard() {
         let subject = json!({"kind": "error", "code": 500, "msg": "internal"});
         let vars = HashMap::new();
-        assert_eq!(try_struct_pattern(r#"{kind: "error", code: _}"#, &subject, &vars).map(|(m, _)| m), Some(true));
+        assert_eq!(
+            try_struct_pattern(r#"{kind: "error", code: _}"#, &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
     }
 
     #[test]
     fn test_struct_pattern_missing_field() {
         let subject = json!({"kind": "error"});
         let vars = HashMap::new();
-        assert_eq!(try_struct_pattern(r#"{kind: "error", code: 500}"#, &subject, &vars).map(|(m, _)| m), Some(false));
+        assert_eq!(
+            try_struct_pattern(r#"{kind: "error", code: 500}"#, &subject, &vars).map(|(m, _)| m),
+            Some(false)
+        );
     }
 
     #[test]
@@ -7002,7 +7335,10 @@ mod tests {
         // Pattern doesn't need to cover all fields
         let subject = json!({"kind": "error", "code": 500, "msg": "internal", "retryable": true});
         let vars = HashMap::new();
-        assert_eq!(try_struct_pattern(r#"{kind: "error"}"#, &subject, &vars).map(|(m, _)| m), Some(true));
+        assert_eq!(
+            try_struct_pattern(r#"{kind: "error"}"#, &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
     }
 
     #[test]
@@ -7010,14 +7346,20 @@ mod tests {
         // Empty struct pattern matches any object
         let subject = json!({"anything": 42});
         let vars = HashMap::new();
-        assert_eq!(try_struct_pattern("{}", &subject, &vars).map(|(m, _)| m), Some(true));
+        assert_eq!(
+            try_struct_pattern("{}", &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
     }
 
     #[test]
     fn test_struct_pattern_not_an_object() {
         let subject = json!([1, 2, 3]);
         let vars = HashMap::new();
-        assert_eq!(try_struct_pattern(r#"{kind: "error"}"#, &subject, &vars).map(|(m, _)| m), Some(false));
+        assert_eq!(
+            try_struct_pattern(r#"{kind: "error"}"#, &subject, &vars).map(|(m, _)| m),
+            Some(false)
+        );
     }
 
     #[test]
@@ -7032,8 +7374,14 @@ mod tests {
     fn test_struct_pattern_boolean_and_null() {
         let subject = json!({"active": true, "deleted": null});
         let vars = HashMap::new();
-        assert_eq!(try_struct_pattern("{active: true, deleted: null}", &subject, &vars).map(|(m, _)| m), Some(true));
-        assert_eq!(try_struct_pattern("{active: false}", &subject, &vars).map(|(m, _)| m), Some(false));
+        assert_eq!(
+            try_struct_pattern("{active: true, deleted: null}", &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
+        assert_eq!(
+            try_struct_pattern("{active: false}", &subject, &vars).map(|(m, _)| m),
+            Some(false)
+        );
     }
 
     #[test]
@@ -7041,23 +7389,38 @@ mod tests {
         let subject = json!({"status": "active"});
         let mut vars = HashMap::new();
         vars.insert("expected_status".into(), Value::String("active".into()));
-        assert_eq!(try_struct_pattern("{status: $expected_status}", &subject, &vars).map(|(m, _)| m), Some(true));
+        assert_eq!(
+            try_struct_pattern("{status: $expected_status}", &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
     }
 
     #[test]
     fn test_struct_pattern_nested_struct() {
         let subject = json!({"outer": {"inner": "deep"}});
         let vars = HashMap::new();
-        assert_eq!(try_struct_pattern(r#"{outer: {inner: "deep"}}"#, &subject, &vars).map(|(m, _)| m), Some(true));
-        assert_eq!(try_struct_pattern(r#"{outer: {inner: "wrong"}}"#, &subject, &vars).map(|(m, _)| m), Some(false));
+        assert_eq!(
+            try_struct_pattern(r#"{outer: {inner: "deep"}}"#, &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
+        assert_eq!(
+            try_struct_pattern(r#"{outer: {inner: "wrong"}}"#, &subject, &vars).map(|(m, _)| m),
+            Some(false)
+        );
     }
 
     #[test]
     fn test_struct_pattern_nested_tuple() {
         let subject = json!({"coords": [1, 2]});
         let vars = HashMap::new();
-        assert_eq!(try_struct_pattern("{coords: (1, 2)}", &subject, &vars).map(|(m, _)| m), Some(true));
-        assert_eq!(try_struct_pattern("{coords: (1, 9)}", &subject, &vars).map(|(m, _)| m), Some(false));
+        assert_eq!(
+            try_struct_pattern("{coords: (1, 2)}", &subject, &vars).map(|(m, _)| m),
+            Some(true)
+        );
+        assert_eq!(
+            try_struct_pattern("{coords: (1, 9)}", &subject, &vars).map(|(m, _)| m),
+            Some(false)
+        );
     }
 
     #[test]
@@ -7090,7 +7453,10 @@ mod tests {
     #[test]
     fn test_struct_pattern_with_guard() {
         let mut vars = HashMap::new();
-        vars.insert("event".into(), json!({"kind": "error", "code": 500, "retryable": true}));
+        vars.insert(
+            "event".into(),
+            json!({"kind": "error", "code": 500, "retryable": true}),
+        );
         vars.insert("should_retry".into(), Value::Bool(true));
         let expr = r#"match $event { {kind: "error"} if $should_retry => "retry", {kind: "error"} => "fail", _ => "ok" }"#;
         let result = try_match_expr(expr, &vars);
@@ -7136,7 +7502,10 @@ mod tests {
 
     #[test]
     fn test_tuple_binding_captures_value() {
-        let subject = Value::Array(vec![Value::String("error".into()), Value::Number(404.into())]);
+        let subject = Value::Array(vec![
+            Value::String("error".into()),
+            Value::Number(404.into()),
+        ]);
         let vars = HashMap::new();
         let result = try_tuple_pattern(r#"("error", $code)"#, &subject, &vars);
         let (matched, bindings) = result.unwrap();
@@ -7155,7 +7524,10 @@ mod tests {
         let result = try_tuple_pattern("($action, $env, $count)", &subject, &vars);
         let (matched, bindings) = result.unwrap();
         assert!(matched);
-        assert_eq!(bindings.get("action"), Some(&Value::String("deploy".into())));
+        assert_eq!(
+            bindings.get("action"),
+            Some(&Value::String("deploy".into()))
+        );
         assert_eq!(bindings.get("env"), Some(&Value::String("prod".into())));
         assert_eq!(bindings.get("count"), Some(&json!(3)));
     }
@@ -7226,7 +7598,10 @@ mod tests {
         let result = try_struct_pattern(r#"{outer: {inner: $val}}"#, &subject, &vars);
         let (matched, bindings) = result.unwrap();
         assert!(matched);
-        assert_eq!(bindings.get("val"), Some(&Value::String("deep_value".into())));
+        assert_eq!(
+            bindings.get("val"),
+            Some(&Value::String("deep_value".into()))
+        );
     }
 
     #[test]
@@ -7287,8 +7662,12 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("active".to_string(), json!(true));
         vars.insert("name".to_string(), json!("Alice"));
-        let result = try_ternary_expr(r#"active == true ? "Hello, ${name}!" : "Goodbye"
-"#.trim(), &vars);
+        let result = try_ternary_expr(
+            r#"active == true ? "Hello, ${name}!" : "Goodbye"
+"#
+            .trim(),
+            &vars,
+        );
         assert_eq!(result, Some("Hello, Alice!".to_string()));
     }
 

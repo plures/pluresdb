@@ -1,0 +1,18 @@
+fact run_state:
+  status: string
+
+rule ready_to_run:
+  priority: 5
+  when:
+    - run_state.status == "ready"
+  then:
+    - action: mark_ready key: "run:ready" value: "yes"
+
+procedure pipeline:
+  trigger: manual
+  get_items {} -> $items
+  loop over $items as item -> $results:
+    transform {val: $item}
+  end
+  emit {type: "complete", count: 3}
+  return $results
