@@ -361,11 +361,7 @@ fn parse_structured_predicate(text: &str) -> Option<Condition> {
 /// Returns `false` (reject the whole predicate) if the expression mixes `and`
 /// with `or`, or contains an operand that is not itself a simple comparison or
 /// a same-joiner logic node. `Paren` is transparent.
-fn flatten_predicate(
-    expr: &Expr,
-    out: &mut Vec<Condition>,
-    joiner: &mut Option<Logic>,
-) -> bool {
+fn flatten_predicate(expr: &Expr, out: &mut Vec<Condition>, joiner: &mut Option<Logic>) -> bool {
     match expr {
         Expr::Paren(inner) => flatten_predicate(inner, out, joiner),
         Expr::Binary { left, op, right } => {
@@ -847,10 +843,7 @@ mod tests {
             "require must be a real predicate, not Always"
         );
         assert!(blocks(&c, &ctx_amount(500)), "amount=500 must be blocked");
-        assert!(
-            !blocks(&c, &ctx_amount(50)),
-            "amount=50 must pass"
-        );
+        assert!(!blocks(&c, &ctx_amount(50)), "amount=50 must pass");
         // Boundary: <= is inclusive, so amount=100 passes.
         assert!(
             !blocks(&c, &ctx_amount(100)),
@@ -896,7 +889,8 @@ mod tests {
     fn compile_nl_ge_inclusive() {
         // `>= 3`  ≡  !(x < 3): 3 and 4 pass, 2 blocked.
         let c = compile_nl("level >= 3", "C-GE");
-        let mk = |n: i64| AgentContext::new("a", "b", SessionType::Main).with_meta("level", json!(n));
+        let mk =
+            |n: i64| AgentContext::new("a", "b", SessionType::Main).with_meta("level", json!(n));
         assert!(!blocks(&c, &mk(4)), "4 passes >= 3");
         assert!(!blocks(&c, &mk(3)), "3 passes >= 3 (inclusive)");
         assert!(blocks(&c, &mk(2)), "2 violates >= 3");
@@ -951,7 +945,10 @@ mod tests {
 
     #[test]
     fn compile_nl_must_keyword_sets_error_severity() {
-        let c = compile_nl("place_trade actions must have metadata.amount <= 100", "C-SEV");
+        let c = compile_nl(
+            "place_trade actions must have metadata.amount <= 100",
+            "C-SEV",
+        );
         // "must" => Error severity; predicate still parses from the tail.
         assert_eq!(c.severity, Severity::Error);
     }
@@ -996,13 +993,19 @@ mod tests {
     #[test]
     fn regression_dollar_500_trade_actually_blocks() {
         // The canonical motivating example from the task definition.
-        let c = compile_nl("place_trade actions must have metadata.amount <= 100", "C-TRADE");
+        let c = compile_nl(
+            "place_trade actions must have metadata.amount <= 100",
+            "C-TRADE",
+        );
         // The sentence form falls through to the inert path (not a bare expr),
         // so we also assert the BARE predicate form (the supported syntax) blocks.
         let bare = compile_nl("metadata.amount <= 100", "C-TRADE2");
         let ctx500 = AgentContext::new("place_trade", "market", SessionType::Main)
             .with_meta("amount", json!(500));
-        assert!(blocks(&bare, &ctx500), "$500 trade must be blocked by the real predicate");
+        assert!(
+            blocks(&bare, &ctx500),
+            "$500 trade must be blocked by the real predicate"
+        );
         // And the sentence form is at least honestly flagged, not a fake guard.
         assert!(
             matches!(c.require, Condition::Always) == c.description.starts_with(UNPARSED_MARKER),

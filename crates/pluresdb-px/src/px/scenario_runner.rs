@@ -472,10 +472,7 @@ fn execute_step(
     handler: &dyn ActionHandler,
     vars: &mut HashMap<String, Value>,
 ) -> Result<Value, ExecutionError> {
-    let kind = step
-        .get("kind")
-        .and_then(|v| v.as_str())
-        .unwrap_or("call");
+    let kind = step.get("kind").and_then(|v| v.as_str()).unwrap_or("call");
 
     match kind {
         "call" => {
@@ -526,10 +523,7 @@ fn execute_step(
         }
         _ => {
             // Treat unknown kinds as calls
-            let name = step
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or(kind);
+            let name = step.get("name").and_then(|v| v.as_str()).unwrap_or(kind);
             let params = step.get("params").cloned().unwrap_or(Value::Null);
             let resolved_params = resolve_vars(&params, vars);
             let output = handler.call(name, &resolved_params)?;
@@ -757,7 +751,11 @@ mod tests {
         };
 
         let result = BuiltinChecker
-            .check("constraint_violated", &json!({"name": "ttl_positive"}), &state)
+            .check(
+                "constraint_violated",
+                &json!({"name": "ttl_positive"}),
+                &state,
+            )
             .unwrap();
         assert!(result);
 

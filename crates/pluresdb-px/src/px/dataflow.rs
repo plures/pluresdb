@@ -137,9 +137,19 @@ impl Default for DataflowConfig {
 /// Error types for dataflow operations.
 #[derive(Debug, Clone)]
 pub enum DataflowError {
-    DepthLimitExceeded { depth: u32, max: u32 },
-    QueueFull { queue: String, length: usize, max: usize },
-    ProcedureError { procedure: String, message: String },
+    DepthLimitExceeded {
+        depth: u32,
+        max: u32,
+    },
+    QueueFull {
+        queue: String,
+        length: usize,
+        max: usize,
+    },
+    ProcedureError {
+        procedure: String,
+        message: String,
+    },
     NoSuchQueue(String),
     ValidationError(String),
 }
@@ -148,7 +158,10 @@ impl std::fmt::Display for DataflowError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DepthLimitExceeded { depth, max } => {
-                write!(f, "depth limit exceeded: datum at depth {depth} exceeds max {max}")
+                write!(
+                    f,
+                    "depth limit exceeded: datum at depth {depth} exceeds max {max}"
+                )
             }
             Self::QueueFull { queue, length, max } => {
                 write!(f, "queue full: {queue} has {length} items (max {max})")
@@ -446,7 +459,10 @@ impl DataflowGraph {
     }
 
     pub fn queue_stats(&self) -> HashMap<&str, usize> {
-        self.queues.iter().map(|(k, q)| (k.as_str(), q.len())).collect()
+        self.queues
+            .iter()
+            .map(|(k, q)| (k.as_str(), q.len()))
+            .collect()
     }
 }
 
@@ -707,9 +723,7 @@ pub fn ast_to_node(proc: &px_ast::DataflowProcedureDecl) -> ProcedureNode {
     // dataflow graph runs v1 step lists, so for a code-block body the node
     // carries an empty step list here (the code path is a documented follow-up).
     let steps: Vec<Value> = match &proc.body {
-        px_ast::ProcedureBody::Steps(s) => {
-            s.iter().map(super::compiler::step_to_json).collect()
-        }
+        px_ast::ProcedureBody::Steps(s) => s.iter().map(super::compiler::step_to_json).collect(),
         px_ast::ProcedureBody::Code(_) => Vec::new(),
     };
 
@@ -787,13 +801,21 @@ mod tests {
 
         assert!(graph.ready_procedures().is_empty());
 
-        graph.push("inbound", Datum::root(json!("What is Rust?"))).unwrap();
+        graph
+            .push("inbound", Datum::root(json!("What is Rust?")))
+            .unwrap();
         assert_eq!(graph.ready_procedures(), vec!["classify"]);
 
         let fired = graph.run_to_completion(&EchoHandler).unwrap();
         assert_eq!(fired, 1);
 
-        let datum = graph.queues.get("classification").unwrap().items.front().unwrap();
+        let datum = graph
+            .queues
+            .get("classification")
+            .unwrap()
+            .items
+            .front()
+            .unwrap();
         assert_eq!(datum.depth, 1);
         assert_eq!(datum.lineage, vec!["classify"]);
     }
@@ -855,7 +877,13 @@ mod tests {
         let fired = graph.step(&EchoHandler).unwrap();
         assert_eq!(fired, 1);
 
-        let resp = graph.queues.get("model_response").unwrap().items.front().unwrap();
+        let resp = graph
+            .queues
+            .get("model_response")
+            .unwrap()
+            .items
+            .front()
+            .unwrap();
         assert_eq!(resp.depth, 2);
         assert_eq!(resp.lineage, vec!["classify", "invoke_model"]);
     }
@@ -1051,7 +1079,9 @@ procedure classify_message(message: string from "inbound") -> classification int
         // Register and run
         let mut graph = DataflowGraph::new();
         graph.register(node).unwrap();
-        graph.push("inbound", Datum::root(json!("Hello world"))).unwrap();
+        graph
+            .push("inbound", Datum::root(json!("Hello world")))
+            .unwrap();
 
         let fired = graph.run_to_completion(&EchoHandler).unwrap();
         assert_eq!(fired, 1);

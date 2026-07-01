@@ -209,7 +209,11 @@ fn resolve_recursive(
         visited.insert(canonical);
 
         // Merge the resolved imported document into our merged doc
-        merge_document(&mut merged, &child_resolved.document, import_alias.as_deref());
+        merge_document(
+            &mut merged,
+            &child_resolved.document,
+            import_alias.as_deref(),
+        );
         resolved_paths.push(resolved_path);
         resolved_paths.extend(child_resolved.resolved_paths);
     }

@@ -121,7 +121,11 @@ fn px_constraint_to_schema(pc: &PxAstConstraintDecl) -> PxConstraint {
     // one the executor's condition parser round-trips), then compile through the
     // real grammar-backed `compile_nl` path so `require: amount <= 100` actually
     // blocks `amount = 500`.
-    let require_src = pc.require.as_ref().map(px_expr_to_string).unwrap_or_default();
+    let require_src = pc
+        .require
+        .as_ref()
+        .map(px_expr_to_string)
+        .unwrap_or_default();
     let mut constraint = px_procedures::compile_nl(&require_src, pc.name.name.clone());
 
     // Honor the explicitly declared severity from the .px source (typed enum).
@@ -861,7 +865,10 @@ impl PluresDatabase {
                     .map_err(|e| map_node_error(CoreErrorCode::SerializationError.as_str(), e))?;
                 Ok(serde_json::json!({ "violations": value }))
             }
-            Err(blocked) => Err(map_node_error(CoreErrorCode::InvalidInput.as_str(), blocked)),
+            Err(blocked) => Err(map_node_error(
+                CoreErrorCode::InvalidInput.as_str(),
+                blocked,
+            )),
         }
     }
 
@@ -956,9 +963,7 @@ impl PluresDatabase {
                 .publish(SyncEvent::NodeDelete {
                     id: constraint_id.clone(),
                 })
-                .map_err(|e| {
-                    map_node_error(SyncErrorCode::BroadcastPublishFailed.as_str(), e)
-                })?;
+                .map_err(|e| map_node_error(SyncErrorCode::BroadcastPublishFailed.as_str(), e))?;
         }
         serde_json::to_value(&removed)
             .map_err(|e| map_node_error(CoreErrorCode::SerializationError.as_str(), e))

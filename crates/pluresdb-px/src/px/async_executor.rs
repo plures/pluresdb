@@ -448,10 +448,7 @@ async fn execute_try_async(
 
     let catch_steps = step.get("catch").and_then(|v| v.as_array());
 
-    let max_retries = step
-        .get("retry")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
+    let max_retries = step.get("retry").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
 
     let retry_delay_ms = step
         .get("retry_delay_ms")
@@ -612,9 +609,7 @@ async fn execute_parallel_async(
     let output_var = step.get("output_var").and_then(|v| v.as_str());
 
     // Step-level timeout applies to all branches as a group.
-    let step_timeout_ms = step
-        .get("timeout_ms")
-        .and_then(|v| v.as_u64());
+    let step_timeout_ms = step.get("timeout_ms").and_then(|v| v.as_u64());
 
     // Fail strategy: "fast" (default) aborts on first error, "complete" collects all.
     let fail_strategy = step
@@ -639,15 +634,10 @@ async fn execute_parallel_async(
                 .cloned()
                 .unwrap_or_default();
 
-            let branch_timeout_ms = branch
-                .get("timeout_ms")
-                .and_then(|v| v.as_u64());
+            let branch_timeout_ms = branch.get("timeout_ms").and_then(|v| v.as_u64());
 
             // Per-branch retry configuration
-            let branch_retry = branch
-                .get("retry")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0) as usize;
+            let branch_retry = branch.get("retry").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
             let branch_retry_delay_ms = branch
                 .get("retry_delay_ms")
                 .and_then(|v| v.as_u64())
@@ -713,10 +703,8 @@ async fn execute_parallel_async(
                             tokio::time::sleep(Duration::from_millis(delay)).await;
                         }
 
-                        branch_vars.insert(
-                            "retry_count".to_string(),
-                            Value::Number(attempt.into()),
-                        );
+                        branch_vars
+                            .insert("retry_count".to_string(), Value::Number(attempt.into()));
 
                         let mut attempt_vars = branch_vars.clone();
                         let mut last_output = Value::Null;
@@ -806,10 +794,7 @@ async fn execute_parallel_async(
                     ExecutionError::ActionFailed { action, .. } => action.clone(),
                     _ => "unknown".to_string(),
                 };
-                results_map.insert(
-                    error_name,
-                    Value::String(format!("error: {}", e)),
-                );
+                results_map.insert(error_name, Value::String(format!("error: {}", e)));
             }
         }
     }
@@ -1517,7 +1502,10 @@ mod tests {
 
         let result = execute_async(&procedure, &handler).await.unwrap();
         assert!(result.success);
-        assert_eq!(result.variables.get("result"), Some(&json!("success_on_retry")));
+        assert_eq!(
+            result.variables.get("result"),
+            Some(&json!("success_on_retry"))
+        );
         assert!(!result.variables.contains_key("retry_count"));
         assert!(!result.variables.contains_key("error"));
         assert_eq!(handler.call_count.load(Ordering::SeqCst), 2);
@@ -1525,7 +1513,8 @@ mod tests {
 
     #[tokio::test]
     async fn try_retry_exhausted_runs_catch_async() {
-        let handler = MockAsyncHandler::new().with_result("fallback", json!("caught_after_retries"));
+        let handler =
+            MockAsyncHandler::new().with_result("fallback", json!("caught_after_retries"));
 
         let procedure = json!({
             "type": "procedure",
@@ -1547,7 +1536,10 @@ mod tests {
 
         let result = execute_async(&procedure, &handler).await.unwrap();
         assert!(result.success);
-        assert_eq!(result.step_results[0].output, Some(json!("caught_after_retries")));
+        assert_eq!(
+            result.step_results[0].output,
+            Some(json!("caught_after_retries"))
+        );
         assert!(result.variables.contains_key("error"));
     }
 
@@ -1595,7 +1587,7 @@ mod tests {
         let elapsed = start.elapsed();
 
         assert!(result.success); // try swallows the error
-        // 3 attempts total (1 initial + 2 retries), 2 delays of 50ms each = ~100ms minimum
+                                 // 3 attempts total (1 initial + 2 retries), 2 delays of 50ms each = ~100ms minimum
         assert!(
             elapsed >= Duration::from_millis(80),
             "expected >= 80ms for retry delays, got {:?}",
@@ -1654,7 +1646,10 @@ mod tests {
         let elapsed = start.elapsed();
 
         assert!(result.success);
-        assert_eq!(result.step_results[0].output, Some(json!("recovered_async")));
+        assert_eq!(
+            result.step_results[0].output,
+            Some(json!("recovered_async"))
+        );
         // Exponential with cap: 10 + 20 + 30 = 60ms (3rd attempt would be 40 but capped at 30)
         assert!(
             elapsed >= Duration::from_millis(50),

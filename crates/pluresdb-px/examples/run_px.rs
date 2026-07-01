@@ -42,8 +42,8 @@ fn main() {
         .nth(1)
         .unwrap_or_else(|| "crates/pluresdb-px/examples/pipeline.px".to_string());
 
-    let source = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("failed to read {path}: {e}"));
+    let source =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to read {path}: {e}"));
 
     // 1. Parse with the imported praxis-lang parser (SSOT).
     let doc = parse(&source).unwrap_or_else(|e| panic!("parse failed: {e}"));

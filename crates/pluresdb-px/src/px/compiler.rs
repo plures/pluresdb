@@ -16,11 +16,11 @@
 use serde_json::{json, Value as Json};
 
 use px_ast::{
-    ActionStmt, CaptureEntry, ConstraintDecl, ContractDecl, DataflowProcedureDecl, Expr,
-    FactDecl, FunctionDecl, FunctionMode, ImportDecl, LegacyProcedureDecl, LoopSource, LoopStep,
-    MatchArm, ParallelStep, ProcedureBody, ProcedureTrigger, RetryOpt, RuleDecl, ScenarioDecl,
-    Severity, Statement, Step, StepCall, StepCallArgs, TriggerDecl, TriggerEvent, TryStep,
-    Value as AstValue, VarRef,
+    ActionStmt, CaptureEntry, ConstraintDecl, ContractDecl, DataflowProcedureDecl, Expr, FactDecl,
+    FunctionDecl, FunctionMode, ImportDecl, LegacyProcedureDecl, LoopSource, LoopStep, MatchArm,
+    ParallelStep, ProcedureBody, ProcedureTrigger, RetryOpt, RuleDecl, ScenarioDecl, Severity,
+    Statement, Step, StepCall, StepCallArgs, TriggerDecl, TriggerEvent, TryStep, Value as AstValue,
+    VarRef,
 };
 
 use px_ast::PxDocument;
@@ -155,7 +155,11 @@ fn value_to_source(v: &AstValue) -> String {
         AstValue::Boolean(b) => b.to_string(),
         AstValue::Null => "null".to_string(),
         AstValue::List(items) => {
-            let inner = items.iter().map(value_to_source).collect::<Vec<_>>().join(", ");
+            let inner = items
+                .iter()
+                .map(value_to_source)
+                .collect::<Vec<_>>()
+                .join(", ");
             format!("[{}]", inner)
         }
         AstValue::Map(entries) => {
@@ -211,7 +215,11 @@ fn bin_op_str(op: px_ast::BinOp) -> &'static str {
 }
 
 fn call_to_string(name: &str, args: &[Expr]) -> String {
-    let rendered = args.iter().map(expr_to_string).collect::<Vec<_>>().join(", ");
+    let rendered = args
+        .iter()
+        .map(expr_to_string)
+        .collect::<Vec<_>>()
+        .join(", ");
     format!("{}({})", name, rendered)
 }
 
@@ -907,10 +915,12 @@ mod tests {
     }
 
     fn find<'a>(records: &'a [CompiledRecord], key: &str) -> &'a CompiledRecord {
-        records
-            .iter()
-            .find(|r| r.key == key)
-            .unwrap_or_else(|| panic!("record {key} not found; have: {:?}", records.iter().map(|r| &r.key).collect::<Vec<_>>()))
+        records.iter().find(|r| r.key == key).unwrap_or_else(|| {
+            panic!(
+                "record {key} not found; have: {:?}",
+                records.iter().map(|r| &r.key).collect::<Vec<_>>()
+            )
+        })
     }
 
     #[test]
@@ -937,7 +947,11 @@ mod tests {
         let conds = rec.data["conditions"].as_array().expect("conditions array");
         assert_eq!(conds.len(), 1);
         // rendered back to a source string, not an Expr object
-        assert!(conds[0].is_string(), "condition must be a string, got {:?}", conds[0]);
+        assert!(
+            conds[0].is_string(),
+            "condition must be a string, got {:?}",
+            conds[0]
+        );
         assert_eq!(conds[0], "msg_state.level == \"urgent\"");
         // action lowered with its param
         assert_eq!(rec.data["actions"][0]["kind"], "flag_priority");
