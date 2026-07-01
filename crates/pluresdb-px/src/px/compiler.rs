@@ -219,7 +219,12 @@ fn call_to_string(name: &str, args: &[Expr]) -> String {
 /// executor's `evaluate_condition(&str, ...)` parses, so it MUST reproduce the
 /// operator/spacing shape the executor's condition parser understands
 /// (`a == b`, `a && b`, `!a`, `a.b.c`, `$var`, calls, match).
-fn expr_to_string(e: &Expr) -> String {
+///
+/// `pub` so downstream consumers of this crate's public API (e.g.
+/// `pluresdb-node`'s `.px` loader) render a px-ast `Expr` back to the SAME
+/// canonical source form the executor understands, instead of duplicating the
+/// renderer (ADR-0010 anti-duplication). Re-exported at `crate::px::expr_to_string`.
+pub fn expr_to_string(e: &Expr) -> String {
     match e {
         Expr::Literal(v) => value_to_source(v),
         Expr::Var(vr) => var_ref_to_string(vr),

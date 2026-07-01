@@ -43,6 +43,11 @@ pub use px_ast::{self, PxDocument, Statement};
 pub use px_compiler::{parse, parse_statement, CompileError};
 pub use px_eval;
 
+// Public expr renderer (Expr -> canonical executor source form). Re-exported so
+// external consumers (pluresdb-node's .px loader) reuse the ONE renderer rather
+// than duplicating it (ADR-0010).
+pub use compiler::expr_to_string;
+
 // Back-compat namespaced alias: some call sites reference `px::pxlang::parse`
 // (the M6.1 differential-testing name). Keep it as a thin alias of the
 // now-top-level re-exports so those sites need no churn.
