@@ -286,6 +286,25 @@ impl LintDoc {
             }
         };
 
+        // Extract declared trigger parameter names from a legacy trigger.
+        // `on_write {k: v, ...}`, `periodic {every: ...}`, and `cron {...}`
+        // carry their params as a `Value::Map`; the top-level keys are the
+        // parameter names the procedure body is expected to reference.
+        fn trigger_param_names(t: &ProcedureTrigger) -> Vec<String> {
+            let args: Option<&px_ast::Value> = match t {
+                ProcedureTrigger::OnWrite { args, .. } => args.as_ref(),
+                ProcedureTrigger::Periodic { interval } => interval.as_ref(),
+                ProcedureTrigger::Cron { schedule } => schedule.as_ref(),
+                _ => None,
+            };
+            match args {
+                Some(px_ast::Value::Map(pairs)) => {
+                    pairs.iter().map(|(k, _)| k.name.clone()).collect()
+                }
+                _ => Vec::new(),
+            }
+        }
+
         let mut procedures = Vec::new();
         let mut functions = Vec::new();
 
@@ -301,17 +320,33 @@ impl LintDoc {
                         // A code-block body has no v1 steps to lint.
                         ProcedureBody::Code(_) => Vec::new(),
                     };
-                    // px-ast carries procedure params as a flat `Vec<Ident>`.
                     // The param-hygiene rules (L010/L012) key off an object of
-                    // param names, so synthesize one.
-                    let params_obj = if p.params.is_empty() {
+                    // trigger parameter names (e.g. `trigger: on_write {channel:
+                    // "string", message: "string"}`), so synthesize one.
+                    //
+                    // px-ast represents those params in TWO possible places:
+                    //  1. the flat `Vec<Ident>` `p.params` (v1 `params: [$a, $b]` form), and
+                    //  2. the trigger's `args` map for `on_write` / `periodic` / `cron`
+                    //     (the `trigger: on_write {k: v, ...}` form the fixtures and most
+                    //     real procedures use).
+                    // The old in-tree engine sourced them from the trigger args; reading
+                    // only `p.params` silently dropped every trigger-declared param, so
+                    // L010/L012 never fired. Union both sources here.
+                    let mut param_map = serde_json::Map::new();
+                    for id in &p.params {
+                        param_map.insert(id.name.clone(), Json::String(String::new()));
+                    }
+                    if let Some(trigger) = &p.trigger {
+                        for name in trigger_param_names(trigger) {
+                            param_map
+                                .entry(name)
+                                .or_insert_with(|| Json::String(String::new()));
+                        }
+                    }
+                    let params_obj = if param_map.is_empty() {
                         None
                     } else {
-                        let mut m = serde_json::Map::new();
-                        for id in &p.params {
-                            m.insert(id.name.clone(), Json::String(String::new()));
-                        }
-                        Some(Json::Object(m))
+                        Some(Json::Object(param_map))
                     };
                     let trigger = Some(LintTrigger {
                         kind: p
