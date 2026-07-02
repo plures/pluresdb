@@ -97,6 +97,44 @@ export declare class PluresDatabase {
    */
   unsubscribe(id: number): void
   /**
+   * Subscribe to **reactive praxis evaluation** of every write (Effort 3 /
+   * S3, native reactive `.px` on write).
+   *
+   * Spawns a dedicated OS thread — the SAME architecture as
+   * [`subscribe`][PluresDatabase::subscribe] (std thread +
+   * `broadcast::Receiver::blocking_recv`, no second Tokio runtime) — that
+   * drains this database's change stream and, for each `put`/`delete`,
+   * evaluates the persisted `.px` constraint policy against a context built
+   * from the node that was just written (see [`context_for_event`]). When the
+   * post-write context violates one or more constraints, `callback` is
+   * invoked with a `{ kind, id, violationCount, violationsJson }` object.
+   * **Clean writes fire no callback** — only violations are surfaced, so a
+   * silent stream means the write satisfied every policy.
+   *
+   * ## Why this is POST-write / non-blocking (honesty, not a limitation)
+   *
+   * The evaluation runs off the change broadcast, which is published *after*
+   * the value is already persisted by `put`/`delete`. By the time this thread
+   * sees the event the write has ALREADY happened, so this path CANNOT and
+   * does not block or roll back the write — it is purely observe-and-report:
+   * it reactively COMPUTES the real violations (running the same
+   * `px_procedures::evaluate` as [`px_evaluate`][PluresDatabase::px_evaluate])
+   * and DELIVERS them to the subscriber. This is the honest reactive
+   * semantic: the `.px` policy is evaluated automatically on write instead of
+   * requiring the caller to invoke `pxEvaluate` manually.
+   *
+   * If you need to *prevent* a violating write before it lands, that is the
+   * job of the pre-action hook [`px_on_action`][PluresDatabase::px_on_action]
+   * (caller-driven, blocks on error-severity). This reactive path does not
+   * duplicate or fake that blocking behavior.
+   *
+   * Returns a numeric subscription id. It shares the same registry as
+   * [`subscribe`], so pass it to
+   * [`unsubscribe`][PluresDatabase::unsubscribe] to stop delivery; after
+   * `unsubscribe` returns no further callbacks fire.
+   */
+  subscribePx(callback: ((arg: PxEventJs) => void)): number
+  /**
    * Embed text using the configured embedding model.
    *
    * Only available when the database was created via `newWithEmbeddings()`.
@@ -457,6 +495,27 @@ export declare function detectContentType(content: string): string
 
 /** Initialize the module */
 export declare function init(): void
+
+/**
+ * A reactive praxis-evaluation result delivered to `subscribePx` callbacks.
+ *
+ * Carries the change that triggered evaluation (`kind`/`id`, same shape as
+ * [`SyncEventJs`]) plus the praxis outcome computed **after** the write landed:
+ * `violationCount` violated constraints and their full JSON in
+ * `violationsJson` (a serialized `Vec<Violation>` the JS side `JSON.parse`s).
+ *
+ * This is POST-write, observe-and-report only — see [`PluresDatabase::subscribe_px`].
+ */
+export interface PxEventJs {
+  /** `"upsert"` or `"delete"` (peer events reuse the same field). */
+  kind: string
+  /** The node id whose write triggered evaluation. */
+  id: string
+  /** Number of constraints violated by the post-write context. */
+  violationCount: number
+  /** The violated constraints as a JSON string (`Vec<Violation>`); parse in JS. */
+  violationsJson: string
+}
 
 /**
  * A live change event delivered to JavaScript `subscribe` callbacks.

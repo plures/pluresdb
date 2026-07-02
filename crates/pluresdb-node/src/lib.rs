@@ -16,7 +16,7 @@ use pluresdb_procedures::engine::ProcedureEngine;
 use pluresdb_px::db::procedures as px_procedures;
 use pluresdb_px::db::schema::{
     AgentContext as PxAgentContext, Condition as PxCondition, Constraint as PxConstraint,
-    Severity as PxSeverity,
+    SessionType as PxSessionType, Severity as PxSeverity,
 };
 use pluresdb_px::db::seed::default_store as px_default_store;
 use pluresdb_px::db::store::PraxisStore;
@@ -77,6 +77,70 @@ impl From<SyncEvent> for SyncEventJs {
 
 fn map_store_error(error: StoreError) -> Error {
     node_error(error.code().as_str(), error.to_string())
+}
+
+/// A reactive praxis-evaluation result delivered to `subscribePx` callbacks.
+///
+/// Carries the change that triggered evaluation (`kind`/`id`, same shape as
+/// [`SyncEventJs`]) plus the praxis outcome computed **after** the write landed:
+/// `violationCount` violated constraints and their full JSON in
+/// `violationsJson` (a serialized `Vec<Violation>` the JS side `JSON.parse`s).
+///
+/// This is POST-write, observe-and-report only — see [`PluresDatabase::subscribe_px`].
+#[napi(object)]
+pub struct PxEventJs {
+    /// `"upsert"` or `"delete"` (peer events reuse the same field).
+    pub kind: String,
+    /// The node id whose write triggered evaluation.
+    pub id: String,
+    /// Number of constraints violated by the post-write context.
+    pub violation_count: u32,
+    /// The violated constraints as a JSON string (`Vec<Violation>`); parse in JS.
+    pub violations_json: String,
+}
+
+/// Build a praxis [`AgentContext`] for the node that a [`SyncEvent`] just wrote.
+///
+/// The mapping is deliberately literal so the persisted `.px` policy evaluates
+/// against the ACTUAL written content, not a fabricated context:
+/// - `action_type` is the event kind (`"upsert"` / `"delete"` / peer kinds),
+/// - `target` is the affected node id,
+/// - `metadata` is populated, on an upsert, by folding the written node's `data`
+///   object fields into the metadata map (so a `.px` rule like
+///   `require: metadata.amount <= 100` reads `data.amount` of the node that was
+///   just written). A delete, or a node whose `data` is not a JSON object, or a
+///   node no longer present, yields an empty metadata map (nothing to read).
+/// - `session_type` is [`SessionType::Main`] — the write happened in the
+///   database's own (main) context; there is no sub-agent framing on a raw write.
+///
+/// This projects the honest, evaluable context; it never invents field values.
+fn context_for_event(store: &Arc<Mutex<CrdtStore>>, event: &SyncEvent) -> PxAgentContext {
+    let (kind, id): (&str, &str) = match event {
+        SyncEvent::NodeUpsert { id } => ("upsert", id.as_str()),
+        SyncEvent::NodeDelete { id } => ("delete", id.as_str()),
+        SyncEvent::PeerConnected { peer_id } => ("peer-connected", peer_id.as_str()),
+        SyncEvent::PeerDisconnected { peer_id } => ("peer-disconnected", peer_id.as_str()),
+    };
+
+    let mut ctx = PxAgentContext::new(kind, id, PxSessionType::Main);
+
+    // Only an upsert has a current node body to read; fold its object fields
+    // into metadata so field-path predicates (`metadata.<field>`) can see them.
+    if matches!(event, SyncEvent::NodeUpsert { .. }) {
+        let record = {
+            let store = store.lock();
+            store.get(id.to_string())
+        };
+        if let Some(record) = record {
+            if let serde_json::Value::Object(map) = record.data {
+                for (k, v) in map {
+                    ctx.metadata.insert(k, v);
+                }
+            }
+        }
+    }
+
+    ctx
 }
 
 // ---------------------------------------------------------------------------
@@ -836,6 +900,113 @@ impl PluresDatabase {
             flag.store(true, Ordering::SeqCst);
         }
         Ok(())
+    }
+
+    /// Subscribe to **reactive praxis evaluation** of every write (Effort 3 /
+    /// S3, native reactive `.px` on write).
+    ///
+    /// Spawns a dedicated OS thread — the SAME architecture as
+    /// [`subscribe`][PluresDatabase::subscribe] (std thread +
+    /// `broadcast::Receiver::blocking_recv`, no second Tokio runtime) — that
+    /// drains this database's change stream and, for each `put`/`delete`,
+    /// evaluates the persisted `.px` constraint policy against a context built
+    /// from the node that was just written (see [`context_for_event`]). When the
+    /// post-write context violates one or more constraints, `callback` is
+    /// invoked with a `{ kind, id, violationCount, violationsJson }` object.
+    /// **Clean writes fire no callback** — only violations are surfaced, so a
+    /// silent stream means the write satisfied every policy.
+    ///
+    /// ## Why this is POST-write / non-blocking (honesty, not a limitation)
+    ///
+    /// The evaluation runs off the change broadcast, which is published *after*
+    /// the value is already persisted by `put`/`delete`. By the time this thread
+    /// sees the event the write has ALREADY happened, so this path CANNOT and
+    /// does not block or roll back the write — it is purely observe-and-report:
+    /// it reactively COMPUTES the real violations (running the same
+    /// `px_procedures::evaluate` as [`px_evaluate`][PluresDatabase::px_evaluate])
+    /// and DELIVERS them to the subscriber. This is the honest reactive
+    /// semantic: the `.px` policy is evaluated automatically on write instead of
+    /// requiring the caller to invoke `pxEvaluate` manually.
+    ///
+    /// If you need to *prevent* a violating write before it lands, that is the
+    /// job of the pre-action hook [`px_on_action`][PluresDatabase::px_on_action]
+    /// (caller-driven, blocks on error-severity). This reactive path does not
+    /// duplicate or fake that blocking behavior.
+    ///
+    /// Returns a numeric subscription id. It shares the same registry as
+    /// [`subscribe`], so pass it to
+    /// [`unsubscribe`][PluresDatabase::unsubscribe] to stop delivery; after
+    /// `unsubscribe` returns no further callbacks fire.
+    #[napi]
+    pub fn subscribe_px(
+        &self,
+        callback: ThreadsafeFunction<PxEventJs, (), PxEventJs, Status, false>,
+    ) -> Result<u32> {
+        let id = self.next_sub_id.fetch_add(1, Ordering::SeqCst);
+        let cancelled = Arc::new(AtomicBool::new(false));
+        self.subscriptions.lock().insert(id, cancelled.clone());
+
+        let mut receiver = self.broadcaster.subscribe();
+        let subscriptions = self.subscriptions.clone();
+        // The reactive px thread needs the store (to build the post-write
+        // context and project the constraint read-model on each event).
+        let store = self.store.clone();
+
+        std::thread::Builder::new()
+            .name(format!("pluresdb-subpx-{id}"))
+            .spawn(move || {
+                loop {
+                    match receiver.blocking_recv() {
+                        Ok(event) => {
+                            if cancelled.load(Ordering::SeqCst) {
+                                break;
+                            }
+                            // Build the post-write context from the node that
+                            // was just written, project the persisted
+                            // constraints, and evaluate for real (warning-level;
+                            // never blocks — the write already happened).
+                            let ctx = context_for_event(&store, &event);
+                            let pstore = project_praxis_store(&store);
+                            let violations = px_procedures::evaluate(&pstore, &ctx);
+
+                            // Only surface events that actually violated policy;
+                            // a clean write produces no callback (silent = ok).
+                            if violations.is_empty() {
+                                continue;
+                            }
+
+                            // Serialize the real violations for the JS payload.
+                            // If serialization ever fails, emit an empty array
+                            // string rather than fabricate content.
+                            let violations_json = serde_json::to_string(&violations)
+                                .unwrap_or_else(|_| "[]".to_string());
+                            let base = SyncEventJs::from(event);
+                            let payload = PxEventJs {
+                                kind: base.kind,
+                                id: base.id,
+                                violation_count: violations.len() as u32,
+                                violations_json,
+                            };
+                            let status = callback
+                                .call(payload, ThreadsafeFunctionCallMode::NonBlocking);
+                            if status == Status::Closing {
+                                break;
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                            if cancelled.load(Ordering::SeqCst) {
+                                break;
+                            }
+                            continue;
+                        }
+                    }
+                }
+                subscriptions.lock().remove(&id);
+            })
+            .map_err(|e| node_error("NODE_SUBSCRIBE_PX_THREAD_SPAWN_FAILED", e.to_string()))?;
+
+        Ok(id)
     }
 
     /// Embed text using the configured embedding model.
