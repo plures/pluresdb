@@ -75,10 +75,27 @@ export declare class PluresDatabase {
    */
   putWithEmbedding(id: string, data: any, embedding: Array<number>): string
   /**
-   * Subscribe to node changes (returns a subscription ID)
-   * Note: Full async subscription support requires additional async infrastructure
+   * Subscribe to live node changes (Effort 2, reactive native memory).
+   *
+   * Spawns a dedicated OS thread that drains this database's
+   * [`SyncBroadcaster`] receiver and invokes `callback` with a
+   * `{ kind, id }` object for every `put`/`delete` as it happens — no
+   * polling. `kind` is `"upsert"` or `"delete"`; `id` is the node id.
+   *
+   * Returns a numeric subscription id; pass it to
+   * [`unsubscribe`][PluresDatabase::unsubscribe] to stop delivery. The
+   * worker thread checks a cancellation flag before each dispatch, so once
+   * `unsubscribe` returns no further callbacks fire, and the thread exits on
+   * the next event (or when the channel closes as the database is dropped).
    */
-  subscribe(): string
+  subscribe(callback: ((arg: SyncEventJs) => void)): number
+  /**
+   * Stop a live subscription created by [`subscribe`][PluresDatabase::subscribe].
+   *
+   * Idempotent: unknown or already-removed ids are a no-op. After this
+   * returns, the corresponding callback will not be invoked again.
+   */
+  unsubscribe(id: number): void
   /**
    * Embed text using the configured embedding model.
    *
@@ -440,3 +457,14 @@ export declare function detectContentType(content: string): string
 
 /** Initialize the module */
 export declare function init(): void
+
+/**
+ * A live change event delivered to JavaScript `subscribe` callbacks.
+ *
+ * Mirrors [`pluresdb_sync::SyncEvent`] in a Node-friendly shape: `kind` is
+ * `"upsert"` or `"delete"`, and `id` is the affected node id.
+ */
+export interface SyncEventJs {
+  kind: string
+  id: string
+}

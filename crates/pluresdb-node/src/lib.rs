@@ -4,6 +4,7 @@
 //! PluresDB functionality to Node.js applications.
 
 use napi::bindgen_prelude::*;
+use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 use parking_lot::Mutex;
 
@@ -25,6 +26,7 @@ use pluresdb_px::px::{expr_to_string as px_expr_to_string, Statement as PxStatem
 use pluresdb_storage::{SledStorage, StorageEngine, StorageErrorCode};
 use pluresdb_sync::{SyncBroadcaster, SyncErrorCode, SyncEvent};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 
 #[cfg(feature = "sqlite-compat")]
@@ -36,6 +38,41 @@ fn node_error(code: &str, message: impl Into<String>) -> Error {
 
 fn map_node_error<E: std::fmt::Display>(code: &str, error: E) -> Error {
     node_error(code, error.to_string())
+}
+
+/// A live change event delivered to JavaScript `subscribe` callbacks.
+///
+/// Mirrors [`pluresdb_sync::SyncEvent`] in a Node-friendly shape: `kind` is
+/// `"upsert"` or `"delete"`, and `id` is the affected node id.
+#[napi(object)]
+pub struct SyncEventJs {
+    pub kind: String,
+    pub id: String,
+}
+
+impl From<SyncEvent> for SyncEventJs {
+    fn from(event: SyncEvent) -> Self {
+        match event {
+            SyncEvent::NodeUpsert { id } => SyncEventJs {
+                kind: "upsert".to_string(),
+                id,
+            },
+            SyncEvent::NodeDelete { id } => SyncEventJs {
+                kind: "delete".to_string(),
+                id,
+            },
+            // Peer lifecycle events are surfaced with the same {kind,id} shape;
+            // `id` carries the peer id so JS listeners can react uniformly.
+            SyncEvent::PeerConnected { peer_id } => SyncEventJs {
+                kind: "peer-connected".to_string(),
+                id: peer_id,
+            },
+            SyncEvent::PeerDisconnected { peer_id } => SyncEventJs {
+                kind: "peer-disconnected".to_string(),
+                id: peer_id,
+            },
+        }
+    }
 }
 
 fn map_store_error(error: StoreError) -> Error {
@@ -188,6 +225,12 @@ pub struct PluresDatabase {
     db: Option<Arc<Database>>,
     broadcaster: Arc<SyncBroadcaster>,
     actor_id: String,
+    /// Live change subscriptions (Effort 2, reactive native). Each entry maps a
+    /// subscription id to its cancellation flag; setting the flag stops further
+    /// callback dispatch for that subscription and lets its worker thread exit.
+    subscriptions: Arc<Mutex<HashMap<u32, Arc<AtomicBool>>>>,
+    /// Monotonic source of subscription ids.
+    next_sub_id: Arc<AtomicU32>,
 }
 
 #[napi]
@@ -233,6 +276,8 @@ impl PluresDatabase {
             db,
             broadcaster: Arc::new(SyncBroadcaster::default()),
             actor_id,
+            subscriptions: Arc::new(Mutex::new(HashMap::new())),
+            next_sub_id: Arc::new(AtomicU32::new(1)),
         })
     }
 
@@ -305,6 +350,8 @@ impl PluresDatabase {
                 db,
                 broadcaster: Arc::new(SyncBroadcaster::default()),
                 actor_id,
+                subscriptions: Arc::new(Mutex::new(HashMap::new())),
+                next_sub_id: Arc::new(AtomicU32::new(1)),
             })
         }
 
@@ -716,15 +763,79 @@ impl PluresDatabase {
         Ok(node_id)
     }
 
-    /// Subscribe to node changes (returns a subscription ID)
-    /// Note: Full async subscription support requires additional async infrastructure
+    /// Subscribe to live node changes (Effort 2, reactive native memory).
+    ///
+    /// Spawns a dedicated OS thread that drains this database's
+    /// [`SyncBroadcaster`] receiver and invokes `callback` with a
+    /// `{ kind, id }` object for every `put`/`delete` as it happens — no
+    /// polling. `kind` is `"upsert"` or `"delete"`; `id` is the node id.
+    ///
+    /// Returns a numeric subscription id; pass it to
+    /// [`unsubscribe`][PluresDatabase::unsubscribe] to stop delivery. The
+    /// worker thread checks a cancellation flag before each dispatch, so once
+    /// `unsubscribe` returns no further callbacks fire, and the thread exits on
+    /// the next event (or when the channel closes as the database is dropped).
     #[napi]
-    pub fn subscribe(&self) -> Result<String> {
-        // Subscribe and return subscription ID
-        // In a full implementation, this would return a subscription handle
-        // that can be used to receive events via async callbacks
-        let _receiver = self.broadcaster.subscribe();
-        Ok("subscription-1".to_string())
+    pub fn subscribe(
+        &self,
+        callback: ThreadsafeFunction<SyncEventJs, (), SyncEventJs, Status, false>,
+    ) -> Result<u32> {
+        let id = self.next_sub_id.fetch_add(1, Ordering::SeqCst);
+        let cancelled = Arc::new(AtomicBool::new(false));
+        self.subscriptions.lock().insert(id, cancelled.clone());
+
+        let mut receiver = self.broadcaster.subscribe();
+        let subscriptions = self.subscriptions.clone();
+
+        // A plain std thread (not a Tokio task) keeps us off any async runtime:
+        // broadcast::Receiver::blocking_recv parks the thread until an event is
+        // published, so this costs nothing while idle and needs no polling.
+        std::thread::Builder::new()
+            .name(format!("pluresdb-sub-{id}"))
+            .spawn(move || {
+                loop {
+                    match receiver.blocking_recv() {
+                        Ok(event) => {
+                            if cancelled.load(Ordering::SeqCst) {
+                                break;
+                            }
+                            let payload = SyncEventJs::from(event);
+                            let status = callback.call(payload, ThreadsafeFunctionCallMode::NonBlocking);
+                            // If the JS side has gone away, stop the thread.
+                            if status == Status::Closing {
+                                break;
+                            }
+                        }
+                        // Sender dropped (database gone) => nothing more to do.
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                        // Slow consumer lagged past the channel capacity; skip
+                        // the missed window and keep delivering fresh events.
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                            if cancelled.load(Ordering::SeqCst) {
+                                break;
+                            }
+                            continue;
+                        }
+                    }
+                }
+                // Best-effort registry cleanup when the thread exits on its own.
+                subscriptions.lock().remove(&id);
+            })
+            .map_err(|e| node_error("NODE_SUBSCRIBE_THREAD_SPAWN_FAILED", e.to_string()))?;
+
+        Ok(id)
+    }
+
+    /// Stop a live subscription created by [`subscribe`][PluresDatabase::subscribe].
+    ///
+    /// Idempotent: unknown or already-removed ids are a no-op. After this
+    /// returns, the corresponding callback will not be invoked again.
+    #[napi]
+    pub fn unsubscribe(&self, id: u32) -> Result<()> {
+        if let Some(flag) = self.subscriptions.lock().remove(&id) {
+            flag.store(true, Ordering::SeqCst);
+        }
+        Ok(())
     }
 
     /// Embed text using the configured embedding model.

@@ -31,6 +31,11 @@ pluresdb-procedures = { path = "../pluresdb-procedures" }
 pluresdb-px = { path = "../pluresdb-px" }
 pluresdb-storage = { path = "../pluresdb-storage" }
 pluresdb-sync = { path = "../pluresdb-sync" }
+# Reactive subscribe(cb)/unsubscribe (EPIC-MEMORY, Effort 2). tokio is already a
+# workspace dep (pluresdb-sync uses broadcast); we only need the broadcast
+# receiver + its blocking_recv from a std::thread, so no napi/tokio_rt runtime
+# is introduced (avoids nesting a second Tokio runtime inside Node).
+tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 parking_lot = { workspace = true }
