@@ -44,7 +44,7 @@ chrono = { workspace = true }
 # Headroom token-compression port (EPIC-MEMORY-SUPERIORITY, child H).
 # Same crates pares-agens uses for the real algorithm — neither is pares-agens
 # itself, so the forbidden plugin→agens dependency edge stays intact.
-tiktoken-rs = "0.6"
+tiktoken-rs = "0.12"
 unicode-segmentation = "1"
 
 [build-dependencies]
