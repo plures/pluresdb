@@ -129,7 +129,7 @@ fn context_for_event(store: &Arc<Mutex<CrdtStore>>, event: &SyncEvent) -> PxAgen
     if matches!(event, SyncEvent::NodeUpsert { .. }) {
         let record = {
             let store = store.lock();
-            store.get(id.to_string())
+            store.get(id)
         };
         if let Some(record) = record {
             if let serde_json::Value::Object(map) = record.data {

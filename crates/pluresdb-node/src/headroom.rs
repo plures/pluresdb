@@ -95,6 +95,7 @@ pub fn detect_content_type(content: &str) -> &'static str {
 ///      which is one of the most common real-log line shapes and starts with `[`,
 ///      so without this guard such lines are misclassified as a JSON array and
 ///      routed to whitespace-collapse instead of the template log compactor.
+///
 /// It never matches real JSON: a JSON array opens with `[` followed by a value
 /// (`{`, `"`, digit, `[`, or literal), not `LEVEL]` and not a `YYYY-MM-DD` date
 /// skeleton immediately after the bracket.
@@ -426,16 +427,14 @@ fn take_timestamp(b: &[u8], i: usize) -> Option<usize> {
     // optional zone: Z | ±hh(:?mm)?
     match b.get(j) {
         Some(&b'Z') => j += 1,
-        Some(&b'+') | Some(&b'-') => {
-            if d(j + 1) && d(j + 2) {
-                let mut k = j + 3;
-                if b.get(k) == Some(&b':') && d(k + 1) && d(k + 2) {
-                    k += 3;
-                } else if d(k) && d(k + 1) {
-                    k += 2;
-                }
-                j = k;
+        Some(&b'+') | Some(&b'-') if d(j + 1) && d(j + 2) => {
+            let mut k = j + 3;
+            if b.get(k) == Some(&b':') && d(k + 1) && d(k + 2) {
+                k += 3;
+            } else if d(k) && d(k + 1) {
+                k += 2;
             }
+            j = k;
         }
         _ => {}
     }
@@ -1114,8 +1113,7 @@ impl Foo {
         // A dense, already-tight blob over the 200-char floor with no compressible
         // structure (no dup runs, no signatures, single whitespace runs). The
         // guard must return it UNCHANGED rather than emit a larger rewrite.
-        let tight: String = std::iter::repeat("x7Qk")
-            .take(80)
+        let tight: String = std::iter::repeat_n("x7Qk", 80)
             .collect::<Vec<_>>()
             .join(" "); // "x7Qk x7Qk ..." ~ 399 chars, single spaces, no structure
         assert!(tight.len() >= PER_MESSAGE_MIN_CHARS, "guard fixture under floor");
