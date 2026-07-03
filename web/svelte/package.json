@@ -26,7 +26,7 @@
     "cytoscape": "^3.29.3",
     "cytoscape-cola": "^2.5.1",
     "cytoscape-cose-bilkent": "^4.1.0",
-    "cytoscape-dagre": "^2.5.0",
+    "cytoscape-dagre": "^4.0.0",
     "monaco-editor": "^0.49.0"
   }
 }
