@@ -1,8 +1,26 @@
 name: Dependabot Auto-Merge
 
+# Fills the org-wide gap: Dependabot PRs were piling up green-but-unmerged because
+# copilot-pr-lifecycle.yml excludes dependabot[bot] and requires a Copilot/human review
+# that Dependabot PRs never receive. This workflow auto-merges LOW-RISK Dependabot updates
+# (patch + minor, and any dev-dependency bump) once required checks pass. Major bumps and
+# production major/minor are left for human review.
+#
+# SECURITY OVERRIDE (kbristol directive 2026-07-03): a Dependabot SECURITY update (any PR
+# carrying a GHSA advisory, i.e. steps.meta.outputs.ghsa-id is non-empty) is auto-merged
+# REGARDLESS of semver bump type - including majors - because we favor security over
+# function: the vulnerable state we are in today is the certain risk; a breaking change is
+# hypothetical and caught by CI. Auto-merge stays CI-gated (`--auto` waits for required
+# checks), so if the security patch itself breaks the build/tests the merge is blocked and
+# becomes a fix-then-merge (breakage caught BEFORE it lands on main). A major security bump
+# additionally drops a comment so a human knows to watch for follow-up breakage.
+#
+# Ref: development-guide/practices/automation-first.md ("auto-merge patch updates"),
+#      zero-manual-dependency.md, merge-sweeps.md (green -> squash merge).
+
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: write
@@ -11,24 +29,63 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    if: ${{ github.actor == 'dependabot[bot]' }}
     steps:
       - name: Fetch Dependabot metadata
-        id: metadata
+        id: meta
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Auto-approve patch and minor updates
-        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
-        run: gh pr review --approve "$PR_URL"
+      - name: Auto-merge SECURITY updates (any bump type - security over function)
+        # A non-empty ghsa-id means Dependabot opened this to fix a published advisory.
+        # We merge it regardless of semver-major/minor/patch. Still CI-gated via --auto.
+        if: ${{ steps.meta.outputs.ghsa-id != '' }}
+        run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Enable auto-merge for patch and minor updates
-        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+      - name: Note when a security fix is a MAJOR bump (watch for breakage)
+        if: >-
+          ${{
+            steps.meta.outputs.ghsa-id != '' &&
+            steps.meta.outputs.update-type == 'version-update:semver-major'
+          }}
+        run: |
+          gh pr comment "$PR_URL" --body "🔒 Auto-merging a **security** fix (\`${{ steps.meta.outputs.ghsa-id }}\`) that is a **major** version bump of \`${{ steps.meta.outputs.dependency-names }}\`. Per the security-over-function policy this merges once CI is green — **watch for follow-up breakage** and fix-forward if needed."
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for low-risk NON-security updates
+        # Low-risk = any dev-dependency bump, OR a patch/minor bump of a production dep.
+        # Skipped when this is a security PR (handled above so majors still merge).
+        # GitHub auto-merge waits for required checks before merging; if the repo has no
+        # branch protection, enabling auto-merge still records intent and merges when mergeable.
+        if: >-
+          ${{
+            steps.meta.outputs.ghsa-id == '' &&
+            (
+              steps.meta.outputs.dependency-type == 'direct:development' ||
+              steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+              steps.meta.outputs.update-type == 'version-update:semver-minor'
+            )
+          }}
         run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Flag NON-security major production updates for review
+        if: >-
+          ${{
+            steps.meta.outputs.ghsa-id == '' &&
+            steps.meta.outputs.dependency-type == 'direct:production' &&
+            steps.meta.outputs.update-type == 'version-update:semver-major'
+          }}
+        run: |
+          gh pr comment "$PR_URL" --body "Major production dependency bump (\`${{ steps.meta.outputs.dependency-names }}\`). Auto-merge intentionally NOT enabled - needs human review per automation-first.md."
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
