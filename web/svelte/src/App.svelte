@@ -33,6 +33,8 @@
   import CrossDeviceSync from "./components/CrossDeviceSync.svelte";
   import Toasts from "./components/Toasts.svelte";
   import GuidedTour from "./components/GuidedTour.svelte";
+
+  const tabs = [
     { key: "data",      label: "🗄 Data" },
     { key: "graph",     label: "🕸 Graph" },
     { key: "vector",    label: "🔍 Vector" },
