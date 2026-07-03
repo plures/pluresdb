@@ -88,12 +88,46 @@ pub fn detect_content_type(content: &str) -> &'static str {
     }
 }
 
-/// True when the (left-trimmed) content begins with a bracketed log-level token
-/// (`[ERROR]`/`[WARN]`/`[INFO]`/`[DEBUG]`/`[TRACE]`). Used only to keep such
-/// definitively-log lines out of the JSON branch; it never matches real JSON.
+/// True when the (left-trimmed) content begins with a bracketed log token that
+/// must never be treated as JSON. Covers two shapes:
+///   1. a bracketed log-LEVEL token (`[ERROR]`/`[WARN]`/`[INFO]`/`[DEBUG]`/`[TRACE]`), and
+///   2. a bracketed ISO-8601 TIMESTAMP prefix (`[2026-07-02 10:15:03]`, `[2026-07-02T10:15:03Z]`),
+///      which is one of the most common real-log line shapes and starts with `[`,
+///      so without this guard such lines are misclassified as a JSON array and
+///      routed to whitespace-collapse instead of the template log compactor.
+/// It never matches real JSON: a JSON array opens with `[` followed by a value
+/// (`{`, `"`, digit, `[`, or literal), not `LEVEL]` and not a `YYYY-MM-DD` date
+/// skeleton immediately after the bracket.
 fn starts_like_bracketed_log(trimmed: &str) -> bool {
     const BRACKETED: [&str; 5] = ["[ERROR]", "[WARN]", "[INFO]", "[DEBUG]", "[TRACE]"];
-    BRACKETED.iter().any(|b| trimmed.starts_with(b))
+    if BRACKETED.iter().any(|b| trimmed.starts_with(b)) {
+        return true;
+    }
+    // Bracketed ISO-8601 date/time prefix: `[` then `YYYY-MM-DD` skeleton.
+    let b = trimmed.as_bytes();
+    if b.first() == Some(&b'[') && starts_with_iso_date(&b[1..]) {
+        return true;
+    }
+    false
+}
+
+/// True when bytes begin with a `YYYY-MM-DD` date skeleton (4 digits, `-`, 2
+/// digits, `-`, 2 digits). Cheap, allocation-free; the same date shape the log
+/// detector and the `<TS>` masker already trust.
+fn starts_with_iso_date(b: &[u8]) -> bool {
+    if b.len() < 10 {
+        return false;
+    }
+    b[0].is_ascii_digit()
+        && b[1].is_ascii_digit()
+        && b[2].is_ascii_digit()
+        && b[3].is_ascii_digit()
+        && b[4] == b'-'
+        && b[5].is_ascii_digit()
+        && b[6].is_ascii_digit()
+        && b[7] == b'-'
+        && b[8].is_ascii_digit()
+        && b[9].is_ascii_digit()
 }
 
 /// Compress a single body by detected (or caller-forced) content type.
@@ -1209,24 +1243,31 @@ impl Foo {
     // `[<timestamp>]` prefix is syntactically a plausible JSON-array opener, so
     // routing it to log would risk reclassifying real JSON arrays. We therefore
     // leave it as the faithful pares-agens behavior (json) and pin it here.
-    // Compression remains correct + lossless when the caller pins `Some("log")`.
+    // Bracketed-ISO-timestamp log lines (`[2026-...] LEVEL msg`) now AUTO-detect
+    // as `log` and auto-collapse. Previously the leading `[` misrouted them to
+    // the JSON branch (documented gap); the `starts_like_bracketed_log` guard was
+    // extended to recognize a leading `[YYYY-MM-DD` date skeleton. (Fixed 2026-07-02.)
     #[test]
-    fn detect_bracketed_timestamp_log_is_documented_limitation() {
+    fn detect_bracketed_timestamp_log_autodetects_as_log_and_collapses() {
         let ts_log = "[2026-06-29T12:00:00Z] ERROR upstream refused\n[2026-06-29T12:00:00Z] ERROR upstream refused\n[2026-06-29T12:00:01Z] INFO retry\n";
-        // Pinned faithful behavior: `[`-prefix wins -> json. Documented gap.
+        // Corrected behavior: leading `[YYYY-MM-DD` date skeleton is recognized as
+        // a bracketed log prefix, so detection is `log` (NOT `json`).
         assert_eq!(
             detect_content_type(ts_log),
-            "json",
-            "behavior changed: bracketed-timestamp log now detects differently — update H-TEST-NOTES"
+            "log",
+            "bracketed-timestamp log must auto-detect as log (guard recognizes [YYYY-MM-DD)"
         );
-        // Honesty: pinning log still run-collapses + saves tokens (lossless).
+        // AUTO path (no forced type) must run-collapse + save tokens, losslessly.
         let big = ts_log.repeat(20);
-        let pinned = compress_text(&big, Some("log"));
-        assert!(pinned.contains("[x"), "explicit log type must still run-collapse: {pinned}");
+        let auto = compress_text(&big, None);
+        assert!(auto.contains("[x"), "auto-detected log must run-collapse: {auto}");
         assert!(
-            count_tokens(&pinned) < count_tokens(&big),
-            "explicit log type must save tokens"
+            count_tokens(&auto) < count_tokens(&big),
+            "auto-detected log must save tokens"
         );
+        // A real JSON array must still classify as json (guard never matches JSON).
+        assert_eq!(detect_content_type("[1, 2, 3]"), "json");
+        assert_eq!(detect_content_type("[{\"a\":1}]"), "json");
     }
 
     // ════════════════════════════════════════════════════════════════════
