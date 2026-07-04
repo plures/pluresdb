@@ -1,0 +1,41 @@
+name: Web UI
+
+# Build-gates the Svelte web UI (web/svelte) so frontend breaks fail PRs.
+# Path-filtered to web/** to conserve Actions minutes (C-ACTIONS-001):
+# this job only runs when the web UI actually changes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-ui.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build web/svelte
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: npm
+          cache-dependency-path: web/svelte/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web/svelte
+        run: npm ci
+
+      - name: Build
+        working-directory: web/svelte
+        run: npm run build
