@@ -14,10 +14,11 @@
 //!
 //! Full wire string: `"SEA" + JSON.stringify(envelope)`.
 
-// `GenericArray::from_slice` / `as_slice` deprecation warnings come from
-// transitive p256 / aes-gcm generic-array 0.14 cross-version usage.
+// `aes-gcm 0.10` uses `generic-array 0.14.9`, which marks itself deprecated
+// (via build.rs) in favour of generic-array 1.x.  `Key::from_slice` and
+// `Nonce::from_slice` are the only stable API for constructing these types
+// until aes-gcm is upgraded; suppress the resulting warnings here.
 #![allow(deprecated)]
-
 use crate::key::SeaKeyPair;
 use anyhow::{Context, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
