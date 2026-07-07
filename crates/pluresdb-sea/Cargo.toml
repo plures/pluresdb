@@ -9,18 +9,28 @@ description = "SEA (Security, Encryption, Authorization) primitives for PluresDB
 keywords = ["sea", "gun", "p2p", "encryption", "authentication"]
 
 [dependencies]
-# Elliptic-curve P-256 for ECDSA signing and ECDH key exchange
-p256 = { version = "0.13", features = ["ecdh", "ecdsa"] }
+# Elliptic-curve P-256 for ECDSA signing and ECDH key exchange.
+# `std` pulls in the `getrandom` feature so the `Generate` trait's ambient-RNG
+# `generate()` constructors are available for key/ephemeral-secret generation.
+p256 = { version = "0.14", features = ["ecdh", "ecdsa", "std"] }
 # SHA-256 hashing (used by ECDSA internally and for PBKDF2)
 sha2.workspace = true
-# PBKDF2 key derivation for SEA work/encrypt
+# PBKDF2 key derivation for SEA work/encrypt.
+# Pinned at 0.12 deliberately: pbkdf2 0.13 requires the RustCrypto `digest` 0.11
+# stack (sha2 0.11 / hmac 0.13). `pbkdf2_hmac::<Sha256>` here consumes the
+# workspace `sha2 = "0.10"` (digest 0.10) type, which pbkdf2 0.13 rejects
+# (`Sha256: EagerHash` unsatisfied). Bumping to 0.13 is a separate workspace-wide
+# sha2/aes-gcm 0.10->0.11 migration (also touches pluresdb-chronos/-storage and
+# the AES-GCM wire path) and is intentionally NOT folded into the p256 bump.
 pbkdf2 = { version = "0.12", features = ["hmac"] }
 # AES-256-GCM symmetric encryption
 aes-gcm.workspace = true
-# Random number generation
+# Random number generation (salt/IV in encrypt.rs, work.rs).
+# NOTE: key.rs no longer needs an explicit `rand_core`/`OsRng`; P-256 key and
+# ephemeral-secret generation use the RustCrypto `Generate` trait's ambient
+# system RNG (via p256's `getrandom` feature), which sidesteps the rand_core
+# 0.9/0.10 `CryptoRng` split introduced by the p256 0.14 ecosystem bump.
 rand.workspace = true
-# rand_core 0.6 for OsRng compatible with p256/elliptic-curve
-rand_core = { version = "0.6", features = ["getrandom"] }
 # Base64 URL-safe encoding for wire format
 base64.workspace = true
 # Serialisation

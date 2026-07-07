@@ -5,10 +5,12 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use p256::{
     ecdh::EphemeralSecret,
     ecdsa::{SigningKey, VerifyingKey},
-    elliptic_curve::sec1::ToEncodedPoint,
-    EncodedPoint, PublicKey, SecretKey,
+    // RustCrypto 0.14: `to_encoded_point`/`from_encoded_point` were renamed to the
+    // SEC1 `to_sec1_point`/`from_sec1_point` API. `EphemeralSecret`/`SigningKey`/
+    // `SecretKey` gain their random constructors from the `Generate` trait.
+    elliptic_curve::{sec1::ToSec1Point, Generate},
+    PublicKey, SecretKey, Sec1Point,
 };
-use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 
 /// GUN SEA key pair.
@@ -39,22 +41,25 @@ pub struct SeaKeyPair {
 impl SeaKeyPair {
     /// Generate a fresh [`SeaKeyPair`] using the OS CSPRNG.
     pub fn generate() -> Self {
-        let signing_key = SigningKey::random(&mut OsRng);
+        // `Generate::generate()` draws from the system's ambient CSPRNG
+        // (getrandom) — the RustCrypto 0.14 replacement for the deprecated
+        // `SigningKey::random(&mut OsRng)` / `SecretKey::random(&mut OsRng)`.
+        let signing_key = SigningKey::generate();
         let verifying_key = signing_key.verifying_key();
 
-        let enc_secret = SecretKey::random(&mut OsRng);
+        let enc_secret = SecretKey::generate();
         let enc_public = enc_secret.public_key();
 
         let priv_bytes = signing_key.to_bytes();
-        let pub_bytes = verifying_key.to_encoded_point(false); // uncompressed
+        let pub_point = verifying_key.to_sec1_point(false); // uncompressed
 
         let epriv_bytes = enc_secret.to_bytes();
-        let epub_bytes = enc_public.to_encoded_point(false); // uncompressed
+        let epub_point = enc_public.to_sec1_point(false); // uncompressed
 
         Self {
-            pub_key: URL_SAFE_NO_PAD.encode(pub_bytes.as_bytes()),
+            pub_key: URL_SAFE_NO_PAD.encode(pub_point.as_bytes()),
             priv_key: URL_SAFE_NO_PAD.encode(priv_bytes),
-            epub: URL_SAFE_NO_PAD.encode(epub_bytes.as_bytes()),
+            epub: URL_SAFE_NO_PAD.encode(epub_point.as_bytes()),
             epriv: URL_SAFE_NO_PAD.encode(epriv_bytes),
         }
     }
@@ -64,7 +69,7 @@ impl SeaKeyPair {
         let bytes = URL_SAFE_NO_PAD
             .decode(&self.priv_key)
             .context("decode priv_key base64url")?;
-        SigningKey::from_bytes(bytes.as_slice().into())
+        SigningKey::from_slice(&bytes)
             .context("reconstruct SigningKey from priv_key bytes")
     }
 
@@ -89,7 +94,7 @@ impl SeaKeyPair {
         let bytes = URL_SAFE_NO_PAD
             .decode(&self.epriv)
             .context("decode epriv base64url")?;
-        SecretKey::from_bytes(bytes.as_slice().into())
+        SecretKey::from_slice(&bytes)
             .context("reconstruct SecretKey from epriv bytes")
     }
 }
@@ -99,8 +104,8 @@ pub(crate) fn decode_verifying_key(pub_key_b64: &str) -> Result<VerifyingKey> {
     let bytes = URL_SAFE_NO_PAD
         .decode(pub_key_b64)
         .context("decode pub_key base64url")?;
-    let point = EncodedPoint::from_bytes(&bytes).context("parse EncodedPoint from pub_key")?;
-    VerifyingKey::from_encoded_point(&point).context("reconstruct VerifyingKey")
+    let point = Sec1Point::from_bytes(&bytes).context("parse SEC1 point from pub_key")?;
+    VerifyingKey::from_sec1_point(&point).context("reconstruct VerifyingKey")
 }
 
 /// Decode a base64url-encoded ECDH public key string.
@@ -116,7 +121,8 @@ pub(crate) fn decode_epub(epub_b64: &str) -> Result<PublicKey> {
 /// — use `sea_encrypt` directly with the pair's `epriv`).
 #[allow(dead_code)]
 pub(crate) fn ephemeral_ecdh_secret() -> EphemeralSecret {
-    EphemeralSecret::random(&mut OsRng)
+    // RustCrypto 0.14: `EphemeralSecret::random(&mut OsRng)` -> `Generate::generate()`.
+    EphemeralSecret::generate()
 }
 
 #[cfg(test)]
