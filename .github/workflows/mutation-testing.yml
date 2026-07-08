@@ -101,7 +101,11 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          OUTCOMES="mutants-out/outcomes.json"
+          # cargo-mutants writes its results into a `mutants.out/` subdirectory
+          # INSIDE the `--output` dir (i.e. `<--output>/mutants.out/`), so with
+          # `--output mutants-out` the summary file is at
+          # `mutants-out/mutants.out/outcomes.json`, not `mutants-out/outcomes.json`.
+          OUTCOMES="mutants-out/mutants.out/outcomes.json"
           if [ ! -f "$OUTCOMES" ]; then
             echo "::error::No outcomes.json produced — cargo-mutants may have crashed"
             exit 1

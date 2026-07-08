@@ -473,8 +473,14 @@ impl ChronosTimeline {
 /// SHA-256 hash of a JSON value (deterministic via to_string).
 fn sha256_json(data: &Value) -> String {
     use sha2::{Digest, Sha256};
+    use std::fmt::Write;
     let bytes = serde_json::to_vec(data).unwrap_or_default();
-    format!("{:x}", Sha256::digest(&bytes))
+    Sha256::digest(&bytes)
+        .iter()
+        .fold(String::with_capacity(64), |mut s, b| {
+            write!(s, "{:02x}", b).unwrap();
+            s
+        })
 }
 
 // ---------------------------------------------------------------------------

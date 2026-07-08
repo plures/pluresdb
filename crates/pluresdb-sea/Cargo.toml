@@ -13,16 +13,15 @@ keywords = ["sea", "gun", "p2p", "encryption", "authentication"]
 # `std` pulls in the `getrandom` feature so the `Generate` trait's ambient-RNG
 # `generate()` constructors are available for key/ephemeral-secret generation.
 p256 = { version = "0.14", features = ["ecdh", "ecdsa", "std"] }
-# SHA-256 hashing (used by ECDSA internally and for PBKDF2)
+# SHA-256 hashing (used by ECDSA internally and for PBKDF2).
+# Uses the workspace `sha2 = "0.11"` (RustCrypto `digest` 0.11 stack).
 sha2.workspace = true
 # PBKDF2 key derivation for SEA work/encrypt.
-# Pinned at 0.12 deliberately: pbkdf2 0.13 requires the RustCrypto `digest` 0.11
-# stack (sha2 0.11 / hmac 0.13). `pbkdf2_hmac::<Sha256>` here consumes the
-# workspace `sha2 = "0.10"` (digest 0.10) type, which pbkdf2 0.13 rejects
-# (`Sha256: EagerHash` unsatisfied). Bumping to 0.13 is a separate workspace-wide
-# sha2/aes-gcm 0.10->0.11 migration (also touches pluresdb-chronos/-storage and
-# the AES-GCM wire path) and is intentionally NOT folded into the p256 bump.
-pbkdf2 = { version = "0.12", features = ["hmac"] }
+# 0.13 tracks the `digest` 0.11 stack (sha2 0.11 / hmac 0.13); `pbkdf2_hmac::<Sha256>`
+# consumes the workspace `sha2 = "0.11"` type. This bump was made together with the
+# workspace-wide sha2 0.10->0.11 migration to keep a single `digest` 0.11 across the
+# tree and avoid the `Sha256: EagerHash` version-skew.
+pbkdf2 = { version = "0.13", features = ["hmac"] }
 # AES-256-GCM symmetric encryption
 aes-gcm.workspace = true
 # Random number generation (salt/IV in encrypt.rs, work.rs).
