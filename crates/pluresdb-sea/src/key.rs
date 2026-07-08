@@ -3,7 +3,6 @@
 use anyhow::{Context, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use p256::{
-    ecdh::EphemeralSecret,
     ecdsa::{SigningKey, VerifyingKey},
     // RustCrypto 0.14: `to_encoded_point`/`from_encoded_point` were renamed to the
     // SEC1 `to_sec1_point`/`from_sec1_point` API. `EphemeralSecret`/`SigningKey`/
@@ -76,7 +75,7 @@ impl SeaKeyPair {
     /// Decode the ECDSA verifying key from `pub_key`.
     ///
     /// Convenience wrapper around [`decode_verifying_key`] for use within the crate.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn verifying_key(&self) -> Result<VerifyingKey> {
         decode_verifying_key(&self.pub_key)
     }
@@ -84,7 +83,7 @@ impl SeaKeyPair {
     /// Decode the ECDH public key from `epub`.
     ///
     /// Convenience wrapper around [`decode_epub`] for use within the crate.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn epub_public_key(&self) -> Result<PublicKey> {
         decode_epub(&self.epub)
     }
@@ -114,15 +113,6 @@ pub(crate) fn decode_epub(epub_b64: &str) -> Result<PublicKey> {
         .decode(epub_b64)
         .context("decode epub base64url")?;
     PublicKey::from_sec1_bytes(&bytes).context("reconstruct PublicKey from epub")
-}
-
-/// Create a fresh ephemeral ECDH secret (for one-shot encrypt/decrypt paths
-/// where both sides have long-term key pairs and no ephemeral exchange is needed
-/// — use `sea_encrypt` directly with the pair's `epriv`).
-#[allow(dead_code)]
-pub(crate) fn ephemeral_ecdh_secret() -> EphemeralSecret {
-    // RustCrypto 0.14: `EphemeralSecret::random(&mut OsRng)` -> `Generate::generate()`.
-    EphemeralSecret::generate()
 }
 
 #[cfg(test)]
