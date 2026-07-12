@@ -4,7 +4,7 @@
 //! with support for key rotation and device revocation.
 
 use aes_gcm::{
-    aead::{generic_array::typenum, rand_core::RngCore, Aead, KeyInit, OsRng},
+    aead::{consts::U12, Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
 use anyhow::{Context, Result};
@@ -38,8 +38,8 @@ impl EncryptionConfig {
         let mut master_key = [0u8; KEY_SIZE];
         let mut salt = [0u8; SALT_SIZE];
 
-        OsRng.fill_bytes(&mut master_key);
-        OsRng.fill_bytes(&mut salt);
+        rand::fill(&mut master_key);
+        rand::fill(&mut salt);
 
         Ok(Self {
             master_key,
@@ -52,7 +52,7 @@ impl EncryptionConfig {
     pub fn from_password(password: &str) -> Result<Self> {
         // Generate random salt
         let mut salt_bytes = [0u8; SALT_SIZE];
-        OsRng.fill_bytes(&mut salt_bytes);
+        rand::fill(&mut salt_bytes);
 
         Self::from_password_with_salt(password, &salt_bytes)
     }
@@ -103,7 +103,7 @@ impl EncryptionConfig {
     pub fn rotate_key(&mut self, new_password: &str) -> Result<()> {
         // Generate new salt for the new password
         let mut new_salt = [0u8; SALT_SIZE];
-        OsRng.fill_bytes(&mut new_salt);
+        rand::fill(&mut new_salt);
 
         // Derive new key from new password
         let new_config = Self::from_password_with_salt(new_password, &new_salt)?;
@@ -149,7 +149,7 @@ impl EncryptionConfig {
 
         // --- Phase 2: derive the new key (do NOT update self yet) ------------
         let mut new_salt = [0u8; SALT_SIZE];
-        OsRng.fill_bytes(&mut new_salt);
+        rand::fill(&mut new_salt);
         let new_config = Self::from_password_with_salt(new_password, &new_salt)
             .context("failed to derive new key from password")?;
 
@@ -177,8 +177,8 @@ impl EncryptionConfig {
 
         // Generate random nonce
         let mut nonce_bytes = [0u8; NONCE_SIZE];
-        OsRng.fill_bytes(&mut nonce_bytes);
-        let nonce: Nonce<typenum::U12> = nonce_bytes.into();
+        rand::fill(&mut nonce_bytes);
+        let nonce: Nonce<U12> = nonce_bytes.into();
 
         // Encrypt the plaintext
         let ciphertext = cipher
@@ -208,7 +208,7 @@ impl EncryptionConfig {
         let nonce_arr: [u8; NONCE_SIZE] = nonce_bytes
             .try_into()
             .expect("slice is exactly NONCE_SIZE bytes");
-        let nonce: Nonce<typenum::U12> = nonce_arr.into();
+        let nonce: Nonce<U12> = nonce_arr.into();
 
         // Create cipher
         let cipher = Aes256Gcm::new(&self.master_key.into());
