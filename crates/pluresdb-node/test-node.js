@@ -147,8 +147,20 @@ async function test() {
   
   // Test 6: Subscriptions
   console.log('Test 6: Subscriptions');
-  const subId = db.subscribe();
-  console.log('  ✓ Subscribe:', subId);
+  // subscribe() requires a callback (ThreadsafeFunction) — it delivers live
+  // SyncEventJs change events on a dedicated worker thread. Passing no argument
+  // makes napi-rs fail with `Create threadsafe function failed / InvalidArg`.
+  let receivedEvents = 0;
+  const subId = db.subscribe((event) => {
+    receivedEvents++;
+    console.log('  → Subscription event:', JSON.stringify(event));
+  });
+  console.log('  ✓ Subscribe id:', subId);
+  db.put('sub-probe', { name: 'Probe', type: 'Item' });
+  await new Promise((r) => setTimeout(r, 100));
+  console.log('  ✓ Delivered events after one write:', receivedEvents);
+  db.unsubscribe(subId);
+  console.log('  ✓ Unsubscribed:', subId);
   console.log('');
 
   // Test 7: DSL query engine (execDsl / execIr)
@@ -218,8 +230,15 @@ async function test() {
   console.log('=== All tests passed! ===');
 }
 
-test().catch((error) => {
-  console.error('Test failed:', error);
-  process.exit(1);
-});
+test()
+  .then(() => {
+    // A live subscription spawns a native worker thread whose ThreadsafeFunction
+    // keeps the Node event loop alive, so the process will not exit on its own
+    // even after unsubscribe. Exit explicitly on success.
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('Test failed:', error);
+    process.exit(1);
+  });
 
