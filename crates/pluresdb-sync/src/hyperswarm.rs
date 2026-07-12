@@ -39,15 +39,11 @@
 //! (typically [`Transport::connect`]) retries with exponential backoff.
 
 use crate::transport::{Connection, MessagePayload, PeerId, PeerInfo, TopicHash, Transport};
-use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng};
+use aes_gcm::aead::{Aead, Generate, KeyInit};
 use aes_gcm::Aes256Gcm;
 
 /// Type alias for the 12-byte AES-GCM nonce used by Aes256Gcm.
-// generic_array 0.14 marks GenericArray as deprecated in favour of 1.x, but
-// aes-gcm 0.10 still relies on the 0.14 API.  Allow the deprecation here so
-// that `-D warnings` in CI does not fail this otherwise-sound code.
-#[allow(deprecated)]
-type AesNonce = aes_gcm::aead::generic_array::GenericArray<u8, <Aes256Gcm as AeadCore>::NonceSize>;
+type AesNonce = aes_gcm::aead::Nonce<Aes256Gcm>;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -461,7 +457,8 @@ impl HyperswarmConnection {
     /// Write a length-prefixed (optionally encrypted) frame to the stream.
     async fn write_frame(&mut self, data: &[u8]) -> Result<()> {
         let payload = if let Some(cipher) = &self.cipher {
-            let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+            let nonce = AesNonce::try_generate()
+                .map_err(|e| anyhow!("HyperswarmConnection: nonce generation failed: {e:?}"))?;
             let ciphertext = cipher
                 .encrypt(&nonce, data)
                 .map_err(|e| anyhow!("HyperswarmConnection: encryption failed: {:?}", e))?;
@@ -505,8 +502,9 @@ impl HyperswarmConnection {
                     buf.len()
                 ));
             }
-            // Reconstruct the 12-byte nonce using FromIterator (non-deprecated).
-            let nonce: AesNonce = buf[..12].iter().copied().collect();
+            // Reconstruct the 12-byte nonce from the leading bytes.
+            let nonce = AesNonce::try_from(&buf[..12])
+                .map_err(|_| anyhow!("HyperswarmConnection: invalid AES-GCM nonce length"))?;
             let plaintext = cipher
                 .decrypt(&nonce, &buf[12..])
                 .map_err(|_| anyhow!("HyperswarmConnection: AES-GCM decryption failed"))?;

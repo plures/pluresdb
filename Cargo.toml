@@ -26,7 +26,7 @@ repository = "https://github.com/plures/pluresdb"
 license = "BSL-1.1 OR MIT"
 
 [workspace.dependencies]
-aes-gcm = "0.10"
+aes-gcm = { version = "0.11", features = ["getrandom", "rand_core"] }
 anyhow = "1.0"
 base64 = "0.22"
 sha2 = "0.11"
