@@ -95,14 +95,19 @@ jobs:
         # Skipped when this is a security PR (handled above so majors still merge).
         # GitHub auto-merge waits for required checks before merging; if the repo has no
         # branch protection, enabling auto-merge still records intent and merges when mergeable.
+        # v4 (kbristol directive 2026-07-13, "merge whenever possible"): 0.x breaking
+        # bumps are now ALSO auto-merged, but stay CI-gated via --auto so a bump that
+        # actually breaks the build/tests is blocked BEFORE it lands on main (the
+        # aes-gcm 0.11 regression that motivated the v3 hold is now caught by CI, not
+        # by withholding the merge). Only NON-security MAJOR PRODUCTION bumps remain
+        # held for human review (largest surface). The zerox step still classifies
+        # 0.x breaking so the informational comment below can flag it.
         if: >-
           ${{
             steps.meta.outputs.ghsa-id == '' &&
-            steps.zerox.outputs.breaking != 'true' &&
-            (
-              steps.meta.outputs.dependency-type == 'direct:development' ||
-              steps.meta.outputs.update-type == 'version-update:semver-patch' ||
-              steps.meta.outputs.update-type == 'version-update:semver-minor'
+            !(
+              steps.meta.outputs.dependency-type == 'direct:production' &&
+              steps.meta.outputs.update-type == 'version-update:semver-major'
             )
           }}
         run: gh pr merge --auto --squash "$PR_URL"
@@ -131,7 +136,7 @@ jobs:
             steps.meta.outputs.update-type != 'version-update:semver-major'
           }}
         run: |
-          gh pr comment "$PR_URL" --body "Pre-1.0 (0.x) breaking bump detected. Dependabot labels this semver-minor but a 0.x minor is BREAKING - auto-merge intentionally NOT enabled, needs human review."
+          gh pr comment "$PR_URL" --body "Pre-1.0 (0.x) breaking bump detected (Dependabot labels it semver-minor but a 0.x minor is breaking). Per the merge-whenever-possible policy this IS auto-merged once CI is green - watch for follow-up breakage and fix-forward if needed."
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
