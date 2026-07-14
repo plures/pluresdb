@@ -24,11 +24,11 @@ tokio = { workspace = true, features = ["time", "rt"], optional = true }
 tracing = "0.1"
 
 # praxis-lang — the single-source-of-truth .px language engine (M6: stop duplicating it).
-# Pinned to git rev bbc306c on plures/praxis-lang. pluresdb-px imports parse+AST+eval
+# Pinned to git rev 37be99e on plures/praxis-lang (BOM-free manifests). pluresdb-px imports parse+AST+eval
 # from here and keeps ONLY its unique record-lowering/executor/store runtime.
-px-ast = { git = "https://github.com/plures/praxis-lang.git", rev = "bbc306ca4377cb437e7366d07dabb50392a0e659", package = "px-ast" }
-px-compiler = { git = "https://github.com/plures/praxis-lang.git", rev = "bbc306ca4377cb437e7366d07dabb50392a0e659", package = "px-compiler" }
-px-eval = { git = "https://github.com/plures/praxis-lang.git", rev = "bbc306ca4377cb437e7366d07dabb50392a0e659", package = "px-eval" }
+px-ast = { git = "https://github.com/plures/praxis-lang.git", rev = "37be99e95f2db8e530ea7dd24ec2d0b01113ceeb", package = "px-ast" }
+px-compiler = { git = "https://github.com/plures/praxis-lang.git", rev = "37be99e95f2db8e530ea7dd24ec2d0b01113ceeb", package = "px-compiler" }
+px-eval = { git = "https://github.com/plures/praxis-lang.git", rev = "37be99e95f2db8e530ea7dd24ec2d0b01113ceeb", package = "px-eval" }
 futures = { version = "0.3", optional = true }
 regex = "1"
 

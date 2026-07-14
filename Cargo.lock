@@ -3612,7 +3612,7 @@ dependencies = [
 [[package]]
 name = "px-ast"
 version = "0.0.0"
-source = "git+https://github.com/plures/praxis-lang.git?rev=bbc306ca4377cb437e7366d07dabb50392a0e659#bbc306ca4377cb437e7366d07dabb50392a0e659"
+source = "git+https://github.com/plures/praxis-lang.git?rev=37be99e95f2db8e530ea7dd24ec2d0b01113ceeb#37be99e95f2db8e530ea7dd24ec2d0b01113ceeb"
 dependencies = [
  "schemars",
  "serde",
@@ -3622,7 +3622,7 @@ dependencies = [
 [[package]]
 name = "px-compiler"
 version = "0.0.0"
-source = "git+https://github.com/plures/praxis-lang.git?rev=bbc306ca4377cb437e7366d07dabb50392a0e659#bbc306ca4377cb437e7366d07dabb50392a0e659"
+source = "git+https://github.com/plures/praxis-lang.git?rev=37be99e95f2db8e530ea7dd24ec2d0b01113ceeb#37be99e95f2db8e530ea7dd24ec2d0b01113ceeb"
 dependencies = [
  "pest",
  "px-ast",
@@ -3632,7 +3632,7 @@ dependencies = [
 [[package]]
 name = "px-eval"
 version = "0.0.0"
-source = "git+https://github.com/plures/praxis-lang.git?rev=bbc306ca4377cb437e7366d07dabb50392a0e659#bbc306ca4377cb437e7366d07dabb50392a0e659"
+source = "git+https://github.com/plures/praxis-lang.git?rev=37be99e95f2db8e530ea7dd24ec2d0b01113ceeb#37be99e95f2db8e530ea7dd24ec2d0b01113ceeb"
 dependencies = [
  "px-ast",
  "px-compiler",
@@ -3642,7 +3642,7 @@ dependencies = [
 [[package]]
 name = "px-grammar"
 version = "0.0.0"
-source = "git+https://github.com/plures/praxis-lang.git?rev=bbc306ca4377cb437e7366d07dabb50392a0e659#bbc306ca4377cb437e7366d07dabb50392a0e659"
+source = "git+https://github.com/plures/praxis-lang.git?rev=37be99e95f2db8e530ea7dd24ec2d0b01113ceeb#37be99e95f2db8e530ea7dd24ec2d0b01113ceeb"
 dependencies = [
  "pest",
  "pest_derive",
