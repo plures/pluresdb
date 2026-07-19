@@ -1,7 +1,7 @@
 {
   "name": "pluresdb-ui",
   "private": true,
-  "version": "0.0.1",
+  "version": "3.10.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

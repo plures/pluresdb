@@ -2,7 +2,7 @@
   "name": "pluresdb-extension-example",
   "displayName": "PluresDB Extension Example",
   "description": "Example VSCode extension using PluresDB",
-  "version": "0.0.1",
+  "version": "3.10.0",
   "engines": {
     "vscode": "^1.74.0"
   },

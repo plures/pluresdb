@@ -1,6 +1,6 @@
 {
   "name": "@plures/pluresdb-relay",
-  "version": "1.0.0",
+  "version": "3.10.0",
   "description": "PluresDB Azure WSS Relay Server - Corporate-safe WebSocket relay on port 443",
   "main": "server.ts",
   "scripts": {
