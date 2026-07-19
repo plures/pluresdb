@@ -15,9 +15,14 @@ on:
     - cron: '0 */2 * * *'  # every 2h fallback sweep (event triggers handle real-time); cut from */30 to reduce Actions spend
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   lifecycle:
-    if: github.actor != 'dependabot[bot]'
+    if: github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'dependabot/'))
     uses: plures/.github/.github/workflows/copilot-pr-lifecycle-reusable.yml@main
+    with:
+      github-token: ${{ github.token }}
     secrets:
       COPILOT_PAT: ${{ secrets.COPILOT_PAT }}
