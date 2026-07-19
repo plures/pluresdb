@@ -15,6 +15,9 @@ on:
     - cron: '0 */2 * * *'  # every 2h fallback sweep (event triggers handle real-time); cut from */30 to reduce Actions spend
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   lifecycle:
     if: github.actor != 'dependabot[bot]' && !startsWith(github.head_ref || '', 'dependabot/')
