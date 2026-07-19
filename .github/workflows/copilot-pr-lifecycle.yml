@@ -22,5 +22,7 @@ jobs:
   lifecycle:
     if: github.actor != 'dependabot[bot]' && !startsWith(github.event.pull_request.head.ref || '', 'dependabot/')
     uses: plures/.github/.github/workflows/copilot-pr-lifecycle-reusable.yml@main
+    with:
+      github-token: ${{ github.token }}
     secrets:
       COPILOT_PAT: ${{ secrets.COPILOT_PAT }}
