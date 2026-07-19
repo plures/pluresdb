@@ -102,12 +102,21 @@ jobs:
         # by withholding the merge). Only NON-security MAJOR PRODUCTION bumps remain
         # held for human review (largest surface). The zerox step still classifies
         # 0.x breaking so the informational comment below can flag it.
+        # v5 (2026-07-18, org-release-ci-recovery): GitHub Actions bumps are ALWAYS
+        # low-risk mechanical infra and are CI-gated via --auto. fetch-metadata reports
+        # them as dependency-type=direct:production, so a major action bump (checkout
+        # v4->v7, github-script v7->v9) was wrongly held by the major-production hold
+        # below, leaving clean green PRs stuck for weeks (azuredevops #232, pedantic #96).
+        # Exempt package-ecosystem == github_actions from the major-production hold.
         if: >-
           ${{
             steps.meta.outputs.ghsa-id == '' &&
-            !(
-              steps.meta.outputs.dependency-type == 'direct:production' &&
-              steps.meta.outputs.update-type == 'version-update:semver-major'
+            (
+              steps.meta.outputs.package-ecosystem == 'github_actions' ||
+              !(
+                steps.meta.outputs.dependency-type == 'direct:production' &&
+                steps.meta.outputs.update-type == 'version-update:semver-major'
+              )
             )
           }}
         run: gh pr merge --auto --squash "$PR_URL"
@@ -119,6 +128,7 @@ jobs:
         if: >-
           ${{
             steps.meta.outputs.ghsa-id == '' &&
+            steps.meta.outputs.package-ecosystem != 'github_actions' &&
             steps.meta.outputs.dependency-type == 'direct:production' &&
             steps.meta.outputs.update-type == 'version-update:semver-major'
           }}
