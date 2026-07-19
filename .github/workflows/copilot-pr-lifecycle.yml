@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   lifecycle:
-    if: github.actor != 'dependabot[bot]' && !startsWith(github.event.pull_request.head.ref || '', 'dependabot/')
+    if: github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'dependabot/'))
     uses: plures/.github/.github/workflows/copilot-pr-lifecycle-reusable.yml@main
     with:
       github-token: ${{ github.token }}
