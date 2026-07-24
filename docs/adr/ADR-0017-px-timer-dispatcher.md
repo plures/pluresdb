@@ -15,15 +15,21 @@ Two timer mechanisms exist in PluresDB today and are **not connected**:
      `AgensEvent::Timer { id, name, payload }` through the registered `"timer"`
      handler (an in-process Rust closure), then persists `last_run` /
      `next_fire_at` via `mark_ran`.
-   - `AgensRuntime::spawn_timer_task` (non-`wasm32`) spawns a Tokio task that calls
-     `process_due_timers(Utc::now())` every 10 seconds. It requires a Tokio runtime
-     and that the runtime's store reference is `'static` (see the bounds in `agens.rs`).
-     This is the only built-in tick source.
-   - The Node FFI (`crates/pluresdb-node/src/lib.rs`) exposes
-     `agensTimerSchedule` / `agensTimerList` / `agensTimerDue` /
-     `agensTimerReschedule` / `agensTimerCancel` but does **not** expose
-     `process_due_timers` or the `"timer"` handler registration — JS callers
-     must poll `agensTimerDue()` and manually re-implement dispatch.
+   - `AgensRuntime::spawn_timer_task` spawns a Tokio task that calls
+     `process_due_timers(Utc::now())` every 10 seconds. It is gated by
+     `#[cfg(not(target_arch = "wasm32"))]` (not a `native` Cargo feature) and
+     additionally requires `'a: 'static` on the runtime's store reference (see
+     the bounds on `AgensRuntime::spawn_timer_task` in `agens.rs`). This is the
+     only built-in tick source.
+   - The Node FFI (`crates/pluresdb-node/src/lib.rs`) exposes snake_case NAPI
+     methods `agens_timer_schedule` / `agens_timer_list` / `agens_timer_due` /
+     `agens_timer_reschedule` / `agens_timer_cancel` on `PluresDatabase`,
+     surfaced to JS as the camelCase `agensTimerSchedule` / `agensTimerList` /
+     `agensTimerDue` / `agensTimerReschedule` / `agensTimerCancel` methods on
+     the `PluresDatabase` class (see `crates/pluresdb-node/index.d.ts`). None
+     of these expose `process_due_timers` or the `"timer"` handler
+     registration — JS callers must poll `agensTimerDue()` and manually
+     re-implement dispatch.
 
 2. **Px executor** (`crates/pluresdb-px/src/px/executor.rs`,
    `crates/pluresdb-px/src/px/watcher.rs`)
@@ -53,10 +59,11 @@ implementation.
 Introduce `PxTimerDispatcher` in `pluresdb-px` (new module
 `crates/pluresdb-px/src/px/timer_dispatcher.rs`) as the sole bridge between
 `AgensRuntime` timers and the px executor. It owns **tick-driving**,
-**event translation**, **exactly-once bookkeeping**, and **error
+**event translation**, **at-least-once delivery with idempotent
+bookkeeping**, and **error
 handling/recovery** for timer-triggered px procedures. It does not own
 scheduling policy (interval/cron/once semantics stay in `TimerTable`) and
-does not own procedure execution semantics (stays in `Executor`).
+does not own procedure execution semantics (stays in `px::executor`).
 
 ### Responsibilities
 
@@ -67,14 +74,15 @@ AgensRuntime::process_due_timers(now)
 PxTimerDispatcher::dispatch_timer(&entry, now)
         │  1. idempotency check (see below)
         │  2. translate TimerEntry -> px event JSON
-        │  3. px::executor::execute_with_vars(procedure_record, handler, vars_with_event)
+        │  3. px::executor::execute_with_vars(record_data, handler, vars_with_event)
         │  4. record outcome (success/failure) + mark_ran
         ▼
 Px procedure body executes with `event.type == "timer"`
 ```
 
-`PxTimerDispatcher` wraps a `&AgensRuntime` and an `Executor` (or a handle to
-one) and is driven by a **tick source**, of which there are exactly two
+`PxTimerDispatcher` wraps a `&AgensRuntime` and a `&dyn ActionHandler` (the
+handler passed to `px::executor::execute_with_vars`), plus a reference to the
+compiled procedure record to invoke, and is driven by a **tick source**, of which there are exactly two
 supported implementations in this design:
 
 - `TokioTickSource` — native builds, feature `native`. Thin wrapper around
@@ -115,7 +123,7 @@ pub fn tick(&self, now: DateTime<Utc>) -> TickReport {
 }
 ```
 
-### Exactly-once / idempotency
+### At-least-once delivery with idempotency
 
 Timers are **at-least-once** at the scheduling layer (a crash between
 `dispatch_one` succeeding and `mark_ran` persisting could re-fire the same
@@ -137,7 +145,8 @@ idempotent rather than claiming true exactly-once delivery:
    store). `dispatch_one` only proceeds if `entry.last_fired_token` is `None`
    or already resolved (see recovery below) — this prevents a second process
    or a retried tick from double-firing the same logical occurrence.
-   `mark_ran` (existing) clears the token and advances `next_fire_at` only on
+   `mark_ran` (existing) clears the token and advances the persisted
+   `next_run` field (exposed on `TimerEntry` as `next_fire_at`) only on
    confirmed success.
 3. **Consequence for `Once` timers**: a one-shot timer whose dispatch fails
    remains `active` with its token set to `Some(..)`, so recovery (below)
@@ -165,7 +174,7 @@ naturally idempotent (this mirrors the guidance already implied by
 
 | Failure mode | Detection | Recovery |
 |---|---|---|
-| Px procedure body panics / returns `Err` | `Executor::run_triggered` returns `Result::Err` | Logged via `tracing::error!` with `timer_id`, `timer_name`, error; token left set; timer retried next tick (interval/cron) or remains pending (once), subject to backoff below |
+| Px procedure body panics / returns `Err` | `px::executor::execute_with_vars` returns `Result::Err(ExecutionError)` | Logged via `tracing::error!` with `timer_id`, `timer_name`, error; token left set; timer retried next tick (interval/cron) or remains pending (once), subject to backoff below |
 | Process crash mid-dispatch (token set, `mark_ran` never called) | On dispatcher startup, `PxTimerDispatcher::recover()` scans `TimerTable::list()` for entries with `last_fired_token.is_some()` and `next_fire_at <= now - grace_period` | Clears stale tokens (treats as failed dispatch) and retries on next tick; `grace_period` default 60s, configurable, guards against false-positive recovery of an in-flight dispatch on a slow but alive procedure |
 | Repeated failures on same timer | `PxTimerDispatcher` tracks `consecutive_failures` per timer id in memory (not persisted — resets on restart, intentionally, to avoid permanently wedging a timer across deploys) | After `max_consecutive_failures` (default 5), timer is **not** disabled automatically; instead it emits a `tracing::warn!` "timer_repeatedly_failing" event and applies exponential backoff to the *tick* attempt (not `next_fire_at`) — i.e. the dispatcher itself waits progressively longer before retrying a chronically-failing timer, capped at 5 minutes, while other timers continue ticking normally |
 | Executor unavailable (e.g. px crate not linked, feature disabled) | `PxTimerDispatcher::new` requires an `Executor` handle at construction; if none is available the caller uses the pre-existing `AgensRuntime::process_due_timers` path directly (no px involved) — this is a deliberate compatibility fallback, not an error path | N/A — feature-gated at compile time via `pluresdb-px`'s existing `native`/no-`native` split |
@@ -174,16 +183,17 @@ All error paths must be observable without a debugger: every dispatch
 failure, skip, and recovery action is a structured `tracing` event, and
 `TickReport` (returned from every `tick()` call) surfaces the same
 information programmatically for host-side alerting (this satisfies the
-existing repo-wide expectation, see `docs/adr/ADR-0016-hardware-adaptive-
-compute.md`'s precedent of returning inspectable reports rather than
-swallowing state into logs only).
+existing repo-wide expectation, see
+`docs/adr/ADR-0016-hardware-adaptive-compute.md`'s precedent of returning
+inspectable reports rather than swallowing state into logs only).
 
 ### PluresDB data model additions
 
-`TimerEntry` (in `agens.rs`) gains two new optional fields, both persisted
+`TimerEntry` (in `agens.rs`) gains two additive fields, both persisted
 under the existing `agens:timer` node type (`_type = "agens:timer"`), so no
-migration is required for existing timers (fields default via `Option` /
-`bool` default `false` on deserialize):
+migration is required for existing timers (`last_fired_token` defaults to
+`None` and `best_effort` defaults to `false` on deserialize when the field is
+absent from older stored nodes):
 
 ```rust
 pub struct TimerEntry {
@@ -219,7 +229,14 @@ and rebuilt from the store's `last_fired_token` on `recover()`.
 
 ```rust
 pub struct PxTimerDispatcher<'a> {
-    pub fn new(runtime: &'a AgensRuntime<'a>, executor: Executor) -> Self;
+    runtime: &'a AgensRuntime<'a>,
+    handler: &'a dyn ActionHandler,
+    // ...in-flight/failure-tracking fields elided (see "At-least-once
+    // delivery with idempotency" and "Error handling & recovery" above)...
+}
+
+impl<'a> PxTimerDispatcher<'a> {
+    pub fn new(runtime: &'a AgensRuntime<'a>, handler: &'a dyn ActionHandler) -> Self;
     pub fn tick(&self, now: DateTime<Utc>) -> TickReport;
     pub fn recover(&self, now: DateTime<Utc>, grace_period: Duration) -> RecoveryReport;
     pub fn spawn_native(self: Arc<Self>) -> tokio::task::JoinHandle<()>; // 10s loop, feature = "native"
@@ -228,21 +245,26 @@ pub struct PxTimerDispatcher<'a> {
 
 ### FFI surface (`pluresdb-node`)
 
-New napi methods on `PluresDatabase` (additive):
+New napi methods on the `PluresDatabase` NAPI class (additive, following the
+same snake_case-Rust / camelCase-JS pattern as `agensTimerSchedule` etc.):
 
-    // index.d.ts (PluresDatabase methods)
+    // index.d.ts — methods on the exported `PluresDatabase` class
     export interface TickReport {
       fired: number;
       skipped: number;
       errors: Array<{ timerId: string; timerName: string; error: string }>;
     }
-    pxTimerTick(): TickReport;          // calls PxTimerDispatcher::tick(now) once
-    pxTimerRecover(gracePeriodSecs: number): { recovered: number };
+    class PluresDatabase {
+      // ...existing methods...
+      pxTimerTick(): TickReport;          // calls PxTimerDispatcher::tick(now) once
+      pxTimerRecover(gracePeriodSecs: number): { recovered: number };
+    }
 
 This replaces the previous guidance ("call `agensTimerDue()` and hand-roll
-dispatch in JS") with a single call that has the exactly-once/error
-guarantees above. Existing `agensTimerDue`/`agensTimerReschedule` remain for
-callers that want raw timer introspection without px execution (e.g. a
+dispatch in JS") with a single call that has the at-least-once delivery +
+in-process duplicate-suppression guarantees above (see "At-least-once
+delivery with idempotency" section). Existing `agensTimerDue`/`agensTimerReschedule` remain
+for callers that want raw timer introspection without px execution (e.g. a
 non-px consumer using `AgensRuntime` handlers directly) — this ADR does not
 deprecate them.
 
@@ -322,7 +344,7 @@ opened; this ADR PR itself contains no implementation, only the design.
 - `pluresdb-px` gains a hard dependency on `pluresdb-procedures`'s
   `AgensRuntime`/`TimerTable` (already implied by px's timer-event test
   fixtures; this ADR makes it an explicit, real dependency edge).
-- `TimerEntry`'s two new fields are additive/optional and do not break
+- `TimerEntry`'s two new fields are additive and do not break
   existing serialized timer nodes; `entry_from_data` must default them
   (`None` / `false`) when absent — this is a one-line change to the existing
   parse function (`agens.rs` ~line 639), not a migration.
