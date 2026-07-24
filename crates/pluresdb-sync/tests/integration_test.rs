@@ -259,6 +259,18 @@ async fn test_gun_protocol_crdt_store_integration() {
 /// Two HyperswarmTransport instances running in the same process discover each
 /// other via the process-local peer registry and exchange a test message over a
 /// direct TCP connection.  AES-256-GCM encryption is enabled end-to-end.
+///
+/// # Connection pairing
+///
+/// When both peers have announced before `connect()`, each peer's outbound
+/// task dials the other, producing **two** independent TCP connections (four
+/// connection objects total — two per receiver).  The test must pair the
+/// outbound end of one TCP stream with the inbound (accepted) end of the same
+/// stream.  Outbound connections carry the remote peer's UUID as `peer_id`;
+/// accepted connections carry a synthetic `"incoming-{addr}"` peer_id.
+/// We pick peer2's **outbound** connection (peer_id = peer1's UUID, present on
+/// rx2) and peer1's **inbound** connection (peer_id starts with `"incoming-"`,
+/// present on rx1) — these are the two halves of the same TCP stream.
 #[tokio::test]
 async fn test_hyperswarm_peer_discovery() {
     // Use a unique topic to prevent cross-test registry pollution.
@@ -290,32 +302,62 @@ async fn test_hyperswarm_peer_discovery() {
     assert_eq!(peers_seen_by_2.len(), 1, "peer2 should discover peer1");
 
     // connect() starts the accept loop + dials known peers.
+    // Because both peers already announced, each peer's outbound task will
+    // dial the other, creating two independent TCP connections.  Each
+    // receiver (rx1, rx2) therefore yields TWO Connection objects.
     let mut rx1 = peer1.connect(topic).await.expect("peer1 connect");
     let mut rx2 = peer2.connect(topic).await.expect("peer2 connect");
 
-    // peer2's outbound connection to peer1 arrives on rx2.
-    let mut conn_from_peer2 = tokio::time::timeout(Duration::from_secs(3), rx2.recv())
-        .await
-        .expect("peer2 outbound connection should appear within 3s")
-        .expect("connection receiver not closed");
+    // Collect all connections from each receiver (expect exactly 2 each).
+    let timeout = Duration::from_secs(5);
+    let mut conns1 = Vec::new();
+    let mut conns2 = Vec::new();
+    for _ in 0..2 {
+        let c = tokio::time::timeout(timeout, rx1.recv())
+            .await
+            .expect("peer1 should yield a connection within 5s")
+            .expect("peer1 connection receiver not closed");
+        conns1.push(c);
+    }
+    for _ in 0..2 {
+        let c = tokio::time::timeout(timeout, rx2.recv())
+            .await
+            .expect("peer2 should yield a connection within 5s")
+            .expect("peer2 connection receiver not closed");
+        conns2.push(c);
+    }
 
-    // peer1's accept loop receives peer2's inbound connection on rx1.
-    let mut conn_from_peer1 = tokio::time::timeout(Duration::from_secs(3), rx1.recv())
-        .await
-        .expect("peer1 accept should complete within 3s")
-        .expect("connection receiver not closed");
+    // Pair the two halves of the SAME TCP stream:
+    //   • peer2's outbound connection (peer_id is peer1's UUID)  → sender
+    //   • peer1's inbound  connection (peer_id starts "incoming-") → receiver
+    // These share one underlying TCP stream, so data sent on one is
+    // received on the other.
+    let sender_idx = conns2
+        .iter()
+        .position(|c| !c.peer_id().starts_with("incoming-"))
+        .expect("peer2 should have an outbound connection");
+    let receiver_idx = conns1
+        .iter()
+        .position(|c| c.peer_id().starts_with("incoming-"))
+        .expect("peer1 should have an inbound connection");
+
+    // Move the matched connections out; drop the unneeded ones.
+    let mut conn_sender = conns2.swap_remove(sender_idx);
+    let mut conn_receiver = conns1.swap_remove(receiver_idx);
+    drop(conns1);
+    drop(conns2);
 
     // Send a test message from peer2 → peer1.
     let test_msg = b"hello from hyperswarm peer";
-    conn_from_peer2
+    conn_sender
         .send(test_msg)
         .await
         .expect("send should succeed");
 
-    // peer1 receives and decrypts the message.
-    let received = conn_from_peer1
-        .receive()
+    // peer1 receives and decrypts the message (bounded timeout).
+    let received = tokio::time::timeout(Duration::from_secs(3), conn_receiver.receive())
         .await
+        .expect("receive should complete within 3s")
         .expect("receive should not error")
         .expect("message should be present");
     assert_eq!(
@@ -323,10 +365,19 @@ async fn test_hyperswarm_peer_discovery() {
         "received message should match sent message"
     );
 
-    // Graceful close.
-    conn_from_peer2.close().await.expect("close");
-    peer1.disconnect().await.expect("peer1 disconnect");
-    peer2.disconnect().await.expect("peer2 disconnect");
+    // Graceful close (bounded timeouts for cleanup).
+    tokio::time::timeout(Duration::from_secs(2), conn_sender.close())
+        .await
+        .expect("close should complete within 2s")
+        .expect("close");
+    tokio::time::timeout(Duration::from_secs(2), peer1.disconnect())
+        .await
+        .expect("peer1 disconnect should complete within 2s")
+        .expect("peer1 disconnect");
+    tokio::time::timeout(Duration::from_secs(2), peer2.disconnect())
+        .await
+        .expect("peer2 disconnect should complete within 2s")
+        .expect("peer2 disconnect");
 }
 
 // ---------------------------------------------------------------------------
