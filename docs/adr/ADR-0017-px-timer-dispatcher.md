@@ -228,18 +228,16 @@ pub struct PxTimerDispatcher<'a> {
 
 ### FFI surface (`pluresdb-node`)
 
-New napi export, additive:
+New napi methods on `PluresDatabase` (additive):
 
-```ts
-// index.d.ts
-export interface TickReport {
-  fired: number;
-  skipped: number;
-  errors: Array<{ timerId: string; timerName: string; error: string }>;
-}
-pxTimerTick(): TickReport;          // calls PxTimerDispatcher::tick(now) once
-pxTimerRecover(gracePeriodSecs: number): { recovered: number };
-```
+    // index.d.ts (PluresDatabase methods)
+    export interface TickReport {
+      fired: number;
+      skipped: number;
+      errors: Array<{ timerId: string; timerName: string; error: string }>;
+    }
+    pxTimerTick(): TickReport;          // calls PxTimerDispatcher::tick(now) once
+    pxTimerRecover(gracePeriodSecs: number): { recovered: number };
 
 This replaces the previous guidance ("call `agensTimerDue()` and hand-roll
 dispatch in JS") with a single call that has the exactly-once/error
