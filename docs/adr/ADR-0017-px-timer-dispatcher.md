@@ -67,7 +67,7 @@ AgensRuntime::process_due_timers(now)
 PxTimerDispatcher::dispatch_timer(&entry, now)
         │  1. idempotency check (see below)
         │  2. translate TimerEntry -> px event JSON
-        │  3. Executor::run_triggered("timer", event_json)
+        │  3. px::executor::execute_with_vars(procedure_record, handler, vars_with_event)
         │  4. record outcome (success/failure) + mark_ran
         ▼
 Px procedure body executes with `event.type == "timer"`
