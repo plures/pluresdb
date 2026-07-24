@@ -15,10 +15,10 @@ Two timer mechanisms exist in PluresDB today and are **not connected**:
      `AgensEvent::Timer { id, name, payload }` through the registered `"timer"`
      handler (an in-process Rust closure), then persists `last_run` /
      `next_fire_at` via `mark_ran`.
-   - `AgensRuntime::spawn_timer_task` spawns a Tokio task that calls
-     `process_due_timers(Utc::now())` every 10 seconds — but only when the
-     caller is in a Tokio runtime with the `native` feature. This is the only
-     built-in tick source.
+   - `AgensRuntime::spawn_timer_task` (non-`wasm32`) spawns a Tokio task that calls
+     `process_due_timers(Utc::now())` every 10 seconds. It requires a Tokio runtime
+     and that the runtime's store reference is `'static` (see the bounds in `agens.rs`).
+     This is the only built-in tick source.
    - The Node FFI (`crates/pluresdb-node/src/lib.rs`) exposes
      `agensTimerSchedule` / `agensTimerList` / `agensTimerDue` /
      `agensTimerReschedule` / `agensTimerCancel` but does **not** expose
