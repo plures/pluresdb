@@ -48,7 +48,7 @@ compatible-but-additional properties this ADR must supply.
 5. Support both single-node conditional writes and small atomic multi-op
    batches (claim = "check A, then write A and B together") reusing the
    `apply_mutate` batch shape where practical.
-4. No implementation in this pass — API shape, conflict-resolution
+6. No implementation in this pass — API shape, conflict-resolution
    strategy, and test plan only.
 
 ## 2. Current State Analysis
@@ -119,21 +119,37 @@ Introduce a caller-visible, cheap-to-compare **revision token** derived from
 existing `NodeRecord` state — no new wire format, no schema migration:
 
 ```rust
-/// Opaque, comparable snapshot marker for a node's current state.
-/// Two revisions are equal iff the record's (clock, timestamp, data-digest)
-/// triple is bit-identical. Cheap to compute (no crypto hash of full data
-/// required for the common case — see NodeRevision::digest below).
+/// Comparable snapshot marker for a node's current state, used as the
+/// expected-value guard for `put_if`/`merge_if`/`delete_if`.
+///
+/// "Opaque" here means *semantically* opaque, not structurally hidden:
+/// callers are expected to treat a `NodeRevision` as an unstructured
+/// equality token (obtain it from `get_with_revision`/`NodeRecord::revision`,
+/// pass it back verbatim to a `*_if` call, never construct one by hand or
+/// rely on the meaning of its fields), and no stability guarantee is made
+/// about its internal shape across versions. The fields are nonetheless
+/// `pub` and the type derives `Serialize`/`Deserialize` on purpose, because
+/// conditional-write callers need to round-trip a revision across a
+/// request/response boundary (e.g. an HTTP client reads a record, gets a
+/// `NodeRevision` back in the response body, and must be able to send that
+/// same value back verbatim on a later conditional write) — an opaque
+/// `Vec<u8>`/base64 blob would work too, but would force every binding
+/// (TS/npm, CLI, wire protocol) to invent its own encoding for a value that
+/// is already plain-old JSON-shaped data. Equality (`PartialEq`/`Eq`), not
+/// field access, is the supported operation; do not compare or branch on
+/// `clock`/`timestamp`/`digest` individually in application code.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NodeRevision {
     /// Vector clock at time of read (causal position).
     pub clock: VectorClock,
     /// HAM timestamp at time of read (tie-break / freshness).
     pub timestamp: DateTime<Utc>,
-    /// FNV-1a/xxhash digest of the canonical JSON serialization of `data`.
-    /// Guards against same (clock, timestamp) but different data in edge
-    /// cases (e.g. clock/timestamp collision under clock skew) — cheap,
-    /// non-cryptographic, collision-resistant enough for a local
-    /// concurrency guard (not a security boundary).
+    /// FNV-1a/xxhash digest of the canonical JSON serialization of `data`
+    /// (see §3.1.1 for the exact canonicalization rule). Guards against
+    /// same (clock, timestamp) but different data in edge cases (e.g.
+    /// clock/timestamp collision under clock skew) — cheap, non-cryptographic,
+    /// collision-resistant enough for a local concurrency guard (not a
+    /// security boundary).
     pub digest: u64,
 }
 
@@ -141,6 +157,47 @@ impl NodeRevision {
     pub fn of(record: &NodeRecord) -> Self { /* compute from record */ }
 }
 ```
+
+#### 3.1.1 Canonical JSON serialization (precise definition)
+
+"Canonical JSON serialization of `data`" means: serialize the `NodeData`
+(`serde_json::Value`) to a JSON text using the following deterministic
+rule, then hash the resulting UTF-8 bytes:
+
+- **Object key ordering:** keys within every JSON object are emitted in
+  **byte-wise ascending order of their UTF-8 key strings**, applied
+  recursively to nested objects. This is the one property that matters for
+  digest stability, since `serde_json::Value::Object` is backed by a `BTreeMap`
+  (default, non-`preserve_order` build) which already iterates in sorted-key
+  order — `pluresdb-core` does **not** enable serde_json's `preserve_order`
+  feature, so `serde_json::to_vec(&data)` already produces this ordering
+  today with no extra code. This ADR pins that as an explicit, tested
+  contract (§5.1 item 7) rather than an accidental side effect of a
+  `Cargo.toml` feature flag, so a future `preserve_order` addition elsewhere
+  in the workspace cannot silently change digest stability for `NodeRevision`.
+- **No insignificant whitespace:** compact form, no pretty-printing (matches
+  `serde_json::to_vec`, not `to_vec_pretty`).
+- **Number formatting, string escaping, and Unicode normalization:** exactly
+  whatever `serde_json`'s `Serialize` impl for `serde_json::Value` already
+  produces — this ADR does **not** propose RFC 8785 (JCS) or any other
+  cross-language canonicalization spec, because `digest` is a purely local,
+  same-process, same-`serde_json`-version comparison ("has this exact value,
+  as this process would serialize it, changed since I last read it"), never
+  compared across processes, languages, or serde_json versions, and never
+  used for wire-format interop. Adopting JCS would add a real dependency and
+  normalization cost for a property (cross-implementation byte-identical
+  canonical form) this design does not need.
+- **Concretely:** `digest = xxhash64(serde_json::to_vec(&record.data).expect("NodeData is always valid JSON"))`.
+
+This does **not** conflict with existing serialization elsewhere in
+`pluresdb-core`: `persist_node`/`get_from_persistence`/WAL persistence
+already serialize the *whole* `NodeRecord` (not just `data`) via
+`serde_json::to_value`/`from_value` for storage, using the same non-`preserve_order`
+`serde_json::Value` (`BTreeMap`-backed) representation. `NodeRevision::digest`
+reuses that exact same serializer against a narrower input (`data` only, not
+the whole record) purely to obtain a compact comparison token — it defines
+no new wire format and introduces no second canonicalization scheme into the
+crate.
 
 `NodeRecord` gains:
 ```rust
@@ -168,7 +225,7 @@ pub enum ConditionalWriteError {
     RevisionMismatch {
         id: NodeId,
         expected: NodeRevision,
-        current: NodeRecord,
+        current: NodeRecordSummary,
     },
     /// Caller expected the node to exist (passed `Some(revision)`) but it
     /// does not.
@@ -177,10 +234,32 @@ pub enum ConditionalWriteError {
     /// Caller expected the node to be absent (passed `None`, i.e. "create
     /// only if missing") but it already exists.
     #[error("node '{id}' already exists")]
-    AlreadyExists { id: NodeId, current: NodeRecord },
+    AlreadyExists { id: NodeId, current: NodeRecordSummary },
     #[error(transparent)]
     Store(#[from] StoreError),
 }
+```
+
+**Error payload uses `NodeRecordSummary`, not `NodeRecord` (embedding
+excluded by design):** `NodeRecord::embedding` is an `Option<Vec<f32>>`
+that, for embedded-content nodes, can be hundreds to low-thousands of
+`f32`s (multi-KB per record). Carrying that on the error path is
+inappropriate for three reasons: (a) conflict errors are expected to be
+routine in a claim-loop retry pattern (see test 10, §5.2), not exceptional,
+so their cost should be O(small constant), not O(record size); (b) callers
+only need `id`, `data`, `clock`/`timestamp` (to build a fresh
+`NodeRevision` for a retry) and optionally `quality_score` — none of the
+retry/inspect/give-up decision paths in §3.2/§3.3 read `current.embedding`;
+(c) `thiserror`'s `Debug`/`Display` derives and any logging/tracing of
+these errors would otherwise routinely serialize large float vectors into
+logs. `NodeRecordSummary` is a `From<&NodeRecord>` projection carrying
+`id`, `data`, `clock`, `timestamp`, `quality_score` and deliberately
+omitting `embedding`. If a caller genuinely needs the embedding after a
+conflict (rare — e.g. re-running a vector search against the current
+state), they issue a normal `store.get(id)` after inspecting the summary;
+this keeps the common-case error payload small without losing capability.
+
+```rust
 
 impl CrdtStore {
     /// Atomically (w.r.t. other local `put`/`put_if`/`delete_if` calls on
