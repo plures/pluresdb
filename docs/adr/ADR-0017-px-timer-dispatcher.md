@@ -34,11 +34,12 @@ Two timer mechanisms exist in PluresDB today and are **not connected**:
 2. **Px executor** (`crates/pluresdb-px/src/px/executor.rs`,
    `crates/pluresdb-px/src/px/watcher.rs`)
    - Px procedures declare triggers (`on_write`, event patterns, etc.) and are
-     invoked with an `event` variable, e.g.
-     `{ "event": { "type": "timer", "id": "t1", "name": "check", "recurring": false } }`
-     (see `executor.rs` tests around line 4063). This shape is **already the
-     execution contract** the dispatcher must produce — it is asserted by
-     existing unit tests but nothing produces it outside of test fixtures.
+     invoked with an `event` variable supplied via the `vars` argument to
+     `execute_with_vars`, e.g.
+     `{ "event": { "type": "timer", "id": "t1", "name": "check", "recurring": false } }`.
+     In `executor.rs` tests around line 4063, this timer-shaped object appears
+     as an `emit.event` fixture (not as invocation input). The dispatcher must
+     construct and pass this same shape as initial vars at invocation time.
    - `PxWatcher` (`watcher.rs`) is a hot-reload / file-watch mechanism for
      `.px` source files, not a runtime event source. It is unrelated to timer
      ticks and must not be confused with the dispatcher seam.
@@ -71,7 +72,7 @@ does not own procedure execution semantics (stays in `px::executor`).
 AgensRuntime::process_due_timers(now)
         │  (per due timer)
         ▼
-PxTimerDispatcher::dispatch_timer(&entry, now)
+PxTimerDispatcher::dispatch_one(&entry, now)
         │  1. idempotency check (see below)
         │  2. translate TimerEntry -> px event JSON
         │  3. px::executor::execute_with_vars(record_data, handler, vars_with_event)
@@ -85,7 +86,7 @@ handler passed to `px::executor::execute_with_vars`), plus a reference to the
 compiled procedure record to invoke, and is driven by a **tick source**, of which there are exactly two
 supported implementations in this design:
 
-- `TokioTickSource` — native builds, feature `native`. Thin wrapper around
+- `TokioTickSource` — native builds, feature `async`. Thin wrapper around
   the existing `spawn_timer_task` pattern, replaced to call
   `PxTimerDispatcher::tick(now)` instead of firing a bare handler.
 - `ManualTickSource` — embedded/FFI builds (Node, WASM, tests). Exposes a
@@ -177,7 +178,7 @@ naturally idempotent (this mirrors the guidance already implied by
 | Px procedure body panics / returns `Err` | `px::executor::execute_with_vars` returns `Result::Err(ExecutionError)` | Logged via `tracing::error!` with `timer_id`, `timer_name`, error; token left set; timer retried next tick (interval/cron) or remains pending (once), subject to backoff below |
 | Process crash mid-dispatch (token set, `mark_ran` never called) | On dispatcher startup, `PxTimerDispatcher::recover()` scans `TimerTable::list()` for entries with `last_fired_token.is_some()` and `next_fire_at <= now - grace_period` | Clears stale tokens (treats as failed dispatch) and retries on next tick; `grace_period` default 60s, configurable, guards against false-positive recovery of an in-flight dispatch on a slow but alive procedure |
 | Repeated failures on same timer | `PxTimerDispatcher` tracks `consecutive_failures` per timer id in memory (not persisted — resets on restart, intentionally, to avoid permanently wedging a timer across deploys) | After `max_consecutive_failures` (default 5), timer is **not** disabled automatically; instead it emits a `tracing::warn!` "timer_repeatedly_failing" event and applies exponential backoff to the *tick* attempt (not `next_fire_at`) — i.e. the dispatcher itself waits progressively longer before retrying a chronically-failing timer, capped at 5 minutes, while other timers continue ticking normally |
-| Executor unavailable (e.g. px crate not linked, feature disabled) | `PxTimerDispatcher::new` requires an `Executor` handle at construction; if none is available the caller uses the pre-existing `AgensRuntime::process_due_timers` path directly (no px involved) — this is a deliberate compatibility fallback, not an error path | N/A — feature-gated at compile time via `pluresdb-px`'s existing `native`/no-`native` split |
+| Executor unavailable (e.g. px crate not linked, feature disabled) | `PxTimerDispatcher::new` requires an `Executor` handle at construction; if none is available the caller uses the pre-existing `AgensRuntime::process_due_timers` path directly (no px involved) — this is a deliberate compatibility fallback, not an error path | N/A — feature-gated at compile time via `pluresdb-px`'s existing `async`/no-`async` split |
 
 All error paths must be observable without a debugger: every dispatch
 failure, skip, and recovery action is a structured `tracing` event, and
@@ -225,21 +226,26 @@ consistent with the existing "timers are just CRDT nodes" model. In-memory
 state (`in_flight` set, `consecutive_failures` map) is explicitly ephemeral
 and rebuilt from the store's `last_fired_token` on `recover()`.
 
-### Public API surface (native, `pluresdb-px`)
+### Public API surface (native + `async`, `pluresdb-px`)
 
 ```rust
 pub struct PxTimerDispatcher<'a> {
     runtime: &'a AgensRuntime<'a>,
     handler: &'a dyn ActionHandler,
+    procedure_record: &'a serde_json::Value,
     // ...in-flight/failure-tracking fields elided (see "At-least-once
     // delivery with idempotency" and "Error handling & recovery" above)...
 }
 
 impl<'a> PxTimerDispatcher<'a> {
-    pub fn new(runtime: &'a AgensRuntime<'a>, handler: &'a dyn ActionHandler) -> Self;
+    pub fn new(
+        runtime: &'a AgensRuntime<'a>,
+        handler: &'a dyn ActionHandler,
+        procedure_record: &'a serde_json::Value,
+    ) -> Self;
     pub fn tick(&self, now: DateTime<Utc>) -> TickReport;
     pub fn recover(&self, now: DateTime<Utc>, grace_period: Duration) -> RecoveryReport;
-    pub fn spawn_native(self: Arc<Self>) -> tokio::task::JoinHandle<()>; // 10s loop, feature = "native"
+    pub fn spawn_native(self: Arc<Self>) -> tokio::task::JoinHandle<()>; // 10s loop, feature = "async"
 }
 ```
 
@@ -293,7 +299,7 @@ unit tests in isolation:
 
 1. **Build.**
    ```
-   cargo build -p pluresdb-px --features native
+   cargo build -p pluresdb-px --features async
    cargo build -p pluresdb-node --release
    ```
 2. **Unit tests (pluresdb-px, new module).**
