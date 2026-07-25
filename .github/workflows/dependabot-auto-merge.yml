@@ -1,30 +1,9 @@
 name: Dependabot Auto-Merge
 
-# Fills the org-wide gap: Dependabot PRs were piling up green-but-unmerged because
-# copilot-pr-lifecycle.yml excludes dependabot[bot] and requires a Copilot/human review
-# that Dependabot PRs never receive. This workflow auto-merges LOW-RISK Dependabot updates
-# (patch + minor, and any dev-dependency bump) once required checks pass. Major bumps and
-# production major/minor are left for human review.
-#
-# SECURITY OVERRIDE (kbristol directive 2026-07-03): a Dependabot SECURITY update (any PR
-# carrying a GHSA advisory, i.e. steps.meta.outputs.ghsa-id is non-empty) is auto-merged
-# REGARDLESS of semver bump type - including majors - because we favor security over
-# function: the vulnerable state we are in today is the certain risk; a breaking change is
-# hypothetical and caught by CI. Auto-merge stays CI-gated ("--auto" waits for required
-# checks), so if the security patch itself breaks the build/tests the merge is blocked and
-# becomes a fix-then-merge (breakage caught BEFORE it lands on main). A major security bump
-# additionally drops a comment so a human knows to watch for follow-up breakage.
-#
-# v3 FIX (2026-07-03): pre-1.0 (0.x) semver hole. For a 0.x dependency, dependabot labels a
-# BREAKING 0.minor bump (0.10 -> 0.11) as "semver-minor". v2 auto-merged all minors, so
-# aes-gcm 0.10.3->0.11.0 auto-merged and broke pluresdb main. v3 computes "zerox breaking"
-# (previous-version starts "0." AND the major.minor prefix changes) and refuses to
-# auto-merge those as low-risk - they are flagged for human review instead. True within-
-# 0.<minor> patches (0.10.3 -> 0.10.4) and 1.x+ patch/minor still auto-merge. Security
-# (ghsa-id) still overrides everything.
-#
-# Ref: development-guide/practices/automation-first.md ("auto-merge patch updates"),
-#      zero-manual-dependency.md, merge-sweeps.md (green -> squash merge).
+# This repo delegates dependabot auto-merge policy to the shared org template.
+# See plures/.github .github/workflows/dependabot-auto-merge.yml for the full
+# policy (security-override, 0.x breaking classification, low-risk auto-merge).
+# Do not fork/duplicate the policy body here - update the shared template instead.
 
 on:
   pull_request_target:
@@ -36,117 +15,5 @@ permissions:
 
 jobs:
   auto-merge:
-    runs-on: ubuntu-latest
-    if: ${{ github.actor == 'dependabot[bot]' }}
-    steps:
-      - name: Fetch Dependabot metadata
-        id: meta
-        uses: dependabot/fetch-metadata@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Classify pre-1.0 (0.x) breaking bumps
-        id: zerox
-        env:
-          PREV: ${{ steps.meta.outputs.previous-version }}
-          NEW: ${{ steps.meta.outputs.new-version }}
-        run: |
-          breaking=false
-          # A 0.x dependency treats the minor position as the breaking position.
-          # Breaking when previous starts "0." and the major.minor prefix changed.
-          case "$PREV" in
-            0.*)
-              prev_mm="$(printf '%s' "$PREV" | cut -d. -f1-2)"
-              new_mm="$(printf '%s' "$NEW" | cut -d. -f1-2)"
-              if [ "$prev_mm" != "$new_mm" ]; then breaking=true; fi
-              ;;
-          esac
-          echo "breaking=$breaking" >> "$GITHUB_OUTPUT"
-          echo "0.x breaking classification: prev=$PREV new=$NEW breaking=$breaking"
-
-      - name: Auto-merge SECURITY updates (any bump type - security over function)
-        # A non-empty ghsa-id means Dependabot opened this to fix a published advisory.
-        # We merge it regardless of semver-major/minor/patch. Still CI-gated via --auto.
-        if: ${{ steps.meta.outputs.ghsa-id != '' }}
-        run: gh pr merge --auto --squash "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Note when a security fix is a breaking (major or 0.x) bump
-        if: >-
-          ${{
-            steps.meta.outputs.ghsa-id != '' &&
-            (
-              steps.meta.outputs.update-type == 'version-update:semver-major' ||
-              steps.zerox.outputs.breaking == 'true'
-            )
-          }}
-        run: |
-          gh pr comment "$PR_URL" --body "Auto-merging a security fix that is a breaking (major or 0.x) bump of the dependency. Per the security-over-function policy this merges once CI is green - watch for follow-up breakage and fix-forward if needed."
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Enable auto-merge for low-risk NON-security updates
-        # Low-risk = any dev-dependency bump, OR a patch/minor bump of a production dep,
-        # EXCLUDING pre-1.0 (0.x) breaking bumps (see zerox step) which are breaking despite
-        # dependabot labeling them semver-minor.
-        # Skipped when this is a security PR (handled above so majors still merge).
-        # GitHub auto-merge waits for required checks before merging; if the repo has no
-        # branch protection, enabling auto-merge still records intent and merges when mergeable.
-        # v4 (kbristol directive 2026-07-13, "merge whenever possible"): 0.x breaking
-        # bumps are now ALSO auto-merged, but stay CI-gated via --auto so a bump that
-        # actually breaks the build/tests is blocked BEFORE it lands on main (the
-        # aes-gcm 0.11 regression that motivated the v3 hold is now caught by CI, not
-        # by withholding the merge). Only NON-security MAJOR PRODUCTION bumps remain
-        # held for human review (largest surface). The zerox step still classifies
-        # 0.x breaking so the informational comment below can flag it.
-        # v5 (2026-07-18, org-release-ci-recovery): GitHub Actions bumps are ALWAYS
-        # low-risk mechanical infra and are CI-gated via --auto. fetch-metadata reports
-        # them as dependency-type=direct:production, so a major action bump (checkout
-        # v4->v7, github-script v7->v9) was wrongly held by the major-production hold
-        # below, leaving clean green PRs stuck for weeks (azuredevops #232, pedantic #96).
-        # Exempt package-ecosystem == github_actions from the major-production hold.
-        if: >-
-          ${{
-            steps.meta.outputs.ghsa-id == '' &&
-            (
-              steps.meta.outputs.package-ecosystem == 'github_actions' ||
-              !(
-                steps.meta.outputs.dependency-type == 'direct:production' &&
-                steps.meta.outputs.update-type == 'version-update:semver-major'
-              )
-            )
-          }}
-        run: gh pr merge --auto --squash "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Flag NON-security major production updates for review
-        if: >-
-          ${{
-            steps.meta.outputs.ghsa-id == '' &&
-            steps.meta.outputs.package-ecosystem != 'github_actions' &&
-            steps.meta.outputs.dependency-type == 'direct:production' &&
-            steps.meta.outputs.update-type == 'version-update:semver-major'
-          }}
-        run: |
-          gh pr comment "$PR_URL" --body "Major production dependency bump. Auto-merge intentionally NOT enabled - needs human review per automation-first.md."
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Flag pre-1.0 (0.x) breaking NON-security updates for review
-        if: >-
-          ${{
-            steps.meta.outputs.ghsa-id == '' &&
-            steps.zerox.outputs.breaking == 'true' &&
-            steps.meta.outputs.update-type != 'version-update:semver-major'
-          }}
-        run: |
-          gh pr comment "$PR_URL" --body "Pre-1.0 (0.x) breaking bump detected (Dependabot labels it semver-minor but a 0.x minor is breaking). Per the merge-whenever-possible policy this IS auto-merged once CI is green - watch for follow-up breakage and fix-forward if needed."
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: plures/.github/.github/workflows/dependabot-auto-merge.yml@main
+    secrets: inherit
