@@ -1,3 +1,12 @@
+## [3.10.2] — 2026-07-25
+
+- docs(adr): ADR-0017 PxTimerDispatcher - native tick to px trigger bridge (design only) (#1069) (d8dc0dc)
+- chore(deps-dev): bump fast-uri from 3.1.2 to 3.1.4 in /web/svelte (#1073) (ebe61fa)
+- chore(deps): bump postcss from 8.5.17 to 8.5.23 in /web/svelte (#1072) (14af1c2)
+- ci(release): trigger release on merge to main (#1068) (174cff0)
+- fix(sync): resolve hyperswarm peer discovery test hang from mismatched connection pairing (#1067) (4c90069)
+- ci: migrate Tech Doc Writer to shared reusable (04853f0)
+
 ## [3.10.0] — 2026-07-19
 
 - fix(dependabot): auto-merge github_actions bumps (were wrongly held as major-production) (#1066) (51cd9f4)

@@ -1,6 +1,6 @@
 {
   "name": "@plures/pluresdb",
-  "version": "3.10.0",
+  "version": "3.10.2",
   "exports": "./dist/wasm/pluresdb.js",
   "publish": {
     "include": [
