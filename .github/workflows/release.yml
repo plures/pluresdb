@@ -1,7 +1,7 @@
 name: Release
 on:
   push:
-    tags: ['v*']
+    branches: [main]
   workflow_dispatch:
     inputs:
       bump:
@@ -12,6 +12,10 @@ on:
         description: 'Exact version to release (e.g. 1.0.0). Overrides bump logic.'
         type: string
         required: false
+concurrency:
+  group: release-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   packages: write
