@@ -14,15 +14,13 @@ an atomic **read-check-write** primitive: *"update this node only if it is
 still in the state I last observed."* Today, `CrdtStore` exposes only
 unconditional last-write-wins mutation:
 
-- `CrdtStore::put(id, actor, data)` — always applies, merges via per-field
-  HAM (Hypothetical Amnesia Machine) timestamp comparison
-  (`NodeRecord::merge_update`).
+- `CrdtStore::put(id, actor, data)` — always applies; `NodeRecord::merge_update` advances the node’s `clock`, sets `timestamp = Utc::now()`, and replaces `data` (node-level LWW in `pluresdb-core`).
 - `apply_mutate` (in `pluresdb-procedures::ops::mutate`) — batch put / merge /
   delete with an `atomic` flag that only does an **existence** pre-check
   (`store.get(id).is_none()`), not a value/version pre-check. Two concurrent
-  callers can both pass the "exists" check and both `put()`, and HAM's
-  per-field LWW will silently let the later-timestamped write win — there is
-  no signal to either caller that they raced, and no way to abort or retry.
+  callers can both pass the "exists" check and both `put()`, and the later
+  write will silently win — there is no signal to either caller that they raced,
+  and no way to abort or retry.
 
 This is a **lost update** problem: with concurrent claimants, the design
 intent ("only one claimant should win") is not enforced. HAM guarantees
