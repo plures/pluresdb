@@ -1,3 +1,9 @@
+## [3.10.1] — 2026-07-25
+
+- ci(release): trigger release on merge to main (#1068) (174cff0)
+- fix(sync): resolve hyperswarm peer discovery test hang from mismatched connection pairing (#1067) (4c90069)
+- ci: migrate Tech Doc Writer to shared reusable (04853f0)
+
 ## [3.10.0] — 2026-07-19
 
 - fix(dependabot): auto-merge github_actions bumps (were wrongly held as major-production) (#1066) (51cd9f4)
