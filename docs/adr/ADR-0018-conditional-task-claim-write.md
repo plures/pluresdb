@@ -359,21 +359,16 @@ pub enum ConditionalMutateOp {
     DeleteIf { id: NodeId, expected: NodeRevision },
 }
 
-/// All-or-nothing: computes every guard first (single pass over `store`),
-/// and only if *all* guards currently pass does it apply all writes. This
-/// generalizes the existing `atomic` existence-check pattern in
-/// `apply_mutate` to revision-guarded batches — e.g. "claim task A only if
-/// still open AND write audit-log entry B" as one unit.
+/// Batch conditional mutation over multiple node IDs.
 ///
-/// NOTE: guard-check-then-apply is still two passes over `store`, so it is
-/// atomic in the sense of "all guards pass or nothing is written," but a
-/// concurrent local `put_if`/`put` on one of the same ids between the two
-/// passes will be caught by re-checking each guard immediately before its
-/// own write inside the same DashMap `entry()` critical section (i.e. the
-/// second pass reuses the same per-key `entry()`-based CAS as `put_if`, so
-/// TOCTOU is bounded to "did anything change between pass 1 and pass 2,"
-/// which is still detected and reported, just not pre-empted at pass-1
-/// time). Document this precisely in the API doc comment.
+/// NOTE: A two-pass "check guards, then apply" approach using per-key
+/// `DashMap::entry()` guards can prevent *silent* stale writes, but it cannot
+/// guarantee strict batch atomicity (i.e. "all guards pass or nothing is
+/// written") unless the implementation also serializes the whole batch (e.g.
+/// a store-level batch mutex or deterministic multi-key lock ordering).
+/// If strict all-or-nothing semantics are required, document/implement that
+/// stronger locking; otherwise, document that the batch may partially apply
+/// and report per-op failures.
 pub fn apply_mutate_conditional(
     store: &CrdtStore,
     actor: &str,
