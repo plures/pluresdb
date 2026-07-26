@@ -1,19 +1,18 @@
-name: Dependabot Auto-Merge
-
-# This repo delegates dependabot auto-merge policy to the shared org template.
-# See plures/.github .github/workflows/dependabot-auto-merge.yml for the full
-# policy (security-override, 0.x breaking classification, low-risk auto-merge).
-# Do not fork/duplicate the policy body here - update the shared template instead.
-
-on:
-  pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review]
-
-permissions:
-  contents: write
-  pull-requests: write
-
-jobs:
-  auto-merge:
-    uses: plures/.github/.github/workflows/dependabot-auto-merge.yml@main
-    secrets: inherit
+name: Dependabot Auto-Merge
+
+# This repo delegates dependabot auto-merge policy to the shared org template.
+# See plures/.github .github/workflows/dependabot-auto-merge.yml for the full
+# policy (security-override, 0.x breaking classification, low-risk auto-merge).
+# Do not fork/duplicate the policy body here - update the shared template instead.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    uses: plures/.github/.github/workflows/dependabot-auto-merge.yml@54b190bd4e346c92b591f178421793f89c8a94b9
