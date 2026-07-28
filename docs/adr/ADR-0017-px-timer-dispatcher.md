@@ -372,3 +372,11 @@ opened; this ADR PR itself contains no implementation, only the design.
   A follow-up ADR should address distributed leader election for timer
   dispatch if/when PluresDB is run with multiple writers against the same
   logical timer set.
+
+## Evidence
+
+Implemented PxTimerDispatcher in pluresdb-px, with persistent dispatch tokens, failure backoff, stale-token recovery, a 10-second Tokio tick source, and manual Node/FFI ticks. TimerEntry now persists backwards-compatible last_fired_token and best_effort fields.
+
+**Embedded/Node wiring is now real (2026-07-28), not just native.** crates/pluresdb-node/src/lib.rs adds: StoreActionHandler (a native ActionHandler impl wrapping Arc<Mutex<CrdtStore>> that applies crdt.put/crdt.get/crdt.delete directly against the embedded host's store, avoiding the single-threaded-Node deadlock a synchronous JS-callback ActionHandler would cause); pxTimerConfigure(procedure) sets the previously-dead px_timer_procedure field for real; pxTimerTick() constructs PxTimerDispatcher::new(&runtime, &StoreActionHandler{..}, &procedure) and calls .tick(Utc::now()), returning the real TickReport as JSON; pxTimerRecover(gracePeriodSeconds) does the same for .recover(..), returning the real RecoveryReport as JSON.
+
+Validation (run 2026-07-28, feat/px-timer-dispatcher): cargo build -p pluresdb-node -- 0 errors, 0 warnings (the prior ActionHandler/ExecutionError unused-import and px_timer_procedure dead-code warnings are gone, both now genuinely used); cargo test -p pluresdb-px --features async timer_dispatcher:: -- 8/8 passed; cargo clippy -p pluresdb-node -p pluresdb-px --features async -- -D warnings -- clean. The dispatcher suite covers successful dispatch, failure/best-effort semantics, duplicate suppression, stale-token recovery, and event-variable construction. The Node binding's own action semantics (crdt.put/crdt.get/crdt.delete) are real store operations, not stubs/echoes.

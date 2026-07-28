@@ -25,6 +25,7 @@ pub mod executor;
 pub mod lint;
 pub mod resolver;
 pub mod scenario_runner;
+pub mod timer_dispatcher;
 
 #[cfg(feature = "async")]
 pub mod async_executor;

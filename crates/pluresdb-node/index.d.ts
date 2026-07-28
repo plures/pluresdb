@@ -428,6 +428,37 @@ export declare class PluresDatabase {
    * Returns `true` if the timer existed and was rescheduled.
    */
   agensTimerReschedule(timerId: string): boolean
+  /**
+   * Configure the compiled px procedure record dispatched by every
+   * [`px_timer_tick`][PluresDatabase::px_timer_tick] call.
+   *
+   * Explicit by design (ADR-0017): hosts must set a real procedure before
+   * ticking, so a misconfigured host fails loudly instead of silently
+   * running a placeholder.
+   */
+  pxTimerConfigure(procedure: any): void
+  /**
+   * Process all due Agens timers through the real `PxTimerDispatcher`,
+   * dispatching each fired timer's actions via the native
+   * [`StoreActionHandler`] (CRDT-native `crdt.put`/`crdt.get`/`crdt.delete`)
+   * so the synchronous embedded/JS tick call never needs to round-trip back
+   * into JS. Returns the [`pluresdb_px::px::timer_dispatcher::TickReport`]
+   * as JSON.
+   *
+   * Requires [`px_timer_configure`][PluresDatabase::px_timer_configure] to
+   * have been called first with a compiled px procedure record.
+   */
+  pxTimerTick(): any
+  /**
+   * Recover in-flight timer dispatch tokens that have gone stale (e.g. a
+   * prior process crashed mid-dispatch), clearing them so the timer can
+   * fire again. Returns the
+   * [`pluresdb_px::px::timer_dispatcher::RecoveryReport`] as JSON.
+   *
+   * Requires [`px_timer_configure`][PluresDatabase::px_timer_configure] to
+   * have been called first with a compiled px procedure record.
+   */
+  pxTimerRecover(gracePeriodSeconds: number): any
 }
 
 /**
