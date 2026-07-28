@@ -1772,9 +1772,9 @@ impl PluresDatabase {
             .iter()
             .map(|e| {
                 serde_json::json!({
-                    "timerId": e.timer_id,
-                    "timerName": e.timer_name,
-                    "error": e.error,
+                    "timerId": e.timer_id.clone(),
+                    "timerName": e.timer_name.clone(),
+                    "error": e.error.clone(),
                 })
             })
             .collect();
