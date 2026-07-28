@@ -1760,22 +1760,30 @@ impl PluresDatabase {
         };
         let dispatcher = PxTimerDispatcher::new(&runtime, &handler, &procedure);
         let report = dispatcher.tick(chrono::Utc::now());
-        let errors: Vec<_> = report
-            .errors
-            .iter()
-            .map(|e| {
-                serde_json::json!({
-                    "timerId": e.timer_id,
-                    "timerName": e.timer_name,
-                    "error": e.error,
-                })
-            })
-            .collect();
-        Ok(serde_json::json!({
-            "fired": report.fired,
-            "skipped": report.skipped,
-            "errors": errors,
-        }))
+
+
+
+
+
+
+
+        let errors: Vec<_> = report
+            .errors
+            .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "timerId": e.timer_id,
+                    "timerName": e.timer_name,
+                    "error": e.error,
+                })
+            })
+            .collect();
+        Ok(serde_json::json!({
+            "fired": report.fired,
+            "skipped": report.skipped,
+            "errors": errors,
+        }))
+    }
 
     /// Recover in-flight timer dispatch tokens that have gone stale (e.g. a
     /// prior process crashed mid-dispatch), clearing them so the timer can
@@ -1786,6 +1794,12 @@ impl PluresDatabase {
     /// have been called first with a compiled px procedure record.
     #[napi]
     pub fn px_timer_recover(&self, grace_period_seconds: i64) -> Result<serde_json::Value> {
+        if grace_period_seconds < 0 {
+            return Err(node_error(
+                CoreErrorCode::InvalidInput.as_str(),
+                "gracePeriodSeconds must be >= 0",
+            ));
+        }
         let procedure = self.px_timer_procedure.lock().clone().ok_or_else(|| {
             node_error(
                 CoreErrorCode::InvalidInput.as_str(),

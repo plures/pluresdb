@@ -671,6 +671,9 @@ impl<'a> TimerTable<'a> {
         let Some(entry) = self.entry_from_data(&node.id, &node.data) else {
             return false;
         };
+        if entry.last_fired_token.is_some() {
+            return false;
+        }
         self.persist_entry(&TimerEntry {
             last_fired_token: Some(token.to_string()),
             ..entry

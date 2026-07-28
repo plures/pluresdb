@@ -73,6 +73,7 @@ fn oasis_px_files_parse_and_lint() {
 }
 
 #[test]
+#[ignore = "local validation harness uses machine-specific absolute paths"]
 fn baseline_dev_lifecycle_has_same_runtime_action_warnings() {
     // Proves PX-L011 for write_state/read_state/etc. is a runtime-provided-action
     // false positive: the PRODUCTION dev-lifecycle.px exhibits the same class.

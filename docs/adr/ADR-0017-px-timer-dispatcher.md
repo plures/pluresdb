@@ -375,7 +375,7 @@ opened; this ADR PR itself contains no implementation, only the design.
 
 ## Evidence
 
-Implemented PxTimerDispatcher in pluresdb-px, with persistent dispatch tokens, failure backoff, stale-token recovery, a 10-second Tokio tick source, and manual Node/FFI ticks. TimerEntry now persists backwards-compatible last_fired_token and best_effort fields.
+Implemented PxTimerDispatcher in pluresdb-px, with persistent dispatch tokens, failure backoff, stale-token recovery, a 10-second Tokio tick source, and manual Node/FFI ticks. TimerEntry now persists backwards-compatible last_fired_token and best_effort fields.
 
 **Embedded/Node wiring is now real (2026-07-28), not just native.** crates/pluresdb-node/src/lib.rs adds: StoreActionHandler (a native ActionHandler impl wrapping Arc<Mutex<CrdtStore>> that applies crdt.put/crdt.get/crdt.delete directly against the embedded host's store, avoiding the single-threaded-Node deadlock a synchronous JS-callback ActionHandler would cause); pxTimerConfigure(procedure) sets the previously-dead px_timer_procedure field for real; pxTimerTick() constructs PxTimerDispatcher::new(&runtime, &StoreActionHandler{..}, &procedure) and calls .tick(Utc::now()), returning the real TickReport as JSON; pxTimerRecover(gracePeriodSeconds) does the same for .recover(..), returning the real RecoveryReport as JSON.
 

@@ -144,10 +144,8 @@ impl<'a> PxTimerDispatcher<'a> {
     /// Algorithm (see ADR-0017 "At-least-once delivery with idempotency"):
     /// 1. In-flight guard: skip if `(timer_id, next_fire_at)` is already
     ///    being dispatched by this process.
-    /// 2. Token check: skip a re-fetch showing a `last_fired_token` already
-    ///    set (another process/attempt already claimed this occurrence),
-    ///    unless the caller is `recover()` (handled separately).
-    /// 3. Mint a fresh token, persist it via `mark_dispatch_started`.
+    /// 2. Mint a fresh token and claim dispatch via `mark_dispatch_started`.
+    ///    If a token is already present, skip as in-flight.
     /// 4. Build the `{"event": {...}}` vars and invoke
     ///    `executor::execute_with_vars`.
     /// 5. On success: `mark_ran` (clears the token, advances scheduling),
@@ -233,7 +231,7 @@ impl<'a> PxTimerDispatcher<'a> {
         let mut failures = self.consecutive_failures.lock().unwrap();
         let count = failures.entry(entry.id.clone()).or_insert(0);
         *count += 1;
-        let attempt = (*count).min(DEFAULT_MAX_CONSECUTIVE_FAILURES);
+        let attempt = *count;
         drop(failures);
 
         if attempt >= DEFAULT_MAX_CONSECUTIVE_FAILURES {
@@ -246,7 +244,9 @@ impl<'a> PxTimerDispatcher<'a> {
         }
 
         // Exponential backoff: 2^attempt seconds, capped at MAX_BACKOFF.
-        let backoff_secs = 2i64.saturating_pow(attempt.min(20)).min(MAX_BACKOFF.num_seconds());
+        let backoff_secs = 2i64
+            .saturating_pow((attempt.min(20)) as u32)
+            .min(MAX_BACKOFF.num_seconds());
         let until = now + Duration::seconds(backoff_secs);
         self.backoff_until
             .lock()
@@ -332,14 +332,12 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct CountingHandler {
-        #[allow(dead_code)]
         calls: AtomicUsize,
-        #[allow(dead_code)]
-        fail_until: usize,
     }
 
     impl ActionHandler for CountingHandler {
         fn call(&self, _name: &str, _params: &JsonValue) -> Result<JsonValue, ExecutionError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
             Ok(JsonValue::Null)
         }
     }
@@ -386,7 +384,6 @@ mod tests {
 
         let handler = CountingHandler {
             calls: AtomicUsize::new(0),
-            fail_until: 0,
         };
         let record = noop_procedure();
         let dispatcher = PxTimerDispatcher::new(&runtime, &handler, &record);
@@ -416,7 +413,6 @@ mod tests {
     fn failed_dispatch_does_not_advance_next_fire_at_unless_best_effort() {
         let store = CrdtStore::default();
         let runtime = AgensRuntime::new(&store, "actor");
-        let now = Utc::now();
         let timer_id = runtime
             .timers()
             .schedule_interval("check", 60, JsonValue::Null);
@@ -485,7 +481,6 @@ mod tests {
 
         let handler = CountingHandler {
             calls: AtomicUsize::new(0),
-            fail_until: 0,
         };
         let record = noop_procedure();
         let dispatcher = PxTimerDispatcher::new(&runtime, &handler, &record);
@@ -515,7 +510,6 @@ mod tests {
 
         let handler = CountingHandler {
             calls: AtomicUsize::new(0),
-            fail_until: 0,
         };
         let record = noop_procedure();
         let dispatcher = PxTimerDispatcher::new(&runtime, &handler, &record);
@@ -540,7 +534,6 @@ mod tests {
 
         let handler = CountingHandler {
             calls: AtomicUsize::new(0),
-            fail_until: 0,
         };
         let record = noop_procedure();
         let dispatcher = PxTimerDispatcher::new(&runtime, &handler, &record);
