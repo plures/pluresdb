@@ -27,6 +27,13 @@ js-sys = "0.3"
 # Intentionally enabled so transitive `getrandom` users (for example `uuid`)
 # use the JS-backed RNG on `wasm32-unknown-unknown`.
 getrandom = { version = "0.2", features = ["js"] }
+# getrandom 0.4+ (pulled transitively via crypto-bigint/p256/ecdsa for
+# pluresdb-sea's aes-gcm/ecdsa deps) dropped implicit wasm32 support and
+# requires this feature explicitly, or `cargo build --target wasm32-unknown-unknown`
+# fails with "wasm32-unknown-unknown targets are not supported by default"
+# (found 2026-07-28, plures/pluresdb#1088 CI). Pin the JS-backed backend the
+# same way the 0.2 line above already does.
+getrandom-04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
 web-sys = { workspace = true, features = [
     "Window",
     "IdbFactory",
