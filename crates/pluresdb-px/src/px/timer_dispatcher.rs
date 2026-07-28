@@ -295,10 +295,10 @@ fn build_event_vars(entry: &TimerEntry) -> HashMap<String, JsonValue> {
         "event".to_string(),
         serde_json::json!({
             "type": "timer",
-            "id": entry.id,
-            "name": entry.name,
+            "id": entry.id.clone(),
+            "name": entry.name.clone(),
             "recurring": recurring,
-            "payload": entry.payload,
+            "payload": entry.payload.clone(),
         }),
     );
     vars
