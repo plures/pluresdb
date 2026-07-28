@@ -23,7 +23,6 @@ use pluresdb_px::db::store::PraxisStore;
 use pluresdb_px::px::executor::{ActionHandler, ExecutionError};
 use pluresdb_px::px::parse as px_parse;
 use pluresdb_px::px::px_ast::{ConstraintDecl as PxAstConstraintDecl, Severity as PxAstSeverity};
-use pluresdb_px::px::timer_dispatcher::PxTimerDispatcher;
 use pluresdb_px::px::{expr_to_string as px_expr_to_string, Statement as PxStatement};
 use pluresdb_storage::{SledStorage, StorageEngine, StorageErrorCode};
 use pluresdb_sync::{SyncBroadcaster, SyncErrorCode, SyncEvent};
