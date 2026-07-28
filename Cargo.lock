@@ -3389,6 +3389,8 @@ dependencies = [
  "chrono",
  "futures",
  "notify",
+ "pluresdb-core",
+ "pluresdb-procedures",
  "px-ast",
  "px-compiler",
  "px-eval",

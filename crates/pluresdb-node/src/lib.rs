@@ -20,8 +20,10 @@ use pluresdb_px::db::schema::{
 };
 use pluresdb_px::db::seed::default_store as px_default_store;
 use pluresdb_px::db::store::PraxisStore;
+use pluresdb_px::px::executor::{ActionHandler, ExecutionError};
 use pluresdb_px::px::parse as px_parse;
 use pluresdb_px::px::px_ast::{ConstraintDecl as PxAstConstraintDecl, Severity as PxAstSeverity};
+use pluresdb_px::px::timer_dispatcher::PxTimerDispatcher;
 use pluresdb_px::px::{expr_to_string as px_expr_to_string, Statement as PxStatement};
 use pluresdb_storage::{SledStorage, StorageEngine, StorageErrorCode};
 use pluresdb_sync::{SyncBroadcaster, SyncErrorCode, SyncEvent};
@@ -295,6 +297,9 @@ pub struct PluresDatabase {
     subscriptions: Arc<Mutex<HashMap<u32, Arc<AtomicBool>>>>,
     /// Monotonic source of subscription ids.
     next_sub_id: Arc<AtomicU32>,
+    /// The compiled px procedure record dispatched by `px_timer_tick`.
+    /// Configuration is explicit so hosts never silently run a placeholder.
+    px_timer_procedure: Arc<Mutex<Option<serde_json::Value>>>,
 }
 
 #[napi]
@@ -342,6 +347,7 @@ impl PluresDatabase {
             actor_id,
             subscriptions: Arc::new(Mutex::new(HashMap::new())),
             next_sub_id: Arc::new(AtomicU32::new(1)),
+            px_timer_procedure: Arc::new(Mutex::new(None)),
         })
     }
 

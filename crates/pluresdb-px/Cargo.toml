@@ -19,6 +19,7 @@ serde_json.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 thiserror.workspace = true
+pluresdb-procedures = { path = "../pluresdb-procedures" }
 async-trait = "0.1"
 tokio = { workspace = true, features = ["time", "rt"], optional = true }
 tracing = "0.1"
@@ -41,3 +42,4 @@ futures = "0.3"
 tempfile = "3"
 tokio = { workspace = true, features = ["rt", "macros", "time"] }
 serde_json.workspace = true
+pluresdb-core = { path = "../pluresdb-core", default-features = false }
