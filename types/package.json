@@ -1,6 +1,6 @@
 {
   "name": "@plures/pluresdb-types",
-  "version": "3.10.3",
+  "version": "3.11.0",
   "description": "TypeScript type definitions for PluresDB",
   "types": "index.d.ts",
   "files": [

@@ -1,3 +1,20 @@
+## [3.11.0] — 2026-07-28
+
+- feat(px): implement PxTimerDispatcher (ADR-0017) native + Node bridge (#1088) (2af92b1)
+- chore: delegate dependabot-auto-merge.yml to org reusable template (#1074) (8af4f88)
+- chore(deps): bump clap from 4.6.2 to 4.6.3 (#1087) (df6f03a)
+- chore(deps): bump serde_json from 1.0.150 to 1.0.151 (#1086) (a6b9501)
+- chore(deps): bump quote from 1.0.46 to 1.0.47 (#1085) (7986fab)
+- chore(deps): bump pest_derive from 2.8.7 to 2.8.8 (#1084) (462eb11)
+- chore(deps): bump thiserror from 2.0.18 to 2.0.19 (#1083) (54095b8)
+- chore(deps): bump napi from 3.10.5 to 3.11.0 (#1082) (2bbc094)
+- chore(deps): bump napi-derive from 3.5.10 to 3.6.0 (#1081) (f38bbc7)
+- chore(deps): bump async-trait from 0.1.90 to 0.1.91 (#1080) (05adfe1)
+- chore(deps): bump base64 from 0.22.1 to 0.23.0 (#1079) (9d2412b)
+- chore(deps): bump proc-macro2 from 1.0.106 to 1.0.107 (#1078) (0797c19)
+- chore(deps): bump tokio from 1.53.0 to 1.53.1 (#1077) (30930f1)
+- chore(deps): bump the web-svelte-minor-patch group (#1075) (5d4993c)
+
 ## [3.10.3] — 2026-07-25
 
 - ADR-0018: Conditional Task Claim Write (design only) (#1070) (701f651)
