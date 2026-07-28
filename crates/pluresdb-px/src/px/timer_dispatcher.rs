@@ -245,7 +245,7 @@ impl<'a> PxTimerDispatcher<'a> {
 
         // Exponential backoff: 2^attempt seconds, capped at MAX_BACKOFF.
         let backoff_secs = 2i64
-            .saturating_pow((attempt.min(20)) as u32)
+            .saturating_pow(attempt.min(20))
             .min(MAX_BACKOFF.num_seconds());
         let until = now + Duration::seconds(backoff_secs);
         self.backoff_until
