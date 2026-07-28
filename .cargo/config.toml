@@ -1,0 +1,14 @@
+# NOTE: this file should mirror actual project needs — merge with any
+# future additions, don't clobber wholesale.
+
+[target.wasm32-unknown-unknown]
+# getrandom 0.3+/0.4+ (pulled transitively via crypto-bigint/p256/ecdsa for
+# pluresdb-sea's aes-gcm/ecdsa deps, and via ahash for fastembed on native
+# builds only — NOT reachable in the wasm target tree) require this cfg flag
+# in addition to the `wasm_js`/`js` Cargo features already set in
+# pluresdb-wasm/Cargo.toml. The Cargo feature alone is insufficient per
+# getrandom's own compile_error! message (found 2026-07-28, CI failure on
+# plures/pluresdb#1088 — pre-existing drift unrelated to that PR's diff,
+# caused by a dependency bump since the last-known-green run on 2026-07-24).
+# See: https://docs.rs/getrandom/latest/getrandom/#opt-in-backends
+rustflags = ["--cfg", "getrandom_backend=\"wasm_js\""]
