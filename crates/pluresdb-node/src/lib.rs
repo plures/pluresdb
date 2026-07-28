@@ -21,6 +21,7 @@ use pluresdb_px::db::schema::{
 use pluresdb_px::db::seed::default_store as px_default_store;
 use pluresdb_px::db::store::PraxisStore;
 use pluresdb_px::px::executor::{ActionHandler, ExecutionError};
+use pluresdb_px::px::timer_dispatcher::PxTimerDispatcher;
 use pluresdb_px::px::parse as px_parse;
 use pluresdb_px::px::px_ast::{ConstraintDecl as PxAstConstraintDecl, Severity as PxAstSeverity};
 use pluresdb_px::px::{expr_to_string as px_expr_to_string, Statement as PxStatement};
@@ -32,6 +33,74 @@ use std::sync::Arc;
 
 #[cfg(feature = "sqlite-compat")]
 use pluresdb_core::{Database, DatabaseOptions, SqlValue};
+
+/// Native `ActionHandler` that applies compiled px timer-procedure actions
+/// directly against the embedded host's `CrdtStore`. Used by
+/// [`PluresDatabase::px_timer_tick`] so a JS-thread tick never needs a
+/// synchronous round-trip back into JS (which would deadlock the single Node
+/// thread). Supports the CRDT-native action set: `crdt.put`, `crdt.get`,
+/// `crdt.delete`.
+struct StoreActionHandler {
+    store: Arc<Mutex<CrdtStore>>,
+    actor_id: String,
+}
+
+impl ActionHandler for StoreActionHandler {
+    fn call(&self, name: &str, params: &serde_json::Value) -> std::result::Result<serde_json::Value, ExecutionError> {
+        match name {
+            "crdt.put" => {
+                let id = params
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        ExecutionError::ActionFailed {
+                            action: name.to_string(),
+                            message: "missing required string field 'id'".to_string(),
+                        }
+                    })?
+                    .to_string();
+                let data = params.get("data").cloned().unwrap_or(serde_json::Value::Null);
+                let store = self.store.lock();
+                let node_id = store.put(id, self.actor_id.clone(), data);
+                Ok(serde_json::json!({ "id": node_id }))
+            }
+            "crdt.get" => {
+                let id = params
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        ExecutionError::ActionFailed {
+                            action: name.to_string(),
+                            message: "missing required string field 'id'".to_string(),
+                        }
+                    })?;
+                let store = self.store.lock();
+                match store.get(id) {
+                    Some(record) => Ok(record.data),
+                    None => Ok(serde_json::Value::Null),
+                }
+            }
+            "crdt.delete" => {
+                let id = params
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        ExecutionError::ActionFailed {
+                            action: name.to_string(),
+                            message: "missing required string field 'id'".to_string(),
+                        }
+                    })?;
+                let store = self.store.lock();
+                store.delete(id).map_err(|e| ExecutionError::ActionFailed {
+                    action: name.to_string(),
+                    message: e.to_string(),
+                })?;
+                Ok(serde_json::json!({ "deleted": true }))
+            }
+            other => Err(ExecutionError::UnknownAction(other.to_string())),
+        }
+    }
+}
 
 fn node_error(code: &str, message: impl Into<String>) -> Error {
     Error::from_reason(format!("[{}] {}", code, message.into()))
@@ -1644,6 +1713,74 @@ impl PluresDatabase {
         let store = self.store.lock();
         let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
         Ok(runtime.timers().reschedule(&timer_id))
+    }
+
+    /// Configure the compiled px procedure record dispatched by every
+    /// [`px_timer_tick`][PluresDatabase::px_timer_tick] call.
+    ///
+    /// Explicit by design (ADR-0017): hosts must set a real procedure before
+    /// ticking, so a misconfigured host fails loudly instead of silently
+    /// running a placeholder.
+    #[napi]
+    pub fn px_timer_configure(&self, procedure: serde_json::Value) -> Result<()> {
+        *self.px_timer_procedure.lock() = Some(procedure);
+        Ok(())
+    }
+
+    /// Process all due Agens timers through the real `PxTimerDispatcher`,
+    /// dispatching each fired timer's actions via the native
+    /// [`StoreActionHandler`] (CRDT-native `crdt.put`/`crdt.get`/`crdt.delete`)
+    /// so the synchronous embedded/JS tick call never needs to round-trip back
+    /// into JS. Returns the [`pluresdb_px::px::timer_dispatcher::TickReport`]
+    /// as JSON.
+    ///
+    /// Requires [`px_timer_configure`][PluresDatabase::px_timer_configure] to
+    /// have been called first with a compiled px procedure record.
+    #[napi]
+    pub fn px_timer_tick(&self) -> Result<serde_json::Value> {
+        let procedure = self.px_timer_procedure.lock().clone().ok_or_else(|| {
+            node_error(
+                CoreErrorCode::InvalidInput.as_str(),
+                "px_timer_procedure is not configured; call pxTimerConfigure() first",
+            )
+        })?;
+        let store = self.store.lock();
+        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+        let handler = StoreActionHandler {
+            store: self.store.clone(),
+            actor_id: self.actor_id.clone(),
+        };
+        let dispatcher = PxTimerDispatcher::new(&runtime, &handler, &procedure);
+        let report = dispatcher.tick(chrono::Utc::now());
+        serde_json::to_value(report)
+            .map_err(|e| map_node_error(CoreErrorCode::SerializationError.as_str(), e))
+    }
+
+    /// Recover in-flight timer dispatch tokens that have gone stale (e.g. a
+    /// prior process crashed mid-dispatch), clearing them so the timer can
+    /// fire again. Returns the
+    /// [`pluresdb_px::px::timer_dispatcher::RecoveryReport`] as JSON.
+    ///
+    /// Requires [`px_timer_configure`][PluresDatabase::px_timer_configure] to
+    /// have been called first with a compiled px procedure record.
+    #[napi]
+    pub fn px_timer_recover(&self, grace_period_seconds: i64) -> Result<serde_json::Value> {
+        let procedure = self.px_timer_procedure.lock().clone().ok_or_else(|| {
+            node_error(
+                CoreErrorCode::InvalidInput.as_str(),
+                "px_timer_procedure is not configured; call pxTimerConfigure() first",
+            )
+        })?;
+        let store = self.store.lock();
+        let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
+        let handler = StoreActionHandler {
+            store: self.store.clone(),
+            actor_id: self.actor_id.clone(),
+        };
+        let dispatcher = PxTimerDispatcher::new(&runtime, &handler, &procedure);
+        let report = dispatcher.recover(chrono::Utc::now(), chrono::Duration::seconds(grace_period_seconds));
+        serde_json::to_value(report)
+            .map_err(|e| map_node_error(CoreErrorCode::SerializationError.as_str(), e))
     }
 }
 
