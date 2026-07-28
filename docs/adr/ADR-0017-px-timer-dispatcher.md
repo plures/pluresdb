@@ -372,3 +372,9 @@ opened; this ADR PR itself contains no implementation, only the design.
   A follow-up ADR should address distributed leader election for timer
   dispatch if/when PluresDB is run with multiple writers against the same
   logical timer set.
+
+## Evidence
+
+Implemented PxTimerDispatcher in pluresdb-px, with persistent dispatch tokens, failure backoff, stale-token recovery, a 10-second Tokio tick source, and manual Node/FFI ticks. TimerEntry now persists backwards-compatible last_fired_token and est_effort fields. The Node binding exposes explicit procedure registration plus pxTimerTick and pxTimerRecover, using real CRDT actions (crdt.put and crdt.get).
+
+Validation: cargo build -p pluresdb-procedures; cargo build -p pluresdb-px --features async; cargo test -p pluresdb-px --features async timer_dispatcher::; cargo check -p pluresdb-node. The dispatcher suite covers successful dispatch, failure/best-effort semantics, duplicate suppression, stale-token recovery, and event-variable construction.
