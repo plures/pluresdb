@@ -421,6 +421,7 @@ impl PluresDatabase {
                 actor_id,
                 subscriptions: Arc::new(Mutex::new(HashMap::new())),
                 next_sub_id: Arc::new(AtomicU32::new(1)),
+                px_timer_procedure: Arc::new(Mutex::new(None)),
             })
         }
 
