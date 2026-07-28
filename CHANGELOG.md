@@ -1,3 +1,7 @@
+## [3.11.1] — 2026-07-28
+
+- fix(ci): unblock wasm target build broken by getrandom dependency drift (#1089) (4cba766)
+
 ## [3.11.0] — 2026-07-28
 
 - feat(px): implement PxTimerDispatcher (ADR-0017) native + Node bridge (#1088) (2af92b1)
