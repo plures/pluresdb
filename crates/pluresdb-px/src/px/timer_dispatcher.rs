@@ -186,24 +186,12 @@ impl<'a> PxTimerDispatcher<'a> {
     ) -> Result<DispatchOutcome, ExecutionError> {
         let timers = self.runtime.timers();
 
-        // 2. Token check: re-fetch to avoid double-dispatch if another
-        // process already claimed this occurrence.
-        if let Some(fresh) = timers
-            .list()
-            .into_iter()
-            .find(|t| t.id == entry.id)
-        {
-            if fresh.last_fired_token.is_some() {
-                return Ok(DispatchOutcome::SkippedInFlight);
-            }
-        }
-
-        // 3. Mint a fresh dispatch token and persist it before invoking the
-        // executor (crash-safety: a process crash between here and
-        // `mark_ran` leaves a recoverable token).
+        // 2-3. Claim a fresh dispatch token before invoking the executor.
+        // If another process already claimed this occurrence, skip.
         let token = Uuid::new_v4().to_string();
-        timers.mark_dispatch_started(&entry.id, &token);
-
+        if !timers.mark_dispatch_started(&entry.id, &token) {
+            return Ok(DispatchOutcome::SkippedInFlight);
+        }
         // 4. Translate the timer entry into px executor vars and invoke.
         let vars = build_event_vars(entry);
         let outcome = executor::execute_with_vars(self.procedure_record, self.handler, vars);
