@@ -365,6 +365,18 @@ pub struct TimerEntry {
     pub payload: JsonValue,
     /// Whether this timer is still active.
     pub active: bool,
+    /// Fire-in-progress token; `Some(token)` while a dispatch attempt for the
+    /// current `next_fire_at` occurrence is outstanding. Cleared by
+    /// `mark_ran`. Used by `PxTimerDispatcher` (pluresdb-px) for crash
+    /// recovery. Additive field: absent on older stored nodes defaults to
+    /// `None`.
+    #[serde(default)]
+    pub last_fired_token: Option<String>,
+    /// When true, a failed dispatch still advances `next_fire_at` (fire-and-
+    /// forget semantics). Default false (retry-until-success semantics).
+    /// Additive field: absent on older stored nodes defaults to `false`.
+    #[serde(default)]
+    pub best_effort: bool,
 }
 
 /// Timer trigger type.
@@ -441,6 +453,8 @@ impl<'a> TimerTable<'a> {
             next_fire_at,
             payload,
             active: true,
+            last_fired_token: None,
+            best_effort: false,
         };
         self.persist_entry(&entry);
         id
@@ -474,6 +488,8 @@ impl<'a> TimerTable<'a> {
             next_fire_at,
             payload,
             active: true,
+            last_fired_token: None,
+            best_effort: false,
         };
         self.persist_entry(&entry);
         Ok(id)
@@ -492,6 +508,8 @@ impl<'a> TimerTable<'a> {
             next_fire_at: run_at,
             payload,
             active: true,
+            last_fired_token: None,
+            best_effort: false,
         };
         self.persist_entry(&entry);
         id
@@ -511,6 +529,8 @@ impl<'a> TimerTable<'a> {
                 "next_run": entry.next_fire_at.to_rfc3339(),
                 "active": entry.active,
                 "payload": entry.payload,
+                "last_fired_token": entry.last_fired_token,
+                "best_effort": entry.best_effort,
             }),
         );
     }
@@ -628,6 +648,58 @@ impl<'a> TimerTable<'a> {
             next_fire_at,
             payload: entry.payload,
             active,
+            last_fired_token: None,
+            best_effort: entry.best_effort,
+        });
+        true
+    }
+
+    /// Persist a fire-in-progress token before invoking the executor.
+    ///
+    /// Returns `false` if `timer_id` does not exist or is not a timer node.
+    /// Used by `PxTimerDispatcher` (pluresdb-px) as a crash-safety guard: a
+    /// second process or a retried tick will not re-dispatch a timer whose
+    /// `last_fired_token` is already `Some(..)`.
+    pub fn mark_dispatch_started(&self, timer_id: &str, token: &str) -> bool {
+        let Some(node) = self.store.get(timer_id) else {
+            return false;
+        };
+        let node_type = node.data.get("_type").and_then(|v| v.as_str());
+        if node_type != Some(TYPE_TIMER) {
+            return false;
+        }
+        let Some(entry) = self.entry_from_data(&node.id, &node.data) else {
+            return false;
+        };
+        if entry.last_fired_token.is_some() {
+            return false;
+        }
+        self.persist_entry(&TimerEntry {
+            last_fired_token: Some(token.to_string()),
+            ..entry
+        });
+        true
+    }
+
+    /// Clear a stale fire-in-progress token without advancing `next_fire_at`.
+    ///
+    /// Used by `PxTimerDispatcher::recover` to reset a timer whose dispatch
+    /// attempt crashed mid-flight (token set, `mark_ran` never called).
+    /// Returns `false` if `timer_id` does not exist or is not a timer node.
+    pub fn clear_stale_token(&self, timer_id: &str) -> bool {
+        let Some(node) = self.store.get(timer_id) else {
+            return false;
+        };
+        let node_type = node.data.get("_type").and_then(|v| v.as_str());
+        if node_type != Some(TYPE_TIMER) {
+            return false;
+        }
+        let Some(entry) = self.entry_from_data(&node.id, &node.data) else {
+            return false;
+        };
+        self.persist_entry(&TimerEntry {
+            last_fired_token: None,
+            ..entry
         });
         true
     }
@@ -666,6 +738,14 @@ impl<'a> TimerTable<'a> {
             .and_then(|s| s.parse().ok())?;
         let active = data.get("active").and_then(|v| v.as_bool()).unwrap_or(true);
         let payload = data.get("payload").cloned().unwrap_or(JsonValue::Null);
+        let last_fired_token = data
+            .get("last_fired_token")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let best_effort = data
+            .get("best_effort")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         Some(TimerEntry {
             id: id.to_string(),
             name,
@@ -676,6 +756,8 @@ impl<'a> TimerTable<'a> {
             next_fire_at,
             payload,
             active,
+            last_fired_token,
+            best_effort,
         })
     }
 
