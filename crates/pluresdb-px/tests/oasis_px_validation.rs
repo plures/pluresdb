@@ -30,6 +30,7 @@ const OASIS_PX_FILES: &[&str] = &[
 const BASELINE_PX_FILE: &str = r"C:\Projects\pares-radix\praxis\procedures\dev-lifecycle.px";
 
 #[test]
+#[ignore = "requires local OASIS .px files outside the repo"]
 fn oasis_px_files_parse_and_lint() {
     let mut failures = Vec::new();
     for path in OASIS_PX_FILES {
