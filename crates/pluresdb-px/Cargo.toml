@@ -22,14 +22,13 @@ serde_json.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 thiserror.workspace = true
-# Bug found 2026-07-28 (plures/pluresdb#1088 CI, ci/wasm): this line was missing
-# `default-features = false`, unlike every other pluresdb-* dep in this workspace
-# (pluresdb-wasm, pluresdb-chronos, pluresdb-node all set it explicitly). That let
-# pluresdb-procedures' own `default = ["native"]` leak `native` -> pluresdb-core
-# `native` -> hnsw_rs -> rand 0.9 -> getrandom 0.3.3 into the wasm32 build graph,
-# even though pluresdb-wasm correctly disabled default features on its OWN direct
-# deps. Feature unification across the workspace graph doesn't respect a
-# downstream crate's intent if a transitive dep re-enables it.
+# Bug found 2026-07-28 (plures/pluresdb#1088 CI, ci/wasm): this dependency was missing
+# `default-features = false`, so pluresdb-procedures' default `native` feature could leak
+# into the wasm32 build graph via `native` -> pluresdb-core -> hnsw_rs -> rand -> getrandom,
+# even though pluresdb-wasm correctly disabled default features on its own direct deps.
+# Feature unification across the dependency graph doesn't respect a downstream crate's intent
+# if an upstream/transitive dependency re-enables a default feature.
+# See: crates/pluresdb-wasm/Cargo.toml for the intended wasm feature set.
 pluresdb-procedures = { path = "../pluresdb-procedures", default-features = false }
 async-trait = "0.1"
 tokio = { workspace = true, features = ["time", "rt"], optional = true }
