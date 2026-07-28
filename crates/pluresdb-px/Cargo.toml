@@ -19,7 +19,7 @@ serde_json.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 thiserror.workspace = true
-pluresdb-procedures = { path = "../pluresdb-procedures" }
+pluresdb-procedures = { path = "../pluresdb-procedures", default-features = false }
 async-trait = "0.1"
 tokio = { workspace = true, features = ["time", "rt"], optional = true }
 tracing = "0.1"
