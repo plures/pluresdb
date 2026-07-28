@@ -40,12 +40,23 @@ use pluresdb_core::{Database, DatabaseOptions, SqlValue};
 /// synchronous round-trip back into JS (which would deadlock the single Node
 /// thread). Supports the CRDT-native action set: `crdt.put`, `crdt.get`,
 /// `crdt.delete`.
-struct StoreActionHandler {
-    store: Arc<Mutex<CrdtStore>>,
+//
+// IMPORTANT (deadlock fix 2026-07-28): this handler borrows the *already
+// locked* `CrdtStore` guard for its lifetime instead of holding its own
+// `Arc<Mutex<CrdtStore>>` and re-locking per call. `px_timer_tick`/
+// `px_timer_recover` must lock `self.store` once to build `AgensRuntime`
+// (which itself borrows the guard for `'a`), so a second `.lock()` on the
+// same non-reentrant mutex from inside `ActionHandler::call` self-deadlocks
+// the single Node thread every time a fired timer's action actually runs.
+// `CrdtStore`'s own methods (`put`/`get`/`delete`) take `&self` and are
+// internally concurrent (DashMap-backed), so a shared `&CrdtStore` borrow is
+// sufficient and correct here — no second lock is needed.
+struct StoreActionHandler<'a> {
+    store: &'a CrdtStore,
     actor_id: String,
 }
 
-impl ActionHandler for StoreActionHandler {
+impl<'a> ActionHandler for StoreActionHandler<'a> {
     fn call(&self, name: &str, params: &serde_json::Value) -> std::result::Result<serde_json::Value, ExecutionError> {
         match name {
             "crdt.put" => {
@@ -60,8 +71,7 @@ impl ActionHandler for StoreActionHandler {
                     })?
                     .to_string();
                 let data = params.get("data").cloned().unwrap_or(serde_json::Value::Null);
-                let store = self.store.lock();
-                let node_id = store.put(id, self.actor_id.clone(), data);
+                let node_id = self.store.put(id, self.actor_id.clone(), data);
                 Ok(serde_json::json!({ "id": node_id }))
             }
             "crdt.get" => {
@@ -74,8 +84,7 @@ impl ActionHandler for StoreActionHandler {
                             message: "missing required string field 'id'".to_string(),
                         }
                     })?;
-                let store = self.store.lock();
-                match store.get(id) {
+                match self.store.get(id) {
                     Some(record) => Ok(record.data),
                     None => Ok(serde_json::Value::Null),
                 }
@@ -90,8 +99,7 @@ impl ActionHandler for StoreActionHandler {
                             message: "missing required string field 'id'".to_string(),
                         }
                     })?;
-                let store = self.store.lock();
-                store.delete(id).map_err(|e| ExecutionError::ActionFailed {
+                self.store.delete(id).map_err(|e| ExecutionError::ActionFailed {
                     action: name.to_string(),
                     message: e.to_string(),
                 })?;
@@ -1747,7 +1755,7 @@ impl PluresDatabase {
         let store = self.store.lock();
         let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
         let handler = StoreActionHandler {
-            store: self.store.clone(),
+            store: &store,
             actor_id: self.actor_id.clone(),
         };
         let dispatcher = PxTimerDispatcher::new(&runtime, &handler, &procedure);
@@ -1774,7 +1782,7 @@ impl PluresDatabase {
         let store = self.store.lock();
         let runtime = AgensRuntime::new(&store, self.actor_id.as_str());
         let handler = StoreActionHandler {
-            store: self.store.clone(),
+            store: &store,
             actor_id: self.actor_id.clone(),
         };
         let dispatcher = PxTimerDispatcher::new(&runtime, &handler, &procedure);
