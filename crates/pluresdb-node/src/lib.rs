@@ -1760,9 +1760,22 @@ impl PluresDatabase {
         };
         let dispatcher = PxTimerDispatcher::new(&runtime, &handler, &procedure);
         let report = dispatcher.tick(chrono::Utc::now());
-        serde_json::to_value(report)
-            .map_err(|e| map_node_error(CoreErrorCode::SerializationError.as_str(), e))
-    }
+        let errors: Vec<_> = report
+            .errors
+            .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "timerId": e.timer_id,
+                    "timerName": e.timer_name,
+                    "error": e.error,
+                })
+            })
+            .collect();
+        Ok(serde_json::json!({
+            "fired": report.fired,
+            "skipped": report.skipped,
+            "errors": errors,
+        }))
 
     /// Recover in-flight timer dispatch tokens that have gone stale (e.g. a
     /// prior process crashed mid-dispatch), clearing them so the timer can
