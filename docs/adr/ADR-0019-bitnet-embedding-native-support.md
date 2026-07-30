@@ -1,11 +1,9 @@
 # ADR-0019: BitNet Native Embedding Support (Design-Stage, No Implementation)
 
-**Status:** Proposed (design-stage only — no implementation in this PR)
-**Date:** 2026-07-30
-**Author:** kbristol (via agent orchestration)
-**Related:** ADR-0016 (hardware-adaptive compute), pares-umbra `ADR-0007-bitnet-first`,
-pares-umbra `ADR-0010-bitnet-parallel-research`, pares-umbra merged epics
-`causal-bitnet-correctness-harness` and `bitnet-cpp-benchmark-adapter`.
+- **Status:** Proposed (design-stage only — no implementation in this PR)
+- **Date:** 2026-07-30
+- **Author:** kbristol (via agent orchestration)
+- **Related:** ADR-0016 (hardware-adaptive compute), pares-umbra `ADR-0007-bitnet-first`, pares-umbra `ADR-0010-bitnet-parallel-research`, pares-umbra merged epics `causal-bitnet-correctness-harness` and `bitnet-cpp-benchmark-adapter`.
 
 ## Context
 
