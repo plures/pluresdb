@@ -968,9 +968,7 @@ mod tests {
             ChronosAction::ToolInvoked,
             ChronosLevel::Info,
             &json!({"tool": "recall"}),
-            vec![],
-            None,
-            op,
+            (vec![], None, op),
         );
         timeline.record(&entry);
 
