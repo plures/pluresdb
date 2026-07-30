@@ -947,7 +947,7 @@ mod tests {
     }
 
     #[test]
-    fn operation_field_null_for_recall_query_without_resolved_content() {
+    fn operation_field_outputs_ids_only_for_recall_query_without_resolved_content() {
         // ADR-0019 §4.4: recall_query operations store returned ids in
         // outputs, not resolved content, until plureslm-openclaw PR #16 lands.
         let store = test_store();
