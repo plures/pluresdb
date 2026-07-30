@@ -57,6 +57,7 @@ pub enum StorageErrorCode {
     SerializationError,
     WalImplausibleEntrySize,
     WalTruncatedEntry,
+    WalCorruptEntry,
 }
 
 impl StorageErrorCode {
@@ -67,6 +68,7 @@ impl StorageErrorCode {
             Self::SerializationError => "STORAGE_SERIALIZATION_ERROR",
             Self::WalImplausibleEntrySize => "STORAGE_WAL_IMPLAUSIBLE_ENTRY_SIZE",
             Self::WalTruncatedEntry => "STORAGE_WAL_TRUNCATED_ENTRY",
+            Self::WalCorruptEntry => "STORAGE_WAL_CORRUPT_ENTRY",
         }
     }
 }
@@ -442,6 +444,10 @@ mod tests {
             StorageErrorCode::WalTruncatedEntry.as_str(),
             "STORAGE_WAL_TRUNCATED_ENTRY"
         );
+        assert_eq!(
+            StorageErrorCode::WalCorruptEntry.as_str(),
+            "STORAGE_WAL_CORRUPT_ENTRY"
+        );
     }
 
     #[test]
@@ -454,6 +460,7 @@ mod tests {
             StorageErrorCode::SerializationError,
             StorageErrorCode::WalImplausibleEntrySize,
             StorageErrorCode::WalTruncatedEntry,
+            StorageErrorCode::WalCorruptEntry,
         ] {
             let shown = format!("{code}");
             assert_eq!(shown, code.as_str());

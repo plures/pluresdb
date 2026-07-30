@@ -67,6 +67,27 @@ pub enum WalError {
         /// Number of bytes that were expected but could not be read.
         expected_bytes: usize,
     },
+
+    /// A WAL entry payload could not be deserialized — the bytes are present but corrupt.
+    #[error(
+        "WAL segment '{segment}' contains an unreadable entry at byte offset {offset}: \
+         the {entry_bytes}-byte payload could not be deserialized ({reason}). The entry \
+         data is likely corrupt.\n\
+         Recovery options:\n  \
+         1. Run `pluresdb-cli wal recover --path <wal-dir>` to replay only valid \
+            entries (recommended — minimises data loss).\n  \
+         2. Delete segment '{segment}' and restart — fully-written earlier segments are intact."
+    )]
+    CorruptEntry {
+        /// Path of the segment containing the corrupt entry.
+        segment: String,
+        /// Byte offset of the start of the length prefix for this entry.
+        offset: u64,
+        /// Number of payload bytes that were read but could not be deserialized.
+        entry_bytes: usize,
+        /// Human-readable description of the deserialization error.
+        reason: String,
+    },
 }
 
 impl WalError {
@@ -77,6 +98,7 @@ impl WalError {
         match self {
             Self::ImplausibleEntrySize { .. } => StorageErrorCode::WalImplausibleEntrySize,
             Self::TruncatedEntry { .. } => StorageErrorCode::WalTruncatedEntry,
+            Self::CorruptEntry { .. } => StorageErrorCode::WalCorruptEntry,
         }
     }
 }
@@ -593,12 +615,21 @@ impl WalSegment {
 
             offset += 4 + len as u64;
 
-            // Deserialize entry
+            // Deserialize entry — a parse failure means the payload bytes are
+            // corrupt (not merely a truncation), so we surface it as an error
+            // rather than silently skipping. This ensures `validate()` can
+            // count the segment as corrupted and `rebuild_from_wal` can fail
+            // fast with actionable recovery guidance.
             match serde_json::from_slice::<WalEntry>(&entry_buf) {
                 Ok(entry) => entries.push(entry),
                 Err(e) => {
-                    warn!(error = ?e, "failed to deserialize WAL entry, skipping");
-                    continue;
+                    return Err(WalError::CorruptEntry {
+                        segment: segment_name,
+                        offset,
+                        entry_bytes: len,
+                        reason: e.to_string(),
+                    }
+                    .into());
                 }
             }
         }
@@ -757,6 +788,14 @@ mod tests {
             expected_bytes: 12,
         };
         assert_eq!(truncated.code(), StorageErrorCode::WalTruncatedEntry);
+
+        let corrupt = WalError::CorruptEntry {
+            segment: "segment-3.wal".to_string(),
+            offset: 20,
+            entry_bytes: 64,
+            reason: "invalid UTF-8 at position 5".to_string(),
+        };
+        assert_eq!(corrupt.code(), StorageErrorCode::WalCorruptEntry);
     }
 
     #[tokio::test]
