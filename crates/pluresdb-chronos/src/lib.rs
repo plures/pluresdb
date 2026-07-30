@@ -937,9 +937,7 @@ mod tests {
             ChronosAction::ToolInvoked,
             ChronosLevel::Info,
             &json!({"tool": "web_search"}),
-            vec![],
-            None,
-            op.clone(),
+            (vec![], None, op.clone()),
         );
         assert_eq!(entry.operation, Some(op.clone()));
         timeline.record(&entry);
