@@ -125,6 +125,51 @@ pub struct ChronosEntry {
     pub parent_id: Option<String>,
     pub rationale: Option<String>,
     pub constraint_results: Vec<String>,
+    /// Richer per-operation detail (ADR-0019 §4.3, pares-agens). Additive and
+    /// optional: `None` for legacy entries recorded before this field existed
+    /// (or for entries that never had operation-level detail), so existing
+    /// consumers of `history()`/`recent()`/`replay()` keep working unchanged.
+    /// Absent is honest; this must never be synthesized/faked to fill the gap
+    /// (no-stub rule).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation: Option<ChronosOperation>,
+}
+
+/// Richer per-operation detail attached to a [`ChronosEntry`] (ADR-0019 §4.3).
+///
+/// Distinct from the raw `key`/`data_hash`/`action` diff shape: this captures
+/// *what kind of operation* produced the entry (a tool call, a recall query,
+/// a prompt-assembly pass, a dataflow step, a cerebellum route, or — for
+/// backward compatibility with pre-expansion entries — a raw `state_diff`),
+/// plus the session/turn scoping needed for live-context filtering (§4.1) and
+/// pause granularity (§4.2), and the actual inputs/outputs (not summaries) so
+/// a drill-down UI has real data to show.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ChronosOperation {
+    /// Operation kind, e.g. "tool_call", "recall_query", "prompt_assemble",
+    /// "dataflow_step", "cerebellum_route", or "state_diff" (fallback for a
+    /// raw diff with no richer operation semantics).
+    pub kind: String,
+    /// Session scoping the operation belongs to — required for live-context
+    /// window filtering (§4.1).
+    pub session_id: String,
+    /// Turn scoping the operation belongs to — required for pause
+    /// granularity (§4.2): pause/resume act on one turn's continuation only.
+    pub turn_id: String,
+    /// The actual input value (e.g. tool-call args, recall query text), not
+    /// a truncated/summarized preview. `None` when the operation kind has no
+    /// meaningful input (e.g. a passive state_diff fallback entry).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inputs: Option<Value>,
+    /// The actual output value (e.g. tool-call result, recall hit ids — see
+    /// ADR-0019 §4.4 for why recall_query outputs store ids, not resolved
+    /// content, pending plureslm-openclaw PR #16).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outputs: Option<Value>,
+    /// Measured operation duration, when the operation has a measurable
+    /// span (e.g. a tool call). `None` when not applicable/not measured.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
 }
 
 /// The kind of mutation recorded.
@@ -272,7 +317,31 @@ impl ChronosTimeline {
             parent_id,
             rationale,
             constraint_results,
+            operation: None,
         }
+    }
+
+    /// Build an entry with explicit severity level AND populated operation
+    /// detail (ADR-0019 §4.3). Emission stays a consequence of praxis
+    /// contracts (ADR-0016 pattern): callers at existing tool-dispatch/
+    /// recall/dataflow-bridge seams populate `operation` at their existing
+    /// Chronos-emit site rather than adding a new instrumentation layer.
+    #[allow(clippy::too_many_arguments)]
+    pub fn build_entry_with_operation(
+        &self,
+        key: &str,
+        actor: &str,
+        action: ChronosAction,
+        level: ChronosLevel,
+        data: &Value,
+        constraint_results: Vec<String>,
+        rationale: Option<String>,
+        operation: ChronosOperation,
+    ) -> ChronosEntry {
+        let mut entry =
+            self.build_entry_with_level(key, actor, action, level, data, constraint_results, rationale);
+        entry.operation = Some(operation);
+        entry
     }
 
     /// Record a mutation in the timeline. Returns false if filtered by level.
@@ -824,5 +893,95 @@ mod tests {
         // Since epoch 0: everything
         let results = timeline.timeline(50, Some(0), None);
         assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn operation_field_defaults_none_for_legacy_entries() {
+        // ADR-0019 §4.3: existing build_entry/build_entry_with_level paths must
+        // keep producing operation: None so pre-migration consumers are unaffected.
+        let store = test_store();
+        let timeline = ChronosTimeline::new(store);
+
+        let entry = timeline.build_entry(
+            "k",
+            "a",
+            ChronosAction::Create,
+            &json!("v"),
+            vec![],
+            None,
+        );
+        assert!(entry.operation.is_none());
+        timeline.record(&entry);
+
+        let fetched = timeline.latest("k").unwrap();
+        assert!(fetched.operation.is_none());
+    }
+
+    #[test]
+    fn operation_field_round_trips_with_full_detail() {
+        // ADR-0019 §4.3: operation.kind/session_id/turn_id/inputs/outputs/duration_ms
+        // must survive a record()/latest() round trip through PluresDB storage.
+        let store = test_store();
+        let timeline = ChronosTimeline::new(store);
+
+        let op = ChronosOperation {
+            kind: "tool_call".to_string(),
+            session_id: "sess-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            inputs: Some(json!({"tool": "web_search", "args": {"query": "foo"}})),
+            outputs: Some(json!({"result": "bar"})),
+            duration_ms: Some(42),
+        };
+
+        let entry = timeline.build_entry_with_operation(
+            "agent:sess-1:turn-1",
+            "agens",
+            ChronosAction::ToolInvoked,
+            ChronosLevel::Info,
+            &json!({"tool": "web_search"}),
+            vec![],
+            None,
+            op.clone(),
+        );
+        assert_eq!(entry.operation, Some(op.clone()));
+        timeline.record(&entry);
+
+        let fetched = timeline.latest("agent:sess-1:turn-1").unwrap();
+        assert_eq!(fetched.operation, Some(op));
+    }
+
+    #[test]
+    fn operation_field_null_for_recall_query_without_resolved_content() {
+        // ADR-0019 §4.4: recall_query operations store returned ids in
+        // outputs, not resolved content, until plureslm-openclaw PR #16 lands.
+        let store = test_store();
+        let timeline = ChronosTimeline::new(store);
+
+        let op = ChronosOperation {
+            kind: "recall_query".to_string(),
+            session_id: "sess-2".to_string(),
+            turn_id: "turn-2".to_string(),
+            inputs: Some(json!({"query": "what did I say about x"})),
+            outputs: Some(json!({"ids": ["mem:memory:foo:0", "mem:memory:bar:2"]})),
+            duration_ms: Some(11),
+        };
+
+        let entry = timeline.build_entry_with_operation(
+            "agent:sess-2:turn-2",
+            "agens",
+            ChronosAction::ToolInvoked,
+            ChronosLevel::Info,
+            &json!({"tool": "recall"}),
+            vec![],
+            None,
+            op,
+        );
+        timeline.record(&entry);
+
+        let fetched = timeline.latest("agent:sess-2:turn-2").unwrap();
+        let outputs = fetched.operation.unwrap().outputs.unwrap();
+        // ids only, no resolved "content" field — must not fabricate content.
+        assert!(outputs.get("content").is_none());
+        assert!(outputs.get("ids").is_some());
     }
 }
