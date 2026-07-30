@@ -1,3 +1,8 @@
+## [3.12.0] — 2026-07-30
+
+- feat(pluresdb-chronos): additive ChronosOperation schema expansion (ADR-0019) (#1091) (eca6b6d)
+- docs(adr): ADR-0019 BitNet native embedding support (design-stage only) (#1090) (ea19c2d)
+
 ## [3.11.1] — 2026-07-28
 
 - fix(ci): unblock wasm target build broken by getrandom dependency drift (#1089) (4cba766)
