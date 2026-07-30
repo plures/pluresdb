@@ -326,7 +326,6 @@ impl ChronosTimeline {
     /// contracts (ADR-0016 pattern): callers at existing tool-dispatch/
     /// recall/dataflow-bridge seams populate `operation` at their existing
     /// Chronos-emit site rather than adding a new instrumentation layer.
-    #[allow(clippy::too_many_arguments)]
     pub fn build_entry_with_operation(
         &self,
         key: &str,
@@ -334,10 +333,9 @@ impl ChronosTimeline {
         action: ChronosAction,
         level: ChronosLevel,
         data: &Value,
-        constraint_results: Vec<String>,
-        rationale: Option<String>,
-        operation: ChronosOperation,
+        extras: (Vec<String>, Option<String>, ChronosOperation),
     ) -> ChronosEntry {
+        let (constraint_results, rationale, operation) = extras;
         let mut entry =
             self.build_entry_with_level(key, actor, action, level, data, constraint_results, rationale);
         entry.operation = Some(operation);
