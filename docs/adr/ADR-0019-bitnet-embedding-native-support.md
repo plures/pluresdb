@@ -95,9 +95,8 @@ inference path, **under a hard constraint that supersedes convenience**:
 > asset is absent, the correct behavior is a clear, actionable
 > `EmbeddingModelNotBundled` error — never a silent or automatic fetch.
 
-This mirrors the "NO STUBS" and "no live install-based swap" gates in
-AGENTS.md: a hollow/auto-fetching embedding path is exactly the kind of
-invisible-until-it-breaks-in-prod behavior those gates exist to prevent.
+This mirrors the "NO STUBS" gate documented in NATIVE-MEMORY-TASK.md (C-NOSTUB-001):
+a hollow/auto-fetching embedding path is exactly the kind of invisible-until-it-breaks-in-prod behavior those gates exist to prevent.
 
 ## Options Considered
 
