@@ -1,18 +1,1 @@
 * @kbristol
-
-/crates/ @kbristol
-/types/ @kbristol
-/web/ @kbristol
-/modules/ @kbristol
-/azure/ @kbristol
-/e2e/ @kbristol
-/docs/ @kbristol
-/examples/ @kbristol
-/installer/ @kbristol
-/memory/ @kbristol
-/packaging/ @kbristol
-/scripts/ @kbristol
-/tests/ @kbristol
-/demo/ @kbristol
-/.cargo/ @kbristol
-/.github/ @kbristol
