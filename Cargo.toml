@@ -14,6 +14,7 @@ members = [
     "crates/pluresdb-sea",
     "crates/pluresdb-px",
     "crates/pluresdb-chronos",
+    "crates/pluresdb-os-package",
 ]
 resolver = "2"
 

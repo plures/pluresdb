@@ -3357,6 +3357,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pluresdb-os-package"
+version = "3.12.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "pluresdb-core",
+ "pluresdb-procedures",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "pluresdb-procedures"
 version = "3.12.0"
 dependencies = [
