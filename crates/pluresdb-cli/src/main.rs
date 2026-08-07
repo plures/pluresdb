@@ -1961,11 +1961,16 @@ struct CompileNlRequest {
 /// into a `Constraint` and returns it, WITHOUT inserting it into the store.
 /// A separate persist endpoint can be added later if that turns out to be
 /// needed; this Stage 2 slice intentionally stays read-only/side-effect-free.
-async fn px_compile_nl_handler(Json(req): Json<CompileNlRequest>) -> Result<Json<Value>, StatusCode> {
-    if req.text.trim().is_empty() || req.id.trim().is_empty() {
+async fn px_compile_nl_handler(
+    Json(req): Json<CompileNlRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let text = req.text.trim();
+    let id = req.id.trim();
+    if text.is_empty() || id.is_empty() {
         return Err(StatusCode::BAD_REQUEST);
     }
-    let constraint = procedures::compile_nl(&req.text, req.id);
+
+    let constraint = procedures::compile_nl(text, id.to_string());
     Ok(Json(json!({
         "success": true,
         "data": constraint
