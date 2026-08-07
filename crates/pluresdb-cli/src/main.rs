@@ -2413,19 +2413,20 @@ mod tests {
 
     #[tokio::test]
     async fn px_on_action_handler_blocks_with_bare_conflict_status() {
-        // Insert a hard-blocking constraint (Error severity) that always
-        // matches, so on_action returns Err(ActionBlocked).
+        // Insert a deterministic hard-blocking constraint (Error severity) that
+        // always fires (when: Always, require: Not(Always)).
         let mut store = px_seed::default_store();
-        let constraint = procedures::compile_nl(
-            "never allow rm_rf on any target",
-            "test-block-rm-rf",
-        );
-        // compile_nl produces a Warning-severity constraint by default in
-        // this crate's grammar; force Error severity so this test
-        // deterministically exercises the 409 path regardless of NL parsing.
-        let mut constraint = constraint;
-        constraint.severity = pluresdb_px::db::Severity::Error;
-        store.upsert_constraint(constraint);
+        store.upsert_constraint(Constraint {
+            id: "test-block-all".to_string(),
+            description: "test: block all actions".to_string(),
+            when: pluresdb_px::db::Condition::Always,
+            require: pluresdb_px::db::Condition::Not {
+                condition: Box::new(pluresdb_px::db::Condition::Always),
+            },
+            fix: "blocked by test constraint".to_string(),
+            evidence: vec![],
+            severity: pluresdb_px::db::Severity::Error,
+        });
 
         let state = AppState {
             storage: Arc::new(MemoryStorage::default()),
