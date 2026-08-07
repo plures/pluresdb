@@ -132,9 +132,10 @@ impl PackageManager for NixPackageManager {
             ));
         }
         // `nix profile list` output format includes the attribute path per
-        // entry; a substring match on the package name is a real (if
-        // coarse) presence check for this minimal slice.
-        if outcome.stdout.contains(name) {
+        // entry; match on the exact flake attribute we install to avoid false
+        // positives (e.g. `go` matching `golang`).
+        let needle = format!("nixpkgs#{name}");
+        if outcome.stdout.lines().any(|line| line.contains(&needle)) {
             Ok(DesiredState::Present)
         } else {
             Ok(DesiredState::Absent)
