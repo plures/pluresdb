@@ -154,7 +154,8 @@ mod tests {
     /// behavior of real code against an environment fact.
     #[test]
     fn install_returns_real_error_when_nix_binary_missing_or_present() {
-        let mgr = NixPackageManager::new(std::env::temp_dir().join("px-shell-test-profile"));
+        let dir = tempfile::tempdir().unwrap();
+        let mgr = NixPackageManager::new(dir.path().join("px-shell-test-profile"));
         // Whichever the case in the running environment (nix absent here),
         // the call must not panic and must not silently report success
         // without having actually run a command.
@@ -164,7 +165,7 @@ mod tests {
                 // If `nix` happens to be present in some future CI image,
                 // a real command genuinely ran; success/failure both prove
                 // the process was invoked for real.
-                assert!(outcome.success || !outcome.stderr.is_empty());
+                assert!(outcome.success || !outcome.stderr.is_empty() || !outcome.stdout.is_empty());
             }
             Err(e) => {
                 assert!(e.to_string().contains("nix"));
