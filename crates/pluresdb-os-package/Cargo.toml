@@ -15,6 +15,7 @@ path = "src/bin/px_shell.rs"
 [dependencies]
 pluresdb-core = { path = "../pluresdb-core", default-features = false, features = ["native"] }
 pluresdb-procedures = { path = "../pluresdb-procedures" }
+pluresdb-storage = { path = "../pluresdb-storage", default-features = false, features = ["native"] }
 anyhow.workspace = true
 chrono.workspace = true
 serde.workspace = true
