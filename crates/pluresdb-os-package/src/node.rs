@@ -172,6 +172,18 @@ pub fn set_desired_state(
 ) -> anyhow::Result<()> {
     let id = node_id(name);
     let existing = store.get(&id);
+    if let Some(rec) = &existing {
+        let existing_mgr = rec
+            .data
+            .get("manager")
+            .and_then(|v| v.as_str())
+            .unwrap_or("<missing>");
+        if existing_mgr != manager {
+            return Err(anyhow::anyhow!(
+                "os.package node '{name}' manager mismatch: existing={existing_mgr} requested={manager}"
+            ));
+        }
+    }
     let patch = if existing.is_some() {
         json!({
             "desired_state": desired.as_wire(),
