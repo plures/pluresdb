@@ -1,3 +1,13 @@
+## [3.13.0] — 2026-08-07
+
+- feat(px): Stage 2 /api/px/* routes (praxis-linux epic) (#1099) (4b49ff2)
+- chore(deps-dev): bump fast-uri from 3.1.4 to 3.1.5 in /web/svelte (#1098) (002bbbe)
+- chore: add CODEOWNERS + SHA-pin third-party GitHub Actions (#1097) (ecf0b5c)
+- chore(deps): bump fastembed from 5.17.3 to 5.17.4 (#1096) (d17558f)
+- chore(deps-dev): bump @codemirror/view (#1094) (8f99e8d)
+- chore(deps): bump napi from 3.11.0 to 3.12.0 (#1093) (e384929)
+- chore(deps): bump napi-derive from 3.6.0 to 3.6.1 (#1092) (28c9095)
+
 ## [3.12.0] — 2026-07-30
 
 - feat(pluresdb-chronos): additive ChronosOperation schema expansion (ADR-0019) (#1091) (eca6b6d)
