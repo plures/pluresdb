@@ -17,7 +17,9 @@ anyhow.workspace = true
 axum.workspace = true
 chrono.workspace = true
 clap.workspace = true
+parking_lot.workspace = true
 pluresdb-core = { path = "../pluresdb-core" }
+pluresdb-px = { path = "../pluresdb-px" }
 pluresdb-storage = { path = "../pluresdb-storage" }
 pluresdb-sync = { path = "../pluresdb-sync" }
 serde.workspace = true
