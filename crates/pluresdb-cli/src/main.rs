@@ -1982,7 +1982,8 @@ async fn px_compile_nl_handler(
 /// Returns evidence records flagged by `query_gaps` as needing attention.
 async fn px_gaps_handler(State(state): State<AppState>) -> Json<Value> {
     let store = state.praxis.read();
-    let data: Vec<Evidence> = procedures::query_gaps(&store).into_iter().cloned().collect();
+    let mut data: Vec<Evidence> = procedures::query_gaps(&store).into_iter().cloned().collect();
+    data.sort_by(|a, b| a.id.cmp(&b.id));
     Json(json!({
         "success": true,
         "data": data
