@@ -60,7 +60,20 @@ impl NixPackageManager {
     }
 
     fn run(&self, args: &[&str]) -> anyhow::Result<CommandOutcome> {
+        // Pass `--extra-experimental-features nix-command flakes` explicitly
+        // on every invocation rather than relying on the host's nix.conf to
+        // have them enabled. Verified 2026-08-07 against a real Nix 2.34.8
+        // binary (nixos/nix:2.34.8 container, arca e2e-family QA image) with
+        // flakes/nix-command NOT enabled in /etc/nix/nix.conf: the bare
+        // `nix profile install/remove/list` commands this backend used to
+        // shell out to failed with
+        // "error: experimental Nix feature 'nix-command' is disabled" —
+        // a real environment-observed failure, not speculative. Forcing the
+        // flags on the CLI call makes the backend work regardless of the
+        // target host's nix.conf, matching how the docs' example commands
+        // are always shown with this flag.
         let output = Command::new("nix")
+            .args(["--extra-experimental-features", "nix-command flakes"])
             .args(args)
             .output()
             .map_err(|e| anyhow::anyhow!("failed to spawn `nix`: {e}"))?;
