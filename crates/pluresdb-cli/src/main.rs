@@ -474,7 +474,7 @@ struct NetworkDoctorStatus {
     status: String,
     transport: String,
     listen_addresses: Vec<String>,
-    reachable: bool,
+    network_enabled: bool,
     detail: String,
     remediation_hints: Vec<String>,
 }
@@ -486,7 +486,7 @@ struct NetworkDoctorStatus {
 struct VectorIndexDoctorStatus {
     status: String,
     index_type: String,
-    indexed_nodes: usize,
+    index_files: usize,
     max_capacity: usize,
     index_dir: Option<String>,
     detail: String,
@@ -1320,7 +1320,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
         },
         transport: transport.clone(),
         listen_addresses: listen_addresses.clone(),
-        reachable: mode != "disabled",
+        network_enabled: mode != "disabled",
         detail: if mode == "disabled" {
             "network disabled (sync mode: disabled)".to_string()
         } else {
@@ -1343,7 +1343,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
     let mut vector_index_status = VectorIndexDoctorStatus {
         status: STATUS_NOT_APPLICABLE.to_string(),
         index_type: "hnsw".to_string(),
-        indexed_nodes: 0,
+        index_files: 0,
         max_capacity: 0,
         index_dir: None,
         detail: "vector index check skipped (no data directory)".to_string(),
@@ -1358,7 +1358,7 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
             let file_count = fs::read_dir(&index_dir)
                 .map(|entries| entries.flatten().count())
                 .unwrap_or(0);
-            vector_index_status.indexed_nodes = file_count;
+            vector_index_status.index_files = file_count;
             vector_index_status.status = STATUS_OK.to_string();
             vector_index_status.detail =
                 format!("vector index directory detected ({} files)", file_count);
@@ -1520,7 +1520,7 @@ fn print_doctor_report(report: &DoctorReport) {
     if !report.network.listen_addresses.is_empty() {
         println!("  Listen addresses: {}", report.network.listen_addresses.join(", "));
     }
-    println!("  Reachable: {}", report.network.reachable);
+    println!("  Network enabled: {}", report.network.network_enabled);
     println!("  Detail: {}", report.network.detail);
     for hint in &report.network.remediation_hints {
         println!("  Hint: {}", hint);
@@ -1530,7 +1530,7 @@ fn print_doctor_report(report: &DoctorReport) {
     println!("Vector index");
     println!("  Status: {}", report.vector_index.status);
     println!("  Type: {}", report.vector_index.index_type);
-    println!("  Indexed nodes: {}", report.vector_index.indexed_nodes);
+    println!("  Index files: {}", report.vector_index.index_files);
     if report.vector_index.max_capacity > 0 {
         println!("  Max capacity: {}", report.vector_index.max_capacity);
     }
