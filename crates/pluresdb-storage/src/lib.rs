@@ -47,7 +47,7 @@ pub use rad::{RadAdapter, SledRadAdapter};
 #[cfg(feature = "native")]
 pub use replay::{metadata_pruning, rebuild_from_wal, replay_wal, ReplayStats};
 #[cfg(feature = "native")]
-pub use wal::{DurabilityLevel, WalEntry, WalError, WalOperation, WalValidation, WriteAheadLog};
+pub use wal::{DurabilityLevel, RecoveryStats, WalEntry, WalError, WalOperation, WalValidation, WriteAheadLog};
 
 /// Stable, documented error codes emitted by `pluresdb-storage`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -282,9 +282,10 @@ impl SledStorage {
     /// The provided `capacity_bytes` is clamped to
     /// [`MIN_CACHE_CAPACITY_BYTES`](Self::MIN_CACHE_CAPACITY_BYTES)..=[`MAX_CACHE_CAPACITY_BYTES`](Self::MAX_CACHE_CAPACITY_BYTES).
     pub fn open_with_cache_capacity(path: impl AsRef<Path>, capacity_bytes: u64) -> Result<Self> {
-        let clamped = capacity_bytes
-            .max(Self::MIN_CACHE_CAPACITY_BYTES)
-            .min(Self::MAX_CACHE_CAPACITY_BYTES);
+        let clamped = capacity_bytes.clamp(
+            Self::MIN_CACHE_CAPACITY_BYTES,
+            Self::MAX_CACHE_CAPACITY_BYTES,
+        );
         info!(
             path = %path.as_ref().display(),
             cache_capacity_bytes = clamped,

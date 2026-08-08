@@ -358,6 +358,70 @@ impl WriteAheadLog {
         Ok(())
     }
 
+    /// Recovers all valid entries from the WAL, skipping corrupt or
+    /// checksum-invalid entries instead of failing.
+    ///
+    /// This is the primary recovery path referenced by `WalError` messages and
+    /// `pluresdb doctor` output. Unlike [`read_all`][Self::read_all] (which
+    /// skips entire segments on error) this method performs entry-level
+    /// recovery: it reads each segment resiliently, discards individual bad
+    /// entries, and validates checksums on every surviving entry.
+    ///
+    /// Returns the recovered entries (sorted by sequence number) together with
+    /// [`RecoveryStats`] so callers can report how much data was salvaged.
+    #[instrument(skip(self))]
+    pub async fn recover(&self) -> Result<(Vec<WalEntry>, RecoveryStats)> {
+        // Flush current segment to make all data visible.
+        {
+            let mut guard = self.current_segment.lock().await;
+            if let Some(segment) = guard.as_mut() {
+                segment.fsync()?;
+            }
+        }
+
+        let mut entries = Vec::new();
+        let mut stats = RecoveryStats::default();
+
+        for segment_path in self.list_segments()? {
+            match WalSegment::open_read(&segment_path) {
+                Ok(segment) => {
+                    let (seg_entries, seg_corrupt, truncated) = segment.read_all_resilient();
+                    stats.corrupt_entries += seg_corrupt;
+                    if truncated {
+                        stats.truncated_segments += 1;
+                        warn!(?segment_path, "segment truncated — recovered partial entries");
+                    }
+                    for entry in seg_entries {
+                        stats.total_entries += 1;
+                        if entry.validate_checksum() {
+                            entries.push(entry);
+                            stats.recovered_entries += 1;
+                        } else {
+                            stats.checksum_failures += 1;
+                            warn!(seq = entry.seq, "skipping entry with invalid checksum during recovery");
+                        }
+                    }
+                }
+                Err(e) => {
+                    stats.unreadable_segments += 1;
+                    warn!(?segment_path, error = ?e, "cannot open segment — skipping");
+                }
+            }
+        }
+
+        entries.sort_by_key(|e| e.seq);
+
+        info!(
+            recovered = stats.recovered_entries,
+            corrupt = stats.corrupt_entries,
+            checksum_failures = stats.checksum_failures,
+            truncated_segments = stats.truncated_segments,
+            "WAL recovery completed"
+        );
+
+        Ok((entries, stats))
+    }
+
     /// Lists all segment files in chronological order.
     fn list_segments(&self) -> Result<Vec<PathBuf>> {
         let mut segments = Vec::new();
@@ -405,6 +469,34 @@ impl WriteAheadLog {
             Ok(segment.size()? >= max_size)
         } else {
             Ok(false)
+        }
+    }
+}
+
+/// Statistics from a WAL recovery operation.
+#[derive(Debug, Default, Clone)]
+pub struct RecoveryStats {
+    /// Total entries encountered across all segments (valid + corrupt + checksum-failed).
+    pub total_entries: u64,
+    /// Entries successfully recovered (both parseable and checksum-valid).
+    pub recovered_entries: u64,
+    /// Entries skipped because their payload could not be deserialized.
+    pub corrupt_entries: u64,
+    /// Entries skipped because their checksum did not match.
+    pub checksum_failures: u64,
+    /// Segments that could not be opened or read at all.
+    pub unreadable_segments: u64,
+    /// Segments where the tail was truncated (partial write detected).
+    pub truncated_segments: u64,
+}
+
+impl RecoveryStats {
+    /// Fraction of entries that were successfully recovered (0.0–1.0).
+    pub fn recovery_rate(&self) -> f64 {
+        if self.total_entries == 0 {
+            1.0
+        } else {
+            self.recovered_entries as f64 / self.total_entries as f64
         }
     }
 }
@@ -635,6 +727,62 @@ impl WalSegment {
         }
 
         Ok(entries)
+    }
+
+    /// Reads all entries from this segment, skipping corrupt entries instead
+    /// of failing.
+    ///
+    /// Returns a tuple of `(entries, skipped, truncated)` where `skipped` is
+    /// the number of entries that could not be deserialized and `truncated` is
+    /// `true` if the segment ended mid-record (partial write detected).
+    fn read_all_resilient(&self) -> (Vec<WalEntry>, u64, bool) {
+        let read_file = match File::open(&self.path) {
+            Ok(f) => f,
+            Err(_) => return (Vec::new(), 0, false),
+        };
+
+        let mut reader = BufReader::new(read_file);
+        let mut entries = Vec::new();
+        let mut truncated = false;
+        let mut skipped: u64 = 0;
+
+        loop {
+            let mut len_buf = [0u8; 4];
+            match reader.read(&mut len_buf[..1]) {
+                Ok(0) => break,
+                Ok(_) => {
+                    if reader.read_exact(&mut len_buf[1..]).is_err() {
+                        truncated = true;
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+
+            let len = u32::from_le_bytes(len_buf) as usize;
+
+            // Skip implausibly large entries — cannot seek past them safely.
+            if len > MAX_ENTRY_SIZE {
+                truncated = true;
+                break;
+            }
+
+            let mut entry_buf = vec![0u8; len];
+            if reader.read_exact(&mut entry_buf).is_err() {
+                truncated = true;
+                break;
+            }
+
+            // Skip entries that cannot be deserialized.
+            match serde_json::from_slice::<WalEntry>(&entry_buf) {
+                Ok(entry) => entries.push(entry),
+                Err(_) => {
+                    skipped += 1;
+                }
+            }
+        }
+
+        (entries, skipped, truncated)
     }
 }
 
@@ -1165,5 +1313,135 @@ mod tests {
             seqs[0],
             remaining_seqs
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // WAL recovery tests
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_recover_skips_corrupt_entries() {
+        let temp_dir = TempDir::new().unwrap();
+        let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+
+        // Write 3 valid entries
+        for i in 0..3 {
+            wal.append(
+                "actor-1".to_string(),
+                WalOperation::Put {
+                    id: format!("node-{i}"),
+                    data: serde_json::json!({"i": i}),
+                },
+            )
+            .await
+            .unwrap();
+        }
+
+        // Tamper with segment: corrupt the second entry's checksum
+        let seg_path = {
+            let mut segs: Vec<_> = std::fs::read_dir(temp_dir.path())
+                .unwrap()
+                .filter_map(|e| e.ok().map(|e| e.path()))
+                .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("wal"))
+                .collect();
+            segs.sort();
+            segs.into_iter().next().unwrap()
+        };
+        let raw = std::fs::read(&seg_path).unwrap();
+        let mut out: Vec<u8> = Vec::new();
+        let mut idx = 0usize;
+        let mut entry_idx = 0;
+        while idx + 4 <= raw.len() {
+            let len =
+                u32::from_le_bytes([raw[idx], raw[idx + 1], raw[idx + 2], raw[idx + 3]]) as usize;
+            let start = idx + 4;
+            let end = start + len;
+            if end > raw.len() {
+                break;
+            }
+            if entry_idx == 1 {
+                // Corrupt the second entry's checksum
+                let mut entry: WalEntry =
+                    serde_json::from_slice(&raw[start..end]).unwrap();
+                entry.checksum = 0;
+                let body = serde_json::to_vec(&entry).unwrap();
+                out.extend_from_slice(&(body.len() as u32).to_le_bytes());
+                out.extend_from_slice(&body);
+            } else {
+                out.extend_from_slice(&raw[idx..end]);
+            }
+            idx = end;
+            entry_idx += 1;
+        }
+        std::fs::write(&seg_path, &out).unwrap();
+
+        // Recover should return 2 valid entries, skipping the corrupted one
+        let (entries, stats) = wal.recover().await.unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_eq!(stats.recovered_entries, 2);
+        assert_eq!(stats.checksum_failures, 1);
+        assert_eq!(stats.total_entries, 3);
+    }
+
+    #[tokio::test]
+    async fn test_recover_handles_truncated_segment() {
+        let temp_dir = TempDir::new().unwrap();
+        let wal = WriteAheadLog::open(temp_dir.path()).unwrap();
+
+        wal.append(
+            "actor-1".to_string(),
+            WalOperation::Put {
+                id: "node-0".to_string(),
+                data: serde_json::json!({"ok": true}),
+            },
+        )
+        .await
+        .unwrap();
+
+        wal.append(
+            "actor-1".to_string(),
+            WalOperation::Put {
+                id: "node-1".to_string(),
+                data: serde_json::json!({"ok": true}),
+            },
+        )
+        .await
+        .unwrap();
+
+        // Truncate the segment file mid-entry
+        let seg_path = {
+            let mut segs: Vec<_> = std::fs::read_dir(temp_dir.path())
+                .unwrap()
+                .filter_map(|e| e.ok().map(|e| e.path()))
+                .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("wal"))
+                .collect();
+            segs.sort();
+            segs.into_iter().next().unwrap()
+        };
+        let raw = std::fs::read(&seg_path).unwrap();
+        // Keep only the first entry + half of the second
+        let first_len = u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]) as usize;
+        let truncated_len = 4 + first_len + 6; // first entry complete + partial header of second
+        std::fs::write(&seg_path, &raw[..truncated_len]).unwrap();
+
+        let (entries, stats) = wal.recover().await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(stats.recovered_entries, 1);
+        assert_eq!(stats.truncated_segments, 1);
+    }
+
+    #[tokio::test]
+    async fn test_recovery_rate() {
+        let stats = RecoveryStats {
+            total_entries: 10,
+            recovered_entries: 8,
+            corrupt_entries: 1,
+            checksum_failures: 1,
+            ..Default::default()
+        };
+        assert_eq!(stats.recovery_rate(), 0.8);
+
+        let empty = RecoveryStats::default();
+        assert_eq!(empty.recovery_rate(), 1.0);
     }
 }
