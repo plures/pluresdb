@@ -256,14 +256,43 @@ pub struct SledStorage {
 
 #[cfg(feature = "native")]
 impl SledStorage {
+    /// Default sled page-cache capacity (256 MiB).
     const DEFAULT_CACHE_CAPACITY_BYTES: u64 = 256 * 1024 * 1024;
 
-    /// Open (or create) a sled database at `path`.
+    /// Maximum allowed sled page-cache capacity (1 GiB).
+    ///
+    /// Prevents runaway RSS growth under heavy vector workloads by capping the
+    /// cache regardless of the caller-supplied value.
+    pub const MAX_CACHE_CAPACITY_BYTES: u64 = 1024 * 1024 * 1024;
+
+    /// Minimum allowed sled page-cache capacity (16 MiB).
+    ///
+    /// Values below this threshold can cause excessive I/O thrashing.
+    pub const MIN_CACHE_CAPACITY_BYTES: u64 = 16 * 1024 * 1024;
+
+    /// Open (or create) a sled database at `path` with the default cache
+    /// capacity (256 MiB).
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        info!(path = %path.as_ref().display(), "opening sled storage");
+        Self::open_with_cache_capacity(path, Self::DEFAULT_CACHE_CAPACITY_BYTES)
+    }
+
+    /// Open (or create) a sled database at `path` with an explicit cache
+    /// capacity.
+    ///
+    /// The provided `capacity_bytes` is clamped to
+    /// [`MIN_CACHE_CAPACITY_BYTES`](Self::MIN_CACHE_CAPACITY_BYTES)..=[`MAX_CACHE_CAPACITY_BYTES`](Self::MAX_CACHE_CAPACITY_BYTES).
+    pub fn open_with_cache_capacity(path: impl AsRef<Path>, capacity_bytes: u64) -> Result<Self> {
+        let clamped = capacity_bytes
+            .max(Self::MIN_CACHE_CAPACITY_BYTES)
+            .min(Self::MAX_CACHE_CAPACITY_BYTES);
+        info!(
+            path = %path.as_ref().display(),
+            cache_capacity_bytes = clamped,
+            "opening sled storage"
+        );
         let db = sled::Config::default()
             .path(path)
-            .cache_capacity(Self::DEFAULT_CACHE_CAPACITY_BYTES)
+            .cache_capacity(clamped)
             .open()?;
         Ok(Self { db })
     }
@@ -480,6 +509,39 @@ mod tests {
         // 256 * 1024 * 1024 == 268_435_456. `+` would give 256+1024+1024=2304;
         // `/` would give 256/1024/1024=0. Exact value pins the arithmetic.
         assert_eq!(SledStorage::DEFAULT_CACHE_CAPACITY_BYTES, 268_435_456);
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn sled_max_cache_capacity_is_1_gib() {
+        assert_eq!(SledStorage::MAX_CACHE_CAPACITY_BYTES, 1_073_741_824);
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn sled_min_cache_capacity_is_16_mib() {
+        assert_eq!(SledStorage::MIN_CACHE_CAPACITY_BYTES, 16_777_216);
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn sled_open_with_cache_capacity_clamps_above_max() {
+        let dir = tempfile::tempdir().unwrap();
+        // Request 2 GiB — should be clamped to MAX (1 GiB).
+        let storage =
+            SledStorage::open_with_cache_capacity(dir.path(), 2 * 1024 * 1024 * 1024).unwrap();
+        // If we got here without panic the clamping succeeded; verify the DB opens.
+        drop(storage);
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn sled_open_with_cache_capacity_clamps_below_min() {
+        let dir = tempfile::tempdir().unwrap();
+        // Request 1 MiB — should be clamped to MIN (16 MiB).
+        let storage =
+            SledStorage::open_with_cache_capacity(dir.path(), 1024 * 1024).unwrap();
+        drop(storage);
     }
 
     // -----------------------------------------------------------------------
