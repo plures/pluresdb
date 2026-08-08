@@ -64,7 +64,6 @@ jobs:
 
       - name: Run N-API benchmarks
         run: node benches/napi_benchmark.mjs | tee /tmp/napi_results.json
-        continue-on-error: true
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
@@ -90,14 +89,13 @@ jobs:
           node-version: "24"
 
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        uses: jetli/wasm-pack-action@v0.4.0
 
       - name: Build WASM module
         run: wasm-pack build crates/pluresdb-wasm --target nodejs
 
       - name: Run WASM benchmarks
         run: node benches/wasm_benchmark.mjs | tee /tmp/wasm_results.json
-        continue-on-error: true
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
