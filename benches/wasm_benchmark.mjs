@@ -64,14 +64,11 @@ function bench(name, iterations, fn) {
 const results = [];
 const ITERATIONS = 20;
 
-const PluresDB = wasm.PluresDB || wasm.default?.PluresDB;
-if (!PluresDB) {
-  // If the WASM module exposes different entry points, try CrdtStore
-  const CrdtStore = wasm.CrdtStore || wasm.default?.CrdtStore;
-  if (!CrdtStore) {
-    console.error("Could not find PluresDB or CrdtStore export in WASM module.");
-    process.exit(1);
-  }
+const PluresDBBrowser = wasm.PluresDBBrowser || wasm.default?.PluresDBBrowser;
+if (!PluresDBBrowser) {
+  console.error("Could not find PluresDBBrowser export in WASM module.");
+  process.exit(1);
+}
 
   // CrdtStore-based benchmarks
   {
