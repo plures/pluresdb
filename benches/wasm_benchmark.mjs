@@ -26,7 +26,10 @@ try {
     process.exit(1);
   }
 }
-
+const initWasm = wasm.default ?? wasm.init;
+if (typeof initWasm === "function") {
+  await initWasm();
+}
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
