@@ -1,0 +1,111 @@
+name: Benchmarks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  native-benchmarks:
+    name: Native (Criterion)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run CRDT benchmarks
+        run: |
+          set -euo pipefail
+          cargo bench --bench crdt_benchmarks --features native -p pluresdb-core -- --output-format bencher | tee /tmp/crdt.txt
+
+      - name: Run sync benchmarks
+        run: cargo bench --bench sync_benchmarks --features native -p pluresdb-core -- --output-format bencher | tee /tmp/sync.txt
+
+      - name: Run vector benchmarks
+        run: cargo bench --bench vector_benchmarks --features native -p pluresdb-core -- --output-format bencher | tee /tmp/vector.txt
+
+      - name: Combine results
+        run: cat /tmp/crdt.txt /tmp/sync.txt /tmp/vector.txt > /tmp/native_results.txt
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-benchmark-results
+          path: /tmp/native_results.txt
+
+  napi-benchmarks:
+    name: N-API (Node.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build N-API module
+        run: npm run build --if-present
+
+      - name: Run N-API benchmarks
+        run: |
+          set -euo pipefail
+          node benches/napi_benchmark.mjs | tee /tmp/napi_results.json
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: napi-benchmark-results
+          path: /tmp/napi_results.json
+
+  wasm-benchmarks:
+    name: WASM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+
+      - name: Build WASM module
+        run: wasm-pack build crates/pluresdb-wasm --target nodejs
+
+      - name: Run WASM benchmarks
+        run: |
+          set -euo pipefail
+          node benches/wasm_benchmark.mjs | tee /tmp/wasm_results.json
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wasm-benchmark-results
+          path: /tmp/wasm_results.json
