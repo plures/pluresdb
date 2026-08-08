@@ -2434,7 +2434,7 @@ fn run() -> Result<()> {
                             } else {
                                 println!("WAL CORRUPTION DETECTED");
                                 println!("  Total entries:      {}", validation.total_entries);
-                                println!("  Valid entries:       {}", validation.valid_entries);
+                                println!("  Valid entries:      {}", validation.valid_entries);
                                 println!("  Corrupted entries:  {}", validation.corrupted_entries);
                                 println!("  Total segments:     {}", validation.total_segments);
                                 println!("  Corrupted segments: {}", validation.corrupted_segments);

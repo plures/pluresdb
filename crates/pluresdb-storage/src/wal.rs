@@ -385,7 +385,8 @@ impl WriteAheadLog {
         for segment_path in self.list_segments()? {
             match WalSegment::open_read(&segment_path) {
                 Ok(segment) => {
-                    let (seg_entries, truncated) = segment.read_all_resilient();
+                    let (seg_entries, seg_corrupt, truncated) = segment.read_all_resilient();
+                    stats.corrupt_entries += seg_corrupt;
                     if truncated {
                         stats.truncated_segments += 1;
                         warn!(?segment_path, "segment truncated — recovered partial entries");
@@ -731,19 +732,19 @@ impl WalSegment {
     /// Reads all entries from this segment, skipping corrupt entries instead
     /// of failing.
     ///
-    /// Returns a tuple of `(entries, truncated)` where `truncated` is `true`
-    /// if the segment ended mid-record (partial write detected). Entries that
-    /// cannot be deserialized are silently skipped — the caller is expected to
-    /// validate checksums separately.
-    fn read_all_resilient(&self) -> (Vec<WalEntry>, bool) {
+    /// Returns a tuple of `(entries, skipped, truncated)` where `skipped` is
+    /// the number of entries that could not be deserialized and `truncated` is
+    /// `true` if the segment ended mid-record (partial write detected).
+    fn read_all_resilient(&self) -> (Vec<WalEntry>, u64, bool) {
         let read_file = match File::open(&self.path) {
             Ok(f) => f,
-            Err(_) => return (Vec::new(), false),
+            Err(_) => return (Vec::new(), 0, false),
         };
 
         let mut reader = BufReader::new(read_file);
         let mut entries = Vec::new();
         let mut truncated = false;
+        let mut skipped: u64 = 0;
 
         loop {
             let mut len_buf = [0u8; 4];
@@ -773,12 +774,15 @@ impl WalSegment {
             }
 
             // Skip entries that cannot be deserialized.
-            if let Ok(entry) = serde_json::from_slice::<WalEntry>(&entry_buf) {
-                entries.push(entry);
+            match serde_json::from_slice::<WalEntry>(&entry_buf) {
+                Ok(entry) => entries.push(entry),
+                Err(_) => {
+                    skipped += 1;
+                }
             }
         }
 
-        (entries, truncated)
+        (entries, skipped, truncated)
     }
 }
 
