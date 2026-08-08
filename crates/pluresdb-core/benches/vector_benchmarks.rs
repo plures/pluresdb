@@ -23,8 +23,8 @@ fn benchmark_vector_insert(c: &mut Criterion) {
             b.iter_batched(
                 || VectorIndex::new(count + 1),
                 |index| {
-                    for i in 0..count {
-                        index.insert(&format!("node:{}", i), black_box(&embeddings[i]));
+                    for (i, embedding) in embeddings.iter().enumerate().take(count) {
+                        index.insert(&format!("node:{}", i), black_box(embedding));
                     }
                 },
                 criterion::BatchSize::SmallInput,
@@ -44,8 +44,8 @@ fn benchmark_vector_search(c: &mut Criterion) {
         let query = random_embedding(dim, 999_999);
 
         let index = VectorIndex::new(count + 1);
-        for i in 0..count {
-            index.insert(&format!("node:{}", i), &embeddings[i]);
+        for (i, embedding) in embeddings.iter().enumerate().take(count) {
+            index.insert(&format!("node:{}", i), embedding);
         }
 
         group.bench_with_input(BenchmarkId::from_parameter(count), &count, |b, _| {
@@ -63,8 +63,8 @@ fn benchmark_vector_search_top_k(c: &mut Criterion) {
 
     let embeddings: Vec<Vec<f32>> = (0..count).map(|i| random_embedding(dim, i)).collect();
     let index = VectorIndex::new(count + 1);
-    for i in 0..count {
-        index.insert(&format!("node:{}", i), &embeddings[i]);
+    for (i, embedding) in embeddings.iter().enumerate().take(count) {
+        index.insert(&format!("node:{}", i), embedding);
     }
 
     let query = random_embedding(dim, 999_999);
