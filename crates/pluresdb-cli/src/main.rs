@@ -54,6 +54,10 @@ struct Cli {
     #[arg(long, global = true, help = "Path to data directory")]
     data_dir: Option<PathBuf>,
 
+    /// Sled page-cache capacity in MiB (default: 256, min: 16, max: 1024).
+    #[arg(long, global = true, help = "Sled cache capacity in MiB")]
+    sled_cache_mib: Option<u64>,
+
     /// Enable verbose logging
     #[arg(short, long, global = true)]
     verbose: bool,
@@ -488,11 +492,18 @@ fn load_payload(data: &str) -> Result<serde_json::Value> {
     }
 }
 
-fn create_storage(data_dir: Option<&PathBuf>) -> Result<Arc<dyn StorageEngine>> {
+fn create_storage(
+    data_dir: Option<&PathBuf>,
+    sled_cache_mib: Option<u64>,
+) -> Result<Arc<dyn StorageEngine>> {
     if let Some(dir) = data_dir {
         let db_path = dir.join("db");
         fs::create_dir_all(&db_path)?;
-        let storage = SledStorage::open(&db_path)?;
+        let storage = if let Some(mib) = sled_cache_mib {
+            SledStorage::open_with_cache_capacity(&db_path, mib * 1024 * 1024)?
+        } else {
+            SledStorage::open(&db_path)?
+        };
         Ok(Arc::new(storage))
     } else {
         Ok(Arc::new(MemoryStorage::default()))
@@ -2103,7 +2114,7 @@ fn run() -> Result<()> {
 
     let rt = init_runtime();
     rt.block_on(async move {
-        let storage = create_storage(cli.data_dir.as_ref())?;
+        let storage = create_storage(cli.data_dir.as_ref(), cli.sled_cache_mib)?;
         let store = Arc::new(CrdtStore::default());
         #[cfg(feature = "sqlite-compat")]
         let db = create_database(cli.data_dir.as_ref())?;
