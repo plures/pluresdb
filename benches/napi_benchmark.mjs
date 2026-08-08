@@ -16,20 +16,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 // Attempt to load the native module from standard build locations.
-let PluresDB;
+let PluresDatabase;
 try {
-  const mod = await import("../index.js");
-  PluresDB = mod.PluresDB || mod.default?.PluresDB || mod.default;
+  const mod = await import("../crates/pluresdb-node/index.js");
+  PluresDatabase = mod.PluresDatabase || mod.default?.PluresDatabase;
 } catch {
-  try {
-    const mod = await import("../pluresdb.node");
-    PluresDB = mod.PluresDB || mod.default;
-  } catch {
-    console.error(
-      "Could not load PluresDB native module. Build it first with `napi build`.",
-    );
-    process.exit(1);
-  }
+  console.error(
+    "Could not load PluresDatabase native module. Build it first with `npm run build` (or `cd crates/pluresdb-node && npm run build`).",
+  );
+  process.exit(1);
 }
 
 // ---------------------------------------------------------------------------
