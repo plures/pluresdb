@@ -102,7 +102,7 @@ if (useCrdtStore) {
 } else {
   // PluresDB-class based benchmarks
   {
-    const db = new PluresDB();
+    const db = new PluresDBBrowser("bench-wasm-put");
     const r = bench("wasm_crdt_put_1000", ITERATIONS, () => {
       for (let i = 0; i < 1000; i++) {
         db.put(`bench:${i}`, JSON.stringify({ value: i, data: "benchmark" }));
@@ -112,7 +112,7 @@ if (useCrdtStore) {
   }
 
   {
-    const db = new PluresDB();
+    const db = new PluresDBBrowser("bench-wasm-get");
     for (let i = 0; i < 1000; i++) {
       db.put(`bench:${i}`, JSON.stringify({ value: i }));
     }

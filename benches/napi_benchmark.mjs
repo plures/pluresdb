@@ -72,7 +72,7 @@ const ITERATIONS = 20;
 {
   const dir = makeTempDir();
   try {
-    const db = new PluresDB(dir);
+    const db = new PluresDatabase(undefined, dir);
     const r = await bench("crdt_put_1000", ITERATIONS, () => {
       for (let i = 0; i < 1000; i++) {
         db.put(`bench:${i}`, { value: i, data: "benchmark payload" });
@@ -89,7 +89,7 @@ const ITERATIONS = 20;
 {
   const dir = makeTempDir();
   try {
-    const db = new PluresDB(dir);
+    const db = new PluresDatabase(undefined, dir);
     for (let i = 0; i < 1000; i++) {
       db.put(`bench:${i}`, { value: i });
     }
@@ -109,7 +109,7 @@ const ITERATIONS = 20;
 {
   const dir = makeTempDir();
   try {
-    const db = new PluresDB(dir);
+    const db = new PluresDatabase(undefined, dir);
     for (let i = 0; i < 1000; i++) {
       db.put(`bench:${i}`, { value: i });
     }

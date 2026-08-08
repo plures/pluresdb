@@ -6,7 +6,10 @@ fn random_embedding(dim: usize, seed: usize) -> Vec<f32> {
     // Deterministic pseudo-random embeddings for reproducibility
     (0..dim)
         .map(|i| {
-            let x = ((seed * 6364136223846793005 + i * 1442695040888963407) & 0xFFFFFFFF) as f32;
+            let x = (seed as u64)
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add((i as u64).wrapping_mul(1_442_695_040_888_963_407));
+            let x = (x & 0xFFFF_FFFF) as f32;
             (x / u32::MAX as f32) * 2.0 - 1.0
         })
         .collect()
