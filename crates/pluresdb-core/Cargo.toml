@@ -51,3 +51,12 @@ harness = false
 name = "sql_benchmarks"
 harness = false
 required-features = ["sqlite-compat"]
+
+[[bench]]
+name = "vector_benchmarks"
+harness = false
+required-features = ["native"]
+
+[[bench]]
+name = "sync_benchmarks"
+harness = false
