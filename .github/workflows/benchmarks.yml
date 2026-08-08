@@ -25,7 +25,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Run CRDT benchmarks
-        run: cargo bench --bench crdt_benchmarks --features native -p pluresdb-core -- --output-format bencher | tee /tmp/crdt.txt
+        run: |
+          set -euo pipefail
+          cargo bench --bench crdt_benchmarks --features native -p pluresdb-core -- --output-format bencher | tee /tmp/crdt.txt
 
       - name: Run sync benchmarks
         run: cargo bench --bench sync_benchmarks --features native -p pluresdb-core -- --output-format bencher | tee /tmp/sync.txt
