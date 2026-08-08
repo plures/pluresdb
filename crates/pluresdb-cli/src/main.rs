@@ -264,6 +264,10 @@ enum Commands {
         #[arg(long, default_value = "256")]
         broadcast_capacity: usize,
     },
+
+    /// WAL (Write-Ahead Log) management commands
+    #[command(subcommand)]
+    Wal(WalCommands),
 }
 
 #[derive(Subcommand, Debug)]
@@ -393,6 +397,39 @@ enum MaintenanceCommands {
         /// Show detailed statistics
         #[arg(long)]
         detailed: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum WalCommands {
+    /// Recover valid entries from a corrupted WAL directory.
+    ///
+    /// Reads all segments, skips corrupt or checksum-invalid entries, and
+    /// writes recovered entries to a new clean WAL directory. The original
+    /// WAL directory is left untouched.
+    Recover {
+        /// Path to the WAL directory to recover from
+        #[arg(long)]
+        path: PathBuf,
+
+        /// Output directory for the recovered WAL (default: <path>.recovered)
+        #[arg(long)]
+        output: Option<PathBuf>,
+
+        /// Emit machine-readable JSON output
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Validate WAL integrity without modifying any files
+    Validate {
+        /// Path to the WAL directory to validate
+        #[arg(long)]
+        path: PathBuf,
+
+        /// Emit machine-readable JSON output
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -2319,6 +2356,101 @@ fn run() -> Result<()> {
                     .with_broadcast_capacity(broadcast_capacity)
                     .serve(&addr)
                     .await
+            }
+
+            Commands::Wal(wal_cmd) => {
+                match wal_cmd {
+                    WalCommands::Recover { path, output, json } => {
+                        let wal = WriteAheadLog::open(&path)
+                            .with_context(|| format!("failed to open WAL at {}", path.display()))?;
+
+                        let (entries, stats) = wal.recover().await?;
+
+                        // Write recovered entries to the output directory.
+                        let output_dir = output.unwrap_or_else(|| {
+                            let mut p = path.clone().into_os_string();
+                            p.push(".recovered");
+                            PathBuf::from(p)
+                        });
+
+                        let recovered_wal = WriteAheadLog::open(&output_dir)
+                            .with_context(|| format!("failed to create recovered WAL at {}", output_dir.display()))?;
+
+                        for entry in &entries {
+                            recovered_wal.append(
+                                entry.actor.clone(),
+                                entry.operation.clone(),
+                            ).await?;
+                        }
+
+                        if json {
+                            let report = serde_json::json!({
+                                "recovered_entries": stats.recovered_entries,
+                                "total_entries": stats.total_entries,
+                                "corrupt_entries": stats.corrupt_entries,
+                                "checksum_failures": stats.checksum_failures,
+                                "unreadable_segments": stats.unreadable_segments,
+                                "truncated_segments": stats.truncated_segments,
+                                "recovery_rate": stats.recovery_rate(),
+                                "output_dir": output_dir.display().to_string(),
+                            });
+                            println!("{}", serde_json::to_string_pretty(&report)?);
+                        } else {
+                            println!("WAL Recovery Complete");
+                            println!("  Recovered entries:    {}", stats.recovered_entries);
+                            println!("  Total entries found:  {}", stats.total_entries);
+                            println!("  Corrupt entries:      {}", stats.corrupt_entries);
+                            println!("  Checksum failures:    {}", stats.checksum_failures);
+                            println!("  Unreadable segments:  {}", stats.unreadable_segments);
+                            println!("  Truncated segments:   {}", stats.truncated_segments);
+                            println!("  Recovery rate:        {:.1}%", stats.recovery_rate() * 100.0);
+                            println!("  Output directory:     {}", output_dir.display());
+                        }
+
+                        Ok(())
+                    }
+
+                    WalCommands::Validate { path, json } => {
+                        let wal = WriteAheadLog::open(&path)
+                            .with_context(|| format!("failed to open WAL at {}", path.display()))?;
+
+                        let validation = wal.validate().await?;
+
+                        if json {
+                            let report = serde_json::json!({
+                                "healthy": validation.is_healthy(),
+                                "total_entries": validation.total_entries,
+                                "valid_entries": validation.valid_entries,
+                                "corrupted_entries": validation.corrupted_entries,
+                                "total_segments": validation.total_segments,
+                                "corrupted_segments": validation.corrupted_segments,
+                                "corruption_rate": validation.corruption_rate(),
+                            });
+                            println!("{}", serde_json::to_string_pretty(&report)?);
+                        } else {
+                            if validation.is_healthy() {
+                                println!("WAL is healthy: {} entries across {} segments",
+                                    validation.total_entries, validation.total_segments);
+                            } else {
+                                println!("WAL CORRUPTION DETECTED");
+                                println!("  Total entries:      {}", validation.total_entries);
+                                println!("  Valid entries:       {}", validation.valid_entries);
+                                println!("  Corrupted entries:  {}", validation.corrupted_entries);
+                                println!("  Total segments:     {}", validation.total_segments);
+                                println!("  Corrupted segments: {}", validation.corrupted_segments);
+                                if let Some(guidance) = validation.recovery_guidance() {
+                                    println!("\n{}", guidance);
+                                }
+                            }
+                        }
+
+                        if !validation.is_healthy() {
+                            std::process::exit(1);
+                        }
+
+                        Ok(())
+                    }
+                }
             }
         }
     })

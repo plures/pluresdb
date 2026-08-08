@@ -292,6 +292,46 @@ impl Replicator {
         Ok(received)
     }
 
+    /// Receive incoming GUN PUT messages resiliently, skipping corrupt
+    /// messages instead of aborting the entire sync session.
+    ///
+    /// This is the recommended recovery path for sync operations where the
+    /// remote peer may send malformed data (e.g., due to a version mismatch
+    /// or network corruption). Valid messages are collected normally; invalid
+    /// messages are counted and logged but do not terminate the session.
+    ///
+    /// Returns the successfully decoded nodes and the count of skipped
+    /// messages.
+    pub async fn receive_all_resilient<C: Connection>(
+        &self,
+        conn: &mut C,
+    ) -> Result<(Vec<(Soul, GunNode)>, u64)> {
+        let mut received: Vec<(Soul, GunNode)> = Vec::new();
+        let mut skipped: u64 = 0;
+        loop {
+            match conn.receive().await? {
+                None => break,
+                Some(raw) => match GunMessage::decode(&raw) {
+                    Ok(GunMessage::Put(put)) => {
+                        for (soul, node) in put.put {
+                            received.push((soul, node));
+                        }
+                    }
+                    Ok(_) => { /* GET/ACK — ignore */ }
+                    Err(e) => {
+                        skipped += 1;
+                        tracing::warn!(
+                            error = %e,
+                            skipped,
+                            "skipping corrupt message during sync recovery"
+                        );
+                    }
+                },
+            }
+        }
+        Ok((received, skipped))
+    }
+
     /// Run a full push-pull sync cycle with a remote peer.
     ///
     /// Each side sends its local nodes to the remote via GUN PUT messages,
@@ -500,5 +540,31 @@ mod tests {
         assert_eq!(from_a.len(), 1);
         assert_eq!(from_a[0].0, "user:alice");
         assert_eq!(from_a[0].1.fields["name"], json!("Alice"));
+    }
+
+    #[tokio::test]
+    async fn test_receive_all_resilient_skips_corrupt_messages() {
+        let (mut conn_a, mut conn_b) = MemConnection::pair("peer-a", "peer-b");
+        let rep_a = Replicator::new("peer-a");
+        let rep_b = Replicator::new("peer-b");
+
+        // Send a valid message
+        let valid = rep_a.encode_put("node:1", json!({"v": 1})).unwrap();
+        conn_a.send(&valid).await.unwrap();
+
+        // Send garbage bytes (corrupt message)
+        conn_a.send(b"not valid json at all").await.unwrap();
+
+        // Send another valid message
+        let valid2 = rep_a.encode_put("node:2", json!({"v": 2})).unwrap();
+        conn_a.send(&valid2).await.unwrap();
+
+        // Close the connection
+        conn_a.close().await.unwrap();
+
+        // Resilient receive should skip the corrupt message
+        let (received, skipped) = rep_b.receive_all_resilient(&mut conn_b).await.unwrap();
+        assert_eq!(received.len(), 2);
+        assert_eq!(skipped, 1);
     }
 }

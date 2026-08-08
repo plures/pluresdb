@@ -47,7 +47,7 @@ pub use rad::{RadAdapter, SledRadAdapter};
 #[cfg(feature = "native")]
 pub use replay::{metadata_pruning, rebuild_from_wal, replay_wal, ReplayStats};
 #[cfg(feature = "native")]
-pub use wal::{DurabilityLevel, WalEntry, WalError, WalOperation, WalValidation, WriteAheadLog};
+pub use wal::{DurabilityLevel, RecoveryStats, WalEntry, WalError, WalOperation, WalValidation, WriteAheadLog};
 
 /// Stable, documented error codes emitted by `pluresdb-storage`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
