@@ -55,7 +55,7 @@ struct Cli {
     data_dir: Option<PathBuf>,
 
     /// Sled page-cache capacity in MiB (default: 256, min: 16, max: 1024).
-    #[arg(long, global = true, help = "Sled cache capacity in MiB")]
+    #[arg(long, global = true)]
     sled_cache_mib: Option<u64>,
 
     /// Enable verbose logging

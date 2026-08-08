@@ -540,7 +540,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         // Request 1 MiB — should be clamped to MIN (16 MiB).
         let storage =
-            SledStorage::open_with_cache_capacity(dir.path(), 1 * 1024 * 1024).unwrap();
+            SledStorage::open_with_cache_capacity(dir.path(), 1024 * 1024).unwrap();
         drop(storage);
     }
 
