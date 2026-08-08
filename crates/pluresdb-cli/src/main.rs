@@ -420,6 +420,9 @@ struct DoctorReport {
     storage: StorageDoctorStatus,
     wal: WalDoctorStatus,
     sync: SyncDoctorStatus,
+    network: NetworkDoctorStatus,
+    vector_index: VectorIndexDoctorStatus,
+    procedures: ProceduresDoctorStatus,
     remediation_hints: Vec<String>,
 }
 
@@ -463,6 +466,46 @@ struct SyncDoctorStatus {
     mode: String,
     peers: usize,
     last_activity: Option<String>,
+    detail: String,
+    remediation_hints: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+/// Network connectivity snapshot for `pluresdb doctor`.
+///
+/// `status` uses one of: `ok`, `warning`, `error`, `not_applicable`.
+struct NetworkDoctorStatus {
+    status: String,
+    transport: String,
+    listen_addresses: Vec<String>,
+    network_enabled: bool,
+    detail: String,
+    remediation_hints: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+/// Vector index health snapshot for `pluresdb doctor`.
+///
+/// `status` uses one of: `ok`, `warning`, `error`, `not_applicable`.
+struct VectorIndexDoctorStatus {
+    status: String,
+    index_type: String,
+    index_files: usize,
+    max_capacity: usize,
+    index_dir: Option<String>,
+    detail: String,
+    remediation_hints: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+/// Procedures subsystem snapshot for `pluresdb doctor`.
+///
+/// `status` uses one of: `ok`, `warning`, `error`, `not_applicable`.
+struct ProceduresDoctorStatus {
+    status: String,
+    procedures_dir: Option<String>,
+    procedure_count: usize,
+    constraint_count: usize,
     detail: String,
     remediation_hints: Vec<String>,
 }
@@ -1004,6 +1047,34 @@ fn directory_size_bytes(path: &std::path::Path) -> Result<u64> {
     Ok(total)
 }
 
+fn count_files_recursive(dir: &std::path::Path, extensions: &[&str]) -> usize {
+    let mut count = 0;
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let file_type = match entry.file_type() {
+                Ok(ft) => ft,
+                Err(_) => continue,
+            };
+            if file_type.is_symlink() {
+                continue;
+            }
+            let path = entry.path();
+            if file_type.is_dir() {
+                count += count_files_recursive(&path, extensions);
+            } else if file_type.is_file()
+                && path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .map(|ext| extensions.iter().any(|e| ext.eq_ignore_ascii_case(e)))
+                    .unwrap_or(false)
+            {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
 fn detect_wal_directory(data_dir: &std::path::Path) -> Option<PathBuf> {
     let wal_subdir = data_dir.join("wal");
     if wal_subdir.exists() && wal_subdir.is_dir() {
@@ -1243,16 +1314,173 @@ async fn collect_doctor_report(data_dir: Option<&PathBuf>) -> DoctorReport {
         ];
     }
 
+    // --- Network ---
+    let listen_addresses = parse_optional_config_value(
+        &config,
+        &["listen_addresses", "listen_addr", "bind_address"],
+    )
+    .map(|v| v.split(',').map(|s| s.trim().to_string()).collect::<Vec<_>>())
+    .unwrap_or_default();
+
+    let transport = parse_optional_config_value(&config, &["network_transport", "transport"])
+        .unwrap_or_else(|| {
+            if mode == "disabled" {
+                "none".to_string()
+            } else {
+                "hyperswarm".to_string()
+            }
+        });
+
+    let mut network_status = NetworkDoctorStatus {
+        status: if mode == "disabled" {
+            STATUS_NOT_APPLICABLE.to_string()
+        } else {
+            STATUS_OK.to_string()
+        },
+        transport: transport.clone(),
+        listen_addresses: listen_addresses.clone(),
+        network_enabled: mode != "disabled",
+        detail: if mode == "disabled" {
+            "network disabled (sync mode: disabled)".to_string()
+        } else {
+            "network transport configured".to_string()
+        },
+        remediation_hints: Vec::new(),
+    };
+
+    if mode != "disabled" && listen_addresses.is_empty() {
+        network_status.status = STATUS_WARNING.to_string();
+        network_status.detail =
+            "no explicit listen addresses configured; using defaults".to_string();
+        network_status.remediation_hints = vec![
+            "Set listen_addresses in config.json for deterministic binding".to_string(),
+            "Verify firewall rules allow inbound connections on the sync port".to_string(),
+        ];
+    }
+
+    // --- Vector Index ---
+    let mut vector_index_status = VectorIndexDoctorStatus {
+        status: STATUS_NOT_APPLICABLE.to_string(),
+        index_type: "hnsw".to_string(),
+        index_files: 0,
+        max_capacity: 0,
+        index_dir: None,
+        detail: "vector index check skipped (no data directory)".to_string(),
+        remediation_hints: Vec::new(),
+    };
+
+    if let Some(dir) = data_dir {
+        let index_dir = dir.join("vector_index");
+        let db_dir = dir.join("db");
+        if index_dir.exists() && index_dir.is_dir() {
+            vector_index_status.index_dir = Some(index_dir.display().to_string());
+            let file_count = fs::read_dir(&index_dir)
+                .map(|entries| entries.flatten().count())
+                .unwrap_or(0);
+            vector_index_status.index_files = file_count;
+            vector_index_status.status = STATUS_OK.to_string();
+            vector_index_status.detail =
+                format!("vector index directory detected ({} files)", file_count);
+        } else if db_dir.exists() {
+            // No dedicated vector_index dir — index is built at runtime from storage
+            vector_index_status.status = STATUS_OK.to_string();
+            vector_index_status.detail =
+                "vector index built at runtime from storage (no persistent index directory)"
+                    .to_string();
+        } else {
+            vector_index_status.status = STATUS_WARNING.to_string();
+            vector_index_status.detail =
+                "no storage or vector index directory found".to_string();
+            vector_index_status.remediation_hints = vec![
+                "Initialize the database with `pluresdb init <path>`".to_string(),
+                "Vector index is built at startup from stored embeddings".to_string(),
+            ];
+        }
+
+        // Parse capacity from config if available
+        if let Some(cap) = parse_optional_config_value(
+            &config,
+            &["vector_index_capacity", "hnsw_capacity", "max_vector_elements"],
+        ) {
+            if let Ok(cap_val) = cap.parse::<usize>() {
+                vector_index_status.max_capacity = cap_val;
+            }
+        }
+    }
+
+    // --- Procedures ---
+    let mut procedures_status = ProceduresDoctorStatus {
+        status: STATUS_NOT_APPLICABLE.to_string(),
+        procedures_dir: None,
+        procedure_count: 0,
+        constraint_count: 0,
+        detail: "procedures check skipped (no data directory)".to_string(),
+        remediation_hints: Vec::new(),
+    };
+
+    if let Some(dir) = data_dir {
+        let procs_dir = dir.join("procedures");
+        let praxis_dir = dir.join(".praxis");
+
+        if procs_dir.exists() && procs_dir.is_dir() {
+            procedures_status.procedures_dir = Some(procs_dir.display().to_string());
+            let proc_count = fs::read_dir(&procs_dir)
+                .map(|entries| {
+                    entries
+                        .flatten()
+                        .filter(|e| {
+                            e.path()
+                                .extension()
+                                .and_then(|ext| ext.to_str())
+                                .map(|ext| ext == "json" || ext == "pql")
+                                .unwrap_or(false)
+                        })
+                        .count()
+                })
+                .unwrap_or(0);
+            procedures_status.procedure_count = proc_count;
+            procedures_status.status = STATUS_OK.to_string();
+            procedures_status.detail =
+                format!("{} procedure definition(s) found", proc_count);
+        } else if praxis_dir.exists() && praxis_dir.is_dir() {
+            procedures_status.procedures_dir = Some(praxis_dir.display().to_string());
+            let constraint_count = count_files_recursive(&praxis_dir, &["json", "toml", "yaml"]);
+            procedures_status.constraint_count = constraint_count;
+            procedures_status.status = STATUS_OK.to_string();
+            procedures_status.detail = format!(
+                "praxis directory detected ({} constraint file(s))",
+                constraint_count
+            );
+        } else if dir.exists() && dir.is_dir() {
+            procedures_status.status = STATUS_OK.to_string();
+            procedures_status.detail =
+                "no procedures directory; using runtime-only procedures".to_string();
+        } else {
+            procedures_status.status = STATUS_WARNING.to_string();
+            procedures_status.detail =
+                "data directory missing; cannot verify procedures".to_string();
+            procedures_status.remediation_hints = vec![
+                "Initialize data directory with `pluresdb init <path>`".to_string(),
+            ];
+        }
+    }
+
     let mut remediation_hints = Vec::new();
     remediation_hints.extend(storage_status.remediation_hints.clone());
     remediation_hints.extend(wal_status.remediation_hints.clone());
     remediation_hints.extend(sync_status.remediation_hints.clone());
+    remediation_hints.extend(network_status.remediation_hints.clone());
+    remediation_hints.extend(vector_index_status.remediation_hints.clone());
+    remediation_hints.extend(procedures_status.remediation_hints.clone());
 
     DoctorReport {
         ok,
         storage: storage_status,
         wal: wal_status,
         sync: sync_status,
+        network: network_status,
+        vector_index: vector_index_status,
+        procedures: procedures_status,
         remediation_hints,
     }
 }
@@ -1301,6 +1529,48 @@ fn print_doctor_report(report: &DoctorReport) {
     );
     println!("  Detail: {}", report.sync.detail);
     for hint in &report.sync.remediation_hints {
+        println!("  Hint: {}", hint);
+    }
+
+    println!();
+    println!("Network");
+    println!("  Status: {}", report.network.status);
+    println!("  Transport: {}", report.network.transport);
+    if !report.network.listen_addresses.is_empty() {
+        println!("  Listen addresses: {}", report.network.listen_addresses.join(", "));
+    }
+    println!("  Network enabled: {}", report.network.network_enabled);
+    println!("  Detail: {}", report.network.detail);
+    for hint in &report.network.remediation_hints {
+        println!("  Hint: {}", hint);
+    }
+
+    println!();
+    println!("Vector index");
+    println!("  Status: {}", report.vector_index.status);
+    println!("  Type: {}", report.vector_index.index_type);
+    println!("  Index files: {}", report.vector_index.index_files);
+    if report.vector_index.max_capacity > 0 {
+        println!("  Max capacity: {}", report.vector_index.max_capacity);
+    }
+    if let Some(dir) = &report.vector_index.index_dir {
+        println!("  Directory: {}", dir);
+    }
+    println!("  Detail: {}", report.vector_index.detail);
+    for hint in &report.vector_index.remediation_hints {
+        println!("  Hint: {}", hint);
+    }
+
+    println!();
+    println!("Procedures");
+    println!("  Status: {}", report.procedures.status);
+    if let Some(dir) = &report.procedures.procedures_dir {
+        println!("  Directory: {}", dir);
+    }
+    println!("  Procedures: {}", report.procedures.procedure_count);
+    println!("  Constraints: {}", report.procedures.constraint_count);
+    println!("  Detail: {}", report.procedures.detail);
+    for hint in &report.procedures.remediation_hints {
         println!("  Hint: {}", hint);
     }
 }
@@ -2382,6 +2652,58 @@ mod tests {
         let report = collect_doctor_report(Some(&missing_dir)).await;
         assert!(!report.ok);
         assert_eq!(report.storage.status, "error");
+    }
+
+    #[tokio::test]
+    async fn doctor_report_covers_vector_index_with_db_dir() {
+        let dir =
+            std::env::temp_dir().join(format!("pluresdb-doctor-vec-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("db")).unwrap();
+
+        let report = collect_doctor_report(Some(&dir)).await;
+        assert_eq!(report.vector_index.status, "ok");
+        assert!(report.vector_index.detail.contains("runtime"));
+
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn doctor_report_covers_procedures_runtime_only() {
+        let dir =
+            std::env::temp_dir().join(format!("pluresdb-doctor-proc-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("db")).unwrap();
+
+        let report = collect_doctor_report(Some(&dir)).await;
+        assert_eq!(report.procedures.status, "ok");
+        assert!(report.procedures.detail.contains("runtime-only"));
+
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn doctor_report_covers_procedures_directory() {
+        let dir =
+            std::env::temp_dir().join(format!("pluresdb-doctor-proc2-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let procs = dir.join("procedures");
+        fs::create_dir_all(&procs).unwrap();
+        fs::write(procs.join("hello.json"), "{}").unwrap();
+        fs::write(procs.join("world.pql"), "SELECT 1").unwrap();
+
+        let report = collect_doctor_report(Some(&dir)).await;
+        assert_eq!(report.procedures.status, "ok");
+        assert_eq!(report.procedures.procedure_count, 2);
+
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn doctor_report_covers_network_disabled() {
+        let report = collect_doctor_report(None).await;
+        assert_eq!(report.network.status, "not_applicable");
+        assert_eq!(report.network.transport, "none");
     }
 
     fn test_app_state() -> AppState {
