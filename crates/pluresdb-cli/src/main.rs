@@ -2643,9 +2643,24 @@ fn run() -> Result<()> {
                             PathBuf::from(p)
                         });
 
-                        let recovered_wal = WriteAheadLog::open(&output_dir)
-                            .with_context(|| format!("failed to create recovered WAL at {}", output_dir.display()))?;
+                        // Refuse to write into the source WAL directory, and avoid mixing with any existing WAL output.
+                        if output_dir == path {
+                            anyhow::bail!("--output must differ from --path (refusing to overwrite source WAL): {}", output_dir.display());
+                        }
+                        if output_dir.exists() {
+                            let has_segments = std::fs::read_dir(&output_dir)?
+                                .filter_map(|e| e.ok().map(|e| e.path()))
+                                .any(|p| p.extension().and_then(|s| s.to_str()) == Some("wal"));
+                            if has_segments {
+                                anyhow::bail!("output directory already contains WAL segments; choose a new --output: {}", output_dir.display());
+                            }
+                        }
 
+                        let recovered_wal = WriteAheadLog::open(&output_dir)
+                            .with_context(|| format!(
+                                "failed to create recovered WAL at {}",
+                                output_dir.display()
+                            ))?;
                         for entry in &entries {
                             recovered_wal.append(
                                 entry.actor.clone(),
