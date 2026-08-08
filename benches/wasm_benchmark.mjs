@@ -70,6 +70,9 @@ if (!PluresDBBrowser) {
   process.exit(1);
 }
 
+// WasmCrdtStore doesn't expose put/get, so benchmark via PluresDBBrowser for now.
+const useCrdtStore = false;
+if (useCrdtStore) {
   // CrdtStore-based benchmarks
   {
     const store = new CrdtStore();
