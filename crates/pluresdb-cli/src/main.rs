@@ -1040,14 +1040,22 @@ fn count_files_recursive(dir: &std::path::Path, extensions: &[&str]) -> usize {
     let mut count = 0;
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
+            let file_type = match entry.file_type() {
+                Ok(ft) => ft,
+                Err(_) => continue,
+            };
+            if file_type.is_symlink() {
+                continue;
+            }
             let path = entry.path();
-            if path.is_dir() {
+            if file_type.is_dir() {
                 count += count_files_recursive(&path, extensions);
-            } else if path
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .map(|ext| extensions.iter().any(|e| ext.eq_ignore_ascii_case(e)))
-                .unwrap_or(false)
+            } else if file_type.is_file()
+                && path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .map(|ext| extensions.iter().any(|e| ext.eq_ignore_ascii_case(e)))
+                    .unwrap_or(false)
             {
                 count += 1;
             }
