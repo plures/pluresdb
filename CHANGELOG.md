@@ -1,3 +1,18 @@
+## [3.18.0] — 2026-08-08
+
+- feat: improve WAL and sync recovery paths for corrupted CRDT entries (#1104) (c3d081f)
+- feat(storage): cap sled cache capacity with configurable min/max bounds (#1102) (8caa066)
+- docs: add ADR-0020 for graph-native development environment (WS-2) (#1106) (0f4484d)
+- Initial plan (#1101) (d72ac09)
+- feat(cli): harden pluresdb doctor output coverage (network, vector index, procedures) (#1105) (9c1384f)
+- feat(px): Stage 2 /api/px/* routes (praxis-linux epic) (#1099) (4b49ff2)
+- chore(deps-dev): bump fast-uri from 3.1.4 to 3.1.5 in /web/svelte (#1098) (002bbbe)
+- chore: add CODEOWNERS + SHA-pin third-party GitHub Actions (#1097) (ecf0b5c)
+- chore(deps): bump fastembed from 5.17.3 to 5.17.4 (#1096) (d17558f)
+- chore(deps-dev): bump @codemirror/view (#1094) (8f99e8d)
+- chore(deps): bump napi from 3.11.0 to 3.12.0 (#1093) (e384929)
+- chore(deps): bump napi-derive from 3.6.0 to 3.6.1 (#1092) (28c9095)
+
 ## [3.12.0] — 2026-07-30
 
 - feat(pluresdb-chronos): additive ChronosOperation schema expansion (ADR-0019) (#1091) (eca6b6d)

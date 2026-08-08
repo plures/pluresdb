@@ -1,6 +1,6 @@
 {
   "name": "@plures/pluresdb-e2e",
-  "version": "3.12.0",
+  "version": "3.18.0",
   "description": "E2E tests for PluresDB",
   "private": true,
   "scripts": {
