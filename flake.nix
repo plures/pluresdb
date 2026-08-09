@@ -19,7 +19,7 @@
         ortDist = {
           x86_64-linux = {
             url = "https://cdn.pyke.io/0/pyke:ort-rs/ms@1.23.2/x86_64-unknown-linux-gnu.tar.lzma2";
-            hash = "sha256-jFfQWaqu5AeBKladbXDGefCQrWnhoUIEMJ6ALcu6o18=";
+            hash = "sha256-jFfQWaqu5AeBKlaY1nBseeCQrWnhoUIEMJ6ALcu6o18=";
           };
           aarch64-linux = {
             url = "https://cdn.pyke.io/0/pyke:ort-rs/ms@1.23.2/aarch64-unknown-linux-gnu.tar.lzma2";
