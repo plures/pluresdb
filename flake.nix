@@ -86,8 +86,12 @@
           version = pluresVersion;
 
           src = ./.;
-          cargoLock.lockFile = ./Cargo.lock;
-
+	  cargoLock= {
+	    lockFile = ./Cargo.lock;
+            outputHashes = {
+              "px-ast-0.0.0" = "sha256-MB71V/GnRTJNjlu3RsO1qHt0lr2w3a43E935sjD9/XA=";
+            };
+          };
           cargoBuildFlags = [ "-p" "pluresdb-cli" ];
 
           nativeBuildInputs = [ pkgs.pkg-config ];
