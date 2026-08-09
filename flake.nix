@@ -93,6 +93,7 @@
             };
           };
           cargoBuildFlags = [ "-p" "pluresdb-cli" ];
+	  cargoTestFlags = [ "-p" "pluresdb-cli" ];
 
           nativeBuildInputs = [ pkgs.pkg-config ];
           buildInputs = [ pkgs.openssl ];
