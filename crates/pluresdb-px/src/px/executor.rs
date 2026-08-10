@@ -282,6 +282,7 @@ pub(crate) fn execute_append_step(
     let target = target
         .as_str()
         .and_then(|value| value.strip_prefix('$'))
+        .filter(|name| !name.is_empty())
         .ok_or_else(|| {
             ExecutionError::InvalidStructure(
                 "append target must be a variable reference such as '$items'".into(),
