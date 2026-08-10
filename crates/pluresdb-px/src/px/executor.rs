@@ -176,7 +176,21 @@ fn execute_step(
     match kind {
         "define" => execute_define_step(step, index, vars),
         "call" if step.get("name").and_then(|v| v.as_str()) == Some("append") => {
-            execute_append_step(step, index, vars)
+            let is_positional_append = step
+                .get("params")
+                .and_then(Value::as_array)
+                .is_some_and(|params| {
+                    params.len() == 2
+                        && params[0]
+                            .as_str()
+                            .is_some_and(|value| value.starts_with('$'))
+                });
+
+            if is_positional_append {
+                execute_append_step(step, index, vars)
+            } else {
+                execute_call(step, index, vars, handler)
+            }
         }
         "call" => execute_call(step, index, vars, handler),
         "match" => execute_match(step, index, vars, handler),
