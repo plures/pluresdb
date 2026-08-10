@@ -241,7 +241,13 @@ pub(crate) fn execute_define_step(
         .ok_or_else(|| ExecutionError::InvalidStructure("define step missing 'value'".into()))?;
 
     let value = resolve_vars(value, vars);
-    vars.insert(var.trim_start_matches('$').to_string(), value.clone());
+    let var_name = var.trim_start_matches('$');
+    if var_name.is_empty() {
+        return Err(ExecutionError::InvalidStructure(
+            "define step 'var' must name a variable".into(),
+        ));
+    }
+    vars.insert(var_name.to_string(), value.clone());
 
     Ok(StepResult {
         index,
