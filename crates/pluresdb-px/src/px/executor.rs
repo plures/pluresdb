@@ -174,6 +174,24 @@ fn execute_step(
         .ok_or_else(|| ExecutionError::InvalidStructure("step missing 'kind'".into()))?;
 
     match kind {
+        "define" => execute_define_step(step, index, vars),
+        "call" if step.get("name").and_then(|v| v.as_str()) == Some("append") => {
+            let is_positional_append = step
+                .get("params")
+                .and_then(Value::as_array)
+                .is_some_and(|params| {
+                    params.len() == 2
+                        && params[0]
+                            .as_str()
+                            .is_some_and(|value| value.starts_with('$'))
+                });
+
+            if is_positional_append {
+                execute_append_step(step, index, vars)
+            } else {
+                execute_call(step, index, vars, handler)
+            }
+        }
         "call" => execute_call(step, index, vars, handler),
         "match" => execute_match(step, index, vars, handler),
         "when" => execute_when(step, index, vars, handler),
@@ -202,6 +220,92 @@ fn execute_step(
             "unknown step kind: {other}"
         ))),
     }
+}
+
+/// Execute a `define` step: resolve its value and bind it for later steps.
+///
+/// `define` is emitted by the canonical compiler for local procedure values.
+/// It is deliberately runtime-local: durable state remains the responsibility
+/// of explicit PluresDB actions such as `read_state` and `write_state`.
+pub(crate) fn execute_define_step(
+    step: &Value,
+    index: usize,
+    vars: &mut HashMap<String, Value>,
+) -> Result<StepResult, ExecutionError> {
+    let var = step
+        .get("var")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| ExecutionError::InvalidStructure("define step missing 'var'".into()))?;
+    let value = step
+        .get("value")
+        .ok_or_else(|| ExecutionError::InvalidStructure("define step missing 'value'".into()))?;
+
+    let value = resolve_vars(value, vars);
+    let var_name = var.trim_start_matches('$');
+    if var_name.is_empty() {
+        return Err(ExecutionError::InvalidStructure(
+            "define step 'var' must name a variable".into(),
+        ));
+    }
+    vars.insert(var_name.to_string(), value.clone());
+
+    Ok(StepResult {
+        index,
+        kind: "define".into(),
+        output: Some(value),
+        skipped: false,
+    })
+}
+
+/// Execute the PX `append $list $item` local collection primitive.
+///
+/// The compiler represents this legacy syntax as a positional `call`, but the
+/// target list is a local variable binding rather than a side-effect action.
+/// Keeping the mutation here lets PX procedures build transient values without
+/// bypassing the explicit PluresDB state actions.
+pub(crate) fn execute_append_step(
+    step: &Value,
+    index: usize,
+    vars: &mut HashMap<String, Value>,
+) -> Result<StepResult, ExecutionError> {
+    let params = step
+        .get("params")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            ExecutionError::InvalidStructure("append step missing positional params".into())
+        })?;
+    let [target, item] = params.as_slice() else {
+        return Err(ExecutionError::InvalidStructure(
+            "append step requires a target variable and one item".into(),
+        ));
+    };
+    let target = target
+        .as_str()
+        .and_then(|value| value.strip_prefix('$'))
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| {
+            ExecutionError::InvalidStructure(
+                "append target must be a variable reference such as '$items'".into(),
+            )
+        })?;
+    let item = resolve_vars(item, vars);
+    let list = vars
+        .get_mut(target)
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| {
+            ExecutionError::InvalidStructure(format!(
+                "append target '${target}' must be a defined array"
+            ))
+        })?;
+    list.push(item);
+    let output = Value::Array(list.clone());
+
+    Ok(StepResult {
+        index,
+        kind: "append".into(),
+        output: Some(output),
+        skipped: false,
+    })
 }
 
 /// Execute a `call` step: invoke an action and optionally bind the result.
@@ -3537,6 +3641,100 @@ mod tests {
                 .cloned()
                 .ok_or_else(|| ExecutionError::UnknownAction(name.to_string()))
         }
+    }
+
+    #[test]
+    fn execute_define_binds_a_resolved_value() {
+        let handler = MockHandler::new();
+        let procedure = json!({
+            "type": "procedure",
+            "name": "define_value",
+            "steps": [
+                {
+                    "kind": "define",
+                    "var": "items",
+                    "value": ["$seed", {"source": "$seed"}]
+                },
+                {"kind": "return", "value": "$items"}
+            ]
+        });
+        let vars = HashMap::from([("seed".to_string(), json!("durable-input"))]);
+
+        let result = execute_with_vars(&procedure, &handler, vars).unwrap();
+
+        let expected = json!(["durable-input", {"source": "durable-input"}]);
+        assert_eq!(result.step_results[0].kind, "define");
+        assert_eq!(result.step_results[0].output, Some(expected.clone()));
+        assert_eq!(result.variables.get("items"), Some(&expected));
+        assert_eq!(result.step_results[1].output, Some(expected));
+    }
+
+    #[test]
+    fn execute_append_extends_a_defined_local_list() {
+        let handler = MockHandler::new();
+        let procedure = json!({
+            "type": "procedure",
+            "name": "collect_values",
+            "steps": [
+                {"kind": "define", "var": "items", "value": []},
+                {"kind": "call", "name": "append", "params": ["$items", "$first"]},
+                {"kind": "call", "name": "append", "params": ["$items", "$second"]},
+                {"kind": "return", "value": "$items"}
+            ]
+        });
+        let vars = HashMap::from([
+            ("first".to_string(), json!({"id": "leaf-a"})),
+            ("second".to_string(), json!({"id": "leaf-b"})),
+        ]);
+
+        let result = execute_with_vars(&procedure, &handler, vars).unwrap();
+
+        let expected = json!([{"id": "leaf-a"}, {"id": "leaf-b"}]);
+        assert_eq!(result.step_results[1].kind, "append");
+        assert_eq!(result.step_results[2].output, Some(expected.clone()));
+        assert_eq!(result.variables.get("items"), Some(&expected));
+        assert_eq!(result.step_results[3].output, Some(expected));
+    }
+
+    #[test]
+    fn execute_leaf_filter_flow_uses_define_loop_when_and_append() {
+        let handler = MockHandler::new();
+        let procedure = json!({
+            "type": "procedure",
+            "name": "filter_leaf_tasks",
+            "steps": [
+                {"kind": "define", "var": "leaves", "value": []},
+                {
+                    "kind": "loop",
+                    "over": "tasks",
+                    "as": "task",
+                    "steps": [
+                        {
+                            "kind": "when",
+                            "condition": "length(task.subtasks) == 0",
+                            "steps": [
+                                {"kind": "call", "name": "append", "params": ["$leaves", "$task"]}
+                            ]
+                        }
+                    ]
+                },
+                {"kind": "return", "value": "$leaves"}
+            ]
+        });
+        let vars = HashMap::from([(
+            "tasks".to_string(),
+            json!([
+                {"id": "parent", "subtasks": ["child"]},
+                {"id": "child", "subtasks": []}
+            ]),
+        )]);
+
+        let result = execute_with_vars(&procedure, &handler, vars).unwrap();
+
+        assert_eq!(
+            result.step_results[2].output,
+            Some(json!([{"id": "child", "subtasks": []}]))
+        );
     }
 
     #[test]

@@ -40,7 +40,10 @@ use async_trait::async_trait;
 use serde_json::Value;
 use tokio::time::timeout;
 
-use super::executor::{default_evaluate_condition, ExecutionError, ExecutionResult, StepResult};
+use super::executor::{
+    default_evaluate_condition, execute_append_step, execute_define_step, ExecutionError,
+    ExecutionResult, StepResult,
+};
 
 // ── Async Action Handler Trait ────────────────────────────────────────────────
 
@@ -152,6 +155,24 @@ fn execute_step_async<'a>(
             .ok_or_else(|| ExecutionError::InvalidStructure("step missing 'kind'".into()))?;
 
         match kind {
+            "define" => execute_define_step(step, index, vars),
+            "call" if step.get("name").and_then(|v| v.as_str()) == Some("append") => {
+                let is_positional_append = step
+                    .get("params")
+                    .and_then(Value::as_array)
+                    .is_some_and(|params| {
+                        params.len() == 2
+                            && params[0]
+                                .as_str()
+                                .is_some_and(|value| value.starts_with('$'))
+                    });
+
+                if is_positional_append {
+                    execute_append_step(step, index, vars)
+                } else {
+                    execute_call_async(step, index, vars, handler).await
+                }
+            }
             "call" => execute_call_async(step, index, vars, handler).await,
             "match" => execute_match_async(step, index, vars, handler),
             "when" => execute_when_async(step, index, vars, handler).await,
@@ -907,6 +928,28 @@ mod tests {
         assert!(result.success);
         assert_eq!(result.procedure_name, "test_proc");
         assert_eq!(result.variables.get("result"), Some(&json!("hello")));
+    }
+
+    #[tokio::test]
+    async fn execute_define_and_append_local_values() {
+        let handler = MockAsyncHandler::new();
+        let procedure = json!({
+            "type": "procedure",
+            "name": "collect_values",
+            "steps": [
+                {"kind": "define", "var": "items", "value": []},
+                {"kind": "call", "name": "append", "params": ["$items", "$item"]},
+                {"kind": "return", "value": "$items"}
+            ]
+        });
+        let vars = HashMap::from([("item".to_string(), json!("child"))]);
+
+        let result = execute_async_with_vars(&procedure, &handler, vars)
+            .await
+            .unwrap();
+
+        assert_eq!(result.variables.get("items"), Some(&json!(["child"])));
+        assert_eq!(result.step_results[2].output, Some(json!(["child"])));
     }
 
     #[tokio::test]
