@@ -3626,7 +3626,7 @@ dependencies = [
 [[package]]
 name = "px-ast"
 version = "0.1.0"
-source = "git+https://github.com/plures/praxis-lang.git?rev=fdd510f5b5abe64063b234b6f0029c6ebc4e359c#fdd510f5b5abe64063b234b6f0029c6ebc4e359c"
+source = "git+https://github.com/plures/praxis-lang.git?rev=484fba708b3b970d56e2b2f68a0a8982dab18e0e#484fba708b3b970d56e2b2f68a0a8982dab18e0e"
 dependencies = [
  "schemars",
  "serde",
@@ -3636,7 +3636,7 @@ dependencies = [
 [[package]]
 name = "px-check"
 version = "0.1.0"
-source = "git+https://github.com/plures/praxis-lang.git?rev=fdd510f5b5abe64063b234b6f0029c6ebc4e359c#fdd510f5b5abe64063b234b6f0029c6ebc4e359c"
+source = "git+https://github.com/plures/praxis-lang.git?rev=484fba708b3b970d56e2b2f68a0a8982dab18e0e#484fba708b3b970d56e2b2f68a0a8982dab18e0e"
 dependencies = [
  "px-ast",
 ]
@@ -3644,7 +3644,7 @@ dependencies = [
 [[package]]
 name = "px-compiler"
 version = "0.1.0"
-source = "git+https://github.com/plures/praxis-lang.git?rev=fdd510f5b5abe64063b234b6f0029c6ebc4e359c#fdd510f5b5abe64063b234b6f0029c6ebc4e359c"
+source = "git+https://github.com/plures/praxis-lang.git?rev=484fba708b3b970d56e2b2f68a0a8982dab18e0e#484fba708b3b970d56e2b2f68a0a8982dab18e0e"
 dependencies = [
  "pest",
  "px-ast",
@@ -3655,7 +3655,7 @@ dependencies = [
 [[package]]
 name = "px-eval"
 version = "0.1.0"
-source = "git+https://github.com/plures/praxis-lang.git?rev=fdd510f5b5abe64063b234b6f0029c6ebc4e359c#fdd510f5b5abe64063b234b6f0029c6ebc4e359c"
+source = "git+https://github.com/plures/praxis-lang.git?rev=484fba708b3b970d56e2b2f68a0a8982dab18e0e#484fba708b3b970d56e2b2f68a0a8982dab18e0e"
 dependencies = [
  "px-ast",
  "px-compiler",
@@ -3665,7 +3665,7 @@ dependencies = [
 [[package]]
 name = "px-grammar"
 version = "0.1.0"
-source = "git+https://github.com/plures/praxis-lang.git?rev=fdd510f5b5abe64063b234b6f0029c6ebc4e359c#fdd510f5b5abe64063b234b6f0029c6ebc4e359c"
+source = "git+https://github.com/plures/praxis-lang.git?rev=484fba708b3b970d56e2b2f68a0a8982dab18e0e#484fba708b3b970d56e2b2f68a0a8982dab18e0e"
 dependencies = [
  "pest",
  "pest_derive",
