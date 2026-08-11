@@ -24,6 +24,8 @@ use px_ast::{
 };
 
 use px_ast::PxDocument;
+use px_check::{ContractCatalog, Diagnostic, ExecutionProfile};
+use px_compiler::validate_checked;
 
 /// A compiled PluresDB record ready for storage.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -34,6 +36,55 @@ pub struct CompiledRecord {
     pub data: Json,
     /// Whether this record should be embedded for vector search.
     pub embed: bool,
+}
+
+/// Result of validating a procedure source against the whole host contract.
+///
+/// PluresDB does not persist or activate any records unless the report is
+/// clean.  Unlike the legacy parser-first flow, this preserves every source
+/// pin and static-call mismatch that Praxis can determine in one pass.
+#[derive(Debug, Clone)]
+pub struct ProcedureActivationReport {
+    /// Records ready for durable activation. Empty when any diagnostic exists.
+    pub records: Vec<CompiledRecord>,
+    /// Complete source and static contract findings for this activation.
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+impl ProcedureActivationReport {
+    pub fn is_activatable(&self) -> bool {
+        self.diagnostics.is_empty()
+    }
+}
+
+/// Validate then compile one `.px` source file for activation in PluresDB.
+///
+/// The host supplies its generated callable catalog and lowering profile. The
+/// procedure's source-local schema pin must exactly match that catalog. This is
+/// the runtime counterpart to CI checking: a stale or incompatible procedure is
+/// rejected before it can produce durable executable records.
+pub fn validate_and_compile_checked(
+    source: &str,
+    catalog: &ContractCatalog,
+    profile: ExecutionProfile,
+) -> ProcedureActivationReport {
+    let checked = validate_checked(source, catalog, profile);
+    if !checked.is_valid() {
+        return ProcedureActivationReport {
+            records: Vec::new(),
+            diagnostics: checked.report.diagnostics,
+        };
+    }
+
+    ProcedureActivationReport {
+        records: compile(
+            checked
+                .document
+                .as_ref()
+                .expect("valid checked source must have a parsed document"),
+        ),
+        diagnostics: Vec::new(),
+    }
 }
 
 /// Compile a `PxDocument` into PluresDB records.
@@ -56,12 +107,12 @@ pub fn compile(doc: &PxDocument) -> Vec<CompiledRecord> {
             Statement::LegacyProcedure(p) => records.push(compile_legacy_procedure(p)),
             Statement::DataflowProcedure(p) => records.push(compile_dataflow_procedure(p)),
             Statement::Scenario(s) => records.push(compile_scenario(s)),
-            // Entity/Config are schema/static-config declarations the record
+            // Entity/Config/TypeAlias are schema/static-config declarations the record
             // runtime does not (yet) persist as executable records. They are not
             // dropped silently: the previous compiler likewise emitted no record
             // for them (they had no `compile_*`), and the executor reads neither.
             // Kept as an explicit, documented no-op rather than a fake record.
-            Statement::Entity(_) | Statement::Config(_) => {}
+            Statement::Entity(_) | Statement::Config(_) | Statement::TypeAlias(_) => {}
         }
     }
 
@@ -877,7 +928,7 @@ pub fn compile_with_stats(doc: &PxDocument) -> CompileResult {
                 stats.procedures += 1
             }
             Statement::Scenario(_) => stats.scenarios += 1,
-            Statement::Entity(_) | Statement::Config(_) => {}
+            Statement::Entity(_) | Statement::Config(_) | Statement::TypeAlias(_) => {}
         }
     }
     let records = compile(doc);
@@ -907,11 +958,68 @@ pub fn compile_step(step: &Step) -> Json {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use px_ast::{BaseType, TypeExpr};
+    use px_check::{CallableContract, SchemaRef, StaticType};
     use px_compiler::parse;
+
+    fn checked_catalog() -> ContractCatalog {
+        let mut catalog = ContractCatalog::with_schema(SchemaRef::new(
+            "pluresdb.test.runtime",
+            1,
+            "test-fingerprint",
+        ));
+        catalog.insert(
+            "write_state",
+            CallableContract::new(StaticType::Null)
+                .required("key", TypeExpr::Base(BaseType::String))
+                .required("value", TypeExpr::Base(BaseType::String)),
+        );
+        catalog
+    }
 
     fn compile_src(src: &str) -> Vec<CompiledRecord> {
         let doc = parse(src).expect("parse");
         compile(&doc)
+    }
+
+    #[test]
+    fn checked_activation_reports_every_contract_defect_without_records() {
+        let source = concat!(
+            "# px-schema: another.runtime@1#wrong\n",
+            "# [parser-skip] legacy config\n",
+            "procedure dispatch() -> string:\n",
+            "  write_state {key: 7, unexpected: true}\n",
+        );
+
+        let report =
+            validate_and_compile_checked(source, &checked_catalog(), ExecutionProfile::STRICT);
+        assert!(!report.is_activatable());
+        assert!(report.records.is_empty());
+        let codes: Vec<_> = report
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect();
+        assert!(codes.contains(&"PX1000"));
+        assert!(codes.contains(&"PX1003"));
+        assert!(codes.contains(&"PX1004"));
+        assert!(codes.contains(&"PX1005"));
+        assert!(codes.contains(&"PX1011"));
+    }
+
+    #[test]
+    fn checked_activation_compiles_only_a_clean_contract() {
+        let source = concat!(
+            "# px-schema: pluresdb.test.runtime@1#test-fingerprint\n",
+            "procedure dispatch() -> string:\n",
+            "  write_state {key: \"status\", value: \"ready\"}\n",
+        );
+
+        let report =
+            validate_and_compile_checked(source, &checked_catalog(), ExecutionProfile::STRICT);
+        assert!(report.is_activatable());
+        assert!(report.diagnostics.is_empty());
+        assert_eq!(report.records.len(), 1);
     }
 
     fn find<'a>(records: &'a [CompiledRecord], key: &str) -> &'a CompiledRecord {
