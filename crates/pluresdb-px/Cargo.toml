@@ -35,10 +35,10 @@ tracing = "0.1"
 # praxis-lang — the single-source-of-truth .px language engine (M6: stop duplicating it).
 # Pinned to git rev 37be99e on plures/praxis-lang (BOM-free manifests). pluresdb-px imports parse+AST+eval
 # from here and keeps ONLY its unique record-lowering/executor/store runtime.
-px-ast = { git = "https://github.com/plures/praxis-lang.git", rev = "484fba708b3b970d56e2b2f68a0a8982dab18e0e", package = "px-ast" }
-px-check = { git = "https://github.com/plures/praxis-lang.git", rev = "484fba708b3b970d56e2b2f68a0a8982dab18e0e", package = "px-check" }
-px-compiler = { git = "https://github.com/plures/praxis-lang.git", rev = "484fba708b3b970d56e2b2f68a0a8982dab18e0e", package = "px-compiler" }
-px-eval = { git = "https://github.com/plures/praxis-lang.git", rev = "484fba708b3b970d56e2b2f68a0a8982dab18e0e", package = "px-eval" }
+px-ast = { git = "https://github.com/plures/praxis-lang.git", rev = "89d72cc12732ba1c21e8063d40a39f4a2700cc9c", package = "px-ast" }
+px-check = { git = "https://github.com/plures/praxis-lang.git", rev = "89d72cc12732ba1c21e8063d40a39f4a2700cc9c", package = "px-check" }
+px-compiler = { git = "https://github.com/plures/praxis-lang.git", rev = "89d72cc12732ba1c21e8063d40a39f4a2700cc9c", package = "px-compiler" }
+px-eval = { git = "https://github.com/plures/praxis-lang.git", rev = "89d72cc12732ba1c21e8063d40a39f4a2700cc9c", package = "px-eval" }
 futures = { version = "0.3", optional = true }
 regex = "1"
 
