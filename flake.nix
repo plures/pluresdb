@@ -89,7 +89,7 @@
 	  cargoLock= {
 	    lockFile = ./Cargo.lock;
             outputHashes = {
-              "px-ast-0.0.0" = "sha256-MB71V/GnRTJNjlu3RsO1qHt0lr2w3a43E935sjD9/XA=";
+              "px-ast-0.1.0" = "sha256-HRC70BwroPzKBNUGhADdmFlZdYuhGCn0NBX3up9yY5E=";
             };
           };
           cargoBuildFlags = [ "-p" "pluresdb-cli" ];
