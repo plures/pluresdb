@@ -45,6 +45,7 @@ fn prefix_statement_name(stmt: &mut Statement, alias: Option<&str>) {
         Statement::Entity(d) => apply(&mut d.name),
         Statement::Config(d) => apply(&mut d.name),
         Statement::Scenario(d) => apply(&mut d.name),
+        Statement::TypeAlias(d) => apply(&mut d.name),
         // Imports are inlined (not carried), so they are never prefixed.
         Statement::Import(_) => {}
     }
