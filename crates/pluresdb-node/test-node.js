@@ -38,12 +38,29 @@ async function test() {
   if (!node1Meta || !node1Meta.clock || !node1Meta.timestamp) {
     throw new Error('Get with metadata failed');
   }
+
+  // Conditional writes: the observed revision admits one transition, while a
+  // stale revision returns the current record without overwriting it.
+  const created = db.putIf('task-claim', { status: 'queued' });
+  if (!created.ok || !created.revision) {
+    throw new Error('Conditional create failed: ' + JSON.stringify(created));
+  }
+  const observed = db.getWithRevision('task-claim');
+  const claimed = db.putIf('task-claim', { status: 'claimed' }, observed.revision);
+  if (!claimed.ok) {
+    throw new Error('Conditional claim failed: ' + JSON.stringify(claimed));
+  }
+  const stale = db.putIf('task-claim', { status: 'claimed-by-other' }, observed.revision);
+  if (stale.ok || stale.conflict?.kind !== 'revision_mismatch' || stale.conflict.current.data.status !== 'claimed') {
+    throw new Error('Stale conditional write overwrote or hid current state: ' + JSON.stringify(stale));
+  }
+  console.log('  ✓ Conditional writes reject stale revisions');
   
   // List
   const all = db.list();
-  console.log('  ✓ List nodes:', all.length, 'nodes (baseline', baseline, '+ node-1)');
-  if (all.length !== baseline + 1) {
-    throw new Error(`List failed: expected baseline+1 (${baseline + 1}) nodes, got ${all.length}`);
+  console.log('  ✓ List nodes:', all.length, 'nodes (baseline', baseline, '+ node-1 + task-claim)');
+  if (all.length !== baseline + 2) {
+    throw new Error(`List failed: expected baseline+2 (${baseline + 2}) nodes, got ${all.length}`);
   }
   if (!all.some(n => n.id === 'node-1')) {
     throw new Error('List failed: node-1 not present in list()');

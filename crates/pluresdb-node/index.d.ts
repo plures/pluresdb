@@ -31,6 +31,18 @@ export declare class PluresDatabase {
   get(id: string): any | null
   /** Get a node with full metadata (including vector clock and timestamp) */
   getWithMetadata(id: string): any | null
+  /** Get a node and its exact revision for a later conditional write. */
+  getWithRevision(id: string): any | null
+  /**
+   * Write only if `expected` is still the node's observed revision.
+   *
+   * Pass no expected revision to create a node only when it does not yet
+   * exist. Conflicts are returned as `{ ok: false, conflict }`, rather than
+   * throwing, so callers can inspect the current record and choose a new
+   * PX-governed action. This is local-process atomicity, not a distributed
+   * lease across independently running database processes.
+   */
+  putIf(id: string, data: any, expected?: any | undefined | null): any
   /** Delete a node by ID */
   delete(id: string): void
   /** List all nodes */

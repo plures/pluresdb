@@ -33,6 +33,7 @@ use thiserror::Error;
 #[cfg(feature = "native")]
 use tracing::debug;
 use uuid::Uuid;
+use xxhash_rust::xxh3::xxh3_64;
 
 #[cfg(feature = "native")]
 use futures::executor::block_on;
@@ -143,6 +144,36 @@ pub struct NodeRecord {
     pub quality_score: Option<f32>,
 }
 
+/// Opaque, caller-round-trippable marker of a node's observed state.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeRevision {
+    pub clock: VectorClock,
+    pub timestamp: DateTime<Utc>,
+    pub digest: u64,
+}
+
+/// Conflict payload intentionally omits the potentially large embedding vector.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NodeRecordSummary {
+    pub id: NodeId,
+    pub data: NodeData,
+    pub clock: VectorClock,
+    pub timestamp: DateTime<Utc>,
+    pub quality_score: Option<f32>,
+}
+
+impl From<&NodeRecord> for NodeRecordSummary {
+    fn from(record: &NodeRecord) -> Self {
+        Self {
+            id: record.id.clone(),
+            data: record.data.clone(),
+            clock: record.clock.clone(),
+            timestamp: record.timestamp,
+            quality_score: record.quality_score,
+        }
+    }
+}
+
 impl NodeRecord {
     pub fn new(id: NodeId, actor: impl Into<ActorId>, data: NodeData) -> Self {
         let actor = actor.into();
@@ -164,6 +195,15 @@ impl NodeRecord {
         *counter += 1;
         self.timestamp = Utc::now();
         self.data = data;
+    }
+
+    pub fn revision(&self) -> NodeRevision {
+        let bytes = serde_json::to_vec(&self.data).expect("NodeData is valid JSON");
+        NodeRevision {
+            clock: self.clock.clone(),
+            timestamp: self.timestamp,
+            digest: xxh3_64(&bytes),
+        }
     }
 }
 
@@ -351,6 +391,24 @@ type ActiveVectorIndex = BruteForceVectorIndex;
 pub enum StoreError {
     #[error("node not found: {0}")]
     NotFound(NodeId),
+}
+
+/// A conditional mutation could not be admitted against the locally observed node state.
+#[derive(Debug, Error)]
+pub enum ConditionalWriteError {
+    #[error("revision mismatch for '{id}'")]
+    RevisionMismatch {
+        id: NodeId,
+        expected: NodeRevision,
+        current: Box<NodeRecordSummary>,
+    },
+    #[error("node '{id}' not found")]
+    NotFound { id: NodeId, expected: NodeRevision },
+    #[error("node '{id}' already exists")]
+    AlreadyExists {
+        id: NodeId,
+        current: Box<NodeRecordSummary>,
+    },
 }
 
 /// Stable, documented error codes emitted by `pluresdb-core`.
@@ -841,20 +899,28 @@ impl CrdtStore {
             .entry(id.clone())
             .and_modify(|record| record.merge_update(actor.clone(), data.clone()))
             .or_insert_with(|| NodeRecord::new(id.clone(), actor, data.clone()));
-        if let Some(entry) = self.nodes.get(&id) {
-            self.persist_node(entry.value(), None);
-        }
+        let record = self
+            .nodes
+            .get(&id)
+            .expect("node was inserted or updated")
+            .clone();
+        self.complete_node_write(&record, &data);
+        id
+    }
+
+    fn complete_node_write(&self, record: &NodeRecord, data: &NodeData) {
+        self.persist_node(record, None);
         // Enqueue embedding task (native only).
         #[cfg(feature = "native")]
         if let Some(tx) = &self.embedding_tx {
-            if let Some(text) = extract_text_from_data(&data) {
+            if let Some(text) = extract_text_from_data(data) {
                 let model_id = self
                     .embedder
                     .as_ref()
                     .and_then(|e| e.model_id())
                     .map(str::to_owned);
                 let task = EmbeddingTask {
-                    node_id: id.clone(),
+                    node_id: record.id.clone(),
                     extracted_text: text,
                     model_id,
                     timestamp: Utc::now(),
@@ -867,22 +933,102 @@ impl CrdtStore {
                         self.embedding_dropped.fetch_add(1, Ordering::Relaxed);
                         tracing::warn!(
                             "[CrdtStore] embedding queue full; task for '{}' dropped",
-                            id
+                            record.id
                         );
                     }
                     Err(std::sync::mpsc::TrySendError::Disconnected(_)) => {
                         tracing::warn!(
                             "[CrdtStore] embedding worker disconnected; task for '{}' dropped",
-                            id
+                            record.id
                         );
                     }
                 }
             }
         }
         if let Some(plugin) = &self.lm_plugin {
-            plugin.on_node_written(&id, &data);
+            plugin.on_node_written(&record.id, data);
         }
-        id
+    }
+
+    /// Return a node and the exact revision a later conditional mutation must present.
+    pub fn get_with_revision(&self, id: impl AsRef<str>) -> Option<(NodeRecord, NodeRevision)> {
+        self.get(id).map(|record| {
+            let revision = record.revision();
+            (record, revision)
+        })
+    }
+
+    /// Atomically replace a local node only when its observed revision still matches.
+    /// `expected = None` is create-only. This does not claim distributed locking.
+    pub fn put_if(
+        &self,
+        id: impl Into<NodeId>,
+        actor: impl Into<ActorId>,
+        data: NodeData,
+        expected: Option<NodeRevision>,
+    ) -> Result<NodeRevision, ConditionalWriteError> {
+        use dashmap::mapref::entry::Entry;
+
+        let id = id.into();
+        let actor = actor.into();
+        let updated = match self.nodes.entry(id.clone()) {
+            Entry::Occupied(mut entry) => {
+                let current = entry.get().clone();
+                match &expected {
+                    Some(expected) if current.revision() == *expected => {
+                        entry.get_mut().merge_update(actor, data.clone());
+                        entry.get().clone()
+                    }
+                    Some(expected) => {
+                        return Err(ConditionalWriteError::RevisionMismatch {
+                            id,
+                            expected: expected.clone(),
+                            current: Box::new(NodeRecordSummary::from(&current)),
+                        })
+                    }
+                    None => {
+                        return Err(ConditionalWriteError::AlreadyExists {
+                            id,
+                            current: Box::new(NodeRecordSummary::from(&current)),
+                        })
+                    }
+                }
+            }
+            Entry::Vacant(entry) => {
+                if let Some(current) = self.get_from_persistence(&id) {
+                    match &expected {
+                        Some(expected) if current.revision() == *expected => {
+                            let mut updated = current;
+                            updated.merge_update(actor, data.clone());
+                            entry.insert(updated.clone());
+                            updated
+                        }
+                        Some(expected) => {
+                            return Err(ConditionalWriteError::RevisionMismatch {
+                                id,
+                                expected: expected.clone(),
+                                current: Box::new(NodeRecordSummary::from(&current)),
+                            })
+                        }
+                        None => {
+                            return Err(ConditionalWriteError::AlreadyExists {
+                                id,
+                                current: Box::new(NodeRecordSummary::from(&current)),
+                            })
+                        }
+                    }
+                } else if let Some(expected) = expected {
+                    return Err(ConditionalWriteError::NotFound { id, expected });
+                } else {
+                    let updated = NodeRecord::new(id.clone(), actor, data.clone());
+                    entry.insert(updated.clone());
+                    updated
+                }
+            }
+        };
+
+        self.complete_node_write(&updated, &data);
+        Ok(updated.revision())
     }
 
     pub fn put_with_embedding(
@@ -1719,6 +1865,110 @@ mod tests {
         let record = store.get(&id).expect("record should exist");
         assert_eq!(record.data["hello"], "world");
         assert_eq!(record.clock.get("actor-a"), Some(&1));
+    }
+
+    #[test]
+    fn conditional_put_requires_the_observed_revision() {
+        let store = CrdtStore::default();
+        let created = store
+            .put_if(
+                "task-1",
+                "planner",
+                serde_json::json!({"status": "queued"}),
+                None,
+            )
+            .expect("create-only write succeeds when absent");
+        let (_, observed) = store
+            .get_with_revision("task-1")
+            .expect("created record is readable");
+        assert_eq!(created, observed);
+
+        let updated = store
+            .put_if(
+                "task-1",
+                "worker-a",
+                serde_json::json!({"status": "claimed"}),
+                Some(observed.clone()),
+            )
+            .expect("matching revision permits update");
+        assert_ne!(updated, observed);
+
+        let error = store
+            .put_if(
+                "task-1",
+                "worker-b",
+                serde_json::json!({"status": "claimed"}),
+                Some(observed),
+            )
+            .expect_err("stale revision must not overwrite a claim");
+        match error {
+            ConditionalWriteError::RevisionMismatch { current, .. } => {
+                assert_eq!(current.data["status"], "claimed");
+            }
+            other => panic!("expected revision mismatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn conditional_create_reports_an_existing_record() {
+        let store = CrdtStore::default();
+        store
+            .put_if(
+                "task-2",
+                "planner",
+                serde_json::json!({"status": "queued"}),
+                None,
+            )
+            .expect("first create succeeds");
+
+        let error = store
+            .put_if(
+                "task-2",
+                "other",
+                serde_json::json!({"status": "queued"}),
+                None,
+            )
+            .expect_err("second create-only write must fail");
+        match error {
+            ConditionalWriteError::AlreadyExists { current, .. } => {
+                assert_eq!(current.data["status"], "queued");
+            }
+            other => panic!("expected existing record, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn concurrent_conditional_writes_admit_exactly_one_claimant() {
+        let store = Arc::new(CrdtStore::default());
+        store.put("task-race", "planner", serde_json::json!({"status": "queued"}));
+        let (_, observed) = store
+            .get_with_revision("task-race")
+            .expect("seeded task is readable");
+
+        let workers: Vec<_> = (0..16)
+            .map(|worker| {
+                let store = Arc::clone(&store);
+                let observed = observed.clone();
+                std::thread::spawn(move || {
+                    store
+                        .put_if(
+                            "task-race",
+                            format!("worker-{worker}"),
+                            serde_json::json!({"status": "claimed", "worker": worker}),
+                            Some(observed),
+                        )
+                        .is_ok()
+                })
+            })
+            .collect();
+        let admitted = workers
+            .into_iter()
+            .map(|worker| worker.join().expect("worker thread completes"))
+            .filter(|admitted| *admitted)
+            .count();
+
+        assert_eq!(admitted, 1, "exactly one claimant may advance a revision");
+        assert_eq!(store.get("task-race").unwrap().data["status"], "claimed");
     }
 
     #[test]

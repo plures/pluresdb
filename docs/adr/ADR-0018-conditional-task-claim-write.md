@@ -1,6 +1,6 @@
 # ADR-0018: Conditional Task Claim-Write (Revision/Digest-Guarded Atomic Mutation)
 
-- **Status:** Proposed (design-only; no implementation in this pass)
+- **Status:** Partially implemented — local, single-node conditional writes in `pluresdb-core` and `pluresdb-node`; conditional batches and distributed lease semantics remain follow-up work.
 - **Epic:** `pluresdb:conditional-task-claim-write`
 - **Stage:** DESIGN
 - **Owners:** pluresdb-core, pluresdb-storage, pluresdb-procedures
@@ -45,9 +45,11 @@ compatible-but-additional properties this ADR must supply.
    sufficient; durability is via existing WAL/persist path).
 5. Support both single-node conditional writes and small atomic multi-op
    batches (claim = "check A, then write A and B together") reusing the
-   `apply_mutate` batch shape where practical.
-6. No implementation in this pass — API shape, conflict-resolution
-   strategy, and test plan only.
+   `apply_mutate` batch shape where practical. **The batch portion remains a
+   follow-up.**
+6. This implementation slice delivers the single-node core API and Node
+   binding; it does not add distributed claims, leases, or procedure-level
+   conditional batches.
 
 ## 2. Current State Analysis
 
@@ -572,8 +574,10 @@ patterns already present in the workspace).
 
 ## 6. Rollout / Follow-up (out of scope for this ADR)
 
-- Implementation PR(s) for `NodeRevision`, `CrdtStore::{put_if, merge_if,
-  delete_if, get_with_revision}`.
+- **Delivered:** `NodeRevision`, `CrdtStore::{put_if, get_with_revision}`, and
+  the matching `PluresDatabase` N-API methods (`getWithRevision`, `putIf`).
+- Follow-up implementation for `merge_if`/`delete_if` if their separate
+  semantics are needed; callers can currently use a guarded full-node update.
 - Implementation PR for `pluresdb-procedures::ops::mutate::{ConditionalMutateOp,
   apply_mutate_conditional}`.
 - Bindings PR(s) for `pluresdb-node`/`pluresdb-deno`/CLI exposing
@@ -602,4 +606,6 @@ the basis for implementation. The design:
   rather than over-promising distributed mutual exclusion the AP
   architecture cannot provide.
 
-Implementation is a separate, follow-up pass per the epic's stage gating.
+The local, single-node `put_if`/`get_with_revision` slice is now implemented
+and validated through the native Node binding. The remaining batch and
+cross-peer work retains the limitations documented above.

@@ -10,7 +10,9 @@ use parking_lot::Mutex;
 
 /// Real ported headroom token-compression algorithm (no stubs, no agens dep).
 mod headroom;
-use pluresdb_core::{CoreErrorCode, CrdtStore, NodeRecord, StoreError};
+use pluresdb_core::{
+    ConditionalWriteError, CoreErrorCode, CrdtStore, NodeRecord, NodeRevision, StoreError,
+};
 use pluresdb_procedures::agens::{AgensEvent, AgensRuntime};
 use pluresdb_procedures::engine::ProcedureEngine;
 use pluresdb_px::db::procedures as px_procedures;
@@ -116,6 +118,31 @@ fn node_error(code: &str, message: impl Into<String>) -> Error {
 
 fn map_node_error<E: std::fmt::Display>(code: &str, error: E) -> Error {
     node_error(code, error.to_string())
+}
+
+fn conditional_write_conflict(error: ConditionalWriteError) -> serde_json::Value {
+    match error {
+        ConditionalWriteError::RevisionMismatch {
+            id,
+            expected,
+            current,
+        } => serde_json::json!({
+            "kind": "revision_mismatch",
+            "id": id,
+            "expected": expected,
+            "current": current,
+        }),
+        ConditionalWriteError::NotFound { id, expected } => serde_json::json!({
+            "kind": "not_found",
+            "id": id,
+            "expected": expected,
+        }),
+        ConditionalWriteError::AlreadyExists { id, current } => serde_json::json!({
+            "kind": "already_exists",
+            "id": id,
+            "current": current,
+        }),
+    }
 }
 
 /// A live change event delivered to JavaScript `subscribe` callbacks.
@@ -573,6 +600,66 @@ impl PluresDatabase {
                 "timestamp": record.timestamp.to_rfc3339(),
             }))),
             None => Ok(None),
+        }
+    }
+
+    /// Get a node and its exact revision for a later conditional write.
+    #[napi]
+    pub fn get_with_revision(&self, id: String) -> Result<Option<serde_json::Value>> {
+        let record_and_revision = {
+            let store = self.store.lock();
+            store.get_with_revision(id)
+        };
+
+        Ok(record_and_revision.map(|(record, revision)| {
+            serde_json::json!({
+                "id": record.id,
+                "data": record.data,
+                "revision": revision,
+            })
+        }))
+    }
+
+    /// Write only if `expected` is still the node's observed revision.
+    ///
+    /// Pass no expected revision to create a node only when it does not yet
+    /// exist. Conflicts are returned as `{ ok: false, conflict }`, rather than
+    /// throwing, so callers can inspect the current record and choose a new
+    /// PX-governed action. This is local-process atomicity, not a distributed
+    /// lease across independently running database processes.
+    #[napi]
+    pub fn put_if(
+        &self,
+        id: String,
+        data: serde_json::Value,
+        expected: Option<serde_json::Value>,
+    ) -> Result<serde_json::Value> {
+        let expected = expected
+            .map(serde_json::from_value::<NodeRevision>)
+            .transpose()
+            .map_err(|error| map_node_error(CoreErrorCode::InvalidInput.as_str(), error))?;
+        let result = {
+            let store = self.store.lock();
+            store.put_if(id.clone(), self.actor_id.clone(), data, expected)
+        };
+
+        match result {
+            Ok(revision) => {
+                self.broadcaster
+                    .publish(SyncEvent::NodeUpsert { id: id.clone() })
+                    .map_err(|error| {
+                        map_node_error(SyncErrorCode::BroadcastPublishFailed.as_str(), error)
+                    })?;
+                Ok(serde_json::json!({
+                    "ok": true,
+                    "id": id,
+                    "revision": revision,
+                }))
+            }
+            Err(error) => Ok(serde_json::json!({
+                "ok": false,
+                "conflict": conditional_write_conflict(error),
+            })),
         }
     }
 
