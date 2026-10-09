@@ -171,6 +171,10 @@ impl NodeRecord {
 // Vector Index — HNSW (native) or BruteForce (WASM)
 // ---------------------------------------------------------------------------
 
+/// Candidate-list width (`ef`) for HNSW searches.
+#[cfg(feature = "native")]
+const VECTOR_SEARCH_EF: usize = 16;
+
 #[cfg(feature = "native")]
 pub struct VectorIndex {
     hnsw: Hnsw<'static, f32, DistCosine>,
@@ -246,19 +250,60 @@ impl VectorIndex {
         if self.id_to_idx.is_empty() {
             return Vec::new();
         }
-        let neighbours = self.hnsw.search(query, limit, 16);
-        neighbours
+        // At or below the search width the graph walk would visit every node
+        // anyway, so an exact scan costs nothing extra and cannot miss one.
+        let live = self.id_to_idx.len();
+        let indexed = *self.next_idx.lock();
+        if indexed <= VECTOR_SEARCH_EF {
+            return self.exact_search(query, limit);
+        }
+        let neighbours = self.hnsw.search(query, limit, VECTOR_SEARCH_EF);
+        let results: Vec<(NodeId, f32)> = neighbours
             .into_iter()
             .filter_map(|n| {
-                let node_id = self.idx_to_id.get(&n.d_id)?.clone();
-                let current_idx = self.id_to_idx.get(&*node_id)?;
-                if *current_idx != n.d_id {
+                let node_id = self.live_id(n.d_id)?;
+                let score = (1.0_f32 - n.distance).max(0.0);
+                Some((node_id, score))
+            })
+            .collect();
+
+        // hnsw_rs writes a new point's back-links only on that point's top
+        // layer, so a point that lands above the entry point's layer cannot be
+        // reached by the layer-0 walk until later inserts link to it, and it
+        // silently drops out of results. When the graph walk comes back short,
+        // answer with an exact scan over the same vectors and distance.
+        if results.len() < limit.min(live) {
+            return self.exact_search(query, limit);
+        }
+        results
+    }
+
+    /// Resolves an HNSW slot to its node id, skipping slots superseded by a
+    /// later insert for the same node.
+    fn live_id(&self, idx: usize) -> Option<NodeId> {
+        let node_id = self.idx_to_id.get(&idx)?.clone();
+        let current_idx = *self.id_to_idx.get(&node_id)?;
+        (current_idx == idx).then_some(node_id)
+    }
+
+    fn exact_search(&self, query: &[f32], limit: usize) -> Vec<(NodeId, f32)> {
+        let mut results: Vec<(NodeId, f32)> = self
+            .hnsw
+            .get_point_indexation()
+            .into_iter()
+            .filter_map(|point| {
+                let node_id = self.live_id(point.get_origin_id())?;
+                let vector = point.get_v();
+                if vector.len() != query.len() {
                     return None;
                 }
-                let score = (1.0_f32 - n.distance).max(0.0);
-                Some((node_id.clone(), score))
+                let score = (1.0_f32 - DistCosine.eval(query, vector)).max(0.0);
+                Some((node_id, score))
             })
-            .collect()
+            .collect();
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        results.truncate(limit);
+        results
     }
 
     pub fn is_empty(&self) -> bool {
@@ -1925,6 +1970,116 @@ mod tests {
         let store = CrdtStore::default();
         let results = store.vector_search(&[1.0_f32, 0.0, 0.0], 5, 0.0);
         assert!(results.is_empty(), "empty index should return no results");
+    }
+
+    // HNSW layer assignment is random, and a node only goes missing when it
+    // lands above the entry point's layer (~6% of two-node indexes), so these
+    // repeat over fresh indexes to hit that case reliably.
+    #[cfg(feature = "native")]
+    #[test]
+    fn vector_index_search_returns_every_node_of_small_indexes() {
+        let embeddings: [[f32; 3]; 4] = [
+            [1.0, 0.0, 0.0],
+            [0.8, 0.6, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.6, 0.8],
+        ];
+        for n in 2..=embeddings.len() {
+            for trial in 0..300 {
+                let index = VectorIndex::new(16);
+                for (i, embedding) in embeddings.iter().take(n).enumerate() {
+                    index.insert(&format!("node-{i}"), embedding);
+                }
+                let results = index.search(&[1.0, 0.0, 0.0], n);
+                assert_eq!(results.len(), n, "trial {trial}: {n}-node index");
+                assert!(results.windows(2).all(|w| w[0].1 >= w[1].1));
+            }
+        }
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn vector_index_search_still_honours_limit() {
+        for _ in 0..100 {
+            let index = VectorIndex::new(16);
+            index.insert("a", &[1.0, 0.0, 0.0]);
+            index.insert("b", &[0.8, 0.6, 0.0]);
+            index.insert("c", &[0.0, 1.0, 0.0]);
+            let results = index.search(&[1.0, 0.0, 0.0], 2);
+            let ids: Vec<&str> = results.iter().map(|(id, _)| id.as_str()).collect();
+            assert_eq!(ids, ["a", "b"]);
+            assert!(index.search(&[1.0, 0.0, 0.0], 0).is_empty());
+        }
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn vector_index_search_fills_results_when_hnsw_comes_back_short() {
+        let index = VectorIndex::new(64);
+        for i in 0..VECTOR_SEARCH_EF + 4 {
+            let angle = 1.0 + i as f32 * 0.02;
+            index.insert(&format!("node-{i}"), &[angle.cos(), angle.sin(), 0.0]);
+        }
+        // Superseded slots for "hot" sit closest to the query, so the graph
+        // walk returns mostly stale entries that get filtered out.
+        for _ in 0..8 {
+            index.insert("hot", &[1.0, 0.0, 0.0]);
+        }
+        let results = index.search(&[1.0, 0.0, 0.0], 5);
+        assert_eq!(results.len(), 5);
+        assert_eq!(results[0].0, "hot");
+        let ids: std::collections::HashSet<&str> =
+            results.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(ids.len(), 5, "no node may appear twice");
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn vector_index_exact_search_skips_superseded_embeddings() {
+        let index = VectorIndex::new(16);
+        index.insert("a", &[1.0, 0.0, 0.0]);
+        index.insert("b", &[0.8, 0.6, 0.0]);
+        index.insert("a", &[0.0, 1.0, 0.0]);
+
+        let results = index.exact_search(&[1.0, 0.0, 0.0], 10);
+        let ids: Vec<&str> = results.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(ids, ["b", "a"], "stale slot for 'a' must not be returned");
+        assert!((results[0].1 - 0.8).abs() < 1e-6);
+        assert!(
+            results[1].1.abs() < 1e-6,
+            "'a' scored on its latest embedding"
+        );
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn vector_index_exact_search_scores_match_hnsw() {
+        let index = VectorIndex::new(64);
+        for i in 0..32 {
+            let angle = i as f32 * 0.1;
+            index.insert(&format!("node-{i}"), &[angle.cos(), angle.sin(), 0.5]);
+        }
+        let query = [1.0, 0.2, 0.5];
+        let exact: HashMap<NodeId, f32> = index.exact_search(&query, 32).into_iter().collect();
+        assert_eq!(exact.len(), 32);
+        for (id, score) in index.search(&query, 5) {
+            assert!(
+                (exact[&id] - score).abs() < 1e-6,
+                "{id}: {score} vs {}",
+                exact[&id]
+            );
+        }
+    }
+
+    #[test]
+    fn vector_search_returns_every_node_of_small_store() {
+        for trial in 0..200 {
+            let store = CrdtStore::default();
+            store.put_with_embedding("a", "actor", serde_json::json!({}), vec![1.0, 0.0, 0.0]);
+            store.put_with_embedding("b", "actor", serde_json::json!({}), vec![0.8, 0.6, 0.0]);
+            let results = store.vector_search(&[1.0, 0.0, 0.0], 2, 0.0);
+            assert_eq!(results.len(), 2, "trial {trial}");
+        }
     }
 
     #[test]
